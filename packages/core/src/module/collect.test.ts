@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import { Hono } from 'hono'
 
-import type { AgentTool, CommandDef, SideLoadContributor, WorkspaceMaterializer } from '../harness/types'
+import type { AgentTool, SideLoadContributor, WorkspaceMaterializerFactory } from '../harness/types'
 import type { JobDef } from '../scheduler/types'
+import { defineIndexContributor } from '../workspace/index-file-builder'
 import { collectAgentContributions, collectJobs, collectWebRoutes } from './collect'
-import { InvalidModuleError, type ModuleDef } from './module-def'
+import { InvalidModuleError, type ModuleDef, type RoHintFn } from './module-def'
 
 type M = ModuleDef<unknown, unknown>
 
@@ -22,12 +23,8 @@ function mkTool(name: string): AgentTool {
   }
 }
 
-function mkMaterializer(path: string): WorkspaceMaterializer {
-  return { path, phase: 'side-load', materialize: async () => '' }
-}
-
-function mkCommand(name: string): CommandDef {
-  return { name, description: name, execute: async () => ({ ok: true, content: '' }) }
+function mkMaterializerFactory(path: string): WorkspaceMaterializerFactory {
+  return () => [{ path, phase: 'side-load', materialize: async () => '' }]
 }
 
 const mkSideLoad: () => SideLoadContributor = () => async () => []
@@ -74,25 +71,129 @@ describe('collectAgentContributions', () => {
     const result = collectAgentContributions([a])
     expect(result.tools).toEqual([])
     expect(result.materializers).toEqual([])
-    expect(result.commands).toEqual([])
     expect(result.sideLoad).toEqual([])
     expect(result.listeners).toEqual({})
   })
 
-  it('collects materializers, commands, and side-load contributors', () => {
+  it('collects materializer factories and side-load contributors', () => {
     const a: M = {
       name: 'a',
       init: stubInit,
       agent: {
-        materializers: [mkMaterializer('/a.md')],
-        commands: [mkCommand('a-cmd')],
+        materializers: [mkMaterializerFactory('/a.md')],
         sideLoad: [mkSideLoad()],
       },
     }
     const result = collectAgentContributions([a])
     expect(result.materializers).toHaveLength(1)
-    expect(result.commands.map((c) => c.name)).toEqual(['a-cmd'])
+    expect(result.materializers[0]({})).toEqual([
+      { path: '/a.md', phase: 'side-load', materialize: expect.any(Function) },
+    ])
     expect(result.sideLoad).toHaveLength(1)
+  })
+
+  it('aggregates agentsMd contributors across modules in dependency order', () => {
+    const aSelf = defineIndexContributor({
+      file: 'AGENTS.md',
+      priority: 20,
+      name: 'a.self',
+      render: () => '## Self',
+    })
+    const bSurface = defineIndexContributor({
+      file: 'AGENTS.md',
+      priority: 50,
+      name: 'b.surface',
+      render: () => '## Surface',
+    })
+    const cIndex = defineIndexContributor({
+      file: 'INDEX.md',
+      priority: 10,
+      name: 'c.index',
+      render: () => '## Index',
+    })
+    const a: M = { name: 'a', init: stubInit, agent: { agentsMd: [aSelf] } }
+    const b: M = { name: 'b', requires: ['a'], init: stubInit, agent: { agentsMd: [bSurface, cIndex] } }
+    const result = collectAgentContributions([b, a])
+    expect(result.agentsMd.map((c) => c.name)).toEqual(['a.self', 'b.surface', 'c.index'])
+  })
+
+  it('chains roHints across modules in dependency order', () => {
+    const aHint: RoHintFn = (path) => (path.endsWith('/a.md') ? 'a-hint' : null)
+    const bHint: RoHintFn = (path) => (path.endsWith('/b.md') ? 'b-hint' : null)
+    const a: M = { name: 'a', init: stubInit, agent: { roHints: [aHint] } }
+    const b: M = { name: 'b', requires: ['a'], init: stubInit, agent: { roHints: [bHint] } }
+    const result = collectAgentContributions([b, a])
+    expect(result.roHints).toHaveLength(2)
+    expect(result.roHints[0]('/x/a.md')).toBe('a-hint')
+    expect(result.roHints[0]('/x/b.md')).toBeNull()
+    expect(result.roHints[1]('/x/b.md')).toBe('b-hint')
+  })
+
+  it('preserves sideLoad declaration order across modules', () => {
+    const s1 = mkSideLoad()
+    const s2 = mkSideLoad()
+    const s3 = mkSideLoad()
+    const a: M = { name: 'a', init: stubInit, agent: { sideLoad: [s1, s2] } }
+    const b: M = { name: 'b', requires: ['a'], init: stubInit, agent: { sideLoad: [s3] } }
+    const result = collectAgentContributions([b, a])
+    expect(result.sideLoad).toEqual([s1, s2, s3])
+  })
+
+  it('flattens factories so identical paths from different modules co-exist', () => {
+    // Two modules both contributing materializers for the same path is the
+    // expected pattern when one module renders an "owner" view and another
+    // renders an "augmentation" — collector keeps both, last-write-wins is the
+    // workspace's job.
+    const a: M = {
+      name: 'a',
+      init: stubInit,
+      agent: { materializers: [mkMaterializerFactory('/shared.md')] },
+    }
+    const b: M = {
+      name: 'b',
+      requires: ['a'],
+      init: stubInit,
+      agent: { materializers: [mkMaterializerFactory('/shared.md')] },
+    }
+    const result = collectAgentContributions([a, b])
+    expect(result.materializers).toHaveLength(2)
+  })
+
+  it('skips listener slots that are absent on a module', () => {
+    const a: M = {
+      name: 'a',
+      init: stubInit,
+      agent: { listeners: { on_event: [() => {}] } },
+    }
+    const b: M = {
+      name: 'b',
+      requires: ['a'],
+      init: stubInit,
+      agent: { listeners: { on_tool_call: [() => {}] } },
+    }
+    const result = collectAgentContributions([a, b])
+    expect(result.listeners.on_event).toHaveLength(1)
+    expect(result.listeners.on_tool_call).toHaveLength(1)
+    expect(result.listeners.on_tool_result).toBeUndefined()
+  })
+
+  it('threads TCtx through factories — the same context object reaches every factory', () => {
+    type Ctx = { tag: string }
+    const seen: string[] = []
+    const fA: WorkspaceMaterializerFactory<Ctx> = (ctx) => {
+      seen.push(`a:${ctx.tag}`)
+      return []
+    }
+    const fB: WorkspaceMaterializerFactory<Ctx> = (ctx) => {
+      seen.push(`b:${ctx.tag}`)
+      return []
+    }
+    type MCtx = ModuleDef<unknown, unknown, Ctx>
+    const a: MCtx = { name: 'a', init: stubInit, agent: { materializers: [fA] } }
+    const b: MCtx = { name: 'b', requires: ['a'], init: stubInit, agent: { materializers: [fB] } }
+    const result = collectAgentContributions<unknown, unknown, Ctx>([a, b])
+    for (const f of result.materializers) f({ tag: 'wake-1' })
+    expect(seen).toEqual(['a:wake-1', 'b:wake-1'])
   })
 })
 

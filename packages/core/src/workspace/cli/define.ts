@@ -24,10 +24,22 @@
 
 import type { z } from 'zod'
 
+import { deriveUsage } from './derive-usage'
 import type { VerbContext } from './transport'
 
-/** A verb result: either structured success data, or a typed error. */
-export type CliVerbResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string; errorCode?: string }
+/**
+ * A verb result: either structured success data (with optional human summary),
+ * or a typed error.
+ *
+ * `summary` is a one-sentence human-readable confirmation that the in-process
+ * transport prefers for bash stdout (e.g. `"Reassigned conversation X → Y"`).
+ * HTTP-RPC ignores it — the binary's generic formatter renders `data` via
+ * `formatHint`. Verbs migrating from `CommandDef.execute` (which returned a
+ * raw string) populate this; pure data-shaped verbs leave it unset.
+ */
+export type CliVerbResult<T = unknown> =
+  | { ok: true; data: T; summary?: string }
+  | { ok: false; error: string; errorCode?: string }
 
 export interface CliVerbBodyArgs<TInput> {
   input: TInput
@@ -48,6 +60,37 @@ export interface CliVerbDef<TInput = unknown, TOutput = unknown> {
   rolesAllowed?: readonly string[]
   /** HTTP route the catalog publishes. Defaults to `/api/cli/<name-with-spaces-as-slashes>`. */
   route?: string
+  /**
+   * Hand-authored override for the `--help` / AGENTS.md usage line. Default
+   * is auto-derived from `inputSchema` via `deriveUsage()` — set this only
+   * when the structural derivation can't express a `.refine`-driven shape
+   * (e.g. `--to=<user:<id>|agent:<id>|unassigned>`).
+   */
+  usage?: string
+  /**
+   * `true` ⇒ verb body has no observable side effects (pure reads, listings).
+   * The in-process transport's `onSideEffect` handler ignores read-only verbs
+   * so the wake's "did-something" heuristic doesn't fire for `team list` etc.
+   */
+  readOnly?: boolean
+  /**
+   * Which lanes should expose this verb. Default `'all'`.
+   *  - `'agent'`: only the in-bash sandbox dispatches it; HTTP-RPC returns
+   *    `forbidden` (used for `conv ask-staff`, which only makes sense from a
+   *    wake context).
+   *  - `'staff'`: only HTTP-RPC dispatches it; the bash sandbox hides it.
+   *  - `'all'`: both transports.
+   */
+  audience?: 'agent' | 'staff' | 'all'
+  /**
+   * Verb-specific prose for the agent's AGENTS.md `## Commands` block.
+   * Rendered under the verb's `### vobase <name>` heading, after `description`
+   * and `usage`. Use for workflow guidance ("when to use this", caveats,
+   * preferred-over-alternatives) — colocated with the verb body so renames
+   * and behaviour changes can't drift from the prompt. Cross-cutting prose
+   * that spans multiple verbs still belongs in module `agentsMd` contributors.
+   */
+  prompt?: string
 }
 
 export interface DefineCliVerbOpts<TInput, TOutput> {
@@ -58,6 +101,10 @@ export interface DefineCliVerbOpts<TInput, TOutput> {
   formatHint?: string
   rolesAllowed?: readonly string[]
   route?: string
+  usage?: string
+  readOnly?: boolean
+  audience?: 'agent' | 'staff' | 'all'
+  prompt?: string
 }
 
 /**
@@ -77,6 +124,10 @@ export function defineCliVerb<TInput, TOutput>(opts: DefineCliVerbOpts<TInput, T
     formatHint: opts.formatHint,
     rolesAllowed: opts.rolesAllowed,
     route: opts.route ?? defaultRouteForVerb(opts.name),
+    usage: opts.usage ?? deriveUsage(opts.name, opts.input),
+    readOnly: opts.readOnly,
+    audience: opts.audience,
+    prompt: opts.prompt,
   }
 }
 

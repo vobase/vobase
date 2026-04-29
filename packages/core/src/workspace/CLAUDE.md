@@ -9,9 +9,9 @@ Core provides the enforcement machinery (`buildReadOnlyConfig`, `isWritablePath`
 | Scope | Example paths (template) | Writable? | Lifetime | Mutation path |
 |---|---|---|---|---|
 | **Organization** | `/drive/**` | RO to agents | persistent | `vobase drive propose` → staff review |
-| **Agent** | `/agents/<agentId>/MEMORY.md`, `/agents/<agentId>/skills/**` | direct (MEMORY via `vobase memory`), learning-flow (skills) | persistent | memory CLI / learning observer |
-| **Contact** | `/contacts/<contactId>/MEMORY.md`, `/contacts/<contactId>/drive/**` | direct | persistent | memory CLI / direct writes |
-| **Staff** | `/staff/<staffId>/MEMORY.md` | direct, scoped `(agent, staff)` | persistent | memory CLI |
+| **Agent** | `/agents/<agentId>/MEMORY.md`, `/agents/<agentId>/skills/**` | direct writes (MEMORY), learning-flow (skills) | persistent | workspace-sync observer / learning observer |
+| **Contact** | `/contacts/<contactId>/MEMORY.md`, `/contacts/<contactId>/drive/**` | direct | persistent | workspace-sync observer |
+| **Staff** | `/staff/<staffId>/MEMORY.md` | direct, scoped `(agent, staff)` | persistent | workspace-sync observer |
 | **Derived** | `/agents/<id>/AGENTS.md`, `/contacts/<id>/profile.md`, `/contacts/<id>/<channelId>/messages.md`, `/contacts/<id>/<channelId>/internal-notes.md`, `/staff/<id>/profile.md` | RO | per-wake regeneration | edit the source record, not the file |
 | **Ephemeral** | `/tmp/**` | direct | wake | discarded at wake end |
 

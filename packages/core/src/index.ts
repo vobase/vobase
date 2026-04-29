@@ -179,6 +179,7 @@ export {
   type TurnStartEvent,
   type WakeScope,
 } from './harness/create-harness'
+export { type DefineAgentToolOpts, defineAgentTool } from './harness/define-tool'
 export {
   type ConcurrencyGate,
   createConcurrencyGate,
@@ -277,8 +278,6 @@ export type {
   BudgetState,
   ClassifiedError,
   ClassifiedErrorReason,
-  CommandContext,
-  CommandDef,
   CostThresholdCrossedEvent,
   ErrResult,
   FrozenSnapshotViolationEvent,
@@ -301,6 +300,7 @@ export type {
   WakeState,
   WakeStateChangedEvent,
   WorkspaceMaterializer,
+  WorkspaceMaterializerFactory,
 } from './harness/types'
 export { newWakeId } from './harness/wake-id'
 export {
@@ -358,6 +358,7 @@ export {
   collectAgentContributions,
   collectJobs,
   collectWebRoutes,
+  type RoHintFn,
 } from './module/collect'
 export {
   bootModules,
@@ -411,11 +412,13 @@ export { storageObjects } from './schemas/storage'
 export { webhookDedup } from './schemas/webhook-dedup'
 // ─── Workspace primitives ────────────────────────────────────────────────
 export {
+  type AgentsMdCommand,
   type GenerateAgentsMdOpts,
   generateAgentsMd,
 } from './workspace/agents-md-generator'
 export {
-  type AgentRole,
+  type BashRenderArgs,
+  type BashRenderResult,
   type Catalog,
   type CatalogRouteOpts,
   type CatalogVerb,
@@ -424,24 +427,25 @@ export {
   type CliVerbDef,
   CliVerbRegistry,
   type CliVerbResult,
+  type CreateBashVobaseCommandOpts,
+  coerceBashArgs,
+  createBashVobaseCommand,
   createCatalogRoute,
   createCliDispatchRoute,
   createInProcessTransport,
-  createVobaseCommand,
-  DEFAULT_READ_ONLY_VERBS,
   type DefineCliVerbOpts,
   defaultRouteForVerb,
   defineCliVerb,
-  findCommand,
   type InProcessTransportOpts,
-  resolveCommandSet,
+  parseBashArgv,
+  renderBashHelp,
+  renderBashResult,
   type VerbContext,
   type VerbEvent,
   type VerbFormat,
   type VerbResult,
   type VerbTransport,
   VobaseCliCollisionError,
-  type VobaseDispatcherOpts,
 } from './workspace/cli'
 export {
   type CreateWorkspaceOpts,

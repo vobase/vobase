@@ -13,29 +13,48 @@
 import type { Hono, MiddlewareHandler } from 'hono'
 
 import type { HarnessHooks } from '../harness/create-harness'
-import type { AgentTool, CommandDef, SideLoadContributor, WorkspaceMaterializer } from '../harness/types'
+import type { AgentTool, SideLoadContributor, WorkspaceMaterializerFactory } from '../harness/types'
 import type { JobDef } from '../scheduler/types'
-import { InvalidModuleError, type ModuleDef, sortModules } from './module-def'
+import type { IndexContributor } from '../workspace/index-file-builder'
+import { InvalidModuleError, type ModuleDef, type RoHintFn, sortModules } from './module-def'
 
-export interface AgentContributions {
+export type { RoHintFn }
+
+export interface AgentContributions<TCtx = unknown> {
   tools: AgentTool[]
   listeners: Partial<HarnessHooks<unknown>>
-  materializers: WorkspaceMaterializer[]
-  commands: CommandDef[]
+  /**
+   * Wake-time materializer factories collected from every module's
+   * `agent.materializers` slot. The wake builder invokes each factory with
+   * a template-specific `WakeContext` to obtain concrete materializers.
+   */
+  materializers: WorkspaceMaterializerFactory<TCtx>[]
   sideLoad: SideLoadContributor[]
+  /**
+   * Module-contributed sections of the agent's `AGENTS.md` system document.
+   * Each entry is an `IndexContributor` (priority + render fn). Used by the
+   * agents module's materializer (which calls `generateAgentsMd`) to keep
+   * the header content for a module's verbs colocated with the verb
+   * definitions themselves. The runtime sorts by priority and joins with
+   * blank lines.
+   */
+  agentsMd: IndexContributor[]
+  /** Module-contributed RO-error hints. See `RoHintFn`. */
+  roHints: RoHintFn[]
 }
 
 type ListenerSlotKey = keyof HarnessHooks<unknown>
 
 const LISTENER_SLOTS: ListenerSlotKey[] = ['on_event', 'on_tool_call', 'on_tool_result']
 
-export function collectAgentContributions<Db, Realtime>(
-  modules: readonly ModuleDef<Db, Realtime>[],
-): AgentContributions {
+export function collectAgentContributions<Db, Realtime, TCtx>(
+  modules: readonly ModuleDef<Db, Realtime, TCtx>[],
+): AgentContributions<TCtx> {
   const tools: AgentTool[] = []
-  const materializers: WorkspaceMaterializer[] = []
-  const commands: CommandDef[] = []
+  const materializers: WorkspaceMaterializerFactory<TCtx>[] = []
   const sideLoad: SideLoadContributor[] = []
+  const agentsMd: IndexContributor[] = []
+  const roHints: RoHintFn[] = []
   const listeners: Record<ListenerSlotKey, unknown[]> = {
     on_event: [],
     on_tool_call: [],
@@ -47,8 +66,9 @@ export function collectAgentContributions<Db, Realtime>(
     if (!agent) continue
     if (agent.tools) tools.push(...agent.tools)
     if (agent.materializers) materializers.push(...agent.materializers)
-    if (agent.commands) commands.push(...agent.commands)
     if (agent.sideLoad) sideLoad.push(...agent.sideLoad)
+    if (agent.agentsMd) agentsMd.push(...agent.agentsMd)
+    if (agent.roHints) roHints.push(...agent.roHints)
     if (agent.listeners) {
       for (const slot of LISTENER_SLOTS) {
         const entry = agent.listeners[slot]
@@ -65,7 +85,7 @@ export function collectAgentContributions<Db, Realtime>(
     }
   }
 
-  return { tools, listeners: mergedListeners, materializers, commands, sideLoad }
+  return { tools, listeners: mergedListeners, materializers, sideLoad, agentsMd, roHints }
 }
 
 export interface CollectedWebRoute {
@@ -75,7 +95,9 @@ export interface CollectedWebRoute {
   middlewares: MiddlewareHandler[]
 }
 
-export function collectWebRoutes<Db, Realtime>(modules: readonly ModuleDef<Db, Realtime>[]): CollectedWebRoute[] {
+export function collectWebRoutes<Db, Realtime, TCtx>(
+  modules: readonly ModuleDef<Db, Realtime, TCtx>[],
+): CollectedWebRoute[] {
   const out: CollectedWebRoute[] = []
   for (const mod of sortModules([...modules])) {
     const preferred = mod.web?.routes
@@ -90,7 +112,7 @@ export function collectWebRoutes<Db, Realtime>(modules: readonly ModuleDef<Db, R
   return out
 }
 
-export function collectJobs<Db, Realtime>(modules: readonly ModuleDef<Db, Realtime>[]): JobDef[] {
+export function collectJobs<Db, Realtime, TCtx>(modules: readonly ModuleDef<Db, Realtime, TCtx>[]): JobDef[] {
   const out: JobDef[] = []
   const seen = new Map<string, string>()
   for (const mod of sortModules([...modules])) {

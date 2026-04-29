@@ -1,18 +1,10 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { CommandDef } from '../harness/types'
-import { generateAgentsMd } from './agents-md-generator'
+import { type AgentsMdCommand, type AgentsMdTool, generateAgentsMd } from './agents-md-generator'
+import { defineIndexContributor } from './index-file-builder'
 
-function cmd(name: string, description: string, usage?: string): CommandDef {
-  return {
-    name,
-    description,
-    usage,
-    // biome-ignore lint/suspicious/useAwait: CommandDef execute contract requires async signature
-    async execute() {
-      return { ok: true, content: 'noop' }
-    },
-  }
+function cmd(name: string, description: string, usage?: string): AgentsMdCommand {
+  return { name, description, usage }
 }
 
 const BASE = {
@@ -30,20 +22,18 @@ describe('generateAgentsMd', () => {
   it('renders commands in alphabetical order', () => {
     const md = generateAgentsMd({
       ...BASE,
-      commands: [cmd('reply', 'Send a reply.'), cmd('memory set', 'Upsert memory.'), cmd('hold', 'Put on hold.')],
+      commands: [cmd('reply', 'Send a reply.'), cmd('drive ls', 'List drive.'), cmd('hold', 'Put on hold.')],
     })
-    // Constrain the search to the `## Commands` section so write-pattern
-    // mentions of `vobase memory set` in the header don't skew positions.
     const commandsSection = md.slice(md.indexOf('## Commands'))
     const reply = commandsSection.indexOf('vobase reply')
-    const memory = commandsSection.indexOf('vobase memory set')
+    const drive = commandsSection.indexOf('vobase drive ls')
     const hold = commandsSection.indexOf('vobase hold')
     expect(hold).toBeGreaterThan(-1)
-    expect(memory).toBeGreaterThan(-1)
+    expect(drive).toBeGreaterThan(-1)
     expect(reply).toBeGreaterThan(-1)
-    // alphabetical: hold < memory set < reply
-    expect(hold).toBeLessThan(memory)
-    expect(memory).toBeLessThan(reply)
+    // alphabetical: drive ls < hold < reply
+    expect(drive).toBeLessThan(hold)
+    expect(hold).toBeLessThan(reply)
   })
 
   it('emits a generic framework preamble + commands section by default', () => {
@@ -91,5 +81,116 @@ describe('generateAgentsMd', () => {
     expect(md).not.toContain('TOOLS.md')
     expect(md).not.toContain('bookings.md')
     expect(md).not.toContain('/workspace/')
+  })
+
+  it('renders extraContributors at their declared priority, interleaved with built-ins', () => {
+    // Built-in priorities: 0 title, 10 header, 100 commands, 150 tool-guidance, 200 instructions.
+    // Extras at 20 (after header) and 175 (between tool-guidance and instructions) should land
+    // in the right slots.
+    const md = generateAgentsMd({
+      ...BASE,
+      commands: [],
+      extraContributors: [
+        defineIndexContributor({
+          file: 'AGENTS.md',
+          priority: 20,
+          name: 'self-state',
+          render: () => '## Self-state',
+        }),
+        defineIndexContributor({
+          file: 'AGENTS.md',
+          priority: 175,
+          name: 'policies',
+          render: () => '## Policies',
+        }),
+      ],
+    })
+    const titleIdx = md.indexOf('# Test Agent')
+    const selfIdx = md.indexOf('## Self-state')
+    const commandsIdx = md.indexOf('## Commands')
+    const policiesIdx = md.indexOf('## Policies')
+    const instructionsIdx = md.indexOf('## Instructions')
+    expect(titleIdx).toBeGreaterThan(-1)
+    expect(selfIdx).toBeGreaterThan(titleIdx)
+    expect(commandsIdx).toBeGreaterThan(selfIdx)
+    expect(policiesIdx).toBeGreaterThan(commandsIdx)
+    expect(instructionsIdx).toBeGreaterThan(policiesIdx)
+  })
+
+  it('skips extraContributors that render null', () => {
+    const md = generateAgentsMd({
+      ...BASE,
+      commands: [],
+      extraContributors: [
+        defineIndexContributor({
+          file: 'AGENTS.md',
+          priority: 25,
+          name: 'never-renders',
+          render: () => null,
+        }),
+      ],
+    })
+    expect(md).not.toContain('null')
+    expect(md).not.toContain('never-renders')
+  })
+
+  it('renders Tool guidance section sorted by tool name when prompts present', () => {
+    const tools: AgentsMdTool[] = [
+      { name: 'reply', prompt: 'Use reply for plain text.' },
+      { name: 'add_note', prompt: 'Use add_note to record an internal note.' },
+      { name: 'send_card', prompt: 'Use send_card for structured choices.' },
+    ]
+    const md = generateAgentsMd({ ...BASE, commands: [], tools })
+    const guidance = md.slice(md.indexOf('## Tool guidance'))
+    const addNote = guidance.indexOf('add_note')
+    const reply = guidance.indexOf('reply')
+    const sendCard = guidance.indexOf('send_card')
+    expect(addNote).toBeGreaterThan(-1)
+    expect(addNote).toBeLessThan(reply)
+    expect(reply).toBeLessThan(sendCard)
+  })
+
+  it('omits Tool guidance section when no tool carries a prompt', () => {
+    const md = generateAgentsMd({
+      ...BASE,
+      commands: [],
+      tools: [{ name: 'reply' }, { name: 'add_note', prompt: '   ' }],
+    })
+    expect(md).not.toContain('## Tool guidance')
+  })
+
+  it('contributors targeting INDEX.md do not leak into AGENTS.md output', () => {
+    const md = generateAgentsMd({
+      ...BASE,
+      commands: [],
+      extraContributors: [
+        defineIndexContributor({
+          file: 'INDEX.md',
+          priority: 25,
+          name: 'index-only',
+          render: () => '## Should-not-appear',
+        }),
+      ],
+    })
+    expect(md).not.toContain('Should-not-appear')
+  })
+
+  it('produces byte-identical output across consecutive calls (frozen-snapshot stability)', () => {
+    const opts = {
+      ...BASE,
+      commands: [cmd('reply', 'Send a reply.')],
+      tools: [{ name: 'reply', prompt: 'Use reply for plain text.' }] as AgentsMdTool[],
+      extraContributors: [
+        defineIndexContributor({
+          file: 'AGENTS.md',
+          priority: 25,
+          name: 'self-state',
+          render: () => '## Self-state',
+        }),
+      ],
+    }
+    const a = generateAgentsMd(opts)
+    const b = generateAgentsMd(opts)
+    expect(a).toBe(b)
   })
 })

@@ -113,6 +113,35 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
    * commutative read-only tools — most write paths should leave this at 1.
    */
   maxConcurrent?: number
+  /**
+   * Audience signal consumed by wake-time policy filters (e.g. supervisor-wake
+   * coaching mode strips customer-facing tools so a staff coaching note can't
+   * trigger another customer reply).
+   *
+   * - `'customer'`: this tool produces something the customer sees directly
+   *   (reply, send_card, send_file, book_slot).
+   * - `'internal'` (default): staff-only or pure read; safe to expose under
+   *   coaching/peer-consultation contexts.
+   *
+   * Owned by the module that ships the tool — the wake builder reads this
+   * metadata so it never has to know specific tool names.
+   */
+  audience?: 'customer' | 'internal'
+  /**
+   * Wake-lane partition. The wake builder filters `AgentContributions.tools`
+   * by this field so each lane (conversation vs. standalone) sees only its own
+   * surface, with `'both'` opting a tool into both. Owned by the module that
+   * ships the tool — wake builders never need to know specific tool names.
+   */
+  lane?: 'conversation' | 'standalone' | 'both'
+  /**
+   * Tool-specific prose for the agent's AGENTS.md `## Tool guidance` block.
+   * Rendered under a `### <tool-name>` heading. Use for "when to call this",
+   * preferred-over-alternatives, gotchas — colocated with the tool body so
+   * renames and behaviour changes can't drift from the prompt. Tools without
+   * a `prompt` are omitted from the section entirely.
+   */
+  prompt?: string
   execute(args: TArgs, ctx: ToolContext): Promise<ToolResult<TResult>>
 }
 
@@ -260,6 +289,16 @@ export interface WorkspaceMaterializer {
   materialize(ctx: MaterializerCtx): Promise<string> | string
 }
 
+/**
+ * Wake-time materializer factory. The collector aggregates these across
+ * modules; the wake builder calls each factory with a template-specific
+ * `WakeContext` (identity + handles + lane-scoped tools/agentsMd) to obtain
+ * concrete materializers for the wake. Core stays generic over `TCtx` so
+ * template-domain types (FilesService, AuthLookup, AgentDefinition) never
+ * leak in here.
+ */
+export type WorkspaceMaterializerFactory<TCtx = unknown> = (ctx: TCtx) => WorkspaceMaterializer[]
+
 // ─── Budget + classifier + abort ────────────────────────────────────────────
 
 export interface IterationBudget {
@@ -295,24 +334,4 @@ export type ClassifiedError =
 export interface AbortContext {
   wakeAbort: AbortController
   reason: string | null
-}
-
-// ─── Vobase CLI command definitions ─────────────────────────────────────────
-
-export interface CommandContext {
-  organizationId: string
-  conversationId: string
-  agentId: string
-  contactId: string
-  /** Raw write to the virtual workspace. Used by `vobase memory set` etc. */
-  writeWorkspace: (path: string, content: string) => Promise<void>
-  readWorkspace: (path: string) => Promise<string>
-}
-
-export interface CommandDef {
-  name: string
-  description: string
-  usage?: string
-  /** Called by the `vobase` CLI dispatcher in just-bash. */
-  execute: (argv: readonly string[], ctx: CommandContext) => Promise<ToolResult<string>>
 }

@@ -42,14 +42,14 @@ describe('checkWriteAllowed', () => {
     expect(driveErr).toBe('bash: /drive/foo.md: Read-only filesystem.')
   })
 
-  it('returns memory hint for agent MEMORY.md writes', () => {
+  it('allows direct writes to agent MEMORY.md', () => {
     const err = checkWriteAllowed('/agents/a_xyz/MEMORY.md', CONFIG)
-    expect(err).toBe('bash: /agents/a_xyz/MEMORY.md: use `vobase memory set|append|remove` to mutate memory safely.')
+    expect(err).toBeNull()
   })
 
-  it('returns memory hint for contact MEMORY.md writes', () => {
+  it('allows direct writes to contact MEMORY.md', () => {
     const err = checkWriteAllowed('/contacts/c_abc/MEMORY.md', CONFIG)
-    expect(err).toContain('vobase memory set|append|remove')
+    expect(err).toBeNull()
   })
 
   it('allows contact drive + /tmp/ writes', () => {

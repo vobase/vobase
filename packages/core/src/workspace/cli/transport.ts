@@ -18,9 +18,26 @@ export interface VerbContext {
   principal: { kind: 'user' | 'agent' | 'apikey'; id: string }
   /** Optional active role; HTTP transport derives this from the api-key row. */
   role?: string
+  /**
+   * Wake-scoped context populated by the in-process transport when the verb
+   * fires from inside a wake's bash sandbox. Verbs that bind to a specific
+   * conversation (`conv reassign`, `conv ask-staff`, `drive propose`) read
+   * `wake.conversationId` instead of taking the id as input. Absent on
+   * HTTP-RPC dispatches; verbs that depend on it must validate presence and
+   * return a typed error otherwise.
+   */
+  wake?: {
+    conversationId: string
+    contactId: string
+    channelInstanceId?: string
+    wakeId: string
+    turnIndex: number
+  }
 }
 
-export type VerbResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string; errorCode?: string }
+export type VerbResult<T = unknown> =
+  | { ok: true; data: T; summary?: string }
+  | { ok: false; error: string; errorCode?: string }
 
 export type VerbFormat = 'human' | 'json' | 'structured'
 
@@ -31,6 +48,13 @@ export interface VerbEvent {
   durationMs: number
   ok: boolean
   errorCode?: string
+  /**
+   * Mirrors the verb's `readOnly` flag — the in-process transport's
+   * `onSideEffect` handler ignores events where this is true so the wake's
+   * "did-something" heuristic doesn't fire for pure reads (`team list`,
+   * `messaging show`, etc.).
+   */
+  readOnly?: boolean
 }
 
 export interface VerbTransport {

@@ -33,7 +33,6 @@ import { TurnBudget } from './turn-budget'
 import type {
   AbortContext,
   AgentTool,
-  CommandDef,
   IterationBudget,
   SideLoadContributor,
   ToolResult,
@@ -263,7 +262,6 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
   hooks?: HarnessHooks<TTrigger>
   materializers?: readonly WorkspaceMaterializer[]
   sideLoadContributors?: readonly SideLoadContributor[]
-  commands?: readonly CommandDef[]
 
   journalAppend?: (ev: HarnessEvent<TTrigger>) => Promise<void>
   loadMessageHistory?: () => Promise<readonly AgentMessage[]>

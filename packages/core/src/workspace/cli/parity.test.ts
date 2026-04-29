@@ -93,4 +93,83 @@ describe('cross-transport parity', () => {
     if (!inProcess.ok) expect(inProcess.errorCode).toBe('unknown_verb')
     expect(overHttp).not.toBeNull()
   })
+
+  it('forwards verb `summary` through the dispatch result so in-process can render human stdout', async () => {
+    const r = new CliVerbRegistry()
+    r.register(
+      defineCliVerb({
+        name: 'fixture summary',
+        description: 'Returns a summary string alongside structured data',
+        input: z.object({ id: z.string() }),
+        body: async ({ input }) => ({
+          ok: true as const,
+          data: { id: input.id },
+          summary: `Acted on ${input.id}`,
+        }),
+      }),
+    )
+    const result = await dispatchInProcess(r, 'fixture summary', { id: 'X1' })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data).toEqual({ id: 'X1' })
+      expect(result.summary).toBe('Acted on X1')
+    }
+  })
+
+  it('blocks staff-only verbs from in-process and agent-only verbs from HTTP', async () => {
+    const r = new CliVerbRegistry()
+    r.register(
+      defineCliVerb({
+        name: 'fixture agent-only',
+        description: 'Only callable from a wake',
+        input: z.object({}),
+        audience: 'agent',
+        body: async () => ({ ok: true as const, data: { ok: 'agent' } }),
+      }),
+    )
+    r.register(
+      defineCliVerb({
+        name: 'fixture staff-only',
+        description: 'Only callable from HTTP',
+        input: z.object({}),
+        audience: 'staff',
+        body: async () => ({ ok: true as const, data: { ok: 'staff' } }),
+      }),
+    )
+    const agentOverHttp = await dispatchHttp(r, 'fixture agent-only', {})
+    const staffInBash = await dispatchInProcess(r, 'fixture staff-only', {})
+    expect(agentOverHttp.ok).toBe(false)
+    if (!agentOverHttp.ok) expect(agentOverHttp.errorCode).toBe('forbidden')
+    expect(staffInBash.ok).toBe(false)
+    if (!staffInBash.ok) expect(staffInBash.errorCode).toBe('forbidden')
+  })
+
+  it('marks read-only events so onSideEffect skips them', async () => {
+    const r = new CliVerbRegistry()
+    r.register(
+      defineCliVerb({
+        name: 'fixture readonly',
+        description: 'Pure read',
+        input: z.object({}),
+        readOnly: true,
+        body: async () => ({ ok: true as const, data: { rows: [] } }),
+      }),
+    )
+    r.register(
+      defineCliVerb({
+        name: 'fixture writes',
+        description: 'Has side effects',
+        input: z.object({}),
+        body: async () => ({ ok: true as const, data: { wrote: true }, summary: 'wrote' }),
+      }),
+    )
+    const sideEffects: string[] = []
+    const transport = createInProcessTransport({
+      context: ctx,
+      onSideEffect: (e) => sideEffects.push(e.verb),
+    })
+    await r.dispatch('fixture readonly', {}, transport)
+    await r.dispatch('fixture writes', {}, transport)
+    expect(sideEffects).toEqual(['fixture writes'])
+  })
 })

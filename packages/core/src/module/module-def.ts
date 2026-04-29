@@ -14,9 +14,19 @@
 import type { Hono, MiddlewareHandler } from 'hono'
 
 import type { HarnessHooks } from '../harness/create-harness'
-import type { AgentTool, CommandDef, SideLoadContributor, WorkspaceMaterializer } from '../harness/types'
+import type { AgentTool, SideLoadContributor, WorkspaceMaterializerFactory } from '../harness/types'
 import type { JobDef, ScopedScheduler } from '../scheduler/types'
 import type { CliVerbRegistry } from '../workspace/cli/registry'
+import type { IndexContributor } from '../workspace/index-file-builder'
+
+/**
+ * Per-module RO-error hint. Returns a recovery message for a known RO path
+ * owned by the module, or `null` to fall through to the next module's hint.
+ * The wake builder chains every module's hint and returns the first non-null
+ * match; if no module claims the path, the harness emits its generic RO
+ * error message. Each module owns hints for the paths it materializes.
+ */
+export type RoHintFn = (path: string) => string | null
 
 export interface ModuleInitCtx<Db = unknown, Realtime = unknown> {
   readonly db: Db
@@ -44,7 +54,7 @@ export interface ModuleRoutes {
   requireSession?: boolean
 }
 
-export interface ModuleDef<Db = unknown, Realtime = unknown> {
+export interface ModuleDef<Db = unknown, Realtime = unknown, TCtx = unknown> {
   name: string
   requires?: readonly string[]
   enabled?: (env: NodeJS.ProcessEnv) => boolean
@@ -57,9 +67,24 @@ export interface ModuleDef<Db = unknown, Realtime = unknown> {
   agent?: {
     tools?: AgentTool[]
     listeners?: Partial<HarnessHooks<unknown>>
-    materializers?: WorkspaceMaterializer[]
-    commands?: CommandDef[]
+    /**
+     * Wake-time materializer factories. Each factory receives the template's
+     * `WakeContext` (threaded via the third generic) and returns concrete
+     * materializers. The collector flattens factories across modules; the
+     * wake builder invokes them per wake.
+     */
+    materializers?: WorkspaceMaterializerFactory<TCtx>[]
     sideLoad?: SideLoadContributor[]
+    /**
+     * Module-contributed sections of the agent's `AGENTS.md` system document.
+     * Each entry is an `IndexContributor` (priority + render fn). The
+     * `generateAgentsMd` builder sorts by priority and joins with blank lines,
+     * so each module owns the prompt content describing the verbs/patterns it
+     * contributes — colocated with the verb definitions themselves.
+     */
+    agentsMd?: IndexContributor[]
+    /** Module-contributed RO-error hints. See `RoHintFn`. */
+    roHints?: RoHintFn[]
   }
   jobs?: JobDef[]
 }
@@ -74,13 +99,15 @@ export class InvalidModuleError extends Error {
   }
 }
 
-export function sortModules<Db, Realtime>(modules: readonly ModuleDef<Db, Realtime>[]): ModuleDef<Db, Realtime>[] {
+export function sortModules<Db, Realtime, TCtx>(
+  modules: readonly ModuleDef<Db, Realtime, TCtx>[],
+): ModuleDef<Db, Realtime, TCtx>[] {
   const byName = new Map(modules.map((m) => [m.name, m]))
-  const result: ModuleDef<Db, Realtime>[] = []
+  const result: ModuleDef<Db, Realtime, TCtx>[] = []
   const visited = new Set<string>()
   const visiting = new Set<string>()
 
-  function visit(m: ModuleDef<Db, Realtime>): void {
+  function visit(m: ModuleDef<Db, Realtime, TCtx>): void {
     if (visited.has(m.name)) return
     if (visiting.has(m.name)) {
       throw new InvalidModuleError(m.name, 'circular requires detected')
@@ -102,8 +129,8 @@ export function sortModules<Db, Realtime>(modules: readonly ModuleDef<Db, Realti
   return result
 }
 
-export async function bootModules<Db, Realtime>(opts: {
-  modules: readonly ModuleDef<Db, Realtime>[]
+export async function bootModules<Db, Realtime, TCtx>(opts: {
+  modules: readonly ModuleDef<Db, Realtime, TCtx>[]
   app: Hono
   requireSession: MiddlewareHandler
   ctx: ModuleInitCtx<Db, Realtime>

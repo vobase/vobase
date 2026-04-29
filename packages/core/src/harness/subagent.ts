@@ -7,8 +7,9 @@
  * downstream consumers can filter by parent without ambiguity. Parent abort
  * cascades to children via `cascadeAbort(parentWakeId, reason)`.
  *
- * This module is the runtime contract; the actual `pi-agent-core` spawn lives
- * in the template's `subagentTool` wrapper. Core owns:
+ * This module is the runtime contract; an `pi-agent-core` spawn wrapper would
+ * sit at the template/wake layer (none currently registered — see the wake
+ * subagent resurrection plan). Core owns:
  *   - the registry (in-memory; rebuilt at boot from the journal if needed)
  *   - the journal-merge helper
  *   - the abort cascade primitive

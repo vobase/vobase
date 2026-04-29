@@ -16,7 +16,7 @@
 
 import { Bash, type Command, InMemoryFs } from 'just-bash'
 
-import type { CommandContext, CommandDef, MaterializerCtx, WorkspaceMaterializer } from '../harness/types'
+import type { MaterializerCtx, WorkspaceMaterializer } from '../harness/types'
 import { snapshotFs } from './dirty-tracker'
 import { MaterializerRegistry } from './materializer-registry'
 import { type ReadOnlyConfig, ScopedFs } from './ro-enforcer'
@@ -28,12 +28,6 @@ export interface CreateWorkspaceOpts {
   readOnlyConfig: ReadOnlyConfig
   /** Passed verbatim to every `materialize(ctx)` call. */
   ctx: MaterializerCtx
-  /** Custom `vobase` subcommands bound into the bash `customCommands`. */
-  commands?: readonly CommandDef[]
-  /** Optional partial overrides merged into the dispatcher's `CommandContext`. */
-  commandCtx?: Partial<CommandContext>
-  /** Fires once per non-read-only vobase subcommand. */
-  onSideEffect?: (cmd: CommandDef) => void
   /** Optional env passed through to `Bash`. */
   env?: Record<string, string>
   /**
@@ -43,15 +37,11 @@ export interface CreateWorkspaceOpts {
    */
   cwd?: string
   /**
-   * Custom `vobase` command builder. Accepts the resolved commands + ctx and
-   * returns the bash `CustomCommand` to register. When omitted, the bash has
-   * no `vobase` command registered (callers install their own dispatcher).
+   * Custom `vobase` command builder. Returns the bash `CustomCommand` to
+   * register — typically `createBashVobaseCommand({ registry, context, ... })`.
+   * When omitted the bash has no `vobase` command registered.
    */
-  buildVobaseCommand?: (opts: {
-    commands: readonly CommandDef[]
-    ctx: CommandContext
-    onSideEffect?: (cmd: CommandDef) => void
-  }) => Command
+  buildVobaseCommand?: () => Command
 }
 
 export interface WorkspaceHandle {
@@ -85,19 +75,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
     innerFs.writeFileLazy(m.path, async () => resolve(opts.ctx))
   }
 
-  const commandCtx: CommandContext = {
-    organizationId: opts.ctx.organizationId,
-    conversationId: opts.ctx.conversationId,
-    agentId: opts.ctx.agentId,
-    contactId: opts.ctx.contactId,
-    writeWorkspace: async (path, content) => innerFs.writeFile(path, content),
-    readWorkspace: async (path) => innerFs.readFile(path),
-    ...(opts.commandCtx ?? {}),
-  }
-
-  const customCommands = opts.buildVobaseCommand
-    ? [opts.buildVobaseCommand({ commands: opts.commands ?? [], ctx: commandCtx, onSideEffect: opts.onSideEffect })]
-    : undefined
+  const customCommands = opts.buildVobaseCommand ? [opts.buildVobaseCommand()] : undefined
 
   const bash = new Bash({
     fs,

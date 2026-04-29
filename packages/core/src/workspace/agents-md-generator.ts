@@ -12,8 +12,35 @@
  * directly via `defineIndexContributor` — `generateAgentsMd` stays as the
  * happy-path one-liner.
  */
-import type { CommandDef } from '../harness/types'
 import { defineIndexContributor, IndexFileBuilder } from './index-file-builder'
+
+/**
+ * Structural shape the generator needs from each verb. `CliVerbDef` satisfies
+ * this directly — kept as a separate interface so the generator stays
+ * decoupled from the CLI/registry surface.
+ */
+export interface AgentsMdCommand {
+  name: string
+  description?: string
+  usage?: string
+  /**
+   * Verb-specific prose rendered under the `### vobase <name>` heading,
+   * after `description` and `usage`. Set on `defineCliVerb({ prompt: ... })`
+   * so workflow guidance lives next to the verb body.
+   */
+  prompt?: string
+}
+
+/**
+ * Structural shape the generator needs from each tool. `AgentTool` satisfies
+ * this directly. Tools without `prompt` are omitted from `## Tool guidance`
+ * — pi-agent-core renders the tool catalogue (schema/inputs) separately, so
+ * this section is purely workflow prose.
+ */
+export interface AgentsMdTool {
+  name: string
+  prompt?: string
+}
 
 export interface GenerateAgentsMdOpts {
   /** Agent display name; rendered in the title line. */
@@ -21,7 +48,10 @@ export interface GenerateAgentsMdOpts {
   /** Agent nanoid; rendered in the title line and resolved folder identity. */
   agentId: string
   /** Aggregated from every module's `init(ctx).registerCommand(...)`. */
-  commands: readonly CommandDef[]
+  commands: readonly AgentsMdCommand[]
+  /** Aggregated from every module's `agent.tools` declaration. Optional — when
+   *  omitted (or no tool carries `prompt`) the `## Tool guidance` section is skipped. */
+  tools?: readonly AgentsMdTool[]
   /** Agent-authored operating manual (formerly `soul_md`). Rendered verbatim under `## Instructions`. */
   instructions: string
   /** If the platform wants to override the framework preamble (e.g. per-organization). */
@@ -40,7 +70,7 @@ const DEFAULT_HEADER = `You operate inside a virtual workspace. Read files with 
 
 const FILE = 'AGENTS.md'
 
-function renderCommandsSection(commands: readonly CommandDef[]): string {
+function renderCommandsSection(commands: readonly AgentsMdCommand[]): string {
   const sorted = [...commands].sort((a, b) => a.name.localeCompare(b.name))
   const lines = ['## Commands', '']
   if (sorted.length === 0) {
@@ -56,6 +86,23 @@ function renderCommandsSection(commands: readonly CommandDef[]): string {
       lines.push(cmd.usage)
       lines.push('```')
     }
+    if (cmd.prompt && cmd.prompt.trim().length > 0) {
+      lines.push('')
+      lines.push(cmd.prompt.trim())
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
+function renderToolGuidanceSection(tools: readonly AgentsMdTool[]): string | null {
+  const withPrompt = tools.filter((t) => t.prompt && t.prompt.trim().length > 0)
+  if (withPrompt.length === 0) return null
+  const sorted = [...withPrompt].sort((a, b) => a.name.localeCompare(b.name))
+  const lines = ['## Tool guidance', '']
+  for (const tool of sorted) {
+    lines.push(`### \`${tool.name}\``)
+    lines.push((tool.prompt ?? '').trim())
     lines.push('')
   }
   return lines.join('\n')
@@ -85,6 +132,14 @@ export function generateAgentsMd(opts: GenerateAgentsMdOpts): string {
         priority: 100,
         name: 'commands',
         render: () => renderCommandsSection(opts.commands),
+      }),
+    )
+    .register(
+      defineIndexContributor({
+        file: FILE,
+        priority: 150,
+        name: 'tool-guidance',
+        render: () => renderToolGuidanceSection(opts.tools ?? []),
       }),
     )
     .register(

@@ -12,8 +12,16 @@
 import { z } from 'zod'
 
 import { type CliVerbDef, defaultRouteForVerb } from './define'
-import { VobaseCliCollisionError } from './dispatcher'
 import type { VerbResult, VerbTransport } from './transport'
+
+/**
+ * Thrown when two modules register a verb under the same name. Boot-time
+ * failure — caught by `bootModules` so the bug surfaces before any agent or
+ * staff dispatches anything.
+ */
+export class VobaseCliCollisionError extends Error {
+  override readonly name = 'VobaseCliCollisionError'
+}
 
 export interface CatalogVerb {
   name: string
@@ -23,6 +31,14 @@ export interface CatalogVerb {
   route: string
   formatHint?: string
   rolesAllowed?: readonly string[]
+  /**
+   * Lane gating — `'agent'` means only the in-bash transport accepts it,
+   * `'staff'` means only HTTP-RPC. The CLI binary skips entries marked
+   * `'agent'` from its `--help` listing so staff don't see verbs they can't
+   * dispatch (the dispatch endpoint also rejects them with `'forbidden'`).
+   * `undefined` ⇒ `'all'`.
+   */
+  audience?: 'agent' | 'staff' | 'all'
 }
 
 export interface Catalog {
@@ -93,6 +109,7 @@ export class CliVerbRegistry {
       route: v.route as string,
       formatHint: v.formatHint,
       rolesAllowed: v.rolesAllowed,
+      audience: v.audience,
     }))
     this.cachedCatalog = { verbs, etag: computeEtag(verbs) }
     return this.cachedCatalog
@@ -113,6 +130,15 @@ export class CliVerbRegistry {
       return { ok: false, error: `Input validation failed: ${parsed.error.message}`, errorCode: 'invalid_input' }
     }
     const ctx = await transport.resolveContext()
+    // Audience gate: agent-only verbs are hidden from HTTP-RPC; staff-only
+    // verbs are hidden from the in-bash sandbox. `'all'` (default) bypasses.
+    const audience = verb.audience ?? 'all'
+    if (audience === 'agent' && transport.name !== 'in-process') {
+      return { ok: false, error: `Verb "${name}" is agent-only`, errorCode: 'forbidden' }
+    }
+    if (audience === 'staff' && transport.name === 'in-process') {
+      return { ok: false, error: `Verb "${name}" is staff-only`, errorCode: 'forbidden' }
+    }
     if (verb.rolesAllowed && verb.rolesAllowed.length > 0 && (!ctx.role || !verb.rolesAllowed.includes(ctx.role))) {
       return { ok: false, error: `Role "${ctx.role ?? 'none'}" not allowed for verb "${name}"`, errorCode: 'forbidden' }
     }
@@ -125,9 +151,10 @@ export class CliVerbRegistry {
         durationMs: Date.now() - startedAt,
         ok: result.ok,
         errorCode: result.ok ? undefined : result.errorCode,
+        readOnly: verb.readOnly,
       })
       return result.ok
-        ? { ok: true, data: result.data }
+        ? { ok: true, data: result.data, summary: result.summary }
         : { ok: false, error: result.error, errorCode: result.errorCode }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -137,6 +164,7 @@ export class CliVerbRegistry {
         durationMs: Date.now() - startedAt,
         ok: false,
         errorCode: 'internal_error',
+        readOnly: verb.readOnly,
       })
       return { ok: false, error: message, errorCode: 'internal_error' }
     }

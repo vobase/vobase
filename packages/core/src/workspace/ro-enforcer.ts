@@ -76,8 +76,9 @@ export interface BuildReadOnlyConfigOpts {
   readOnlyExact?: readonly string[]
   /**
    * Memory exact paths (e.g. per-wake `/agents/<id>/MEMORY.md`, `/contacts/<id>/MEMORY.md`).
-   * Template supplies these at wake start. Writes to these paths render the
-   * `vobase memory …` hint instead of the generic RO error.
+   * Template supplies these at wake start. Memory files are direct-writable
+   * via the workspace-sync observer — `checkWriteAllowed` does not block them.
+   * Listed here so the dirty-tracker can enumerate writable memory zones.
    */
   memoryPaths?: readonly string[]
   /** Optional override for RO prefix list. Defaults to `['/drive/']`. */
@@ -162,7 +163,8 @@ export interface WriteContext {
  * Returns `null` if write is allowed, otherwise the spec-exact error message.
  *
  * Precedence (highest → lowest):
- *   1. Memory paths — mapped to the `vobase memory …` hint.
+ *   1. Memory paths — direct-writable; the workspace-sync observer flushes the
+ *      file body to the owning persistence layer after each turn.
  *   2. Exact RO paths.
  *   3. Glob RO patterns.
  *   4. Prefix RO list.
@@ -172,9 +174,9 @@ export interface WriteContext {
  *   8. Default-deny.
  */
 export function checkWriteAllowed(path: string, config: ReadOnlyConfig, ctx?: WriteContext): string | null {
-  // 1. Memory files get their own message.
+  // 1. Memory files are direct-writable.
   if (config.memoryPaths.has(path)) {
-    return `bash: ${path}: use \`vobase memory set|append|remove\` to mutate memory safely.`
+    return null
   }
 
   // 2. Exact-path RO matches.
@@ -198,7 +200,7 @@ export function checkWriteAllowed(path: string, config: ReadOnlyConfig, ctx?: Wr
   for (const prefix of config.cliWritablePaths) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) {
       if (ctx?.cliVerb) return null
-      return `bash: ${path}: Read-only filesystem.\n  This path is mutated only via a registered \`vobase\` verb (e.g. \`vobase memory …\`, \`vobase drive …\`); direct \`echo > ${path}\` is rejected.`
+      return `bash: ${path}: Read-only filesystem.\n  This path is mutated only via a registered \`vobase\` verb (e.g. \`vobase drive …\`); direct \`echo > ${path}\` is rejected.`
     }
   }
 
@@ -374,9 +376,9 @@ export function isWritablePath(
   for (const prefix of writablePrefixes) {
     if (path === prefix.slice(0, -1) || path.startsWith(prefix)) return true
   }
-  // Memory files are writable only through `vobase memory …`, but the CLI
-  // privileged path writes them via `innerWriteFile`, so they still count as
-  // writable zones when the dirty-tracker enumerates them.
+  // Memory files are direct-writable; the workspace-sync observer flushes
+  // them via the owning module's persistence layer after each turn. They
+  // count as writable zones for dirty-tracker enumeration.
   for (const mp of memoryPaths) {
     if (path === mp) return true
   }
