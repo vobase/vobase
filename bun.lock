@@ -15,8 +15,8 @@
         "@changesets/cli": "^2.31.0",
         "@types/bun": "^1.3.13",
         "@types/node": "^25.6.0",
-        "knip": "^6.6.3",
-        "npm-check-updates": "^21.0.3",
+        "knip": "^6.9.0",
+        "npm-check-updates": "^22.0.1",
         "turbo": "^2.9.6",
         "typescript": "^6.0.3",
       },
@@ -28,14 +28,14 @@
         "vobase": "./bin/vobase.ts",
       },
       "dependencies": {
-        "cac": "^6.7.14",
-        "open": "^10.2.0",
+        "cac": "^7.0.0",
+        "open": "^11.0.0",
       },
       "devDependencies": {
         "@vobase/core": "workspace:*",
         "hono": "^4.12.15",
         "typescript": "^6.0.3",
-        "zod": "^4.3.6",
+        "zod": "^4.4.1",
       },
     },
     "packages/core": {
@@ -43,18 +43,18 @@
       "version": "0.35.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "jose": "^6.2.2",
+        "jose": "^6.2.3",
         "nanoid": "^5.1.9",
         "postgres": "^3.4.9",
-        "zod": "^4.3.6",
+        "zod": "^4.4.1",
       },
       "devDependencies": {
-        "@mariozechner/pi-agent-core": "^0.70.2",
-        "@mariozechner/pi-ai": "^0.70.2",
+        "@mariozechner/pi-agent-core": "^0.70.6",
+        "@mariozechner/pi-ai": "^0.70.6",
         "@types/bun": "^1.3.13",
         "@types/pg": "^8.20.0",
         "drizzle-kit": "1.0.0-beta.23",
-        "just-bash": "^2.14.2",
+        "just-bash": "^2.14.3",
       },
       "peerDependencies": {
         "@better-auth/api-key": "^1.5.0",
@@ -96,14 +96,14 @@
         "@dnd-kit/utilities": "^3.2.2",
         "@hono/zod-validator": "^0.7.6",
         "@hookform/resolvers": "^5.2.2",
-        "@mariozechner/pi-agent-core": "^0.70.2",
-        "@mariozechner/pi-ai": "^0.70.2",
-        "@pierre/diffs": "^1.1.19",
+        "@mariozechner/pi-agent-core": "^0.70.6",
+        "@mariozechner/pi-ai": "^0.70.6",
+        "@pierre/diffs": "^1.1.20",
         "@platejs/basic-nodes": "^53.0.0",
         "@platejs/combobox": "^53.0.0",
         "@platejs/markdown": "^53.0.0",
         "@platejs/mention": "^53.0.0",
-        "@platejs/suggestion": "^53.0.0",
+        "@platejs/suggestion": "^53.0.3",
         "@radix-ui/react-use-controllable-state": "^1.2.2",
         "@react-email/components": "^1.0.12",
         "@sinclair/typebox": "^0.34.49",
@@ -111,11 +111,11 @@
         "@streamdown/code": "^1.1.1",
         "@streamdown/math": "^1.0.2",
         "@streamdown/mermaid": "^1.0.2",
-        "@tanstack/react-query": "^5.100.5",
-        "@tanstack/react-router": "^1.168.25",
+        "@tanstack/react-query": "^5.100.6",
+        "@tanstack/react-router": "^1.168.26",
         "@tanstack/virtual-file-routes": "^1.161.7",
         "@vobase/core": "workspace:*",
-        "ai": "^6.0.168",
+        "ai": "^6.0.170",
         "better-auth": "^1.6.9",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
@@ -128,13 +128,13 @@
         "input-otp": "^1.4.2",
         "jose": "^6.2.3",
         "just-bash": "^2.14.3",
-        "lucide-react": "^1.11.0",
+        "lucide-react": "^1.14.0",
         "motion": "^12.38.0",
         "nanoid": "^5.1.9",
         "nodemailer": "^8.0.7",
         "nuqs": "^2.8.9",
         "pg-boss": "^12.18.1",
-        "platejs": "^53.0.0",
+        "platejs": "^53.0.3",
         "postgres": "^3.4.9",
         "radix-ui": "^1.4.3",
         "react": "^19.2.5",
@@ -148,13 +148,13 @@
         "tailwind-merge": "^3.5.0",
         "use-stick-to-bottom": "^1.1.3",
         "vaul": "^1.1.2",
-        "zod": "^4.3.6",
+        "zod": "^4.4.1",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.4.13",
         "@tailwindcss/vite": "^4.2.4",
         "@tanstack/react-table": "^8.21.3",
-        "@tanstack/router-plugin": "^1.167.28",
+        "@tanstack/router-plugin": "^1.167.29",
         "@types/bun": "^1.3.13",
         "@types/diff": "^8.0.0",
         "@types/nodemailer": "^8.0.0",
@@ -163,7 +163,7 @@
         "@vitejs/plugin-react": "^6.0.1",
         "concurrently": "^9.2.1",
         "drizzle-kit": "1.0.0-beta.23",
-        "knip": "^6.7.0",
+        "knip": "^6.9.0",
         "tailwindcss": "^4.2.4",
         "typescript": "^6.0.3",
         "vite": "^8.0.10",
@@ -1267,7 +1267,7 @@
 
     "bytes": ["bytes@3.1.2", "", {}, "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg=="],
 
-    "cac": ["cac@6.7.14", "", {}, "sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ=="],
+    "cac": ["cac@7.0.0", "", {}, "sha512-tixWYgm5ZoOD+3g6UTea91eow5z6AAHaho3g0V9CNSNb45gM8SmflpAc+GRd1InC4AqN/07Unrgp56Y94N9hJQ=="],
 
     "call-bind-apply-helpers": ["call-bind-apply-helpers@1.0.2", "", { "dependencies": { "es-errors": "^1.3.0", "function-bind": "^1.1.2" } }, "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ=="],
 
@@ -1729,6 +1729,8 @@
 
     "is-hotkey": ["is-hotkey@0.2.0", "", {}, "sha512-UknnZK4RakDmTgz4PI1wIph5yxSs/mvChWs9ifnlXsKuXgWmOkY/hAE0H/k2MIqH0RlRye0i1oC07MCRSD28Mw=="],
 
+    "is-in-ssh": ["is-in-ssh@1.0.0", "", {}, "sha512-jYa6Q9rH90kR1vKB6NM7qqd1mge3Fx4Dhw5TVlK1MUBqhEOuCagrEHMevNuCcbECmXZ0ThXkRm+Ymr51HwEPAw=="],
+
     "is-inside-container": ["is-inside-container@1.0.0", "", { "dependencies": { "is-docker": "^3.0.0" }, "bin": { "is-inside-container": "cli.js" } }, "sha512-KIYLCCJghfHZxqjYBE7rEy0OBuTd5xCHS7tHVgvCLkx7StIoaxwNW3hCALgEUjFfeRk+MG/Qxmp/vtETEF3tRA=="],
 
     "is-number": ["is-number@7.0.0", "", {}, "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng=="],
@@ -2035,7 +2037,7 @@
 
     "normalize-path": ["normalize-path@3.0.0", "", {}, "sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA=="],
 
-    "npm-check-updates": ["npm-check-updates@21.0.3", "", { "bin": { "ncu": "build/cli.js", "npm-check-updates": "build/cli.js" } }, "sha512-8y0fqtxdo5JhwzxcS9rZd969tvPbSZ3MzQoG5Fj8eqL42t1Jsg5tjZCz8CYuXLE8LNbbyV+1xxR/f/T4AdPmdg=="],
+    "npm-check-updates": ["npm-check-updates@22.0.1", "", { "bin": { "npm-check-updates": "build/cli.js", "ncu": "build/cli.js" } }, "sha512-K8PDu7l9v7UKIwDSxLnqA9LHT76Mu4eCjGjp0JwSeSsyKWmX/YZY+AoBxw4oVdKwQLthWbzg1g+OKysHYGQCjQ=="],
 
     "nuqs": ["nuqs@2.8.9", "", { "dependencies": { "@standard-schema/spec": "1.0.0" }, "peerDependencies": { "@remix-run/react": ">=2", "@tanstack/react-router": "^1", "next": ">=14.2.0", "react": ">=18.2.0 || ^19.0.0-0", "react-router": "^5 || ^6 || ^7", "react-router-dom": "^5 || ^6 || ^7" }, "optionalPeers": ["@remix-run/react", "@tanstack/react-router", "next", "react-router", "react-router-dom"] }, "sha512-8ou6AEwsxMWSYo2qkfZtYFVzngwbKmg4c00HVxC1fF6CEJv3Fwm6eoZmfVPALB+vw8Udo7KL5uy96PFcYe1BIQ=="],
 
@@ -2051,7 +2053,7 @@
 
     "oniguruma-to-es": ["oniguruma-to-es@4.3.6", "", { "dependencies": { "oniguruma-parser": "^0.12.2", "regex": "^6.1.0", "regex-recursion": "^6.0.2" } }, "sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA=="],
 
-    "open": ["open@10.2.0", "", { "dependencies": { "default-browser": "^5.2.1", "define-lazy-prop": "^3.0.0", "is-inside-container": "^1.0.0", "wsl-utils": "^0.1.0" } }, "sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA=="],
+    "open": ["open@11.0.0", "", { "dependencies": { "default-browser": "^5.4.0", "define-lazy-prop": "^3.0.0", "is-in-ssh": "^1.0.0", "is-inside-container": "^1.0.0", "powershell-utils": "^0.1.0", "wsl-utils": "^0.3.0" } }, "sha512-smsWv2LzFjP03xmvFoJ331ss6h+jixfA4UUV/Bsiyuu4YJPfN+FIQGOIiv4w9/+MoHkfkJ22UIaQWRVFRfH6Vw=="],
 
     "openai": ["openai@6.26.0", "", { "peerDependencies": { "ws": "^8.18.0", "zod": "^3.25 || ^4.0" }, "optionalPeers": ["ws", "zod"], "bin": { "openai": "bin/cli" } }, "sha512-zd23dbWTjiJ6sSAX6s0HrCZi41JwTA1bQVs0wLQPZ2/5o2gxOJA5wh7yOAUgwYybfhDXyhwlpeQf7Mlgx8EOCA=="],
 
@@ -2154,6 +2156,8 @@
     "postgres-date": ["postgres-date@1.0.7", "", {}, "sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q=="],
 
     "postgres-interval": ["postgres-interval@1.2.0", "", { "dependencies": { "xtend": "^4.0.0" } }, "sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ=="],
+
+    "powershell-utils": ["powershell-utils@0.1.0", "", {}, "sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A=="],
 
     "prebuild-install": ["prebuild-install@7.1.3", "", { "dependencies": { "detect-libc": "^2.0.0", "expand-template": "^2.0.3", "github-from-package": "0.0.0", "minimist": "^1.2.3", "mkdirp-classic": "^0.5.3", "napi-build-utils": "^2.0.0", "node-abi": "^3.3.0", "pump": "^3.0.0", "rc": "^1.2.7", "simple-get": "^4.0.0", "tar-fs": "^2.0.0", "tunnel-agent": "^0.6.0" }, "bin": { "prebuild-install": "bin.js" } }, "sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug=="],
 
@@ -2547,7 +2551,7 @@
 
     "ws": ["ws@8.20.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA=="],
 
-    "wsl-utils": ["wsl-utils@0.1.0", "", { "dependencies": { "is-wsl": "^3.1.0" } }, "sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw=="],
+    "wsl-utils": ["wsl-utils@0.3.1", "", { "dependencies": { "is-wsl": "^3.1.0", "powershell-utils": "^0.1.0" } }, "sha512-g/eziiSUNBSsdDJtCLB8bdYEUMj4jR7AGeUo96p/3dTafgjHhpF4RiCFPiRILwjQoDXx5MqkBr4fwWtR3Ky4Wg=="],
 
     "xtend": ["xtend@4.0.2", "", {}, "sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ=="],
 

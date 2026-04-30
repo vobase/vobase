@@ -37,13 +37,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "cac": "^6.7.14",
-    "open": "^10.2.0"
+    "cac": "^7.0.0",
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@vobase/core": "workspace:*",
     "hono": "^4.12.15",
     "typescript": "^6.0.3",
-    "zod": "^4.3.6"
+    "zod": "^4.4.1"
   }
 }
