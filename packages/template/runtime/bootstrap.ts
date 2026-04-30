@@ -17,6 +17,7 @@ import { createCliGrantRoutes } from '@auth/cli-grant'
 import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
 import { type ApiKeyEnv, createRequireApiKey } from '@auth/middleware/require-api-key'
 import { createWhoamiRoute } from '@auth/whoami'
+import { setAgentContributions } from '@modules/agents/service/agent-contributions'
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
 import {
   bootModules,
@@ -268,6 +269,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // OPENAI_API_KEY (or BIFROST_API_KEY + BIFROST_URL) from env directly — the
   // handler fails loudly on the first inbound if no key is set.
   const agentContributions = collectAgentContributions(sortedModules)
+  setAgentContributions(agentContributions)
   const wakeLogger = createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] })
   jobHandlers.set(INBOUND_TO_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
 

@@ -62,13 +62,54 @@ export function useAgentDefinition(id: string | undefined) {
   })
 }
 
-export function useAgentsMd(id: string | undefined) {
+export type LanePreviewVariant =
+  | { lane: 'conversation'; triggerKind: 'inbound_message' }
+  | { lane: 'conversation'; triggerKind: 'supervisor'; supervisorKind: 'coaching' }
+  | { lane: 'conversation'; triggerKind: 'supervisor'; supervisorKind: 'ask_staff_answer' }
+  | { lane: 'standalone'; triggerKind: 'operator_thread' }
+  | { lane: 'standalone'; triggerKind: 'heartbeat' }
+
+export const LANE_PREVIEW_VARIANTS: ReadonlyArray<{ id: string; label: string; query: LanePreviewVariant }> = [
+  {
+    id: 'conversation',
+    label: 'Conversation — inbound message',
+    query: { lane: 'conversation', triggerKind: 'inbound_message' },
+  },
+  {
+    id: 'supervisor-coaching',
+    label: 'Conversation — supervisor coaching',
+    query: { lane: 'conversation', triggerKind: 'supervisor', supervisorKind: 'coaching' },
+  },
+  {
+    id: 'supervisor-ask-staff',
+    label: 'Conversation — supervisor (ask-staff answer)',
+    query: { lane: 'conversation', triggerKind: 'supervisor', supervisorKind: 'ask_staff_answer' },
+  },
+  {
+    id: 'standalone-operator',
+    label: 'Standalone — operator thread',
+    query: { lane: 'standalone', triggerKind: 'operator_thread' },
+  },
+  {
+    id: 'standalone-heartbeat',
+    label: 'Standalone — heartbeat',
+    query: { lane: 'standalone', triggerKind: 'heartbeat' },
+  },
+]
+
+export function useAgentsMd(id: string | undefined, variant: LanePreviewVariant = LANE_PREVIEW_VARIANTS[0].query) {
   return useQuery({
-    queryKey: ['agents', 'definitions', id, 'agents-md'],
+    queryKey: ['agents', 'definitions', id, 'agents-md', variant],
     enabled: !!id,
     queryFn: async (): Promise<{ preamble: string }> => {
       if (!id) throw new Error('id required')
-      const r = await agentsClient.definitions[':id']['agents-md'].$get({ param: { id } })
+      const r = await agentsClient.definitions[':id']['agents-md'].$get({
+        param: { id },
+        query:
+          'supervisorKind' in variant
+            ? { lane: variant.lane, triggerKind: variant.triggerKind, supervisorKind: variant.supervisorKind }
+            : { lane: variant.lane, triggerKind: variant.triggerKind },
+      })
       if (!r.ok) throw new Error(`agents.agents-md failed: ${r.status}`)
       return (await r.json()) as unknown as { preamble: string }
     },

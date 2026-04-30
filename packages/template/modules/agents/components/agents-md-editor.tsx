@@ -12,20 +12,17 @@
  * so the browser preview reflects the new content.
  */
 
-import { useAgentsMd, useUpdateAgent } from '@modules/agents/hooks/use-agent-definitions'
+import { LANE_PREVIEW_VARIANTS, useAgentsMd, useUpdateAgent } from '@modules/agents/hooks/use-agent-definitions'
 import { type DriveScopeArg, driveKeys } from '@modules/drive/hooks/use-drive'
 import {
+  BasicBlocksPlugin,
+  BasicMarksPlugin,
   BlockquotePlugin,
-  BoldPlugin,
-  CodePlugin,
   H1Plugin,
   H2Plugin,
   H3Plugin,
-  ItalicPlugin,
-  StrikethroughPlugin,
-  UnderlinePlugin,
 } from '@platejs/basic-nodes/react'
-import { MarkdownPlugin, remarkMdx } from '@platejs/markdown'
+import { MarkdownPlugin } from '@platejs/markdown'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Bold,
@@ -46,26 +43,17 @@ import {
   PlateContent,
   PlateElement,
   type PlateElementProps,
-  PlateLeaf,
-  type PlateLeafProps,
   useEditorRef,
   useEditorSelector,
   usePlateEditor,
 } from 'platejs/react'
 import { PlateStatic } from 'platejs/static'
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import remarkGfm from 'remark-gfm'
 
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-
-const BoldLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="strong" />
-const ItalicLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="em" />
-const UnderlineLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="u" />
-const StrikethroughLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="s" />
-const CodeLeaf = (props: PlateLeafProps) => (
-  <PlateLeaf {...props} as="code" className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]" />
-)
 
 const H1Element = (props: PlateElementProps) => (
   <PlateElement {...props} as="h1" className="mt-4 mb-2 font-semibold text-2xl tracking-tight" />
@@ -84,30 +72,51 @@ const BlockquoteElement = (props: PlateElementProps) => (
   />
 )
 
+// Do NOT add `remarkMdx` to the remark pipeline: it parses `<id>` / `<file>` /
+// `<2k` style tokens from the AGENTS.md as JSX components and silently
+// truncates the document at the first one, leaving every lane variant
+// rendering the same first ~2KB of nodes.
 const contentPlugins = [
-  BoldPlugin.withComponent(BoldLeaf),
-  ItalicPlugin.withComponent(ItalicLeaf),
-  UnderlinePlugin.withComponent(UnderlineLeaf),
-  StrikethroughPlugin.withComponent(StrikethroughLeaf),
-  CodePlugin.withComponent(CodeLeaf),
+  BasicBlocksPlugin,
+  BasicMarksPlugin,
   H1Plugin.withComponent(H1Element),
   H2Plugin.withComponent(H2Element),
   H3Plugin.withComponent(H3Element),
   BlockquotePlugin.withComponent(BlockquoteElement),
-  MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm, remarkMdx] } }),
+  MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ]
 
-function PreambleView({ preamble }: { preamble: string }) {
+function PreambleView({
+  preamble,
+  variantId,
+  onVariantChange,
+}: {
+  preamble: string
+  variantId: string
+  onVariantChange: (id: string) => void
+}) {
   const editor = useMemo(() => {
     const ed = createSlateEditor({ plugins: contentPlugins })
-    ed.children = ed.getApi(MarkdownPlugin).markdown.deserialize(preamble, { memoize: true }) as Value
+    ed.children = ed.getApi(MarkdownPlugin).markdown.deserialize(preamble) as Value
     return ed
   }, [preamble])
   return (
     <div className="border-border border-b bg-muted/40 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
-      <div className="mb-2 flex items-center gap-1.5 font-medium text-[11px] uppercase tracking-wide">
+      <div className="mb-2 flex items-center gap-2 font-medium text-[11px] uppercase tracking-wide">
         <Lock className="size-3" />
-        Auto-generated framework context — read-only
+        <span>Auto-generated preamble — read-only</span>
+        <Select value={variantId} onValueChange={onVariantChange}>
+          <SelectTrigger className="ml-auto h-6 w-auto gap-1 border-border/60 bg-background/60 px-2 py-0 font-normal text-[11px] normal-case tracking-normal">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {LANE_PREVIEW_VARIANTS.map((v) => (
+              <SelectItem key={v.id} value={v.id} className="text-xs">
+                {v.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <PlateStatic editor={editor} />
     </div>
@@ -203,10 +212,12 @@ export interface AgentsMdEditorProps {
 }
 
 export function AgentsMdEditor({ agentId, agentName, initialInstructions }: AgentsMdEditorProps) {
-  const { data: md } = useAgentsMd(agentId)
+  const [variantId, setVariantId] = useState<string>(LANE_PREVIEW_VARIANTS[0].id)
+  const variant = LANE_PREVIEW_VARIANTS.find((v) => v.id === variantId) ?? LANE_PREVIEW_VARIANTS[0]
+  const { data: md } = useAgentsMd(agentId, variant.query)
   const update = useUpdateAgent(agentId)
   const qc = useQueryClient()
-  const preamble = md?.preamble ?? `# ${agentName} (${agentId})\n\n_Loading framework context…_\n`
+  const preamble = md?.preamble ?? `# ${agentName} (${agentId})\n\n_Loading preamble…_\n`
 
   const editor = usePlateEditor(
     {
@@ -231,6 +242,8 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
       <Plate editor={editor}>
         <EditorBody
           preamble={preamble}
+          variantId={variantId}
+          onVariantChange={setVariantId}
           initialInstructions={initialInstructions}
           update={update}
           onSaved={invalidateDriveFile}
@@ -248,11 +261,15 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
  */
 function EditorBody({
   preamble,
+  variantId,
+  onVariantChange,
   initialInstructions,
   update,
   onSaved,
 }: {
   preamble: string
+  variantId: string
+  onVariantChange: (id: string) => void
   initialInstructions: string
   update: ReturnType<typeof useUpdateAgent>
   onSaved: () => void
@@ -290,7 +307,7 @@ function EditorBody({
     <>
       <Toolbar statusLabel={status} onSave={handleSave} saving={update.isPending} dirty={dirty} />
       <div className="flex-1 overflow-auto">
-        <PreambleView preamble={preamble} />
+        <PreambleView preamble={preamble} variantId={variantId} onVariantChange={onVariantChange} />
         <PlateContent
           className="min-h-full px-4 py-3 text-sm leading-relaxed outline-none"
           placeholder="Describe how this agent should behave…"
