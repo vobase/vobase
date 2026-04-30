@@ -15,8 +15,8 @@
   <a href="https://github.com/vobase/vobase"><img src="https://img.shields.io/github/stars/vobase/vobase" alt="GitHub stars"></a>
   <a href="https://github.com/vobase/vobase/commits/main"><img src="https://img.shields.io/github/last-commit/vobase/vobase" alt="Last commit"></a>
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT">
-  <a href="https://discord.gg/sVsPBHtvTZ"><img 
-  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"               
+  <a href="https://discord.gg/sVsPBHtvTZ"><img
+  src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white"
   alt="Discord"></a>
   <br>
 </p>
@@ -39,16 +39,16 @@
   <a href="#what-you-get">what you get</a> ·
   <a href="#quick-start">get started</a> ·
   <a href="#what-a-module-looks-like">code</a> ·
-  <a href="#agent-skills">skills</a> ·
+  <a href="#agent-harness">harness</a> ·
   <a href="#vs-the-alternatives">compare</a> ·
   <a href="https://docs.vobase.dev">docs</a>
 </p>
 
 ---
 
-A full-stack TypeScript framework that gives you auth, database, storage, and jobs in a single process. Docker Compose Postgres for local dev, managed Postgres in production. Like a self-hosted Supabase — but you own every line of code. Like Pocketbase — but it's TypeScript you can read and modify.
+A full-stack TypeScript framework that gives you auth, database, storage, jobs, and a first-class AI agent runtime in a single Bun process. Docker Compose Postgres for local dev, managed Postgres in production. Like a self-hosted Supabase — but you own every line of code. Like Pocketbase — but it's TypeScript you can read and modify.
 
-AI coding agents (Claude Code, Cursor, Codex) understand vobase out of the box. Strict conventions and agent skills mean generated code works on the first try — not the third.
+AI coding agents (Claude Code, Cursor, Codex) understand vobase out of the box. Strict conventions and a uniform module shape mean generated code works on the first try — not the third.
 
 You own the code. You own the data. You own the infrastructure.
 
@@ -62,22 +62,23 @@ One `bun create vobase` and you have a working full-stack app:
 |---|---|
 | **Runtime** | **Bun** — native TypeScript, ~50ms startup, built-in test runner. One process, one container. |
 | **Database** | **PostgreSQL** via **Drizzle**. Docker Compose Postgres (pgvector/pg17) for local dev, managed Postgres in production. Full SQL, ACID transactions, pgvector for embeddings. |
-| **Auth** | **better-auth**. Sessions, passwords, CSRF. RBAC with role guards, API keys, and optional organization/team support. Org/SSO/2FA as plugins. |
+| **Auth** | **better-auth**. Sessions, passwords, email OTP, CSRF. RBAC with role guards, API keys, organizations. SSO/2FA as plugins. |
 | **API** | **Hono** — ~14KB, typed routing, Bun-first. Every AI coding tool already knows Hono. |
 | **Audit** | Built-in audit log, record change tracking, and auth event hooks. Every mutation is traceable. |
 | **Sequences** | Gap-free business number generation (INV-0001, PO-0042). Transaction-safe, never skips. |
-| **Storage** | File storage with virtual buckets. Local or S3 backends. Metadata tracked in Postgres. |
-| **Channels** | Multi-channel messaging with pluggable adapters. WhatsApp (Cloud API), email (Resend, SMTP). Inbound webhooks, outbound sends, delivery tracking. All messages logged. |
-| **Integrations** | Encrypted credential vault for external services (OAuth providers, APIs). AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
+| **Storage** | File storage with virtual buckets. Local or S3/R2 backends. Metadata tracked in Postgres. |
+| **Channels** | Multi-channel messaging with pluggable adapters: WhatsApp (Cloud API), email (Resend, SMTP). Inbound webhooks, outbound sends, delivery tracking. All messages logged. |
+| **Integrations** | Encrypted credential vault for external services. AES-256-GCM at rest. Platform-aware: opt-in multi-tenant OAuth handoff via HMAC-signed JWT. |
 | **Jobs** | Background tasks with retries, cron, and job chains. **pg-boss** backed — Postgres only, no Redis. |
-| **Knowledge Base** | Upload PDF, DOCX, XLSX, PPTX, images, HTML. Auto-extract to Markdown, chunk, embed, and search. Hybrid search with RRF + HyDE. Gemini OCR for scanned docs. |
-| **AI Agents** | Declarative agents via [Mastra](https://mastra.ai) inside the `agents` module. Multi-provider (OpenAI, Anthropic, Google). Tools, workflows, memory processors, eval scorers, guardrails. Embedded **Mastra Studio** at `/studio` for dev. Frontend stays on AI SDK `useChat`. |
-| **Frontend** | **React + TanStack Router + shadcn/ui + Tailwind v4**. Type-safe routing with codegen, code-splitting. You own the component source — no tailwind.config.js needed. |
-| **Skills** | Domain knowledge packs that teach AI agents your app's patterns and conventions. |
-| **MCP** | Module-aware tools with API key auth via **@modelcontextprotocol/sdk**. AI tools can read your schema, list modules, and view logs before generating code. Same process, shared port. |
-| **Deploy** | Dockerfile + railway.toml included. One `railway up` or `docker build` and you're live. |
+| **Realtime** | Server-push via PostgreSQL `LISTEN/NOTIFY` + SSE. No WebSocket. Modules `pg_notify` after commit; the frontend hook invalidates matching TanStack Query keys. |
+| **Agent harness** | First-class AI agent runtime (`pi-agent-core` + `pi-ai`). Frozen system prompt per wake, byte-stable provider cache, tool budget spill, steer/abort between turns, journaled events, idle resumption, restart recovery. |
+| **Workspace** | Virtual filesystem materialized per-wake from your modules. AGENTS.md is composed from per-module fragments; agents read `/staff/<id>/profile.md`, `/contacts/<id>/MEMORY.md`, etc. RO enforcement at the FS boundary. |
+| **CLI** | **`@vobase/cli`** — standalone, catalog-driven binary. Modules register verbs via `defineCliVerb`; the same body runs in-process (agent bash sandbox) and over HTTP-RPC (`vobase` binary). |
+| **Frontend** | **React + TanStack Router + shadcn/ui + ai-elements + DiceUI + Tailwind v4**. Type-safe routing with codegen, code-splitting. You own the component source. |
+| **MCP** | Model Context Protocol server in the same process. AI tools can read your schema, list modules, and view logs before generating code. |
+| **Deploy** | Dockerfile + railway.json included. One `railway up` or `docker build` and you're live. |
 
-Locally, `docker compose up -d` starts a pgvector/pg17 Postgres instance. `bun run dev` and you're building. In production, point `DATABASE_URL` at any managed Postgres instance.
+Locally, `docker compose up -d` starts a pgvector/pg17 Postgres instance. `bun run dev` and you're building. In production, point `DATABASE_URL` at any managed Postgres.
 
 ---
 
@@ -86,22 +87,25 @@ Locally, `docker compose up -d` starts a pgvector/pg17 Postgres instance. `bun r
 ```bash
 bun create vobase my-app
 cd my-app
+docker compose up -d
+bun run db:reset
 bun run dev
 ```
 
-Start Postgres with `docker compose up -d`, then backend on `:3000`, frontend on `:5173`. Ships with a dashboard and audit log viewer out of the box.
+Backend on `:3001`, frontend on `:5173`. Ships with the agent-native helpdesk template — messaging, channels, contacts, team, drive, agents — already wired up.
 
 ---
 
 ### what you can build
 
-Every module is a self-contained directory: schema, handlers, jobs, pages. No plugins, no marketplace. Just TypeScript you own.
+Every module is a self-contained directory: schema, service, handlers, jobs, pages, and an `agent.ts` slot that publishes tools, materializers, RO hints, and AGENTS.md fragments to the harness. No plugins, no marketplace. Just TypeScript you own.
 
 | Use Case | What Ships |
 |---|---|
-| **SaaS Starter** | User accounts, billing integration, subscription management, admin dashboard. Auth + jobs + webhooks handle the plumbing. |
+| **Agent-native helpdesk** | The default template. WhatsApp + email inbox, contact memory, staff-mention fan-out, supervisor coaching, scheduled follow-ups, approval gates, drive overlays. |
+| **SaaS Starter** | User accounts, billing integration, subscription management. Auth + jobs + webhooks handle the plumbing. |
 | **Internal Tools** | Admin panels, operations dashboards, approval workflows. Status machines enforce business logic. Audit trails track every change. |
-| **CRM & Contacts** | Companies, contacts, interaction timelines, deal tracking. Cross-module references keep things decoupled. |
+| **CRM & Contacts** | Companies, contacts, interaction timelines, deal tracking. Cross-module references via service imports — no FK across module boundaries. |
 | **Project Tracker** | Tasks, assignments, status workflows, notifications. Background jobs handle reminders and escalations. |
 | **Billing & Invoicing** | Invoices, line items, payments, aging reports. Integer money ensures exact arithmetic. Gap-free numbering via transactions. |
 | **Your Vertical** | Property management, fleet tracking, field services — whatever the business needs. Describe it to your AI tool. It generates the module. |
@@ -114,14 +118,14 @@ AI coding agents generate modules from your conventions. Like `npx shadcn add bu
 
 Vobase makes itself legible to every AI coding tool on the market.
 
-The framework ships with strict conventions and **agent skills** — domain knowledge packs that teach AI tools how your app works. When you need a new capability:
+The framework ships with one canonical module shape, one write-path discipline, and a harness that AI agents drive at runtime. When you need a new capability:
 
 1. Open your AI tool and describe the requirement
-2. The AI reads your existing schema, module conventions, and the relevant skills
-3. It generates a complete module — schema, handlers, jobs, pages, tests, seed data
+2. The AI reads your existing schema, the canonical module shape, and the relevant `.claude/skills/` packs
+3. It generates a complete module — schema, service, handlers, jobs, pages, agent slot, tests, seed data
 4. You review the diff, run `bun run dev`, and it works
 
-Skills cover the parts where apps get tricky: money stored as integer cents (never floats), status transitions as explicit state machines (not arbitrary string updates), gap-free business numbers generated inside database transactions (not auto-increment IDs that leave holes).
+Skill packs cover the parts where apps get tricky: money stored as integer cents (never floats), status transitions as explicit state machines (not arbitrary string updates), gap-free business numbers generated inside database transactions, single-write-path enforcement via `check:shape`, frontend bundle isolation via `check:bundle`.
 
 These conventions are what make AI-generated modules work on the first try.
 
@@ -131,39 +135,51 @@ These conventions are what make AI-generated modules work on the first try.
 
 ### what a module looks like
 
-Every module declares itself through `defineModule()`. This convention is what AI tools rely on to generate correct code.
+Every module is a thin aggregator over sibling files. `module.ts` declares the contract; everything else lives next to the code that owns the side-effect.
 
 ```typescript
-// modules/projects/index.ts
-import { defineModule } from '@vobase/core'
-import * as schema from './schema'
-import { routes } from './handlers'
-import { jobs } from './jobs'
-import * as pages from './pages'
-import seed from './seed'
+// modules/projects/module.ts
+import type { ModuleDef } from '~/runtime'
+import { projectsAgent } from './agent'
+import { projectListVerb } from './verbs/project-list'
+import { createProjectsService, installProjectsService } from './service/projects'
+import * as web from './web'
 
-export default defineModule({
+const projects: ModuleDef = {
   name: 'projects',
-  schema,
-  routes,
-  jobs,
-  pages,
-  seed,
-  init: (ctx) => {
-    // Optional: run setup logic at boot with access to db, scheduler, http, storage, channels
+  requires: ['team'],
+  web: { routes: web.routes },
+  jobs: [],
+  agent: projectsAgent,
+  init(ctx) {
+    installProjectsService(createProjectsService({ db: ctx.db }))
+    ctx.cli.registerAll([projectListVerb])
   },
-})
+}
+
+export default projects
 ```
 
 ```
 modules/projects/
-  schema.ts           ← Drizzle table definitions
-  handlers.ts         ← Hono routes (HTTP API)
-  handlers.test.ts    ← colocated tests (bun test)
-  jobs.ts             ← background tasks (pg-boss, no Redis)
-  pages/              ← React pages (list, detail, create)
-  seed.ts             ← sample data for dev
-  index.ts            ← defineModule()
+  module.ts            ← thin aggregator (above)
+  schema.ts            ← Drizzle table definitions
+  state.ts             ← status transitions, state machine
+  service/             ← transactional write-path (sole writer of this module's tables)
+  handlers/            ← Hono routes (HTTP API)
+  web.ts               ← route barrel mounted under /api/projects
+  pages/               ← React pages — list, detail, create
+  components/          ← React components owned by this module
+  hooks/               ← TanStack Query hooks
+  jobs.ts              ← pg-boss handlers
+  agent.ts             ← agent slot: tools, materializers, roHints, AGENTS.md fragments
+  tools/               ← defineAgentTool — colocated with the service
+  verbs/               ← defineCliVerb — runs in agent bash and the CLI binary
+  cli.ts               ← barrel exporting <module>Verbs
+  seed.ts              ← demo data
+  defaults/            ← *.agent.yaml, *.schedule.yaml — opt-in starter content
+  skills/              ← inline skill bodies the agent reads via drive overlay
+  *.test.ts            ← colocated bun test
 ```
 
 <details>
@@ -171,71 +187,78 @@ modules/projects/
 
 ```typescript
 // modules/projects/schema.ts
-import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, timestamp, check } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { nanoidPrimaryKey } from '@vobase/core'
 
 export const projects = pgTable('projects', {
   id: nanoidPrimaryKey(),
   name: text('name').notNull(),
   description: text('description'),
-  status: text('status').notNull().default('active'),    // active -> archived -> deleted
-  owner_id: text('owner_id').notNull(),
-  created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+  status: text('status').notNull().default('active'),
+  ownerId: text('owner_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check('projects_status_chk', sql`${t.status} in ('active','archived','deleted')`),
+])
 
 export const tasks = pgTable('tasks', {
   id: nanoidPrimaryKey(),
-  project_id: text('project_id').references(() => projects.id),
+  projectId: text('project_id').references(() => projects.id),
   title: text('title').notNull(),
-  status: text('status').notNull().default('todo'),       // todo -> in_progress -> done
-  assignee_id: text('assignee_id'),
+  status: text('status').notNull().default('todo'),
+  assigneeId: text('assignee_id'),
   priority: integer('priority').notNull().default(0),
-})
+}, (t) => [
+  check('tasks_status_chk', sql`${t.status} in ('todo','in_progress','done')`),
+])
 ```
+
+`check:shape` enforces that only `service/projects.ts` writes to `projects` — handlers and jobs go through the service.
 
 </details>
 
 <details>
-<summary><b>handler example</b> — Hono routes with typed context and authorization</summary>
+<summary><b>handler example</b> — Hono routes with Zod validation, typed RPC client</summary>
 
 ```typescript
-// modules/projects/handlers.ts
+// modules/projects/handlers/list.ts
 import { Hono } from 'hono'
-import { getCtx } from '@vobase/core'
-import { projects } from './schema'
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
+import { getCtx } from '~/runtime'
+import { projectsService } from '../service/projects'
 
-export const routes = new Hono()
-
-routes.get('/projects', async (c) => {
-  const ctx = getCtx(c)
-  return c.json(await ctx.db.select().from(projects))
-})
-
-routes.post('/projects', async (c) => {
-  const ctx = getCtx(c)
-  const body = await c.req.json()
-
-  const project = await ctx.db.insert(projects).values({
-    ...body,
-    owner_id: ctx.user.id,
-  })
-
-  return c.json(project)
-})
+export const listRoute = new Hono().get(
+  '/',
+  zValidator('query', z.object({ status: z.enum(['active','archived']).optional() })),
+  async (c) => {
+    const ctx = getCtx(c)
+    const { status } = c.req.valid('query')
+    const items = await projectsService().list({ ownerId: ctx.user.id, status })
+    return c.json(items)
+  },
+)
 ```
 
-The frontend gets fully typed API calls via codegen:
+The frontend gets fully typed API calls via the Hono RPC client (`src/lib/api-client.ts`):
 
 ```typescript
-import { hc } from 'hono/client'
-import type { AppType } from './api-types.generated'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api-client'
 
-const client = hc<AppType>('/')
-const res = await client.api.projects.$get()
-const projects = await res.json()  // fully typed — autocomplete on every route and response
+export function useProjects() {
+  return useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await api.projects.$get({ query: {} })
+      return await res.json() // fully typed
+    },
+  })
+}
 ```
 
-`AppType` is code-generated from your server's route tree, giving you end-to-end type safety from handler return values to frontend consumption.
+`use-realtime-invalidation.ts` maps `pg_notify` `table` payloads onto the first element of TanStack `queryKey` — services emit notifies after commit and the UI re-fetches automatically.
 
 </details>
 
@@ -245,21 +268,51 @@ const projects = await res.json()  // fully typed — autocomplete on every rout
 ```typescript
 // modules/projects/jobs.ts
 import { defineJob } from '@vobase/core'
-import { tasks } from './schema'
-import { eq } from 'drizzle-orm'
+import { projectsService } from './service/projects'
 
-export const sendReminder = defineJob('projects:sendReminder',
+export const sendReminder = defineJob('projects:send-reminder',
   async (data: { taskId: string }) => {
-    const task = await db.select().from(tasks)
-      .where(eq(tasks.id, data.taskId))
-    // send notification, update status, log the action
-  }
+    await projectsService().notifyAssignee(data.taskId)
+  },
 )
 ```
 
-Schedule from handlers: `ctx.scheduler.add('projects:sendReminder', { taskId }, { delay: '1d' })`
+Schedule from handlers or services: `ctx.scheduler.add('projects:send-reminder', { taskId }, { delay: '1d' })`. Retries, cron scheduling, and priority queues — all Postgres-backed via pg-boss.
 
-Retries, cron scheduling, and priority queues — all Postgres-backed via pg-boss.
+</details>
+
+<details>
+<summary><b>agent slot example</b> — tools, materializers, AGENTS.md fragments</summary>
+
+```typescript
+// modules/projects/agent.ts
+import { defineAgentTool, defineIndexContributor } from '@vobase/core'
+import { projectsService } from './service/projects'
+
+const createTask = defineAgentTool({
+  name: 'create_task',
+  audience: 'internal',
+  lane: 'standalone',
+  // schema: zod input/output…
+  async handler({ input, ctx }) {
+    return await projectsService().createTask(input)
+  },
+})
+
+export const projectsAgent = {
+  agentsMd: [defineIndexContributor({
+    file: 'AGENTS.md',
+    priority: 50,
+    name: 'projects.overview',
+    render: () => '## Projects\n\n- `create_task` to add a task to a project.',
+  })],
+  materializers: [/* WorkspaceMaterializerFactory<WakeContext>[] */],
+  roHints: [/* explain why /projects/<id>/* paths are read-only */],
+  tools: [createTask],
+}
+```
+
+The wake builder filters tools by `lane` and `audience`, runs each materializer factory against the wake context, chains roHints, and feeds the AGENTS.md contributors into the harness. One agent slot per module — no central registry to update.
 
 </details>
 
@@ -272,34 +325,23 @@ Every HTTP handler gets a context object with runtime capabilities. Current surf
 | Property | What it does |
 |---|---|
 | `ctx.db` | Drizzle instance. Full PostgreSQL — reads, writes, transactions. |
-| `ctx.user` | `{ id, email, name, role, activeOrganizationId? }`. From better-auth session. Used for authorization checks. RBAC middlewares: `requireRole()`, `requirePermission()`, `requireOrg()`. |
+| `ctx.user` | `{ id, email, name, role, activeOrganizationId? }`. From better-auth session. RBAC middlewares: `requireRole()`, `requirePermission()`, `requireOrg()`. |
 | `ctx.scheduler` | Job queue. `add(jobName, data, options)` to schedule background work. |
-| `ctx.storage` | `StorageService` — virtual buckets with local/S3 backends. `ctx.storage.bucket('avatars').upload(key, data)`. |
-| `ctx.channels` | `ChannelsService` — email and WhatsApp sends. `ctx.channels.email.send(msg)`. All messages logged. |
-| `ctx.integrations` | `IntegrationsService` — encrypted credential vault. `ctx.integrations.getActive(provider)` returns decrypted config or null. Platform-managed providers connected via HMAC-signed forwarding. |
+| `ctx.storage` | `StorageService` — virtual buckets with local/S3/R2 backends. |
+| `ctx.channels` | `ChannelsService` — email and WhatsApp sends. All messages logged. |
+| `ctx.integrations` | Encrypted credential vault. `ctx.integrations.getActive(provider)` returns decrypted config or null. |
 | `ctx.http` | Typed HTTP client with retries, timeouts, and circuit breakers. |
-| `ctx.realtime` | `RealtimeService` — event-driven server-push via PostgreSQL LISTEN/NOTIFY + SSE. `ctx.realtime.notify({ table, id?, action? }, tx?)` after mutations. |
+| `ctx.realtime` | `RealtimeService` — `notify({ table, id?, action? }, tx?)` after mutations. SSE subscribers receive the event; the frontend hook invalidates matching TanStack queries. |
 
-For jobs, pass dependencies through closures/factories (or import what you need) when calling `defineJob(...)`.
+Modules can declare an `init(ctx: ModuleInitCtx)` hook that runs at boot with `{ db, realtime, jobs, scheduler, auth, cli }`. Cross-module callers `import` from `@modules/<name>/service/*` directly — no port shim, no plugin system. Unconfigured services use throw-proxies that produce descriptive errors if accessed.
 
-#### module init context
-
-Modules can declare an `init` hook that receives a `ModuleInitContext` at boot — same services as request context (`db`, `scheduler`, `http`, `storage`, `channels`, `realtime`). Unconfigured services use throw-proxies that give descriptive errors if accessed.
-
-#### ctx extensions for external integrations
-
-Beyond local capabilities (database, user, scheduler, storage), `ctx` provides outbound connectivity and inbound event handling:
-
-| Property | What it does |
-|---|---|
-| `ctx.http` | Typed fetch wrapper with retries, timeouts, circuit breakers, and structured error responses. Configurable per-app via `http` in `vobase.config.ts`. |
-| `webhooks` (app-level) | Inbound webhook receiver with HMAC signature verification, deduplication, and automatic enqueue-to-job. Configured in `vobase.config.ts`, mounted as `/webhooks/*` routes — not a ctx property. |
+App-level config:
 
 ```typescript
 // vobase.config.ts
 export default defineConfig({
   database: process.env.DATABASE_URL,
-  integrations: { enabled: true },      // opt-in: encrypted credential store, provider configs
+  integrations: { enabled: true },      // opt-in: encrypted credential store
   storage: {                            // opt-in: file storage
     provider: { type: 'local', basePath: './data/files' },
     buckets: { avatars: { maxSize: 5_000_000 }, documents: {} },
@@ -310,7 +352,6 @@ export default defineConfig({
   http: {
     timeout: 10_000,
     retries: 3,
-    retryDelay: 500,
     circuitBreaker: { threshold: 5, resetTimeout: 30_000 },
   },
   webhooks: {
@@ -329,16 +370,42 @@ Credentials stay in `.env`. Config declares the shape.
 
 ---
 
+### agent harness
+
+The harness is the AI runtime in core. It runs on top of `@mariozechner/pi-agent-core` + `@mariozechner/pi-ai` and ships as `createHarness({...})` from `@vobase/core`. Each "wake" is one bounded run of an agent over a frozen system prompt.
+
+**Lanes** — the template ships two:
+
+- **Conversation** — bound to `(contactId, channelInstanceId, conversationId)`. Triggered by `inbound_message`, `supervisor`, `approval_resumed`, `scheduled_followup`, `manual`.
+- **Standalone** — operator threads + heartbeats. Triggered by `operator_thread`, `heartbeat`. Customer-facing tools are filtered out.
+
+**Invariants** baked into core:
+
+- *Frozen snapshot.* System prompt computed once at `agent_start`; the `systemHash` is identical every turn so the provider's prefix cache stays warm. Mid-wake writes surface in the next turn's side-load.
+- *Steer/abort between turns.* Customer messages append to the steer queue and drain after `tool_execution_end`. Supervisor and approval-resumed events hard-abort and re-wake.
+- *Tool stdout budget.* 4KB inline → 100KB spill (`/tmp/tool-<callId>.txt`) → 200KB turn ceiling.
+- *Idle resumption + restart recovery.* The harness recovers orphaned dispatches on boot and resumes idle wakes via journaled events.
+- *Cost cap.* Daily-spend tracking + per-org evaluation gate.
+
+**Workspace** — every wake runs against a virtual filesystem materialized from your modules. AGENTS.md is composed from each module's `agentsMd` contributor (plus per-tool guidance). Read-only paths are enforced at the FS boundary via `ScopedFs`. Memory writes (`/contacts/<id>/MEMORY.md`, `/agents/<id>/MEMORY.md`, `/staff/<id>/MEMORY.md`) flush at turn end.
+
+**LLM provider** — one seam. Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set, otherwise direct OpenAI / Anthropic / Google. Use `createModel(alias)` from the template's `~/wake`; never hardcode a provider-prefixed id.
+
+**Testing** — pass `streamFn: stubStreamFn([...])` (inline `AssistantMessageEvent[]` per LLM call) to `bootWake` to keep tests off real providers. Live smoke tests under `tests/smoke/` exercise real keys.
+
+---
+
 ### vs the alternatives
 
 | | **Vobase** | **Supabase** | **Pocketbase** | **Rails / Laravel** |
 |---|---|---|---|---|
-| What you get | Full-stack scaffold (backend + frontend + skills) | Backend-as-a-service (db + auth + storage + functions) | Backend binary (db + auth + storage + API) | Full-stack framework |
+| What you get | Full-stack scaffold (backend + frontend + agent harness + skills) | Backend-as-a-service (db + auth + storage + functions) | Backend binary (db + auth + storage + API) | Full-stack framework |
 | Language | TypeScript end-to-end | TypeScript (client) + PostgreSQL | Go (closed binary) | Ruby / PHP |
 | Database | PostgreSQL (Docker Compose local, managed prod) | PostgreSQL (managed) | SQLite (embedded) | PostgreSQL / MySQL |
 | Self-hosted | One process, one container | [10+ Docker containers](https://supabase.com/docs/guides/self-hosting/docker) | One binary | Multi-process |
 | You own the code | Yes — all source in your project | No — managed service | No — compiled binary | Yes — but no AI conventions |
-| AI integration | Agent skills + MCP + strict conventions | None | None | None |
+| AI agent runtime | First-class harness (frozen prompts, tool budget, steer/abort) | Edge functions only | None | None |
+| AI integration | Skills + MCP + canonical module shape | None | None | None |
 | How you customize | Edit the code. AI reads it. | Dashboard + RLS policies | Admin UI + hooks | Edit the code |
 | Hosting cost | As low as $15/mo | $25/mo+ (or complex self-host) | Free (self-host) | Varies |
 | Data isolation | Physical (one db per app) | Logical (RLS) | Physical | Varies |
@@ -348,7 +415,7 @@ Credentials stay in `.env`. Config declares the shape.
 
 **vs Pocketbase:** Pocketbase is a Go binary. You can see the admin UI, but you can't read or modify the internals. When you need custom business logic, you're writing Go plugins or calling external services. Vobase is TypeScript you own — AI agents understand and extend it natively.
 
-**vs Rails / Laravel:** Great frameworks, but they weren't designed for AI coding agents. Vobase's strict conventions and agent skills mean AI-generated code follows your patterns consistently. Plus: simpler stack (no Redis, single process, TypeScript end-to-end).
+**vs Rails / Laravel:** Great frameworks, but they weren't designed for AI coding agents. Vobase's canonical module shape and skill packs mean AI-generated code follows your patterns consistently. Plus: simpler stack (no Redis, single process, TypeScript end-to-end).
 
 ---
 
@@ -360,24 +427,28 @@ One Bun process. One Docker container. One app.
 Docker container (--restart=always)
   └── Bun process (PID 1)
         ├── Hono server
-        │     ├── /auth/*       → better-auth (sessions, passwords, CSRF)
-        │     ├── /api/*        → module handlers (session-validated)
-        │     ├── /api/agents/*  → Mastra agent/tool/workflow API
-        │     ├── /studio       → Mastra Studio SPA (dev-only)
-        │     ├── /mcp          → MCP server (same process, shared port)
-        │     ├── /webhooks/*   → inbound event receiver (signature verified, dedup)
-        │     └── /*            → frontend (static, from dist/)
-        ├── Drizzle (bun:sql → PostgreSQL)
-        ├── Built-in modules
-        │     ├── _auth         → better-auth behind AuthAdapter contract
-        │     ├── _audit        → audit log, record tracking, auth hooks
-        │     ├── _sequences    → gap-free business number counters
-        │     ├── _integrations → encrypted credential vault, platform OAuth handoff (opt-in)
-        │     ├── _storage      → virtual buckets, local/S3 (opt-in)
-        │     └── _channels     → unified messaging, adapter pattern (opt-in)
-        ├── pg-boss (Postgres-backed job queue)
+        │     ├── /api/auth/*    → better-auth (sessions, OTP, CSRF)
+        │     ├── /api/<mod>/*   → module web routes (session-validated)
+        │     ├── /api/cli/*     → CLI catalog + dispatch (HTTP-RPC)
+        │     ├── /mcp           → MCP server (same process, shared port)
+        │     ├── /webhooks/*    → inbound channel webhooks (signature verified, dedup)
+        │     ├── /api/realtime  → SSE stream (LISTEN/NOTIFY → client)
+        │     └── /*             → frontend (static, from dist/)
+        ├── Drizzle (postgres-js → PostgreSQL)
+        ├── Built-in modules (in @vobase/core)
+        │     ├── _auth          → better-auth behind AuthAdapter contract
+        │     ├── _audit         → audit log, record tracking, auth hooks
+        │     ├── _sequences     → gap-free business number counters
+        │     ├── _integrations  → encrypted credential vault, platform OAuth handoff (opt-in)
+        │     ├── _storage       → virtual buckets, local/S3/R2 (opt-in)
+        │     └── _channels      → unified messaging, adapter pattern (opt-in)
+        ├── Template modules (in @vobase/template)
+        │     ├── settings → contacts → team → drive → messaging
+        │     ├── agents → schedules → channels → changes → system
+        │     └── wake/  → agent harness seam (conversation + standalone lanes)
+        ├── pg-boss (Postgres-backed job queue, pg-boss own schema)
         ├── Outbound HTTP (typed fetch, retries, circuit breakers)
-        └── Audit middleware (all mutations → _audit_log)
+        └── Audit middleware (all mutations → audit_log)
 ```
 
 ---
@@ -407,7 +478,7 @@ Ship a Docker image. Railway, Fly.io, or any Docker host. Set `DATABASE_URL` for
 railway up
 ```
 
-The template ships with `Dockerfile` and `railway.toml` pre-configured. Add a Postgres plugin and Railway sets `DATABASE_URL` automatically.
+The template ships with `Dockerfile` and `railway.json` pre-configured. Add a Postgres plugin and Railway sets `DATABASE_URL` automatically.
 
 **Docker Compose:**
 
@@ -422,7 +493,7 @@ services:
     ports:
       - "3000:3000"
   db:
-    image: postgres:17
+    image: pgvector/pgvector:pg17
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
@@ -441,14 +512,16 @@ After scaffolding, your project uses standard tools directly — no wrapper CLI:
 
 | Command | What it does |
 |---|---|
-| `bun run dev` | Start Bun backend with `--watch` and Vite frontend. Auto-restarts on changes. |
 | `docker compose up -d` | Start local Postgres (pgvector/pg17, port 5432). |
-| `bun run db:push` | Apply fixtures then push schema to database (dev). |
+| `bun run dev` | Bun backend with `--hot` and Vite frontend, both via `concurrently`. |
+| `bun run db:push` | Push schema to database (dev). |
 | `bun run db:generate` | Generate migration files for production. |
 | `bun run db:migrate` | Run migrations against the database. |
 | `bun run db:seed` | Seed default admin user and sample data. |
-| `bun run db:reset` | Drop and recreate database, push schema, and seed. |
-| `bun run db:studio` | Open Drizzle Studio for visual database browsing. |
+| `bun run db:reset` | Nuke + push + seed. |
+| `bun run db:studio` | Drizzle Studio for visual database browsing. |
+| `bun run check` | Run every `check:*` (`shape`, `bundle`, `no-auto-nav-tabs`, `shadcn-overrides`). |
+| `bun run test` | Full test suite. `test:e2e` / `test:smoke` for live integration. |
 
 ---
 
@@ -461,86 +534,78 @@ my-app/
   package.json            ← depends on @vobase/core
   docker-compose.yml      ← local Postgres (pgvector/pg17)
   drizzle.config.ts
-  vobase.config.ts        ← database URL, auth, connections, webhooks
-  vite.config.ts          ← Vite + TanStack Router + path aliases
+  vite.config.ts
   index.html
-  server.ts               ← createApp() entry
+  main.ts                 ← ~10-line Bun.serve entry
   CLAUDE.md               ← project context and guardrails
+  AGENTS.md               ← agent guardrails (mirrors CLAUDE.md)
   .claude/
-    skills/
-      integer-money/
-        SKILL.md          ← core: all money as integer cents
+    skills/               ← skill packs the AI reads when generating code
+  auth/                   ← better-auth + plugins
+  runtime/
+    index.ts              ← cross-module primitives, ModuleDef/ModuleInitCtx
+    bootstrap.ts          ← createApp(), worker registration
+    modules.ts            ← static list of modules
+  wake/                   ← agent harness seam (top-level)
+    conversation.ts       ← conversation lane builder
+    standalone.ts         ← standalone lane builder
+    inbound.ts            ← channels:inbound-to-wake handler
+    supervisor.ts         ← messaging:supervisor-to-wake handler
+    operator-thread.ts    ← agents:operator-thread-to-wake handler
+    heartbeat.ts          ← schedules cron-tick callback
+    llm.ts                ← Bifrost / direct provider seam
+    trigger.ts            ← WakeTriggerKind registry
+    workspace/            ← per-wake virtual FS materializers
+    observers/            ← workspace-sync, journal, etc.
   modules/
-    messaging/            ← conversations, contacts, channels, labels, state machine
-      index.ts            ← defineModule()
-      schema.ts           ← conversations, messages, contacts, channels, labels, etc.
-      handlers/           ← conversations, contacts, channels, labels, activity
-      jobs.ts             ← outbox delivery, channel sessions
-      lib/                ← state machine, channel reply, delivery, inbound
-      pages/              ← inbox, conversations, contacts, channels, labels
-      seed.ts             ← demo data
-    agents/               ← AI agents, evals, guardrails, memory, MCP
-      index.ts            ← defineModule()
-      schema.ts           ← moderation_logs (scorers use Mastra native storage)
-      handlers/           ← chat, agents, evals, guardrails, memory, metrics, MCP
-      jobs.ts             ← agent wake
-      mastra/             ← Mastra primitives
-        index.ts          ← Mastra singleton: initMastra(), getMastra(), getMemory()
-        studio.ts         ← dev-only Studio SPA middleware
-        agents/           ← agent definitions (Mastra Agent instances)
-        tools/            ← RAG tools, booking, conversation tools
-        processors/       ← input/output processors, moderation guardrail
-        evals/            ← code scorers, custom scorer factory
-        mcp/              ← AI module MCP server
-        storage/          ← VobaseMemoryStorage (hybrid Mastra + Vobase)
-        lib/              ← DI, model aliases, observability
-      pages/              ← evals dashboard, guardrails, memory
-    automation/           ← browser task automation
-      index.ts
-      pages/
-    system/               ← ops dashboard
-      index.ts            ← defineModule()
-      handlers.ts         ← health, audit log, sequences, record audits
-      pages/
-    knowledge-base/       ← document ingestion + hybrid search
-      index.ts
+    settings/             ← notification prefs, per-user UI state
+    contacts/             ← customer records + /contacts/<id>/MEMORY.md
+    team/                 ← staff directory + attributes
+    drive/                ← virtual filesystem; modules register overlays
+    messaging/            ← conversations, messages, notes, supervisor fan-out
+    agents/               ← definitions, learned skills, staff memory, scores
+    schedules/            ← agent_schedules + cron heartbeats
+    channels/             ← umbrella for adapters/{web,whatsapp,...}
+    changes/              ← generic propose/decide/apply/history
+    system/               ← ops dashboard, dev helpers
+    <each module>/
+      module.ts           ← thin aggregator
       schema.ts
-      handlers.ts
-      jobs.ts             ← async document processing via queue
-      lib/                ← extract, chunk, embed, search pipeline
-      pages/
-    integrations/         ← external service credential management
-      index.ts
-      handlers.ts
+      state.ts
+      service/            ← sole writer of this module's tables
+      handlers/
+      web.ts
+      pages/              ← React pages (TanStack file-based routes)
+      components/
+      hooks/
       jobs.ts
-    index.ts              ← module registry
-    your-module/          ← modules you add
-      index.ts            ← defineModule()
-      schema.ts
-      handlers.ts
-      jobs.ts
-      pages/
-  src/
+      agent.ts            ← tools, materializers, roHints, AGENTS.md fragments
+      tools/              ← defineAgentTool
+      verbs/              ← defineCliVerb
+      cli.ts              ← <module>Verbs barrel
+      seed.ts
+      defaults/           ← *.agent.yaml, *.schedule.yaml
+      skills/             ← inline skill bodies
+  src/                    ← frontend shell only
     main.tsx
-    home.tsx
-    root.tsx
     routeTree.gen.ts      ← generated TanStack route tree
     lib/
+      api-client.ts       ← Hono RPC client
     components/
       ui/                 ← shadcn/ui (owned by you)
       ai-elements/        ← AI chat UI components (owned by you)
-      chat/               ← chat-specific components
       data-table/         ← DiceUI data-table components
     shell/
       app-layout.tsx      ← main app shell with sidebar
-      shell-header.tsx
       command-palette.tsx
-      auth/               ← login, signup
-      settings/           ← user, org, API keys, integrations settings
+      auth/
+      settings/
     hooks/
     styles/
     stores/
-    types/
+  tests/
+    e2e/                  ← real Postgres
+    smoke/                ← live server, real LLM key
   data/
     files/                ← optional, created on first upload
 ```
