@@ -2,7 +2,7 @@
  * Core harness unit coverage — exercises the pi-agent-core event-translation
  * pipeline with a stub stream and a minimal workspace. No DB, no network.
  *
- * Ports the three invariant assertions from template-v2's
+ * Ports the three invariant assertions from the template's
  * `server/harness/agent-runner.test.ts`:
  *   1. Single-turn reply emits the contract event sequence.
  *   2. systemHash is stable across user-turns (frozen-snapshot).

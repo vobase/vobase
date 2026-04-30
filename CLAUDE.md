@@ -5,9 +5,10 @@ Full-stack TypeScript framework for AI coding agents. Bun + Hono + Drizzle + Pos
 ## Packages
 
 - `@vobase/core` — runtime engine: auth, audit, sequences, integrations, storage, channels, RBAC, jobs, MCP
-- `@vobase/template` — scaffolding source (private). See `packages/template/CLAUDE.md` for conventions.
+- `@vobase/template` — agent-native helpdesk scaffold (private). Canonical module shape, `wake/` harness, `pi-agent-core` agent runtime. See `packages/template/CLAUDE.md` for conventions.
 - `@vobase/cli` — standalone, catalog-driven CLI binary. Discovers tenant verbs at runtime via `/api/cli/verbs`; the same binary works across deployments with different module sets.
 - `create-vobase` — project scaffolder via `bun create vobase`
+- `legacy/template-v1` — frozen pre-canonical template (Mastra + declarative config). Out of the workspace, pinned to `@vobase/core@0.33.0`. Do not modify.
 
 ## Commands
 
@@ -53,10 +54,10 @@ Contracts in `src/contracts/` define boundaries: AuthAdapter, ChannelAdapter, St
 ## Template Development
 
 - `packages/template` is scaffolding material only — no migration history, no generated artifacts
-- Dev: `bun run build --filter=@vobase/core` then `cd packages/template && docker compose up -d && bun run db:push && bun run dev`
-- After core changes, rebuild before restarting
-- Template modules: messaging (conversations, labels, state machine, replies), channels (umbrella owning channel_instances + adapters/{web,whatsapp}), agents (Mastra agents, memory, evals, guardrails, MCP), system (ops dashboard), knowledge-base (doc search), automation (browser tasks), integrations (external service credentials)
-- AI agents use Mastra (`@mastra/core`). Tools via `createTool()`, agents via `new Agent()`. Frontend chat uses ai-elements components (`src/components/ai-elements/`). Mastra storage configured with `schemaName: 'mastra'` — all Mastra tables live in the `mastra` pgSchema. Custom scorer definitions use Mastra's native `scorerDefinitions` storage domain.
+- Dev: `cd packages/template && docker compose up -d && bun run db:push && bun run dev`
+- Workspace `*` resolution links `@vobase/core` from source, so no separate core build step
+- Template modules: settings, contacts, team, drive, messaging, agents, schedules, channels (umbrella with adapters/{web,whatsapp}), changes (generic propose/decide/apply/history), system (ops dashboard)
+- AI agents run on `@mariozechner/pi-agent-core` + `@mariozechner/pi-ai`. Agent surfaces are declared per-module in `agent.ts` (tools, materializers, roHints, AGENTS.md fragments). The harness lives at `wake/` (top-level seam). Frontend chat uses ai-elements components (`src/components/ai-elements/`).
 - Frontend: React + TanStack Router + shadcn/ui (base-nova). Use `<Link>` not `<a href>`.
 
 ## Design Direction
@@ -98,7 +99,7 @@ These decisions were made deliberately. Do not revisit without discussion.
 - Adapters stay in core, not separate packages. AI agents don't read node_modules, so package boundaries don't affect readability. Separate packages only when adapter count exceeds 10 or install size becomes a real problem.
 - No plugin system. Factory functions in config, not plugin objects with lifecycle hooks. We evaluated a Vite-like model and rejected it — abstractions to solve packaging problems are over-engineering.
 - No outbound webhooks. Vobase is code-first for AI agents — outbound events are just `fetch()` in job handlers. Building a webhook delivery system with retry queues is unnecessary complexity.
-- Docker Compose Postgres for local dev, PGlite only for tests (in-memory). PGlite data files corrupted on unclean shutdown — Docker Compose Postgres eliminates corruption and removes ~200 lines of adapter shims. `docker compose up -d` in packages/template starts a pgvector/pg17 instance.
+- Docker Compose Postgres for local dev. `docker compose up -d` in packages/template starts a pgvector/pg17 instance on `:5432`.
 - SSE for server-push via LISTEN/NOTIFY. No WebSocket — none of the current use cases need bidirectional communication. Modules emit NOTIFY after mutations; the core SSE endpoint streams events to connected browsers; the frontend hook invalidates matching TanStack Query keys.
 - No developer admin UI. The template UI is for end-users/clients, not developers inspecting data. For dev data browsing, use `bun run db:studio` (Drizzle Studio).
 - Event emitter stays channels-internal. One consumer doesn't justify a core primitive. Audit uses synchronous middleware hooks, auth uses better-auth hooks — different patterns for different reasons.

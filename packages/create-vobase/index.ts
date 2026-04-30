@@ -150,17 +150,14 @@ const biomePath = resolve(dest, 'biome.json')
         : {}),
       includes: [
         '**',
-        '!dist',
-        '!.omc',
-        '!.claude',
-        '!**/*.gen.ts',
-        '!**/*.generated.ts',
+        '!**/drizzle',
+        '!**/.omc',
+        '!**/db/current.sql',
+        '!public',
+        '!src/components/ui',
         '!src/components/ai-elements',
         '!src/components/data-table',
-        '!src/components/ui',
-        '!src/lib/store',
-        '!src/lib/table-schema',
-        '!src/lib/compose-refs.ts',
+        '!src/routeTree.gen.ts',
       ],
     },
     overrides: [...(Array.isArray(rootConfig.overrides) ? rootConfig.overrides : []), ...templateOverrides],
@@ -179,17 +176,39 @@ const knipPath = resolve(dest, 'knip.json')
     $schema: 'https://unpkg.com/knip@6/schema.json',
     tags: ['-lintignore'],
     entry: [
-      'server.ts',
+      'main.ts',
+      'runtime/bootstrap.ts',
+      'runtime/modules.ts',
+      'auth/index.ts',
+      'auth/middleware/*.ts',
+      'wake/*.ts',
+      'modules/*/module.ts',
+      'modules/*/cli.ts',
+      'modules/*/agent.ts',
+      'modules/*/seed.ts',
+      'modules/*/jobs.ts',
+      'modules/*/web.ts',
+      'modules/*/verbs/*.ts',
+      'modules/*/tools/*.ts',
+      'modules/*/handlers/*.ts',
       'src/main.tsx',
       'scripts/*.ts',
-      'vobase.config.ts',
       'drizzle.config.ts',
       'vite.config.ts',
-      'modules/*/index.ts',
-      'modules/*/seed.ts',
-      'modules/seed-types.ts',
+      'tests/e2e/**/*.ts',
+      'tests/smoke/**/*.ts',
+      'tests/helpers/**/*.ts',
     ],
-    project: ['src/**/*.{ts,tsx}', 'modules/**/*.{ts,tsx}', 'scripts/**/*.ts', '*.config.ts'],
+    project: [
+      'src/**/*.{ts,tsx}',
+      'modules/**/*.{ts,tsx}',
+      'runtime/**/*.ts',
+      'auth/**/*.ts',
+      'wake/**/*.ts',
+      'scripts/**/*.ts',
+      'tests/**/*.ts',
+      '*.config.ts',
+    ],
     ignore: [
       'src/components/ai-elements/**',
       'src/components/data-table/**',
@@ -200,7 +219,16 @@ const knipPath = resolve(dest, 'knip.json')
       '**/*.test.ts',
       '**/*.test.tsx',
     ],
-    ignoreDependencies: ['shadcn', 'mastra', '@fontsource-variable/geist', 'tailwindcss', 'tw-animate-css'],
+    ignoreDependencies: [
+      '@fontsource-variable/geist',
+      'embla-carousel-react',
+      'tw-animate-css',
+      'vaul',
+      'shiki',
+      'tailwindcss',
+      'shadcn',
+      '@tanstack/virtual-file-routes',
+    ],
   }
   writeFileSync(knipPath, `${JSON.stringify(knipConfig, null, 2)}\n`)
   console.log(`${green('✓')} Generated knip.json`)
@@ -226,11 +254,6 @@ if (!templateMode) {
 console.log(`\n${bold('Installing dependencies...')}`)
 await $`bun install`.cwd(dest)
 console.log(`${green('✓')} Dependencies installed`)
-
-// --- Generate routes ---
-console.log(`${bold('Generating routes...')}`)
-await $`bun run scripts/generate.ts`.cwd(dest)
-console.log(`${green('✓')} Routes generated`)
 
 if (!templateMode) {
   // --- Set up database (fixtures → schema → seed) ---

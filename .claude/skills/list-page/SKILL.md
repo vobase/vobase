@@ -17,7 +17,7 @@ Skip when the underlying data is genuinely small + static (≤20 rows, no filter
 
 ## Canonical example
 
-`packages/template-v2/modules/contacts/pages/index.tsx` is the reference implementation. Read that file first; this skill summarizes the load-bearing parts.
+`packages/template/modules/contacts/pages/index.tsx` is the reference implementation. Read that file first; this skill summarizes the load-bearing parts.
 
 ## Stack
 

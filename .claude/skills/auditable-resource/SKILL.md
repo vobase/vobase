@@ -13,7 +13,7 @@ Modules opt into the generic change-proposals umbrella by registering a **materi
 - A tamper-evident `change_history` row per applied mutation, linked to the proposal that produced it.
 - An `agent_event` (`change_approved` / `change_rejected`) emitted into the conversation journal when the proposal originated from an agent wake.
 
-The umbrella lives at `packages/template-v2/modules/changes/`. Resource modules contribute four small pieces — they never touch `changeProposals` / `changeHistory` directly (`check:shape` enforces this).
+The umbrella lives at `packages/template/modules/changes/`. Resource modules contribute four small pieces — they never touch `changeProposals` / `changeHistory` directly (`check:shape` enforces this).
 
 ## When to apply
 
@@ -25,7 +25,7 @@ Skip when the mutation has no business meaning to surface to staff (intra-tool s
 
 ## Canonical example
 
-`packages/template-v2/modules/contacts/` is the reference implementation — read these four files before copying:
+`packages/template/modules/contacts/` is the reference implementation — read these four files before copying:
 
 - `service/changes.ts` — materializer (load, apply payload, write back).
 - `module.ts` — `init` registers the materializer with `requiresApproval: false`.
@@ -254,12 +254,12 @@ After wiring all four files:
 
 ## References
 
-- Canonical materializer: `packages/template-v2/modules/contacts/service/changes.ts`
-- Canonical CLI verb: `packages/template-v2/modules/contacts/cli.ts` (`contactsProposeChangeVerb`)
-- Canonical registration: `packages/template-v2/modules/contacts/module.ts`
-- Auto-apply variant (no approval gate): `agentMemoryMaterializer` in `packages/template-v2/modules/agents/service/changes.ts`
-- Approval-gated variant: `agentSkillMaterializer` in `packages/template-v2/modules/agents/service/changes.ts`
-- Stub variant (no real write yet): `driveDocMaterializer` in `packages/template-v2/modules/drive/service/changes.ts`
-- Service contract: `packages/template-v2/modules/changes/service/proposals.ts`
-- Shared diff component: `packages/template-v2/src/components/changes/diff-view.tsx`
+- Canonical materializer: `packages/template/modules/contacts/service/changes.ts`
+- Canonical CLI verb: `packages/template/modules/contacts/cli.ts` (`contactsProposeChangeVerb`)
+- Canonical registration: `packages/template/modules/contacts/module.ts`
+- Auto-apply variant (no approval gate): `agentMemoryMaterializer` in `packages/template/modules/agents/service/changes.ts`
+- Approval-gated variant: `agentSkillMaterializer` in `packages/template/modules/agents/service/changes.ts`
+- Stub variant (no real write yet): `driveDocMaterializer` in `packages/template/modules/drive/service/changes.ts`
+- Service contract: `packages/template/modules/changes/service/proposals.ts`
+- Shared diff component: `packages/template/src/components/changes/diff-view.tsx`
 - Sibling skill: `.claude/skills/cli-verb/SKILL.md`
