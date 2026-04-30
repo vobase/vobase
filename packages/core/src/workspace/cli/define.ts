@@ -74,14 +74,20 @@ export interface CliVerbDef<TInput = unknown, TOutput = unknown> {
    */
   readOnly?: boolean
   /**
-   * Which lanes should expose this verb. Default `'all'`.
-   *  - `'agent'`: only the in-bash sandbox dispatches it; HTTP-RPC returns
-   *    `forbidden` (used for `conv ask-staff`, which only makes sense from a
-   *    wake context).
-   *  - `'staff'`: only HTTP-RPC dispatches it; the bash sandbox hides it.
-   *  - `'all'`: both transports.
+   * Trust tier the verb is exposed to. Default `'admin'` (most restrictive — only
+   * the human CLI binary holding the project admin API key sees these).
+   *
+   * Tiers are monotonic: a `'contact'` verb is visible to the contact, staff,
+   * and admin tiers; a `'staff'` verb is visible to staff + admin only; an
+   * `'admin'` verb is admin-only.
+   *
+   * The wake's `audienceTier` (derived from `(lane, triggerKind)` in the
+   * template — see `wake/conversation.ts` / `wake/standalone.ts`) drives the
+   * filter for the in-bash sandbox + AGENTS.md materializer. HTTP-RPC dispatch
+   * is admin-tier (the CLI binary uses an admin api-key); filtering happens at
+   * the surface layer, not in `dispatch`.
    */
-  audience?: 'agent' | 'staff' | 'all'
+  audience?: 'admin' | 'staff' | 'contact'
   /**
    * Verb-specific prose for the agent's AGENTS.md `## Commands` block.
    * Rendered under the verb's `### vobase <name>` heading, after `description`
@@ -103,7 +109,7 @@ export interface DefineCliVerbOpts<TInput, TOutput> {
   route?: string
   usage?: string
   readOnly?: boolean
-  audience?: 'agent' | 'staff' | 'all'
+  audience?: 'admin' | 'staff' | 'contact'
   prompt?: string
 }
 

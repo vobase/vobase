@@ -116,32 +116,36 @@ describe('cross-transport parity', () => {
     }
   })
 
-  it('blocks staff-only verbs from in-process and agent-only verbs from HTTP', async () => {
+  it('both transports dispatch admin-tier verbs regardless of audience tag', async () => {
+    // Audience filtering (contact/staff/admin) happens at the surface layer
+    // (AGENTS.md materializer + in-bash --help). The registry dispatch itself
+    // is tier-agnostic — this test confirms an admin-tagged verb runs over both
+    // HTTP-RPC and in-process without being blocked at dispatch time.
     const r = new CliVerbRegistry()
     r.register(
       defineCliVerb({
-        name: 'fixture agent-only',
-        description: 'Only callable from a wake',
+        name: 'fixture admin',
+        description: 'Admin-tier verb visible only to CLI binary',
         input: z.object({}),
-        audience: 'agent',
-        body: async () => ({ ok: true as const, data: { ok: 'agent' } }),
+        audience: 'admin',
+        body: async () => ({ ok: true as const, data: { ok: 'admin' } }),
       }),
     )
     r.register(
       defineCliVerb({
-        name: 'fixture staff-only',
-        description: 'Only callable from HTTP',
+        name: 'fixture contact',
+        description: 'Contact-tier verb visible to wakes',
         input: z.object({}),
-        audience: 'staff',
-        body: async () => ({ ok: true as const, data: { ok: 'staff' } }),
+        audience: 'contact',
+        body: async () => ({ ok: true as const, data: { ok: 'contact' } }),
       }),
     )
-    const agentOverHttp = await dispatchHttp(r, 'fixture agent-only', {})
-    const staffInBash = await dispatchInProcess(r, 'fixture staff-only', {})
-    expect(agentOverHttp.ok).toBe(false)
-    if (!agentOverHttp.ok) expect(agentOverHttp.errorCode).toBe('forbidden')
-    expect(staffInBash.ok).toBe(false)
-    if (!staffInBash.ok) expect(staffInBash.errorCode).toBe('forbidden')
+    const adminOverHttp = await dispatchHttp(r, 'fixture admin', {})
+    const adminInProcess = await dispatchInProcess(r, 'fixture admin', {})
+    const contactInProcess = await dispatchInProcess(r, 'fixture contact', {})
+    expect(adminOverHttp.ok).toBe(true)
+    expect(adminInProcess.ok).toBe(true)
+    expect(contactInProcess.ok).toBe(true)
   })
 
   it('marks read-only events so onSideEffect skips them', async () => {

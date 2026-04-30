@@ -23,6 +23,31 @@ export class VobaseCliCollisionError extends Error {
   override readonly name = 'VobaseCliCollisionError'
 }
 
+/**
+ * Trust tier a verb is exposed to. See `CliVerbDef.audience` for the full
+ * monotonic-tier semantics. Default `'admin'` so untagged verbs are invisible
+ * to wakes — authors must opt into the lower tiers explicitly.
+ */
+export type AudienceTier = 'admin' | 'staff' | 'contact'
+
+/**
+ * Subset of `AudienceTier` that a wake can run at. `'admin'` only applies to
+ * the actual `vobase` CLI binary (admin API key), never to a wake — wakes
+ * always run at `'staff'` or `'contact'`.
+ */
+export type WakeAudienceTier = Extract<AudienceTier, 'staff' | 'contact'>
+
+const TIER_ORDER: Record<AudienceTier, number> = { contact: 0, staff: 1, admin: 2 }
+
+/**
+ * Verb visibility rule for a given wake tier. A verb is visible iff its
+ * required tier is `<=` the wake's tier (contact ≤ staff ≤ admin). Used by
+ * both the AGENTS.md materializer and the in-bash transport's `--help`.
+ */
+export function isVerbVisible(verbAudience: AudienceTier | undefined, wakeTier: WakeAudienceTier): boolean {
+  return TIER_ORDER[verbAudience ?? 'admin'] <= TIER_ORDER[wakeTier]
+}
+
 export interface CatalogVerb {
   name: string
   description: string
@@ -32,13 +57,12 @@ export interface CatalogVerb {
   formatHint?: string
   rolesAllowed?: readonly string[]
   /**
-   * Lane gating — `'agent'` means only the in-bash transport accepts it,
-   * `'staff'` means only HTTP-RPC. The CLI binary skips entries marked
-   * `'agent'` from its `--help` listing so staff don't see verbs they can't
-   * dispatch (the dispatch endpoint also rejects them with `'forbidden'`).
-   * `undefined` ⇒ `'all'`.
+   * Trust tier the verb is exposed to. Default `'admin'`. Filtering by wake
+   * tier happens in the AGENTS.md materializer + in-bash transport — the CLI
+   * binary's HTTP-RPC dispatch is admin-tier (api-key authenticated) and sees
+   * every verb regardless.
    */
-  audience?: 'agent' | 'staff' | 'all'
+  audience?: AudienceTier
 }
 
 export interface Catalog {
@@ -130,15 +154,10 @@ export class CliVerbRegistry {
       return { ok: false, error: `Input validation failed: ${parsed.error.message}`, errorCode: 'invalid_input' }
     }
     const ctx = await transport.resolveContext()
-    // Audience gate: agent-only verbs are hidden from HTTP-RPC; staff-only
-    // verbs are hidden from the in-bash sandbox. `'all'` (default) bypasses.
-    const audience = verb.audience ?? 'all'
-    if (audience === 'agent' && transport.name !== 'in-process') {
-      return { ok: false, error: `Verb "${name}" is agent-only`, errorCode: 'forbidden' }
-    }
-    if (audience === 'staff' && transport.name === 'in-process') {
-      return { ok: false, error: `Verb "${name}" is staff-only`, errorCode: 'forbidden' }
-    }
+    // Audience filtering happens at the surface layer — the AGENTS.md
+    // materializer + in-bash transport's `--help` filter by wake tier; the
+    // CLI binary's HTTP-RPC dispatch is admin-tier (api-key authenticated)
+    // and sees every verb regardless. No tier gate here.
     if (verb.rolesAllowed && verb.rolesAllowed.length > 0 && (!ctx.role || !verb.rolesAllowed.includes(ctx.role))) {
       return { ok: false, error: `Role "${ctx.role ?? 'none'}" not allowed for verb "${name}"`, errorCode: 'forbidden' }
     }

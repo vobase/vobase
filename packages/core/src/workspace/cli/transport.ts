@@ -21,7 +21,7 @@ export interface VerbContext {
   /**
    * Wake-scoped context populated by the in-process transport when the verb
    * fires from inside a wake's bash sandbox. Verbs that bind to a specific
-   * conversation (`conv reassign`, `conv ask-staff`, `drive propose`) read
+   * conversation (`conv reassign`, `drive propose`) read
    * `wake.conversationId` instead of taking the id as input. Absent on
    * HTTP-RPC dispatches; verbs that depend on it must validate presence and
    * return a typed error otherwise.

@@ -58,6 +58,15 @@ export interface GenerateAgentsMdOpts {
   headerOverride?: string
   /** Extra contributors to splice in (e.g. policy block). Applied after the four built-ins. */
   extraContributors?: readonly Parameters<typeof defineIndexContributor>[0][]
+  /**
+   * Per-build context fan-out forwarded to every contributor's
+   * `IndexContributorContext.scratch`. Lets wake-time facts (current lane,
+   * trigger kind, supervisor variant, etc.) flow into module-contributed
+   * renderers without coupling those modules to the wake harness — each
+   * module reads its keys via a typed accessor it owns. Untyped here so the
+   * core API stays generic.
+   */
+  scratch?: Record<string, unknown>
 }
 
 /**
@@ -154,5 +163,5 @@ export function generateAgentsMd(opts: GenerateAgentsMdOpts): string {
       }),
     )
   if (opts.extraContributors) builder.registerAll(opts.extraContributors)
-  return builder.build({ file: FILE })
+  return builder.build({ file: FILE, scratch: opts.scratch })
 }

@@ -19,13 +19,20 @@ import { defineCommand } from 'just-bash'
 
 import type { CliVerbDef } from './define'
 import { renderBashHelp, renderBashResult } from './in-process-transport'
-import type { CliVerbRegistry } from './registry'
+import type { CliVerbRegistry, WakeAudienceTier } from './registry'
 import type { VerbContext, VerbTransport } from './transport'
 
 export interface CreateBashVobaseCommandOpts {
   registry: CliVerbRegistry
   /** Per-wake context shared by every dispatched verb. */
   context: VerbContext
+  /**
+   * Wake-derived audience tier. `'staff'` for staff-initiated wakes
+   * (supervisor / approval / scheduled / manual / operator-thread / heartbeat);
+   * `'contact'` for inbound-message wakes. Drives `--help` and (in the future)
+   * could gate dispatch — today only `--help` filters.
+   */
+  audienceTier: WakeAudienceTier
   /** Fires once per non-read-only verb. Used by the wake's "did-something" heuristic. */
   onSideEffect?: (verbName: string) => void
 }
@@ -123,7 +130,7 @@ export function createBashVobaseCommand(opts: CreateBashVobaseCommandOpts): Comm
 
   return defineCommand('vobase', async (args: string[]): Promise<ExecResult> => {
     if (args.length === 0 || args[0] === '--help' || args[0] === 'help') {
-      return { stdout: renderBashHelp(registry.list()), stderr: '', exitCode: 0 }
+      return { stdout: renderBashHelp(registry.list(), opts.audienceTier), stderr: '', exitCode: 0 }
     }
     const match = matchVerbInRegistry(args, registry)
     if (!match) {

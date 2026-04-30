@@ -18,5 +18,13 @@ export {
   renderBashHelp,
   renderBashResult,
 } from './in-process-transport'
-export { type Catalog, type CatalogVerb, CliVerbRegistry, VobaseCliCollisionError } from './registry'
+export {
+  type AudienceTier,
+  type Catalog,
+  type CatalogVerb,
+  CliVerbRegistry,
+  isVerbVisible,
+  VobaseCliCollisionError,
+  type WakeAudienceTier,
+} from './registry'
 export type { VerbContext, VerbEvent, VerbFormat, VerbResult, VerbTransport } from './transport'

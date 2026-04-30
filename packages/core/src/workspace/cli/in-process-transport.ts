@@ -17,6 +17,7 @@
  */
 
 import type { CliVerbDef } from './define'
+import { type AudienceTier, isVerbVisible } from './registry'
 import type { VerbContext, VerbEvent, VerbFormat, VerbTransport } from './transport'
 
 export interface InProcessTransportOpts {
@@ -92,13 +93,16 @@ export function renderBashResult({ verbName, result }: BashRenderArgs): BashRend
 }
 
 /**
- * `vobase --help` body for the in-bash sandbox: lists verbs visible to the
- * `'in-process'` transport (audience `'all'` or `'agent'`). Centralised here
- * so the wake's bash command and any future "list available verbs" hook
- * share one implementation.
+ * `vobase --help` body for the in-bash sandbox: lists verbs visible at the
+ * wake's audience tier (`'staff'` or `'contact'`). Tier ordering is monotonic
+ * — staff sees verbs tagged `'staff'` or `'contact'`; contact sees `'contact'`
+ * only. Untagged (admin-default) verbs are invisible to wakes by design.
+ *
+ * Centralised here so the wake's bash command and any future "list available
+ * verbs" hook share one filter implementation.
  */
-export function renderBashHelp(verbs: readonly CliVerbDef[]): string {
-  const visible = verbs.filter((v) => (v.audience ?? 'all') !== 'staff').sort((a, b) => a.name.localeCompare(b.name))
+export function renderBashHelp(verbs: readonly CliVerbDef[], wakeTier: AudienceTier & ('staff' | 'contact')): string {
+  const visible = verbs.filter((v) => isVerbVisible(v.audience, wakeTier)).sort((a, b) => a.name.localeCompare(b.name))
   if (visible.length === 0) return 'vobase: no commands registered\n'
   const lines = ['vobase subcommands:']
   for (const v of visible) {

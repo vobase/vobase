@@ -417,6 +417,7 @@ export {
   generateAgentsMd,
 } from './workspace/agents-md-generator'
 export {
+  type AudienceTier,
   type BashRenderArgs,
   type BashRenderResult,
   type Catalog,
@@ -437,6 +438,7 @@ export {
   defaultRouteForVerb,
   defineCliVerb,
   type InProcessTransportOpts,
+  isVerbVisible,
   parseBashArgv,
   renderBashHelp,
   renderBashResult,
@@ -446,6 +448,7 @@ export {
   type VerbResult,
   type VerbTransport,
   VobaseCliCollisionError,
+  type WakeAudienceTier,
 } from './workspace/cli'
 export {
   type CreateWorkspaceOpts,
