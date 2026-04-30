@@ -1,15 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
-import { NuqsAdapter } from 'nuqs/adapters/react'
+import { NuqsAdapter } from 'nuqs/adapters/tanstack-router'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { routeTree } from '@/routeTree.gen'
-import '@/styles/app.css'
+import { ThemeProvider } from './components/theme-provider'
+import { SearchProvider } from './providers/search-provider'
+import { routeTree } from './routeTree.gen'
+import './styles/app.css'
 
 const router = createRouter({ routeTree })
-const queryClient = new QueryClient()
 
 declare module '@tanstack/react-router' {
   interface Register {
@@ -17,18 +17,25 @@ declare module '@tanstack/react-router' {
   }
 }
 
-const rootElement = document.getElementById('root')
-if (rootElement && !rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement)
-  root.render(
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1 },
+  },
+})
+
+const root = document.getElementById('root')
+if (root && !root.innerHTML) {
+  ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <NuqsAdapter>
+      <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <RouterProvider router={router} />
-          </TooltipProvider>
+          <NuqsAdapter>
+            <SearchProvider>
+              <RouterProvider router={router} />
+            </SearchProvider>
+          </NuqsAdapter>
         </QueryClientProvider>
-      </NuqsAdapter>
+      </ThemeProvider>
     </React.StrictMode>,
   )
 }

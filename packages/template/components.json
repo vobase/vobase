@@ -12,8 +12,6 @@
   },
   "iconLibrary": "lucide",
   "rtl": false,
-  "menuColor": "default",
-  "menuAccent": "subtle",
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",
@@ -22,7 +20,6 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@diceui": "https://diceui.com/r/{name}.json",
-    "@tool-ui": "https://www.tool-ui.com/r/{name}.json"
+    "@diceui": "https://diceui.com/r/{name}.json"
   }
 }

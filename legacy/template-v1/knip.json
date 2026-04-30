@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "modules/*/index.ts",
+    "modules/*/pages/**/*.tsx",
+    "modules/*/seed.ts",
+    "modules/system/dev-auth-plugin.ts",
+    "modules/system/emails/index.tsx",
+    "e2e/**/*.test.ts",
+    "lib/**/*.test.ts",
+    "src/lib/*.test.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "e2e/**/*.ts"],
+  "ignore": [
+    "src/components/ui/**",
+    "src/components/ai-elements/**",
+    "src/components/tool-ui/**",
+    "src/components/chat/**",
+    "src/routes.ts",
+    "modules/automation/browser/**",
+    "src/hooks/use-as-ref.ts",
+    "src/hooks/use-isomorphic-layout-effect.ts",
+    "src/hooks/use-lazy-ref.ts",
+    "src/components/visually-hidden-input.tsx"
+  ],
+  "ignoreDependencies": [
+    "@fontsource-variable/geist",
+    "embla-carousel-react",
+    "tw-animate-css",
+    "vaul",
+    "shiki",
+    "tailwindcss",
+    "shadcn",
+    "mastra",
+    "@tanstack/virtual-file-routes",
+    "@diceui/checkbox-group",
+    "googleapis",
+    "@azure/msal-node"
+  ],
+  "ignoreExportsUsedInFile": true
+}

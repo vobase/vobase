@@ -1,4 +1,5 @@
-import { useRouter } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 
 import {
   AlertDialog,
@@ -18,32 +19,29 @@ interface SignOutDialogProps {
 }
 
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  async function handleSignOut() {
-    await authClient.signOut()
-    router.invalidate()
+  async function handleConfirm() {
+    try {
+      await authClient.signOut({ fetchOptions: { credentials: 'include' } })
+    } catch {
+      // Ignore transport failures — we still want to clear local state + redirect.
+    }
+    queryClient.clear()
+    navigate({ to: '/auth/login', replace: true })
   }
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="sm:max-w-sm">
+      <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Sign out</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to sign out? You will need to sign in again to access your account.
-          </AlertDialogDescription>
+          <AlertDialogTitle>Sign out?</AlertDialogTitle>
+          <AlertDialogDescription>You will be returned to the login screen.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            onClick={() => {
-              void handleSignOut()
-            }}
-          >
-            Sign out
-          </AlertDialogAction>
+          <AlertDialogAction onClick={handleConfirm}>Sign out</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

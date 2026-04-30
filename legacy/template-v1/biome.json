@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": "//",
+  "files": {
+    "includes": [
+      "**",
+      "!dist",
+      "!.omc",
+      "!.agents",
+      "!**/*.gen.ts",
+      "!**/*.generated.ts",
+      "!src/components/ai-elements",
+      "!src/components/data-table",
+      "!src/components/tool-ui",
+      "!src/components/ui",
+      "!src/lib/store",
+      "!src/lib/table-schema",
+      "!src/lib/compose-refs.ts"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": ["modules/knowledge-base/connectors/sharepoint.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTsIgnore": "off"
+          }
+        }
+      }
+    }
+  ]
+}

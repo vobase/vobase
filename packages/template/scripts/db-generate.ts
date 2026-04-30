@@ -1,6 +1,14 @@
+#!/usr/bin/env bun
 /**
- * Generate a Drizzle migration from schema diff, then prepend current.sql
- * fixtures into the migration file and reset current.sql to the template.
+ * db:generate — produce a self-contained Drizzle migration.
+ *
+ * Pipeline:
+ *   1. `drizzle-kit generate --name <name>` writes drizzle/<ts>_<name>/migration.sql
+ *   2. Prepend db/current.sql fixtures (extensions + nanoid) so a fresh DB
+ *      can replay migrations without `db:push` having run first.
+ *   3. Append the cross-schema FKs / UNLOGGED / trigram-index statements that
+ *      db-apply-extras.ts applies post-push, so `db:migrate` reaches the same
+ *      end state as `db:push`.
  *
  * Usage: bun run db:generate [migration-name]
  */
@@ -9,57 +17,97 @@ import { join } from 'node:path'
 
 import { processSqlFile } from './utils/process-sql-file'
 
-const name = process.argv[2] || `migration_${Date.now()}`
-const drizzleDir = join(import.meta.dir, '..', 'drizzle')
+const name = process.argv[2] ?? `migration_${Date.now()}`
+const templateDir = join(import.meta.dir, '..')
+const drizzleDir = join(templateDir, 'drizzle')
 
-// Ensure drizzle dir exists (first run on freshly scaffolded project)
 if (!existsSync(drizzleDir)) mkdirSync(drizzleDir, { recursive: true })
 
-// Snapshot existing migration folders before generating
 const before = new Set(readdirSync(drizzleDir))
 
-// 1. Run drizzle-kit generate
-// Use `script` to allocate a pseudo-TTY (drizzle-kit requires isTTY even with --name)
+// drizzle-kit generate requires a TTY even with --name; wrap in `script` so
+// Bun can spawn it non-interactively. macOS and Linux have different `script`
+// argument orders.
 const isLinux = process.platform === 'linux'
 const cmd = isLinux
   ? ['script', '-qc', `bunx drizzle-kit generate --name ${name}`, '/dev/null']
   : ['script', '-q', '/dev/null', 'bunx', 'drizzle-kit', 'generate', '--name', name]
+
 const proc = Bun.spawnSync(cmd, {
   stdin: 'inherit',
   stdout: 'inherit',
   stderr: 'inherit',
-  cwd: join(import.meta.dir, '..'),
+  cwd: templateDir,
 })
+if (proc.exitCode !== 0) process.exit(proc.exitCode ?? 1)
 
-if (proc.exitCode !== 0) {
-  process.exit(proc.exitCode)
-}
-
-// 2. Find the newly created migration folder
-const after = readdirSync(drizzleDir)
-const newFolder = after.find((f) => !before.has(f) && !f.startsWith('.'))
-
+const newFolder = readdirSync(drizzleDir).find((f) => !before.has(f) && !f.startsWith('.'))
 if (!newFolder) {
-  console.error('[db:generate] No new migration folder found — schema may already be in sync')
+  process.stdout.write('[db:generate] no new migration folder — schema already in sync\n')
   process.exit(0)
 }
 
 const migrationPath = join(drizzleDir, newFolder, 'migration.sql')
 
-// 3. Prepend fixtures into the migration (fixtures must run before schema)
-const currentSqlPath = join(import.meta.dir, '..', 'db', 'current.sql')
-const currentSql = await processSqlFile(currentSqlPath)
-const schemaSql = await Bun.file(migrationPath).text()
+const fixtures = await processSqlFile(join(templateDir, 'db', 'current.sql'))
+const schema = await Bun.file(migrationPath).text()
 
-await Bun.write(migrationPath, `${currentSql}\n${schemaSql}`)
-console.log(`[db:generate] Fixtures baked into ${migrationPath}`)
+// Extras: mirror db-apply-extras.ts. FK ADD CONSTRAINT has no IF NOT EXISTS,
+// so wrap each in a DO block that swallows duplicate_object to keep migrations
+// idempotent under re-run (drizzle-kit skips already-applied migrations, but
+// manual re-runs against a push-seeded DB must not crash).
+const extras = `
+-- ── post-schema extras (mirrors scripts/db-apply-extras.ts) ──
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-// 4. Reset current.sql to template
-const resetTemplate = `-- Fixtures entry point
--- Use --!include to include SQL files with glob support
--- Run \`bun run db:push\` to apply during development
--- Run \`bun run db:generate\` to bake into a migration
+ALTER TABLE harness.active_wakes SET UNLOGGED;
+
+CREATE INDEX IF NOT EXISTS idx_drive_text_trgm
+  ON drive.files
+  USING gin ((coalesce(extracted_text,'') || ' ' || coalesce(caption,'')) gin_trgm_ops);
+
+DO $$ BEGIN
+  ALTER TABLE messaging.conversations
+    ADD CONSTRAINT fk_conv_contact
+    FOREIGN KEY (contact_id) REFERENCES contacts.contacts(id) ON DELETE RESTRICT;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE contacts.staff_channel_bindings
+    ADD CONSTRAINT fk_staff_channel_instance
+    FOREIGN KEY (channel_instance_id) REFERENCES channels.channel_instances(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE messaging.conversations
+    ADD CONSTRAINT fk_conv_channel_instance
+    FOREIGN KEY (channel_instance_id) REFERENCES channels.channel_instances(id) ON DELETE RESTRICT;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE messaging.internal_notes
+    ADD CONSTRAINT fk_notes_notif_channel
+    FOREIGN KEY (notif_channel_id) REFERENCES channels.channel_instances(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE drive.files
+    ADD CONSTRAINT fk_drive_source_msg
+    FOREIGN KEY (source_message_id) REFERENCES messaging.messages(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE harness.threads
+    ADD CONSTRAINT fk_threads_agent
+    FOREIGN KEY (agent_id) REFERENCES agents.agent_definitions(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE harness.audit_wake_map
+    ADD CONSTRAINT fk_audit_wake_map_audit
+    FOREIGN KEY (audit_log_id) REFERENCES audit.audit_log(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `
 
-await Bun.write(currentSqlPath, resetTemplate)
-console.log('[db:generate] current.sql reset to template')
+await Bun.write(migrationPath, `${fixtures}\n${schema}\n${extras}`)
+process.stdout.write(`[db:generate] baked fixtures + extras into ${migrationPath}\n`)

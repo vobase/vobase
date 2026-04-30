@@ -11,10 +11,6 @@
     {
       "name": "template",
       "path": "packages/template"
-    },
-    {
-      "name": "template-v2",
-      "path": "packages/template-v2"
     }
   ]
 }

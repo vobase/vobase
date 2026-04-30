@@ -32,7 +32,7 @@ export function getColumnPinningStyle<TData>({
   }
 }
 
-function getFilterOperators(filterVariant: FilterVariant) {
+export function getFilterOperators(filterVariant: FilterVariant) {
   const operatorMap: Record<FilterVariant, { label: string; value: FilterOperator }[]> = {
     text: dataTableConfig.textOperators,
     number: dataTableConfig.numericOperators,
@@ -47,13 +47,13 @@ function getFilterOperators(filterVariant: FilterVariant) {
   return operatorMap[filterVariant] ?? dataTableConfig.textOperators
 }
 
-function _getDefaultFilterOperator(filterVariant: FilterVariant) {
+export function getDefaultFilterOperator(filterVariant: FilterVariant) {
   const operators = getFilterOperators(filterVariant)
 
   return operators[0]?.value ?? (filterVariant === 'text' ? 'iLike' : 'eq')
 }
 
-function _getValidFilters<TData>(filters: ExtendedColumnFilter<TData>[]): ExtendedColumnFilter<TData>[] {
+export function getValidFilters<TData>(filters: ExtendedColumnFilter<TData>[]): ExtendedColumnFilter<TData>[] {
   return filters.filter(
     (filter) =>
       filter.operator === 'isEmpty' ||

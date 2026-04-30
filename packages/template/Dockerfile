@@ -1,4 +1,4 @@
-# Stage 1: Install, generate, and build frontend
+# Stage 1: install + build frontend bundle
 FROM oven/bun:1 AS build
 WORKDIR /app
 
@@ -6,9 +6,9 @@ COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile
 
 COPY . .
-RUN bun run scripts/generate.ts
 
-# Railway injects env vars as build args — expose VITE_ vars for Vite build
+# Vite build args — Railway/Docker pass these through; required for any
+# VITE_* var that must be baked into the frontend bundle.
 ARG VITE_PLATFORM_URL
 ARG VITE_PLATFORM_TENANT_SLUG
 ARG VITE_PLATFORM_TENANT_NAME
@@ -22,9 +22,9 @@ ENV VITE_PRODUCT_NAME=$VITE_PRODUCT_NAME
 ENV VITE_VENDOR_NAME=$VITE_VENDOR_NAME
 ENV VITE_ALLOWED_EMAIL_DOMAINS=$VITE_ALLOWED_EMAIL_DOMAINS
 
-RUN bunx vite build
+RUN bun run build
 
-# Stage 2: Runtime
+# Stage 2: runtime
 FROM oven/bun:1
 WORKDIR /app
 
@@ -32,15 +32,16 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./
-COPY --from=build /app/server.ts ./
-COPY --from=build /app/vobase.config.ts ./
 COPY --from=build /app/tsconfig.json ./
 COPY --from=build /app/drizzle.config.ts ./
-COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/main.ts ./
+COPY --from=build /app/auth ./auth
+COPY --from=build /app/runtime ./runtime
+COPY --from=build /app/wake ./wake
 COPY --from=build /app/modules ./modules
-COPY --from=build /app/lib ./lib
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/src ./src
+COPY --from=build /app/db ./db
 COPY --from=build /app/dist ./dist
 
 RUN mkdir -p /app/data
@@ -51,4 +52,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
-CMD ["bun", "run", "server.ts"]
+CMD ["bun", "run", "main.ts"]

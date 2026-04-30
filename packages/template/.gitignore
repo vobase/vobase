@@ -1,9 +1,8 @@
 node_modules/
 dist/
-/data/*
-!/data/.gitkeep
 .env
-*.db
-.turbo/
-.tanstack/
-.omc
+.env.local
+*.log
+.DS_Store
+.omc/
+

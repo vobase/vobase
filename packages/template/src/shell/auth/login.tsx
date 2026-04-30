@@ -1,106 +1,92 @@
-import { createFileRoute, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { toast } from 'sonner'
+import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from '@/components/ui/input-otp'
 import { Separator } from '@/components/ui/separator'
-import { authClient } from '@/lib/auth-client'
+import { useEmailOtp } from '@/shell/auth/use-email-otp'
 
-const emailSchema = z.string().email('Please enter a valid email address')
+const schema = z.object({ email: z.email() })
+type FormValues = z.infer<typeof schema>
+
+const DEV_LOGIN_EMAIL = 'alice@meridian.test'
 
 const platformUrl = import.meta.env.VITE_PLATFORM_URL
-const tenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
+const platformTenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
 
-const loginSearchSchema = z.object({
-  invitationId: z.string().optional(),
-})
-
-function LoginPage() {
-  const router = useRouter()
+export function LoginPage() {
   const navigate = useNavigate()
-  const { invitationId } = useSearch({ from: '/_auth/login' })
+  const { sendOtp } = useEmailOtp()
+  const [devLoginError, setDevLoginError] = useState<string | null>(null)
+  const [devLoginPending, setDevLoginPending] = useState(false)
 
-  const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
-  const [step, setStep] = useState<'email' | 'otp'>('email')
-  const [loading, setLoading] = useState(false)
-
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault()
-    const result = emailSchema.safeParse(email)
-    if (!result.success) {
-      toast.error(result.error.issues[0].message)
+  const showPlatformOAuth = Boolean(platformUrl && platformTenantSlug)
+  function redirectToPlatformOAuth(provider: 'google' | 'microsoft') {
+    // Validate platformUrl before constructing the redirect.
+    // Allow http://localhost for dev; require https:// in all other cases.
+    const isLocalhost = typeof platformUrl === 'string' && /^http:\/\/localhost(:\d+)?/.test(platformUrl)
+    const isHttps = typeof platformUrl === 'string' && platformUrl.startsWith('https://')
+    if (!isHttps && !isLocalhost) {
+      console.error('[auth] platformUrl must start with https:// (or http://localhost for dev):', platformUrl)
       return
     }
-
-    setLoading(true)
-    const { error } = await authClient.emailOtp.sendVerificationOtp({
-      email,
-      type: 'sign-in',
-    })
-    setLoading(false)
-
-    if (error) {
-      toast.error(error.message ?? 'Failed to send code.')
-      return
+    try {
+      const url = new URL(`/api/oauth-proxy/oauth/${provider}/initiate`, platformUrl)
+      url.searchParams.set('tenant', platformTenantSlug ?? '')
+      url.searchParams.set('redirect', window.location.origin)
+      window.location.href = url.toString()
+    } catch (err) {
+      console.error('[auth] Failed to construct OAuth redirect URL:', err)
     }
-
-    setStep('otp')
-    toast.success('Check your email for a verification code.')
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault()
-    if (otp.length !== 6) {
-      toast.error('Please enter the 6-digit code.')
-      return
+  async function handleDevLogin() {
+    setDevLoginError(null)
+    setDevLoginPending(true)
+    try {
+      // biome-ignore lint/plugin/no-raw-fetch: dev-only OTP-bypass endpoint not in handler tree; typed RPC unavailable
+      const res = await fetch('/api/auth/dev-login', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: DEV_LOGIN_EMAIL }),
+      })
+      if (!res.ok) throw new Error(`dev-login failed (${res.status})`)
+      navigate({ to: '/inbox' })
+    } catch (err) {
+      setDevLoginError(err instanceof Error ? err.message : 'Dev login failed.')
+    } finally {
+      setDevLoginPending(false)
     }
+  }
 
-    setLoading(true)
-    const { error } = await authClient.signIn.emailOtp({ email, otp })
-    setLoading(false)
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: '' },
+  })
 
-    if (error) {
-      toast.error(error.message ?? 'Invalid or expired code.')
-      return
-    }
-
-    // Server-side hook auto-accepts pending invitations on sign-in.
-    // Client-side fallback for edge cases (existing user, invitation not yet matched).
-    if (invitationId) {
-      await authClient.organization.acceptInvitation({ invitationId }).catch(() => {})
-    }
-
-    await router.invalidate()
-    navigate({ to: '/' })
+  function onSubmit({ email }: FormValues) {
+    sendOtp.mutate({ email }, { onSuccess: () => navigate({ to: '/auth/pending', search: { email } }) })
   }
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
-        <p className="text-sm text-muted-foreground">
-          {invitationId
-            ? 'Sign in to accept your invitation.'
-            : step === 'otp'
-              ? `Enter the 6-digit code sent to ${email}.`
-              : 'Sign in to your account to continue.'}
-        </p>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-4">
-        {platformUrl && tenantSlug && (
-          <>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="w-full max-w-sm space-y-6 px-4">
+        <div className="space-y-1">
+          <h1 className="font-semibold text-xl tracking-tight">Sign in</h1>
+          <p className="text-muted-foreground text-sm">Enter your email to receive a one-time code.</p>
+        </div>
+        {showPlatformOAuth && (
+          <div className="space-y-3">
             <Button
+              type="button"
               variant="outline"
               className="w-full"
-              onClick={() => {
-                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/google/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`
-              }}
+              onClick={() => redirectToPlatformOAuth('google')}
             >
               <svg className="mr-2 size-4" viewBox="0 0 24 24" role="img" aria-label="Google">
                 <path
@@ -123,11 +109,10 @@ function LoginPage() {
               Sign in with Google
             </Button>
             <Button
+              type="button"
               variant="outline"
               className="w-full"
-              onClick={() => {
-                window.location.href = `${platformUrl}/api/oauth-proxy/oauth/microsoft/initiate?tenant=${tenantSlug}&redirect=${encodeURIComponent(window.location.origin)}`
-              }}
+              onClick={() => redirectToPlatformOAuth('microsoft')}
             >
               <svg className="mr-2 size-4" viewBox="0 0 21 21" role="img" aria-label="Microsoft">
                 <rect x="1" y="1" width="9" height="9" fill="#F25022" />
@@ -139,95 +124,60 @@ function LoginPage() {
             </Button>
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">or</span>
+              <span className="text-muted-foreground text-xs">or</span>
               <Separator className="flex-1" />
             </div>
-          </>
+          </div>
         )}
-        {step === 'email' ? (
-          <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
-            <Input
-              type="email"
-              placeholder="name@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="you@example.com" autoComplete="email" autoFocus {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Sending...' : 'Continue'}
+            {sendOtp.error && (
+              <p className="text-destructive text-sm">
+                {sendOtp.error instanceof Error ? sendOtp.error.message : 'Failed to send code. Try again.'}
+              </p>
+            )}
+            <Button type="submit" className="w-full" disabled={sendOtp.isPending}>
+              {sendOtp.isPending ? 'Sending…' : 'Send code'}
             </Button>
           </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
-            <div className="flex justify-center">
-              <InputOTP maxLength={6} value={otp} onChange={setOtp} autoFocus>
-                <InputOTPGroup>
-                  <InputOTPSlot index={0} />
-                  <InputOTPSlot index={1} />
-                  <InputOTPSlot index={2} />
-                </InputOTPGroup>
-                <InputOTPSeparator />
-                <InputOTPGroup>
-                  <InputOTPSlot index={3} />
-                  <InputOTPSlot index={4} />
-                  <InputOTPSlot index={5} />
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Verifying...' : 'Sign in'}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => {
-                setStep('email')
-                setOtp('')
-              }}
-            >
-              Use a different email
-            </Button>
-          </form>
-        )}
+        </Form>
         {import.meta.env.DEV && (
-          <>
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">dev only</span>
+              <span className="text-muted-foreground text-xs">dev only</span>
               <Separator className="flex-1" />
             </div>
             <Button
+              type="button"
               variant="outline"
-              className="w-full border-2 border-dashed border-yellow-500 bg-[repeating-linear-gradient(-45deg,transparent,transparent_8px,rgba(234,179,8,0.08)_8px,rgba(234,179,8,0.08)_16px)] text-yellow-600 hover:border-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-500 dark:border-yellow-600 dark:text-yellow-500 dark:hover:border-yellow-500"
-              disabled={loading}
-              onClick={async () => {
-                setLoading(true)
-                // biome-ignore lint/style/noRestrictedGlobals: dev-only endpoint, no RPC type
-                const res = await fetch('/api/auth/dev-login', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: 'admin@example.com' }),
-                })
-                setLoading(false)
-                if (!res.ok) {
-                  toast.error('Dev login failed.')
-                  return
-                }
-                await router.invalidate()
-                navigate({ to: '/' })
-              }}
+              className="w-full border-2 border-warning border-dashed bg-[repeating-linear-gradient(-45deg,transparent,transparent_8px,rgba(234,179,8,0.08)_8px,rgba(234,179,8,0.08)_16px)] text-warning hover:border-warning/80 hover:bg-warning/10 hover:text-warning/90"
+              disabled={devLoginPending}
+              onClick={handleDevLogin}
             >
-              Sign in as Admin (dev)
+              {devLoginPending ? 'Signing in…' : `Sign in as ${DEV_LOGIN_EMAIL} (dev)`}
             </Button>
-          </>
+            {devLoginError && <p className="text-destructive text-sm">{devLoginError}</p>}
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
-export const Route = createFileRoute('/_auth/login')({
+export const Route = createFileRoute('/_auth/auth/login')({
   component: LoginPage,
-  validateSearch: loginSearchSchema,
 })

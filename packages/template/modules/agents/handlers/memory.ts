@@ -1,34 +1,13 @@
-import { getCtx, unauthorized, validation } from '@vobase/core'
+/** GET /api/agents/conversations/:id/working-memory */
+import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
+import { getConversationWorkingMemory } from '@modules/agents/service/agent-definitions'
 import { Hono } from 'hono'
 
-import { getMemory } from '../mastra/index'
-import { scopeSchema } from './_shared'
+const app = new Hono<OrganizationEnv>().use('*', requireOrganization).get('/:id/working-memory', async (c) => {
+  const id = c.req.param('id')
+  const result = await getConversationWorkingMemory(id, c.get('organizationId'))
+  if (result === null) return c.json({ error: 'not_found' }, 404)
+  return c.json(result)
+})
 
-export const memoryHandlers = new Hono()
-  /** GET /memory/working?scope=contact:ID — Get Mastra working memory for a contact */
-  .get('/memory/working', async (c) => {
-    const { user } = getCtx(c)
-    if (!user) throw unauthorized()
-
-    const rawScope = c.req.query('scope')
-    if (!rawScope) throw validation({ scope: 'Required. Format: contact:ID or user:ID' })
-
-    const parsed = scopeSchema.safeParse(rawScope)
-    if (!parsed.success) throw validation({ scope: parsed.error.message })
-
-    const resourceId = rawScope // e.g. "contact:abc123"
-
-    try {
-      const memory = getMemory()
-
-      // Working memory is stored per resource (e.g. "contact:abc123")
-      const wm = await memory.getWorkingMemory({ threadId: '', resourceId }).catch(() => null)
-
-      return c.json({
-        workingMemory: wm,
-        resourceId,
-      })
-    } catch {
-      return c.json({ workingMemory: null, resourceId })
-    }
-  })
+export default app

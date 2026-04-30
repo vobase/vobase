@@ -1,27 +1,44 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "modules/*/index.ts",
-    "modules/*/pages/**/*.tsx",
+    "main.ts",
+    "runtime/bootstrap.ts",
+    "runtime/modules.ts",
+    "auth/index.ts",
+    "auth/middleware/*.ts",
+    "wake/*.ts",
+    "modules/*/module.ts",
+    "modules/*/cli.ts",
+    "modules/*/agent.ts",
     "modules/*/seed.ts",
-    "modules/system/dev-auth-plugin.ts",
-    "modules/system/emails/index.tsx",
-    "e2e/**/*.test.ts",
-    "lib/**/*.test.ts",
-    "src/lib/*.test.ts"
+    "modules/*/jobs.ts",
+    "modules/*/web.ts",
+    "modules/*/verbs/*.ts",
+    "modules/*/tools/*.ts",
+    "modules/*/handlers/*.ts",
+    "src/main.tsx",
+    "scripts/*.ts",
+    "tests/**/*.test.ts",
+    "tests/e2e/**/*.ts",
+    "tests/smoke/**/*.ts",
+    "tests/helpers/**/*.ts",
+    "modules/**/*.test.ts",
+    "src/**/*.test.{ts,tsx}"
   ],
-  "project": ["src/**/*.{ts,tsx}", "modules/**/*.{ts,tsx}", "lib/**/*.{ts,tsx}", "e2e/**/*.ts"],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "modules/**/*.{ts,tsx}",
+    "runtime/**/*.ts",
+    "auth/**/*.ts",
+    "wake/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts"
+  ],
   "ignore": [
     "src/components/ui/**",
     "src/components/ai-elements/**",
     "src/components/tool-ui/**",
-    "src/components/chat/**",
-    "src/routes.ts",
-    "modules/automation/browser/**",
-    "src/hooks/use-as-ref.ts",
-    "src/hooks/use-isomorphic-layout-effect.ts",
-    "src/hooks/use-lazy-ref.ts",
-    "src/components/visually-hidden-input.tsx"
+    "src/components/chat/**"
   ],
   "ignoreDependencies": [
     "@fontsource-variable/geist",
@@ -31,11 +48,7 @@
     "shiki",
     "tailwindcss",
     "shadcn",
-    "mastra",
-    "@tanstack/virtual-file-routes",
-    "@diceui/checkbox-group",
-    "googleapis",
-    "@azure/msal-node"
+    "@tanstack/virtual-file-routes"
   ],
   "ignoreExportsUsedInFile": true
 }

@@ -6,11 +6,17 @@
     "strict": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@modules/*": ["./modules/*"]
+      "@modules/*": ["./modules/*"],
+      "@auth": ["./auth/index"],
+      "@auth/*": ["./auth/*"],
+      "~/*": ["./*"],
+      "@/*": ["./src/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "poc"]
+  "exclude": ["node_modules", "dist", "drizzle"]
 }

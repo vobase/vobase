@@ -1,14 +1,42 @@
 "use client";
 
+// shadcn-override-ok: trigger renders <span> instead of <button>; the hover-card opens on hover, not click, and rendering as a button caused nested-button hydration errors when used inside other interactive elements (e.g. drive file rows).
 import { intlFormatDistance } from "date-fns";
 import { Slot as SlotPrimitive } from "radix-ui";
 import * as React from "react";
-import { cn } from "@/lib/utils";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { cn } from "@/lib/utils";
+
+export type RelativeTimeLength = "short" | "long";
+
+function formatShort(date: Date, now: Date = new Date()): string {
+  const diff = now.getTime() - date.getTime();
+  const abs = Math.abs(diff);
+  const sign = diff < 0 ? "-" : "";
+  const minutes = Math.floor(abs / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${sign}${minutes}m`;
+  if (hours < 24) return `${sign}${hours}h`;
+  if (days < 7) return `${sign}${days}d`;
+  if (weeks < 5) return `${sign}${weeks}w`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatLong(date: Date, now: Date = new Date()): string {
+  const diff = Math.abs(now.getTime() - date.getTime());
+  if (diff < 60000) {
+    return diff < 0 ? "in less than a minute" : "less than a minute ago";
+  }
+  return intlFormatDistance(date, now);
+}
 
 interface TimezoneCardProps extends React.ComponentProps<"div"> {
   date: Date;
@@ -72,7 +100,7 @@ function TimezoneCard(props: TimezoneCardProps) {
 }
 
 interface RelativeTimeCardProps
-  extends React.ComponentProps<"button">,
+  extends React.ComponentProps<"span">,
     React.ComponentProps<typeof HoverCard>,
     Pick<
       React.ComponentProps<typeof HoverCardContent>,
@@ -88,6 +116,12 @@ interface RelativeTimeCardProps
   date: Date | string | number;
   timezones?: string[];
   updateInterval?: number;
+  /**
+   * Trigger display length. `long` (default) → intlFormatDistance (e.g. "2 minutes ago");
+   * `short` → "2m", "1h", "3d". Below 1 minute shows "less than a minute ago" / "now"
+   * so we never render precise seconds. Hover card always shows full detail.
+   */
+  length?: RelativeTimeLength;
 }
 
 function RelativeTimeCard(props: RelativeTimeCardProps) {
@@ -107,6 +141,7 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
     collisionBoundary,
     collisionPadding,
     updateInterval = 1000,
+    length = "long",
     asChild,
     children,
     className,
@@ -136,20 +171,23 @@ function RelativeTimeCard(props: RelativeTimeCardProps) {
     [date, locale],
   );
 
-  const [relativeTime, setRelativeTime] = React.useState<string>(() =>
-    intlFormatDistance(date, new Date()),
+  const compute = React.useCallback(
+    () => (length === "short" ? formatShort(date) : formatLong(date)),
+    [date, length],
   );
 
+  const [relativeTime, setRelativeTime] = React.useState<string>(compute);
+
   React.useEffect(() => {
-    setRelativeTime(intlFormatDistance(date, new Date()));
+    setRelativeTime(compute());
     const timer = setInterval(() => {
-      setRelativeTime(intlFormatDistance(date, new Date()));
+      setRelativeTime(compute());
     }, updateInterval);
 
     return () => clearInterval(timer);
-  }, [date, updateInterval]);
+  }, [compute, updateInterval]);
 
-  const TriggerPrimitive = asChild ? SlotPrimitive.Slot : "button";
+  const TriggerPrimitive = asChild ? SlotPrimitive.Slot : "span";
 
   return (
     <HoverCard

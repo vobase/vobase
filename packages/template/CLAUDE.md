@@ -1,139 +1,169 @@
 # Vobase Project
 
-Engine: `@vobase/core`. Backend: `server.ts`. Modules: `modules/`. Frontend: `src/`.
+Agent-native helpdesk scaffold. Bun + Hono + Drizzle + Postgres; React + TanStack + shadcn. `pi-agent-core` + `pi-ai` run the agent; `@vobase/core` is the shared runtime contract.
 
-## Quality Rules
+Core identity: **AI agents need a codebase they can understand.** One folder per feature, one pattern to copy, one seam to change.
 
-Every change must be clean, type-safe, tested, and maintainable.
+## Layout
 
-- End-to-end type safety is mandatory: Drizzle for queries, Zod for all handler input validation, Hono typed RPC client for API calls, TanStack Router generated routes (not manual route strings), TanStack Query for data fetching (not raw fetch)
-- No `any`, no unsafe `as` casts, no `// @ts-ignore`. TypeScript strict mode.
-- Every handler validates input with Zod schemas. Return errors via `notFound()`, `unauthorized()`, `validation()`, `forbidden()`, `conflict()`.
-- Tests for every feature, colocated as `*.test.ts`. Run `bun test` before done.
-- Biome formatting + linting. Run `bun run lint`.
-- Dynamic `import()` only for: heavy optional deps (MCP SDK, AI SDK, googleapis, mammoth, etc.), config-gated features, test mocking after `vi.mock()`. Local module imports must be static.
-- Frontend: use `<Link>` and `navigate()` from TanStack Router — never `<a href>` for internal routes
-- Frontend components: prefer shadcn/ui → ai-elements → DiceUI → custom, in that order. See root CLAUDE.md "Component Libraries" for install commands. Each library has an agent skill (`shadcn`, `ai-elements`, `diceui`) with full component catalogs — check before building custom. Never write custom components for things these registries already provide (empty states, stat cards, status badges, progress bars, avatar groups, etc.).
-- Date/time display: always use `<RelativeTimeCard date={value} />` from `@/components/ui/relative-time-card` for rendering dates and timestamps. It auto-updates, shows relative time ("2 minutes ago"), hover reveals full date + timezone, inherits parent font, and is i18n-safe via `intlFormatDistance`. Never use raw `new Date().toLocaleString()` or custom format helpers in UI rendering.
-- Data tables: use DiceUI data-table (skill: `data-table`) for any non-trivial table with filtering/sorting/pagination. Supports server-side and client-side modes. Only use plain shadcn Table for simple static tables.
-- AI chat UI: use ai-elements components from `src/components/ai-elements/`. 6 installed (conversation, message, prompt-input, code-block, suggestion, shimmer), 48 available. Install more: `bunx --bun ai-elements@latest add <component>`. Check `ai-elements` skill references for full catalog.
-- Design mockups: use `react-components` skill + Stitch MCP for visual inspiration. Always include the Vobase design guideline in the prompt (see root CLAUDE.md "Design Mockups with Stitch"). Convert output to project component libraries, never ship raw Stitch HTML.
-- Path aliases: `@/` = `src/`, `@modules/` = `modules/`
-- Prefer Bun native APIs over `node:*` modules: `Bun.file()`, `Bun.write()`, `Bun.spawnSync()`, `Bun.Glob`, `$` shell. Use `node:path` and `node:fs` only when no Bun equivalent exists.
-- Import order: external, then `@vobase/core`, then local
+- `modules/<name>/` — backend (`module.ts`, `schema.ts`, `state.ts`, `service/`, `handlers/`, `jobs.ts`, `agent.ts`, `cli.ts`, `web.ts`, `seed.ts`, `tools/`, `verbs/`) + frontend (`pages/`, `components/`, `hooks/`).
+- `wake/` — agent harness, top-level seam (lifted out of `modules/agents/` so any module can declare agent surfaces without circular imports). Triggers, lane builders, frozen prompt, observers, workspace composition.
+- `auth/` — better-auth + plugins; threaded into modules via `ctx.auth`.
+- `runtime/` — `index.ts` (cross-module primitives + template-narrowed `ModuleDef`/`ModuleInitCtx`), `bootstrap.ts` (`createApp`), `modules.ts` (static list), `channel-events.ts` (shared wire schemas).
+- `main.ts` — ~10-line `Bun.serve` entry.
+- `src/` — frontend shell only. Module UI lives in its module — never `src/features/<m>/`.
+- `tests/` — `e2e/` (real Postgres), `smoke/` (live server, real LLM key). Unit tests sit beside source as `*.test.ts`; no `__tests__/`.
 
-## Module Convention
+`check:bundle` bans `src/**` imports of `~/wake/*` and `~/runtime`. Module-root files are backend; frontend lives only in `pages/`/`components/`/`hooks/`.
 
-Each module in `modules/{name}/`: `schema.ts` (Drizzle tables), `handlers.ts` (Hono routes), `jobs.ts` (background tasks), `pages/` (React), `seed.ts`, `index.ts` (`defineModule()`).
+## Path aliases
 
-Name: lowercase alphanumeric + hyphens. Routes mount at `/api/{name}`.
+`@modules/*` (backend+frontend), `@auth`/`@auth/*`, `~/*` (template root; `~/runtime`, `~/wake`), `@/*` (frontend `src/`), `@vobase/core`.
 
-## Data Conventions
+## Quality rules (enforced by CI)
 
-- Money: INTEGER cents, never float
-- Timestamps: `timestamp('col', { withTimezone: true }).defaultNow()`, UTC always
-- Status: TEXT with explicit transition logic, not arbitrary strings
-- IDs: `nanoidPrimaryKey()` (8 chars, lowercase alphanumeric)
-- Cross-module refs: plain text columns, no `.references()` across modules. Intra-module (same pgSchema) refs use `.references()` with appropriate `onDelete`
-- Status columns: TEXT with CHECK constraints enforcing valid values. Update both the CHECK constraint and application code when adding new status values
+- Drizzle queries; Zod on every handler input; Hono typed RPC client (`src/lib/api-client.ts`); TanStack Query, never raw `fetch` (biome `no-raw-fetch.grit` over `src/`, `pages/`, `components/`, `hooks/`).
+- No `any`, no unsafe `as`, no `// @ts-ignore`.
+- Dates render via `<RelativeTimeCard>`. OKLCH colors. shadcn overrides need `// shadcn-override-ok: <reason>`.
+- Agent/staff identity in UI goes through `usePrincipalDirectory()` + `<PrincipalAvatar>` (purple robot = agent, blue person = staff). Never render raw ids.
+- Services `pg_notify` after commit; `use-realtime-invalidation.ts` maps `table` → first element of TanStack `queryKey`. No WebSocket.
+- Bun-native APIs (`Bun.file`/`write`/`Glob`/`$`). `require()` banned. Dynamic `import()` only for heavy optional deps + test mocking.
 
-## Why Things Are This Way
+## Modules
 
-Core identity: "AI agents need a codebase they can understand." Every convention follows from this.
+Init order in `runtime/modules.ts` (re-sorted by `requires`):
+`settings → contacts → team → drive → messaging → agents → schedules → channels → changes → system`
 
-- Adapters live in core, not separate packages. AI agents don't read node_modules, so separate packages don't improve readability. Revisit only if adapter count exceeds 10 or install size becomes a problem.
-- No plugin system. Adapters are factory functions in config — no lifecycle hooks, no registration ceremony.
-- No outbound webhooks. Vobase is code-first — outbound events are `fetch()` in job handlers. No webhook delivery system needed.
-- No developer admin UI. The template UI is for end-users/clients. For dev data browsing, use `bun run db:studio`.
-- SSE for server-push via LISTEN/NOTIFY. No WebSocket — no use case needs bidirectional. Modules emit NOTIFY after mutations; the core SSE endpoint streams events to browsers; `useRealtimeInvalidation()` invalidates matching TanStack Query keys automatically.
-- For any new feature, ask "is this genuinely blocking someone?" Prefer direct implementations over "nice-to-have from competitor research."
-- What goes in core vs template modules: core owns infrastructure primitives every app needs (auth, db, jobs, storage, audit, sequences) and adapter contracts. Template modules own business logic, UI, domain features — anything an AI agent would modify per-app (messaging threads, knowledge base, AI agents, etc.).
-- AI agents use Mastra (`@mastra/core`). Tools via `createTool()` from `@mastra/core/tools`. Agents via `new Agent()` from `@mastra/core/agent`. Frontend chat uses ai-elements components (`src/components/ai-elements/`).
-- This file documents core's full public API so you never need to read node_modules. Keep it accurate when core changes.
+- **settings** — notification prefs, per-user UI state.
+- **contacts** — customer records + `contacts.memory` (`/contacts/<id>/MEMORY.md`).
+- **team** — staff directory + attributes; staff side of the principal directory.
+- **drive** — virtual filesystem; other modules register overlays via `service/overlays.ts`.
+- **messaging** — conversations, messages, internal notes, pending approvals, state machine, supervisor fan-out producer. Sole writer of `conversation_events` (`check:shape`).
+- **agents** — definitions, learned skills, staff memory, scores, threads, agent-side schedules, the runtime `CliVerbRegistry` singleton, the agent self-state surface (`/agents/<id>/AGENTS.md` + `/MEMORY.md`). Imports nothing from messaging/contacts.
+- **schedules** — `agent_schedules` + cron-tick that emits `HeartbeatTrigger`.
+- **channels** — umbrella aggregating `adapters/<name>/`. Owns `channel_instances`, generic webhook router, outbound dispatch.
+- **changes** — generic propose/decide/apply/history. Resources opt in by registering a materializer for `(resourceModule, resourceType)`. Sole writer of `change_proposals`/`change_history` (`check:shape`).
+- **system** — ops dashboard, dev helpers.
 
-## How Core Works
+Each `module.ts` is a thin aggregator over sibling files:
 
-Import everything from `@vobase/core`. This section documents the full public API.
+- `agent.ts` — `agentsMd` (AGENTS.md fragments), `materializers` (`WorkspaceMaterializerFactory<WakeContext>` returning `WorkspaceMaterializer[]`), `roHints` (chained by `chainRoHints`), `tools` (`AgentTool[]` with `audience: 'customer'|'internal'`, `lane: 'conversation'|'standalone'|'both'`, optional `prompt` for AGENTS.md guidance).
+- `tools/<name>.ts` — `defineAgentTool` from `@vobase/core`. Colocated with the service that owns the side-effect.
+- `verbs/<name>.ts` — `defineCliVerb` registrations.
+- `cli.ts` — barrel exporting `<module>Verbs` for `init`'s `ctx.cli.registerAll(...)`.
 
-### Request Context
+`module.ts` carries no inline `tools`/`listeners`/`materializers`/`commands`/`sideLoad` literals (`check:shape`). `ctx` in `init` is `{ db, realtime, jobs, scheduler, auth, cli }` — auth + cli are constructed before `bootModules` so modules use them synchronously. Cross-module callers `import` from `@modules/<name>/service/*` directly; no port shim.
 
-`getCtx(c)` in any handler returns: `db` (Drizzle), `user` (AuthUser), `scheduler` (job queue), `storage` (file buckets), `channels` (messaging), `integrations` (credential vault), `http` (typed HTTP client with retries + circuit breaker).
+**Adapter umbrella convention.** Modules with multiple pluggable backends use `modules/<umbrella>/adapters/<name>/`, mirroring top-level module shape. `runtime/modules.ts` lists the umbrella, never adapters. Canonical: `modules/channels/`.
 
-### Auth + RBAC
+**One write path.** Every mutation goes through that module's `service/` layer in a transaction that also appends to `conversation_events` when conversation-scoped. `check:shape` enforces this for `messages`/`conversation_events` (only `messaging/service/**`) and `change_proposals`/`change_history` (only `changes/service/proposals.ts`). Cross-module journal writes route through `appendJournalEvent` from `@modules/messaging/service/journal`.
 
-better-auth sessions. User: `{ id, email, name, role, activeOrganizationId? }`. Guards: `requireRole('admin')`, `requirePermission('resource:action')`, `requireOrg()`. API key auth for MCP/programmatic access. Org support opt-in.
+For staff- or agent-reviewed mutations, wire the resource into `modules/changes/`. Recipe in `.claude/skills/auditable-resource/SKILL.md`; canonical example `modules/contacts/`.
 
-### Channels (messaging)
+## Data conventions
 
-Adapters (WhatsApp, Resend, SMTP) registered at boot via config. Outbound: `ctx.channels.email.send({ to, subject, html })`, `ctx.channels.whatsapp.send({ to, text })`. Send never throws — returns `{ success, messageId, error, retryable }`. Inbound: webhooks at `/api/channels/webhook/:channelType/:instanceId?` fire events. Listen via `ctx.channels.on('message_received', handler)` in init hook. Events: `message_received`, `status_update`, `reaction`. All sends logged to `channelsLog` table.
+- Money is INTEGER cents.
+- Timestamps `timestamp(..., { withTimezone: true }).defaultNow()`; UTC, render in user tz at the edge.
+- Status columns TEXT + CHECK; transitions in `state.ts`.
+- IDs via `nanoidPrimaryKey()` (8 chars, lowercase alnum).
+- No cross-module `.references()`; no FK across module boundaries.
+- Gap-free business numbers via `nextSequence(tx, prefix)`.
 
-Adapter resolution supports instance-ID keyed registration: `channels.getAdapter(instanceId) ?? channels.getAdapter(type)`. This enables multiple adapters of the same channel type (e.g., direct WhatsApp + shared proxy WhatsApp).
+## Agent harness
 
-Managed WhatsApp channels: `createWhatsAppAdapter` with a `transport` config routes all Graph API calls through the platform's generic proxy instead of calling Meta directly. Access tokens stay on the platform. Transport config: `{ baseUrl, mediaDownloadUrl, signRequest: (method, path) => headers }`. The platform provides a wildcard `ALL /:channelId/graph/*` endpoint and a `GET /:channelId/media-download` endpoint. HMAC signing uses `method+path` (not body) to support JSON, FormData, and binary requests. Managed channels have full feature parity with direct channels (media, reactions, read receipts, template sync).
+`bootModules` produces `AgentContributions<WakeContext>` (union of every module's `agent` slot). Wake builders aggregate, lane-filter, and assemble a config for `createHarness`.
 
-### Storage
+**Lanes.**
+- Conversation (`wake/conversation.ts → conversationWakeConfig`) — bound to `(contactId, channelInstanceId, conversationId)`. Triggers: `inbound_message`, `supervisor`, `approval_resumed`, `scheduled_followup`, `manual`.
+- Standalone (`wake/standalone.ts → standaloneWakeConfig`) — operator threads + heartbeats. Triggers: `operator_thread`, `heartbeat`. Tools with `lane === 'conversation'` are dropped.
 
-Virtual buckets via config. `ctx.storage.bucket('name').upload(key, data, opts)`, `.download(key)`, `.delete(key)`, `.exists(key)`, `.presign(key, opts)`, `.list(prefix, opts)`. Local or S3 adapters. Metadata in `storageObjects` table. When `storage.integrationProvider` is set and the static provider is `local`, core checks the integrations vault at boot for S3-compatible credentials (e.g. Cloudflare R2 pushed by the platform) and overrides automatically.
+**Entry points** (each is a pg-boss consumer registered in `runtime/bootstrap.ts`):
 
-### Integrations
+| File | Job | Lane |
+|---|---|---|
+| `wake/inbound.ts` | `channels:inbound-to-wake` | conversation |
+| `wake/supervisor.ts` | `messaging:supervisor-to-wake` | conversation |
+| `wake/operator-thread.ts` | `agents:operator-thread-to-wake` | standalone |
+| `wake/heartbeat.ts` | cron-tick callback for `schedules` | standalone |
 
-Encrypted credential vault for external services. `ctx.integrations.getActive(provider)` returns decrypted config or null (ordered by `updatedAt` desc for deterministic results). `connect(provider, config, opts)`, `disconnect(id)`, `updateConfig(id, config, opts)`. AES-256-GCM, key from `BETTER_AUTH_SECRET`. Token refresh extensible via `setPlatformRefresh(fn)` — register a callback to delegate token refresh to an external service (e.g. platform token vault).
+Each handler factory takes `(deps, contributions)` at boot. At wake time the builder filters `contributions.tools` by lane (and by `audience` on supervisor-coaching wakes), invokes each `materializerFactories[i](wakeContext)`, chains `roHints` via `chainRoHints`, and feeds `agentsMdContributors` into the agents-module `agentsMaterializerFactory` (runs `generateAgentsMd` with per-module fragments + tool guidance + helpdesk preamble).
 
-### Module Init Hook
+**Trigger registry.** `wake/trigger.ts` maps each `WakeTriggerKind → { lane, logPrefix, render }`. Pure: deterministic in `(triggerKind, payload, refs)`, so the downstream `systemHash` is byte-stable. Tools are NOT in the registry — adding one is a one-line edit in the owning module's `agent.ts`. The `render` function emits the wake-reason cue prepended to the first user-turn message; persistent rules belong in `agentDefinitions.instructions` or skill files, not render text.
 
-`init(ctx: ModuleInitContext)` runs at boot with `{ db, scheduler, http, storage, channels, integrations }`. Use for: event listeners (`ctx.channels.on`), recurring jobs (`ctx.scheduler.add`), setup logic.
+**Build helpers.** `wake/build-base.ts` (idle-resumption constant, SSE listener, journal adapter, hook composer, staff-id resolver, `INDEX.md` materializer). Conversation builder calls `classifySupervisorTrigger` from `messaging/service/notes` and threads the resulting `supervisorKind` into `RenderRefs` so render text and tool filter agree.
 
-### Jobs
+**Tools by module:**
+- `messaging/tools/` — `reply`, `send_card`, `send_file`, `book_slot` (`audience: 'customer'`, `lane: 'conversation'`); `add_note` (`internal`, `both`); `summarize_inbox`, `draft_email_to_review` (`standalone`).
+- `contacts/tools/` — `update_contact`, `propose_outreach`.
+- `schedules/tools/` — `create_schedule`, `pause_schedule`.
 
-`defineJob('module:name', async (data) => { ... })` for background work. Schedule via `ctx.scheduler.add(jobName, data, opts)`. pg-boss backed (Postgres), retries, cron, job chains. No Redis.
+**Verbs by module:** `messaging/verbs/` (`conv-ask-staff`, `conv-reassign`), `drive/verbs/` (`drive-propose`), `team/verbs/` (`team-list`, `team-get`), `agents/cli.ts` (`agents list/show/inspect`, `schedules list/...`).
 
-### Realtime (SSE)
+**Supervisor fan-out.** `messaging/service/notes::addNote` post-commit enqueues one supervisor wake per interested agent (assignee + each @-mentioned peer). Agent-authored notes never trigger fan-out (HARD filter at `notes.ts`). `classifySupervisorTrigger` returns `coaching` (default; strips `audience: 'customer'`) or `ask_staff_answer` (staff is replying to a prior agent question; customer-facing tools stay).
 
-Event-driven server-push via PostgreSQL LISTEN/NOTIFY + SSE. Modules opt in.
+**Invariants.**
+- *Frozen snapshot.* System prompt computed once at `agent_start`; `systemHash` identical every turn. Mid-wake writes surface in the NEXT turn's side-load (provider prefix cache is byte-keyed, agent must not race itself).
+- *Abort/steer between turns.* Customer messages append to `SteerQueue` and drain after `tool_execution_end`. Supervisor + approval-resumed hard-abort and re-wake.
+- *Tool stdout budget.* 4KB inline → 100KB spill (`/tmp/tool-<callId>.txt`) → 200KB turn ceiling. Re-reads of spills exempt.
+- *Wake event order.* `agent_start → turn_start → llm_call → message_start → message_update* → message_end → (tool_execution_start → tool_execution_end)* → turn_end → … → agent_end`. Filter `message_update` when asserting sequences.
 
-Server: `ctx.realtime.notify({ table: 'my-table', id?, action? }, tx?)` after mutations. With `tx`, NOTIFY fires on commit only. Without `tx`, fire-and-forget.
+**LLM provider.** `wake/llm.ts` is the single seam — Bifrost when `BIFROST_API_KEY`+`BIFROST_URL` are set, otherwise direct OpenAI/Anthropic/Google. Use `createModel(alias)` from `~/wake`; never hardcode a provider-prefixed id.
 
-Client: `useRealtimeInvalidation()` hook mounted in app shell. Automatically invalidates TanStack Query keys matching the `table` field. No per-query changes needed.
+## Memory model
 
-Query key convention: NOTIFY payload `table` field must match the first element of the `queryKey` array (e.g., `table: 'messaging-threads'` invalidates `queryKey: ['messaging-threads', ...]`).
+Three scopes, all written by direct file writes inside the wake (`echo "- ..." >> /…/MEMORY.md`); workspace-sync observer flushes at turn end.
 
-SSE endpoint: `GET /api/events` (authenticated, cookie-based). Returns `text/event-stream`. Events: `invalidate` (data change), `ping` (keep-alive).
+- **agent** ↔ `agent_definitions.working_memory` → `/agents/<id>/MEMORY.md` (self-knowledge, "always do X").
+- **contact** ↔ `contacts.memory` → `/contacts/<id>/MEMORY.md` (per-customer facts).
+- **staff** ↔ `agent_staff_memory.memory` → `/staff/<staffId>/MEMORY.md` (per-`(agent, staff)`).
 
-### Key Exports
+Heuristic when capturing a lesson: contains a contact name → contact memory; starts with always/never/from-now-on → agent memory; per-staff fact → staff memory. `filesService.readPath/writePath` strips the virtual sentinel header for agent+contact; staff goes through `staff-memory` (no `/drive/**` mirror; outside a wake, only Drizzle Studio).
 
-Helpers: `nanoidPrimaryKey()`, `nextSequence(tx, prefix)`, `trackChanges(tx, table, id, old, new, userId)`, `createHttpClient(opts)`.
-Error factories: `notFound()`, `unauthorized()`, `forbidden()`, `conflict()`, `validation(details)`, `dbBusy()`.
-Tables: `auditLog`, `recordAudits`, `sequences`, `storageObjects`, `channelsLog`, `channelsTemplates`, `integrationsTable`.
-Auth tables: `authUser`, `authSession`, `authAccount`, `authApikey`, `authOrganization`, `authMember`. Auth table map: `authTableMap` (object passed to better-auth's drizzle adapter — renamed from `authSchema`).
-PostgreSQL schemas: `authPgSchema`, `auditPgSchema`, `infraPgSchema` — pgSchema objects for core modules. Template modules define their own: `messagingPgSchema`, `agentsPgSchema`, `kbPgSchema`. Mastra's internal tables (threads, messages, observational memory, scorers) live in the `mastra` pgSchema, managed by Mastra's `PostgresStore` (configured via `schemaName: 'mastra'`).
-HMAC: `signHmac(payload, secret)` — HMAC-SHA256 signing for outbound requests. `verifyHmacSignature(payload, signature, secret)` — timing-safe HMAC verification for inbound requests. For managed WhatsApp, sign `method+path` (e.g., `signHmac('GET/api/...', secret)`).
-Refresh: `setPlatformRefresh(fn)` — register a callback `(provider: string) => Promise<RefreshResult>` for delegating token refresh to an external service. `getPlatformRefresh()` — retrieve the registered callback. Platform-specific auth plugins (e.g. OAuth callback handler) should be registered via `extraPlugins` in the auth config.
+## Testing
 
-### Config Shape
+Docker Postgres on :5432 required. `docker compose up -d` then `bun run test`. `connectTestDb()` reads `DATABASE_URL`; helpers don't manage Docker.
 
-`vobase.config.ts` accepts: `database` (string), `modules` (array), `storage?` (provider + buckets + optional `integrationProvider` for vault-backed S3 override), `channels?` (whatsapp/email config), `auth?` (org enabled), `trustedOrigins?`, `http?` (timeout/retries/circuit breaker), `webhooks?` (inbound with HMAC + dedup), `mcp?` (enabled), `onProvisionChannel?` (platform channel provisioning callback).
+Tests never hit a real LLM. Pass `streamFn: stubStreamFn([...])` to `bootWake` (or `mockStreamFn` to `bootWakeIntegration`) — inline `AssistantMessageEvent[]` per LLM call. Missing terminal `done`/`error` is auto-synthesised. Without an API key, `resolveApiKey()` returns undefined and pi-ai skips the Authorization header.
 
-### Schema Management
+E2E in `tests/e2e/`. Live smokes in `tests/smoke/` (real LLM, dev server). Helpers: `test-db.ts`, `test-harness.ts`, `stub-stream.ts`, `simulated-channel-web.ts`, `assert-event-sequence.ts`, `capture-side-load-hashes.ts`, `assert-learning-flow.ts`. E2E that bypasses module init must `setCliRegistry(new CliVerbRegistry())` in `beforeAll` and `__resetCliRegistryForTests()` in `afterAll`.
 
-`drizzle.config.ts` points at core schemas via relative paths + your module schemas. Uses Docker Compose Postgres for local dev (same as production). Dev: `bun run db:push`. Prod: `bun run db:generate` + `bun run db:migrate`.
+`tests/smoke/smoke-{inbound,supervisor-action,operator-thread,heartbeat}-live.ts` (+ `smoke-all-triggers-live.ts` driver) verify cross-module effects (memory writes, drive proposals, internal-note replies) actually fire. The "agent silently no-ops" failure mode is historically caught only at this layer.
+
+Anti-patterns: don't mock the database (mocks have hidden migration / CHECK / pg_notify bugs); no JSONL recorded-provider fixtures; no narrative Phase/Lane comments in tests; no `renderToString` SSR-snapshot tests.
+
+## Design tokens
+
+OKLCH (`:root` + `.dark`). Search shadcn / ai-elements / DiceUI before writing custom components: `bunx shadcn@latest add <c>`, `bunx --bun ai-elements@latest add <c>`, `bunx shadcn@latest add "https://diceui.com/r/<c>.json"`.
+
+## CLI
+
+Tenants expose `GET /api/cli/verbs`; `packages/cli/bin/vobase.ts` walks the catalog, longest-prefix match. Modules register at `init` via `ctx.cli.register(defineCliVerb({...}))` / `registerAll([...])`. The same body runs in-process (bash sandbox) and over HTTP-RPC (CLI binary).
+
+Argv flags coerce to JSON-Schema types before validation, so verb schemas use strict `z.number()` / `z.boolean()` (no `z.coerce.*`). `formatHint: 'table:cols=...' | 'json' | 'lines:field=path'` per verb; `--json` always overrides.
+
+Auth is API-key bearer, browser device-grant for first login (`vobase auth login --url=...`); headless uses `--token=<key>`. Configs at `~/.vobase/<config>.json`, catalog cache `~/.vobase/<config>.cache.json`.
+
+## Defaults
+
+Per-module starter content under `modules/<m>/defaults/`:
+- `*.agent.yaml` — `{ organizationId, name, model?, instructions?, workingMemory?, enabled? }`. Insert keyed on `name`.
+- `*.schedule.yaml` — `{ organizationId, agentId, slug, cron, timezone? }`. Insert keyed on `(orgId, agentId, slug)`.
+
+Skill bodies (`modules/<m>/skills/*.md`) ship inline; the agent reads them via the drive overlay (`/agents/<id>/skills/`) — no separate seeding.
+
+Opt-in. `bun create vobase` runs `vobase install --defaults` last (with `--no-defaults`); idempotent; `--upgrade` re-applies file content over file-origin rows.
 
 ## Commands
 
-`docker compose up -d` — start local Postgres (pgvector/pg17, port 5432)
-`bun run dev` — backend :3000 + frontend :5173
-`bun run db:push` — apply fixtures then `drizzle-kit push` (dev workflow)
-`bun run db:generate` — `drizzle-kit generate` migration, prepend fixtures, reset `current.sql`
-`bun run db:migrate` — `drizzle-kit migrate` (apply migrations)
-`bun run db:nuke` — drop the Postgres database
-`bun run db:reset` — drop + recreate database + push + seed (full local reset)
-`bun run db:studio` — open Drizzle Studio
-`bun run db:seed` — seed data
-`bun test` — run tests
+- `docker compose up -d` — Postgres pgvector/pg17 :5432
+- `bun run dev` — server :3001 + vite :5173 (`dev:server` / `dev:web` for halves)
+- `bun run build` / `typecheck` / `lint` — must be 0 errors
+- `bun run test` — full suite; `test:e2e` / `test:smoke` auto-discover; `bun test <path>` for one file
+- `bun run check` — runs every `check:*` (`shape`, `bundle`, `no-auto-nav-tabs`, `shadcn-overrides`)
+- `bun run db:reset` — nuke + push + seed; individual: `db:push`, `db:generate`, `db:migrate`, `db:nuke`, `db:seed`, `db:studio`
 
-## Dev Auth
+## Dev auth + deploy
 
-Auth uses email OTP. Dev-only `POST /api/auth/dev-login` (`{ email, name? }`) bypasses OTP — creates/finds user and sets session cookie. Used by `bun run db:seed`, E2E tests, and agent-browser automation. Not available in production.
+Email OTP via better-auth. Dev-only `POST /api/auth/dev-login` (`{ email, name? }`) bypasses OTP — used by seed, e2e, agent-browser. Not in production.
 
-## Deploy
-
-Dockerfile + railway.toml included. Set `DATABASE_URL` for a managed Postgres connection in production.
+Dockerfile + `railway.json`. Set `DATABASE_URL`, `BIFROST_API_KEY`+`BIFROST_URL` (or `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`), `META_WA_*` for WhatsApp, `R2_*` for non-local storage.

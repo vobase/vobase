@@ -1,35 +1,26 @@
+#!/usr/bin/env bun
 /**
- * Nuke script — drops the database entirely.
- *
- * Usage: bun run db:nuke
+ * Drops + recreates the dev database. Used by `bun run db:reset`.
  */
 import postgres from 'postgres'
 
-const red = (s: string) => `\x1b[31m${s}\x1b[0m`
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`
+const url = process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5432/vobase'
 
-const databaseUrl = process.env.DATABASE_URL
-if (!databaseUrl) {
-  console.error(`${red('✗')} DATABASE_URL is required`)
-  process.exit(1)
+const u = new URL(url)
+const dbName = u.pathname.replace(/^\//, '')
+if (!dbName) {
+  throw new Error(`db-nuke: no database name in ${url}`)
 }
 
-const url = new URL(databaseUrl)
-const dbName = url.pathname.slice(1)
-if (!/^[a-zA-Z0-9_-]+$/.test(dbName)) {
-  console.error(`${red('✗')} Invalid database name: ${dbName}`)
-  process.exit(1)
-}
-url.pathname = '/postgres'
+u.pathname = '/postgres'
+const admin = postgres(u.toString(), { max: 1 })
 
-const adminSql = postgres(url.toString())
 try {
-  await adminSql.unsafe(
-    `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}' AND pid <> pg_backend_pid()`,
-  )
-  await adminSql.unsafe(`DROP DATABASE IF EXISTS "${dbName}"`)
+  process.stdout.write(`→ dropping ${dbName}\n`)
+  await admin.unsafe(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}'`)
+  await admin.unsafe(`DROP DATABASE IF EXISTS "${dbName}"`)
+  await admin.unsafe(`CREATE DATABASE "${dbName}"`)
+  process.stdout.write(`→ recreated ${dbName}\n`)
 } finally {
-  await adminSql.end()
+  await admin.end()
 }
-
-console.log(`${green('✓')} Database "${dbName}" dropped`)

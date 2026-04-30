@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronsUpDown, LogOut, Palette, Settings } from 'lucide-react'
+import { LogOut, Palette, Settings } from 'lucide-react'
 import { useState } from 'react'
 
 import { SignOutDialog } from '@/components/sign-out-dialog'
@@ -13,10 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
 import { authClient } from '@/lib/auth-client'
 
-function getInitials(name: string | undefined | null, email: string | undefined | null): string {
+function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   if (name) {
     const parts = name.trim().split(/\s+/)
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
@@ -27,75 +26,67 @@ function getInitials(name: string | undefined | null, email: string | undefined 
 }
 
 export function NavUser() {
-  const { isMobile } = useSidebar()
-  const { data: session } = authClient.useSession()
-  const [showSignOut, setShowSignOut] = useState(false)
-  const user = session?.user
+  const session = authClient.useSession() as unknown as {
+    data?: { user?: { name?: string | null; email?: string | null } | null } | null
+  } | null
+  const user = session?.data?.user ?? null
+  const [signOutOpen, setSignOutOpen] = useState(false)
 
-  const name = user?.name || null
-  const initials = getInitials(name, user?.email)
-  const displayName = name ?? user?.email ?? 'Account'
+  const name = user?.name ?? null
+  const email = user?.email ?? null
+  const initials = getInitials(name, email)
+  const displayName = name ?? email ?? 'Account'
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <Avatar className="h-8 w-8 rounded-lg">
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="User menu"
+            className="flex size-10 items-center justify-center rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent"
+          >
+            <Avatar className="size-7">
+              <AvatarFallback className="font-medium text-xs">{initials}</AvatarFallback>
+            </Avatar>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="end" sideOffset={8} className="min-w-56 rounded-lg">
+          <DropdownMenuLabel className="p-0 font-normal">
+            <div className="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
+              <Avatar className="size-8 rounded-lg">
                 <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-start text-sm leading-tight">
+              <div className="grid flex-1 text-start leading-tight">
                 <span className="truncate font-semibold">{displayName}</span>
-                {user?.email && name && <span className="truncate text-xs">{user.email}</span>}
+                {email && name && <span className="truncate text-muted-foreground text-xs">{email}</span>}
               </div>
-              <ChevronsUpDown className="ms-auto size-4" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? 'bottom' : 'right'}
-            align="end"
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-start text-sm leading-tight">
-                  <span className="truncate font-semibold">{displayName}</span>
-                  {user?.email && user.name && <span className="truncate text-xs">{user.email}</span>}
-                </div>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link to="/settings/profile">
-                  <Settings />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/settings/appearance">
-                  <Palette />
-                  Appearance
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => setShowSignOut(true)}>
-              <LogOut />
-              Sign out
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem asChild>
+              <Link to="/settings/profile">
+                <Settings />
+                Settings
+              </Link>
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-      <SignOutDialog open={showSignOut} onOpenChange={setShowSignOut} />
-    </SidebarMenu>
+            <DropdownMenuItem asChild>
+              <Link to="/settings/appearance">
+                <Palette />
+                Appearance
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setSignOutOpen(true)}>
+            <LogOut />
+            Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
+    </>
   )
 }
