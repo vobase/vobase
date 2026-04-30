@@ -24,7 +24,6 @@ import {
   installPendingApprovalsService,
 } from './service/pending-approvals'
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
-import { convAskStaffVerb } from './verbs/conv-ask-staff'
 import { convReassignVerb } from './verbs/conv-reassign'
 import * as web from './web'
 
@@ -88,7 +87,7 @@ const messaging: ModuleDef = {
       }),
     )
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
-    ctx.cli.registerAll([...messagingVerbs, convReassignVerb, convAskStaffVerb])
+    ctx.cli.registerAll([...messagingVerbs, convReassignVerb])
   },
 }
 

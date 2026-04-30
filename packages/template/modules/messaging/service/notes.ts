@@ -237,7 +237,7 @@ export async function listNotes(conversationId: string): Promise<InternalNote[]>
  * Returns:
  *   - `ask_staff_answer` — the note immediately preceding the trigger was
  *     posted by THIS agent and explicitly @-mentioned someone (i.e. it was
- *     a `vobase conv ask-staff` post). The current note is therefore a
+ *     an `add_note` with `mentions` from this agent). The current note is therefore a
  *     direct answer to the agent's question; the wake should NOT strip
  *     customer-facing tools.
  *   - `coaching` — anything else (no prior note, prior note by staff, prior

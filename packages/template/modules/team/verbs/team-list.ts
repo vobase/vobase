@@ -25,9 +25,10 @@ function formatRow(s: {
 export const teamListVerb = defineCliVerb({
   name: 'team list',
   description: 'List staff on this organization (name, title, availability, expertise).',
+  audience: 'contact',
   readOnly: true,
   prompt:
-    'Always run before `conv reassign --to=user:...` or `conv ask-staff --mention=...` so you use real userIds. Cheap, read-only.',
+    'Always run before `conv reassign --to=user:...` or `add_note` with `mentions` so you use real userIds. Cheap, read-only.',
   input: z.object({}),
   body: async ({ ctx }) => {
     const rows = await staff.list(ctx.organizationId)

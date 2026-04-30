@@ -68,7 +68,7 @@ describe('renderSupervisor (assignee branch)', () => {
     expect(text).toContain('coaching/feedback')
     expect(text).toContain('NOT a request to send another customer reply')
     expect(text).toMatch(/MEMORY\.md/)
-    expect(text).toContain('vobase conv ask-staff')
+    expect(text).toMatch(/`add_note`.*`mentions`/)
   })
 
   it('keeps the existing peer-wake guard for non-assignee agents', () => {

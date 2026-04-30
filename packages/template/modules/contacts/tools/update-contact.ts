@@ -1,8 +1,9 @@
 /**
- * `update_contact` — operator-side write to a contact's editable fields. The
- * concierge agent never touches contact records directly (it asks staff via
- * `conv ask-staff`); operators do, because they're driving CRM-style updates
- * from the right-rail chat.
+ * `update_contact` — operator-side write to a contact's editable fields. On
+ * the conversation lane the agent never touches contact records directly (it
+ * asks staff via `add_note` with `mentions`); on the standalone (operator)
+ * lane it does, because staff are driving CRM-style updates from the
+ * right-rail chat.
  */
 
 import { type Static, Type } from '@sinclair/typebox'
@@ -30,7 +31,7 @@ export const updateContactTool = defineAgentTool({
   errorCode: 'UPDATE_ERROR',
   lane: 'standalone',
   prompt:
-    'Use for CRM-style edits the staff explicitly requested. Concierge agents must NOT call this — ask staff via `vobase conv ask-staff` instead.',
+    'Use for CRM-style edits the staff explicitly requested. Conversation-lane wakes must NOT call this — call `add_note` with `mentions` to loop in a staff member instead.',
   async run(args) {
     const row = await updateContact(args.contactId, args.patch)
     return { id: row.id }
