@@ -1,6 +1,6 @@
 ---
 name: template-selection
-appliesTo: concierge
+appliesTo: conversation
 ---
 
 # Template Selection

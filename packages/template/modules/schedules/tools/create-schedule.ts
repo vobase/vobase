@@ -25,7 +25,7 @@ export const CreateScheduleInputSchema = Type.Object({
   }),
   timezone: Type.Optional(Type.String({ minLength: 1, maxLength: 64, default: 'UTC' })),
   notes: Type.Optional(Type.String({ maxLength: 1000 })),
-  /** If unset, defaults to the calling operator agent (`ctx.agentId`). */
+  /** If unset, defaults to the calling agent (`ctx.agentId`). */
   agentId: Type.Optional(Type.String({ minLength: 1 })),
 })
 

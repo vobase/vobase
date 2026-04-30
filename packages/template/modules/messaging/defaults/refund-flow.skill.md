@@ -1,6 +1,6 @@
 ---
 name: refund-flow
-appliesTo: concierge
+appliesTo: conversation
 ---
 
 # Refund Flow

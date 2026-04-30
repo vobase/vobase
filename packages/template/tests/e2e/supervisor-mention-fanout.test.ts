@@ -145,7 +145,7 @@ beforeAll(async () => {
   })
 
   // Resolve a seed conversation we know is assigned to Meridian (Priya
-  // refund thread is the canonical concierge fixture).
+  // refund thread is the canonical conversation-lane fixture).
   const convRows = (await db.db
     .select()
     .from(conversationsTable)
@@ -352,7 +352,7 @@ describe('supervisor mention fan-out', () => {
       expect(meridianPeerWake?.assigneeAgentId).toBe(SENTINEL_AGENT_ID)
 
       // Build the wake config via the same code path the supervisor handler
-      // would take, then assert Meridian boots with concierge tools.
+      // would take, then assert Meridian boots with conversation-lane tools.
       const conv = await getConversation(priyaConvId)
       const meridianDef = await getAgentDefinition(MERIDIAN_AGENT_ID)
       const contributions: AgentContributions = {
@@ -392,12 +392,13 @@ describe('supervisor mention fan-out', () => {
       const cue = config.renderTrigger?.(config.trigger)
       expect(cue).toContain('@-mentioned you in an internal note')
 
-      // Sanity: the concierge tool surface includes every conversation-lane
-      // tool the messaging module contributes (filtered down by lane).
-      const conciergeNames = messagingTools
+      // Sanity: the conversation-lane tool surface includes every
+      // conversation-lane tool the messaging module contributes (filtered
+      // down by lane).
+      const conversationLaneNames = messagingTools
         .filter((t) => t.lane === 'conversation' || t.lane === 'both')
         .map((t) => t.name)
-      for (const n of conciergeNames) expect(toolNames).toContain(n)
+      for (const n of conversationLaneNames) expect(toolNames).toContain(n)
     } finally {
       // Restore the assignee for downstream tests.
       await reassign(priyaConvId, `agent:${MERIDIAN_AGENT_ID}`, STAFF_USER_ID, 'test cleanup')

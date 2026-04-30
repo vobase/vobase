@@ -89,7 +89,7 @@ export function OperatorChat({ threadId, organizationId, variant = 'full' }: Ope
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Message the operator agent…"
+          placeholder="Message the agent…"
           rows={isCompact ? 2 : 3}
           className="resize-none"
           onKeyDown={(e) => {

@@ -146,8 +146,8 @@ describe('standaloneWakeConfig (real PG)', () => {
       deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER },
     })
 
-    // Synthetic id: prefixed so journal queries can distinguish operator
-    // events from concierge ones.
+    // Synthetic id: prefixed so journal queries can distinguish standalone-
+    // lane events from conversation-lane ones.
     expect(config.conversationId).toBe(`operator-${threadId}`)
     expect(config.contactId).toBe('')
     expect(config.organizationId).toBe(MERIDIAN_ORG_ID)
@@ -161,8 +161,8 @@ describe('standaloneWakeConfig (real PG)', () => {
     expect(toolNames).toContain('summarize_inbox')
     expect(toolNames).toContain('draft_email_to_review')
     expect(toolNames).toContain('propose_outreach')
-    // Concierge tools (`reply`, `send_card`, etc.) MUST NOT leak into the
-    // operator surface — they're a different role's catalogue.
+    // Conversation-lane tools (`reply`, `send_card`, etc.) MUST NOT leak into
+    // the standalone surface — they're a different lane's catalogue.
     expect(toolNames).not.toContain('reply')
     expect(toolNames).not.toContain('send_card')
 
@@ -198,7 +198,7 @@ describe('standaloneWakeConfig (real PG)', () => {
     }
 
     // Trigger renderer should produce the operator-friendly cue, NOT the
-    // concierge "see messages.md" cue.
+    // conversation-lane "see messages.md" cue.
     const cue = config.renderTrigger?.(config.trigger)
     expect(cue).toContain('staff member posted')
   })

@@ -1,6 +1,6 @@
 ---
 name: helpdesk-tone
-appliesTo: concierge
+appliesTo: conversation
 ---
 
 # Helpdesk Tone
