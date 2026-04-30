@@ -43,9 +43,41 @@ export interface FrozenPromptInput {
   staticInstructionsSuffix?: string
 }
 
+/**
+ * Origin of a section in the rendered system prompt. The agent settings UI
+ * uses this to color-code / anchor-link the preview so operators can tell
+ * which prose is framework-emitted vs tenant-edited vs drive-sourced.
+ *
+ * Note that lane-specific prose (supervisor-coaching mechanics, etc.) is NOT
+ * a top-level region — it's contributed by individual modules (e.g.
+ * messaging) into `agents-md` via the `agentsMd` contribution channel. The
+ * region-aware preview UI surfaces it at AGENTS.md heading granularity, not
+ * via a dedicated framework region, so the framework seam stays free of
+ * module-specific prose.
+ */
+export type PromptRegionSource =
+  | 'preamble'
+  | 'system-ids'
+  | 'session-context'
+  | 'platform-hint'
+  | 'agents-md'
+  | 'memory-md'
+  | 'business-md'
+  | 'skills-list'
+  | 'static-instructions'
+
+/** Byte offsets of one section inside `FrozenPromptResult.system`. */
+export interface PromptRegion {
+  source: PromptRegionSource
+  start: number
+  end: number
+}
+
 export interface FrozenPromptResult {
   system: string
   systemHash: string
+  /** Section offsets into `system`, in render order. */
+  regions: PromptRegion[]
 }
 
 const STATIC_INSTRUCTIONS = `
@@ -167,45 +199,49 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
   const sessionContextBlock = renderSessionContext(input.sessionContext)
   const platformHintBlock = renderPlatformHint(input.platformHint)
 
-  // Markdown segments are separated by two newlines; this string IS what we
-  // hash over. Hash is pre-tokenization.
-  const rendered = [
-    preamble,
-    '',
-    '# System',
-    '',
-    `organization_id=${input.organizationId}`,
-    `channel_instance_id=${input.channelInstanceId}`,
-    `contact_id=${input.contactId}`,
-    `agent_id=${agentId}`,
-    '',
-    '## Session context',
-    '',
-    sessionContextBlock,
-    '',
-    '## Platform hints',
-    '',
-    platformHintBlock,
-    '',
-    '## AGENTS.md',
-    '',
-    agentsMd,
-    '',
-    '## MEMORY.md (frozen snapshot at wake start)',
-    '',
-    memoryMd,
-    '',
-    '## BUSINESS.md',
-    '',
-    businessMd,
-    '',
-    `## Skills (metadata only; \`cat /agents/${agentId}/skills/<name>\` for full body)`,
-    '',
-    skillList,
-    '',
-    input.staticInstructionsSuffix ?? STATIC_INSTRUCTIONS,
-  ].join('\n')
+  // Render each section's body separately so we can record byte offsets for
+  // the region map. Sections are joined with `\n\n` (one blank line between),
+  // matching the prior `[..., '', heading, '', body, '', ...].join('\n')`
+  // shape — the rendered string is byte-identical.
+  const sections: { source: PromptRegionSource; text: string }[] = [
+    { source: 'preamble', text: preamble },
+    {
+      source: 'system-ids',
+      text: [
+        '# System',
+        '',
+        `organization_id=${input.organizationId}`,
+        `channel_instance_id=${input.channelInstanceId}`,
+        `contact_id=${input.contactId}`,
+        `agent_id=${agentId}`,
+      ].join('\n'),
+    },
+    { source: 'session-context', text: ['## Session context', '', sessionContextBlock].join('\n') },
+    { source: 'platform-hint', text: ['## Platform hints', '', platformHintBlock].join('\n') },
+    { source: 'agents-md', text: ['## AGENTS.md', '', agentsMd].join('\n') },
+    { source: 'memory-md', text: ['## MEMORY.md (frozen snapshot at wake start)', '', memoryMd].join('\n') },
+    { source: 'business-md', text: ['## BUSINESS.md', '', businessMd].join('\n') },
+    {
+      source: 'skills-list',
+      text: [`## Skills (metadata only; \`cat /agents/${agentId}/skills/<name>\` for full body)`, '', skillList].join(
+        '\n',
+      ),
+    },
+    { source: 'static-instructions', text: input.staticInstructionsSuffix ?? STATIC_INSTRUCTIONS },
+  ]
+
+  const SECTION_SEP = '\n\n'
+  const regions: PromptRegion[] = []
+  let cursor = 0
+  for (let i = 0; i < sections.length; i++) {
+    if (i > 0) cursor += SECTION_SEP.length
+    const start = cursor
+    const end = start + sections[i].text.length
+    regions.push({ source: sections[i].source, start, end })
+    cursor = end
+  }
+  const rendered = sections.map((s) => s.text).join(SECTION_SEP)
 
   const systemHash = await sha256Hex(rendered)
-  return { system: rendered, systemHash }
+  return { system: rendered, systemHash, regions }
 }
