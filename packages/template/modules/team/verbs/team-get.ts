@@ -10,6 +10,7 @@ import { z } from 'zod'
 export const teamGetVerb = defineCliVerb({
   name: 'team get',
   description: 'Show a single staff profile (title, availability, expertise, profile notes).',
+  audience: 'contact',
   readOnly: true,
   prompt:
     'Use after `vobase team list` when you need full profile detail (sectors, languages, profile notes) for one staff member — e.g. picking the best fit for a `conv reassign`.',

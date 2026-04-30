@@ -44,6 +44,7 @@ export function setResourcesDb(db: ScopedDb, rootDir = process.cwd()): void {
 export const resourcesListVerb = defineCliVerb({
   name: 'resources list',
   description: 'List every declarative-resource kind that modules have registered.',
+  audience: 'admin',
   input: z.object({}),
   // biome-ignore lint/suspicious/useAwait: contract requires async
   body: async () => {
@@ -60,6 +61,7 @@ export const resourcesListVerb = defineCliVerb({
 export const resourcesExportVerb = defineCliVerb({
   name: 'resources export',
   description: 'Serialize a runtime-mutated row back to disk so it can be checked into the source tree.',
+  audience: 'admin',
   input: z.object({
     kind: z.string().min(1),
     slug: z.string().min(1),
@@ -127,6 +129,7 @@ export const resourcesExportVerb = defineCliVerb({
 export const installVerb = defineCliVerb({
   name: 'install',
   description: 'Install module defaults from each module‘s defaults/ directory.',
+  audience: 'admin',
   input: z.object({
     defaults: z.boolean().optional(),
     upgrade: z.boolean().optional(),

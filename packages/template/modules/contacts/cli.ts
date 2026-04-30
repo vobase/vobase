@@ -9,6 +9,7 @@ import * as contactsSvc from './service/contacts'
 export const contactsListVerb = defineCliVerb({
   name: 'contacts list',
   description: 'List contacts in this organization.',
+  audience: 'admin',
   input: z.object({
     limit: z.number().int().positive().max(500).default(50),
   }),
@@ -32,6 +33,7 @@ export const contactsListVerb = defineCliVerb({
 export const contactsShowVerb = defineCliVerb({
   name: 'contacts show',
   description: 'Show a single contact by id.',
+  audience: 'admin',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     try {
@@ -54,6 +56,7 @@ export const contactsShowVerb = defineCliVerb({
 export const contactsUpdateVerb = defineCliVerb({
   name: 'contacts update',
   description: 'Update a contact (name, email, phone, segments, marketing opt-out).',
+  audience: 'admin',
   input: z.object({
     id: z.string().min(1),
     displayName: z.string().nullable().optional(),
@@ -110,6 +113,7 @@ const proposeChangeInput = z.discriminatedUnion('kind', [
 export const contactsProposeChangeVerb = defineCliVerb({
   name: 'contacts propose-change',
   description: 'Propose a change to a contact (markdown_patch on notes/profile, or field_set on scalars/attributes).',
+  audience: 'admin',
   input: proposeChangeInput,
   body: async ({ input, ctx }) => {
     try {

@@ -26,6 +26,7 @@ export const convReassignVerb = defineCliVerb({
   description:
     'Hand the conversation off to a different assignee. user:<id> escalates to a human; the agent stops replying until reassigned back.',
   usage: 'vobase conv reassign --to=<user:<id>|agent:<id>|unassigned> [--reason="..."] [--conversationId=<id>]',
+  audience: 'contact',
   prompt:
     'Use for explicit human-handoff requests, legal/compliance, or large refunds. Do NOT invent userIds — run `vobase team list` first to look up real ones.',
   input: z.object({

@@ -24,6 +24,7 @@ export const drivePropose = defineCliVerb({
   description: 'Propose a change to an organization-drive document (requires staff approval).',
   usage:
     'vobase drive propose --path=/<path> --body="..." [--rationale="..."] [--expectedOutcome="..."] [--confidence=0.7]',
+  audience: 'contact',
   prompt:
     'Use to fix typos, expand outdated guidance, or suggest new policy text in `/drive/`. Staff reviews; nothing changes until they accept. Do NOT write to `/drive/` directly — the FS is read-only there. `--rationale` and `--expectedOutcome` help staff decide quickly.',
   input: z.object({

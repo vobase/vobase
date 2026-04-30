@@ -2,8 +2,8 @@
  * `vobase schedules {list,enable,disable,run}` verb registrations.
  *
  * `run` bypasses the per-minute cron-tick idempotency check — it's the
- * explicit "fire one wake right now" knob a developer or operator agent
- * uses to validate a schedule's wiring without waiting for the next boundary.
+ * explicit "fire one wake right now" knob a developer or agent uses to
+ * validate a schedule's wiring without waiting for the next boundary.
  */
 
 import { defineCliVerb } from '@vobase/core'
@@ -15,6 +15,7 @@ import { schedules as schedulesSvc } from './service/schedules'
 export const schedulesListVerb = defineCliVerb({
   name: 'schedules list',
   description: 'List agent schedules in this organization (enabled and disabled).',
+  audience: 'admin',
   input: z.object({}),
   body: async ({ ctx }) => {
     const rows = await schedulesSvc.listAll({ organizationId: ctx.organizationId })
@@ -37,6 +38,7 @@ export const schedulesListVerb = defineCliVerb({
 export const schedulesEnableVerb = defineCliVerb({
   name: 'schedules enable',
   description: 'Enable a schedule (will participate in the next cron tick).',
+  audience: 'admin',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     const row = await schedulesSvc.getById(input.id)
@@ -52,6 +54,7 @@ export const schedulesEnableVerb = defineCliVerb({
 export const schedulesDisableVerb = defineCliVerb({
   name: 'schedules disable',
   description: 'Disable a schedule.',
+  audience: 'admin',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     const row = await schedulesSvc.getById(input.id)
@@ -67,6 +70,7 @@ export const schedulesDisableVerb = defineCliVerb({
 export const schedulesRunVerb = defineCliVerb({
   name: 'schedules run',
   description: 'Force a single heartbeat tick for a schedule (bypasses cron idempotency).',
+  audience: 'admin',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     const row = await schedulesSvc.getById(input.id)

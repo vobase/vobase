@@ -23,6 +23,7 @@ function tail(text: string, bytes: number): string {
 export const agentsListVerb = defineCliVerb({
   name: 'agents list',
   description: 'List agent definitions in this organization.',
+  audience: 'admin',
   input: z.object({}),
   body: async ({ ctx }) => {
     const rows = await agentDefs.list(ctx.organizationId)
@@ -44,6 +45,7 @@ export const agentsListVerb = defineCliVerb({
 export const agentsShowVerb = defineCliVerb({
   name: 'agents show',
   description: 'Show a single agent definition by id.',
+  audience: 'staff',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     try {
@@ -66,6 +68,7 @@ export const agentsShowVerb = defineCliVerb({
 export const agentsReloadVerb = defineCliVerb({
   name: 'agents reload',
   description: "Re-read an agent's definition from the DB; confirms the next wake will see it.",
+  audience: 'admin',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     try {
@@ -97,6 +100,7 @@ export const agentsReloadVerb = defineCliVerb({
 export const agentsInspectVerb = defineCliVerb({
   name: 'agents inspect',
   description: 'Dump the agent‘s instructions, working-memory tail, allowed tools, and model.',
+  audience: 'admin',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {
     try {

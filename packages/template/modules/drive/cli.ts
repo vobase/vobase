@@ -40,6 +40,7 @@ function toDriveScope(input: z.infer<typeof ScopeSchema>): DriveScope {
 export const driveLsVerb = defineCliVerb({
   name: 'drive ls',
   description: 'List files at the root (or a folder) of a drive scope.',
+  audience: 'admin',
   input: z.object({
     scope: z.enum(['organization', 'contact', 'staff', 'agent']).default('organization'),
     scopeId: z.string().optional(),
@@ -68,6 +69,7 @@ export const driveLsVerb = defineCliVerb({
 export const driveCatVerb = defineCliVerb({
   name: 'drive cat',
   description: 'Read the contents of a drive file by path.',
+  audience: 'admin',
   input: z.object({
     scope: z.enum(['organization', 'contact', 'staff', 'agent']).default('organization'),
     scopeId: z.string().optional(),
@@ -95,6 +97,7 @@ export const driveCatVerb = defineCliVerb({
 export const driveWriteVerb = defineCliVerb({
   name: 'drive write',
   description: 'Create or update a drive markdown file at the given path.',
+  audience: 'admin',
   input: z.object({
     scope: z.enum(['organization', 'contact', 'staff', 'agent']).default('organization'),
     scopeId: z.string().optional(),
@@ -121,6 +124,7 @@ export const driveWriteVerb = defineCliVerb({
 export const driveRmVerb = defineCliVerb({
   name: 'drive rm',
   description: 'Remove a drive file or folder by id.',
+  audience: 'admin',
   input: z.object({
     id: z.string().min(1),
   }),
