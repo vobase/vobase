@@ -53,7 +53,7 @@ function getBunSqlCtor(): new (opts: Record<string, unknown>) => unknown {
 export function createDatabase(dbPath: string): VobaseDb {
   if (dbPath.startsWith('postgres://') || dbPath.startsWith('postgresql://')) {
     const SQL = getBunSqlCtor()
-    const drizzleBunSql = getDrizzleBunSql()
+    const drizzleBunSql = _getDrizzleBunSql()
     const client = new SQL({
       url: dbPath,
       max: 20,
