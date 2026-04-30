@@ -277,6 +277,9 @@ async function buildWorkspace(files: DriveFile[] = []) {
     agentDefinition: AGENT_DEFINITION,
     tools: [],
     agentsMdContributors: [],
+    lane: 'conversation',
+    triggerKind: 'inbound_message',
+    audienceTier: 'contact',
   }
   const contactFolder = `/contacts/${CONTACT_ID}`
   const convFolder = `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}`
@@ -306,6 +309,7 @@ async function buildWorkspace(files: DriveFile[] = []) {
   ]
   return createWorkspace({
     lane: 'conversation',
+    audienceTier: 'contact',
     organizationId: 't1',
     agentId: AGENT_ID,
     contactId: CONTACT_ID,

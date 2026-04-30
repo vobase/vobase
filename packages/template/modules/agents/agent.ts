@@ -18,8 +18,9 @@
  */
 
 import type { IndexContributor, RoHintFn } from '@vobase/core'
-import { defineIndexContributor, generateAgentsMd } from '@vobase/core'
+import { defineIndexContributor, generateAgentsMd, isVerbVisible } from '@vobase/core'
 
+import { buildWakeAgentsMdScratch } from '~/wake/agents-md-scratch'
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { getCliRegistry } from './service/cli-registry'
 
@@ -28,7 +29,7 @@ import { getCliRegistry } from './service/cli-registry'
  * DEFAULT_HEADER via `generateAgentsMd({ headerOverride })`. Each owning
  * module contributes its own scope-specific section via `agentsMd`.
  */
-export const HELPDESK_AGENTS_MD_HEADER = `You operate inside a virtual workspace. Read files with \`cat\`, \`grep\`, \`head\`, \`tail\`; navigate with \`ls\`, \`find\`, \`tree\`. The workspace is read-by-default; specific zones below are writable and persist across wakes (your own \`MEMORY.md\`, the contact's \`MEMORY.md\`, the contact's drive folder, \`/tmp/\`). Customer-visible actions go through tool calls — derived files like \`messages.md\` and \`profile.md\` are rebuilt from DB state and cannot be \`echo >\`-edited. The sections below describe each scope and the right mutation path for it.`
+export const HELPDESK_AGENTS_MD_HEADER = `You operate inside a virtual workspace. Read files with \`cat\`, \`grep\`, \`head\`, \`tail\`; navigate with \`ls\`, \`find\`, \`tree\`. The workspace is read-by-default; specific zones below are writable and persist across wakes (your own \`MEMORY.md\`, the contact's \`MEMORY.md\`, the contact's drive folder, \`/tmp/\`). User-visible actions go through tool calls — derived files like \`messages.md\` and \`profile.md\` are rebuilt from DB state and cannot be \`echo >\`-edited. The sections below describe each scope and the right mutation path for it.`
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
@@ -74,13 +75,13 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
  * memory).
  */
 export const agentsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
-  const { agentId, agentDefinition, tools, agentsMdContributors } = ctx
+  const { agentId, agentDefinition, tools, agentsMdContributors, lane, triggerKind, supervisorKind, audienceTier } = ctx
   // Render the same `## Commands` block the bash dispatcher exposes. Verbs
-  // come from the unified `CliVerbRegistry`; staff-only verbs (audience
-  // 'staff') aren't reachable inside a wake, so skip them in the prompt.
+  // come from the unified `CliVerbRegistry`; tier filter mirrors the in-bash
+  // `--help` filter so AGENTS.md and `vobase --help` agree per wake.
   const verbs = getCliRegistry()
     .list()
-    .filter((v) => (v.audience ?? 'all') !== 'staff')
+    .filter((v) => isVerbVisible(v.audience, audienceTier))
   const agentsMdSource = generateAgentsMd({
     agentName: agentDefinition.name,
     agentId,
@@ -89,6 +90,11 @@ export const agentsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
     instructions: agentDefinition.instructions ?? '',
     headerOverride: HELPDESK_AGENTS_MD_HEADER,
     extraContributors: agentsMdContributors,
+    // Wake-time facts forwarded to module-side AGENTS.md contributors so
+    // they can emit lane-aware prose (e.g. messaging's supervisor-coaching
+    // block) without coupling those modules to the wake harness. Readers go
+    // through `getWakeAgentsMdScratch` from `~/wake/agents-md-scratch`.
+    scratch: buildWakeAgentsMdScratch({ lane, triggerKind, supervisorKind }),
   })
   return [
     {

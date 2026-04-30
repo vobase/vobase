@@ -99,6 +99,10 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
   // tools here because no standalone tool tags itself with that lane.
   const laneTools = contributions.tools.filter((t) => t.lane === 'standalone' || t.lane === 'both')
 
+  // Standalone-lane wakes are always staff-initiated (operator-thread or
+  // heartbeat); customer-tier verbs are not in scope here.
+  const audienceTier: 'staff' = 'staff'
+
   const wakeCtx: WakeContext = {
     organizationId: data.organizationId,
     agentId,
@@ -109,6 +113,9 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     agentDefinition,
     tools: laneTools,
     agentsMdContributors: contributions.agentsMd,
+    lane: 'standalone',
+    triggerKind: data.triggerKind,
+    audienceTier,
   }
 
   const wakeMaterializers = [
@@ -126,6 +133,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     wakeId,
     agentDefinition,
     registry: getCliRegistry(),
+    audienceTier,
     materializers: wakeMaterializers,
     drivePort: drive,
     readOnlyConfig: roConfig,

@@ -29,6 +29,7 @@ import {
   type MaterializerCtx,
   type ReadOnlyConfig,
   type VerbContext,
+  type WakeAudienceTier,
   type WorkspaceMaterializer,
 } from '@vobase/core'
 
@@ -47,6 +48,13 @@ export interface CreateWorkspaceOpts {
   agentDefinition: AgentDefinition
   /** Verb catalog for the in-bash dispatcher. Same registry the runtime CLI binary uses. */
   registry: CliVerbRegistry
+  /**
+   * Wake-derived audience tier — drives the `vobase --help` filter inside the
+   * bash sandbox. `'contact'` for inbound-message wakes; `'staff'` for every
+   * staff-initiated wake (supervisor / approval / scheduled / manual /
+   * operator-thread / heartbeat).
+   */
+  audienceTier: WakeAudienceTier
   materializers: readonly WorkspaceMaterializer[]
   drivePort: FilesService
   /** Fires once per non-read-only verb dispatched. Wake's "did-something" heuristic. */
@@ -90,6 +98,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
       createBashVobaseCommand({
         registry: opts.registry,
         context: verbContext,
+        audienceTier: opts.audienceTier,
         onSideEffect: opts.onSideEffect,
       }),
   })

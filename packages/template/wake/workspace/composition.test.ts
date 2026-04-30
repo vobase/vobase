@@ -127,6 +127,9 @@ function conversationCtx(overrides: Partial<WakeContext> = {}): WakeContext {
     agentDefinition: AGENT_DEFINITION,
     tools: [],
     agentsMdContributors: [],
+    lane: 'conversation',
+    triggerKind: 'inbound_message',
+    audienceTier: 'contact',
     ...overrides,
   }
 }
@@ -142,6 +145,9 @@ function standaloneCtx(overrides: Partial<WakeContext> = {}): WakeContext {
     agentDefinition: AGENT_DEFINITION,
     tools: [],
     agentsMdContributors: [],
+    lane: 'standalone',
+    triggerKind: 'operator_thread',
+    audienceTier: 'staff',
     ...overrides,
   }
 }

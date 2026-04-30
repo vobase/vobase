@@ -98,6 +98,52 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // via their `lane` field; `'both'` enrols a tool into both lanes (e.g. add_note).
   const laneTools = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
 
+  const trigger: WakeTrigger = input.triggerOverride ?? {
+    trigger: 'inbound_message',
+    conversationId,
+    messageIds: [data.messageId],
+  }
+  const capability = resolveTriggerSpec(trigger.trigger)
+
+  // Supervisor-wake policy is split across two seams:
+  //   1. The MESSAGING module classifies the triggering note (it owns the
+  //      internal-note schema). `ask_staff_answer` means staff is replying to
+  //      an `add_note` (with `mentions`) the agent posted; `coaching` is
+  //      everything else.
+  //   2. The TOOL CATALOG carries `audience` metadata on each tool. Tools
+  //      marked `audience: 'customer'` produce direct customer output (reply,
+  //      send_card, send_file, book_slot today).
+  // The wake builder just composes those two — it never names tools by string
+  // or reaches into note rows. Coaching wakes strip customer-facing tools so
+  // a staff coaching note can't accidentally trigger another customer reply
+  // (prompt-level guidance is unreliable; the model defies "don't reply"
+  // ~30%+ of the time without the filter).
+  const isSupervisorWake = trigger.trigger === 'supervisor'
+  // Peer wakes (woken agent IS the @-mentioned one) are consultations, not
+  // coaching of the assignee — they keep customer-facing tools so the peer
+  // can craft a suggested reply. Only the assignee self-wake gets the
+  // coaching filter.
+  const isPeerWake = isSupervisorWake && 'mentionedAgentId' in trigger && trigger.mentionedAgentId === agentId
+  let supervisorKind: 'ask_staff_answer' | 'coaching' | undefined
+  if (isSupervisorWake && !isPeerWake) {
+    try {
+      const classification = await classifySupervisorTrigger({
+        conversationId,
+        triggerNoteId: trigger.noteId,
+        agentId,
+      })
+      supervisorKind = classification.kind
+    } catch (err) {
+      deps.logger.warn?.({ err, conversationId, noteId: trigger.noteId }, 'supervisor-trigger classification failed')
+      supervisorKind = 'coaching'
+    }
+  }
+
+  // Audience tier — only inbound-message wakes are customer-driven and untrusted;
+  // every other conversation-lane trigger (supervisor, approval, scheduled,
+  // manual) is staff-initiated.
+  const audienceTier: 'staff' | 'contact' = trigger.trigger === 'inbound_message' ? 'contact' : 'staff'
+
   const wakeCtx: WakeContext = {
     organizationId: data.organizationId,
     agentId,
@@ -110,6 +156,10 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     agentDefinition,
     tools: laneTools,
     agentsMdContributors: contributions.agentsMd,
+    lane: 'conversation',
+    triggerKind: trigger.trigger,
+    supervisorKind,
+    audienceTier,
   }
 
   const wakeMaterializers = [
@@ -127,6 +177,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     wakeId,
     agentDefinition,
     registry: getCliRegistry(),
+    audienceTier,
     materializers: wakeMaterializers,
     drivePort: drive,
     readOnlyConfig: roConfig,
@@ -171,47 +222,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   })
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
-
-  const trigger: WakeTrigger = input.triggerOverride ?? {
-    trigger: 'inbound_message',
-    conversationId,
-    messageIds: [data.messageId],
-  }
-  const capability = resolveTriggerSpec(trigger.trigger)
-
-  // Supervisor-wake policy is split across two seams:
-  //   1. The MESSAGING module classifies the triggering note (it owns the
-  //      internal-note schema). `ask_staff_answer` means staff is replying to
-  //      a `vobase conv ask-staff` post the agent made; `coaching` is
-  //      everything else.
-  //   2. The TOOL CATALOG carries `audience` metadata on each tool. Tools
-  //      marked `audience: 'customer'` produce direct customer output (reply,
-  //      send_card, send_file, book_slot today).
-  // The wake builder just composes those two — it never names tools by string
-  // or reaches into note rows. Coaching wakes strip customer-facing tools so
-  // a staff coaching note can't accidentally trigger another customer reply
-  // (prompt-level guidance is unreliable; the model defies "don't reply"
-  // ~30%+ of the time without the filter).
-  const isSupervisorWake = trigger.trigger === 'supervisor'
-  // Peer wakes (woken agent IS the @-mentioned one) are consultations, not
-  // coaching of the assignee — they keep customer-facing tools so the peer
-  // can craft a suggested reply. Only the assignee self-wake gets the
-  // coaching filter.
-  const isPeerWake = isSupervisorWake && 'mentionedAgentId' in trigger && trigger.mentionedAgentId === agentId
-  let supervisorKind: 'ask_staff_answer' | 'coaching' | undefined
-  if (isSupervisorWake && !isPeerWake) {
-    try {
-      const classification = await classifySupervisorTrigger({
-        conversationId,
-        triggerNoteId: trigger.noteId,
-        agentId,
-      })
-      supervisorKind = classification.kind
-    } catch (err) {
-      deps.logger.warn?.({ err, conversationId, noteId: trigger.noteId }, 'supervisor-trigger classification failed')
-      supervisorKind = 'coaching'
-    }
-  }
 
   const sseListener = buildSseListener({
     logPrefix: capability.logPrefix,
