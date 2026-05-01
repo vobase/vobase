@@ -71,79 +71,83 @@ export function TeamsPage() {
       />
 
       <PageBody padded={false} scroll={false}>
-        <div className="grid flex-1 grid-cols-[1fr_1fr] overflow-hidden">
-          <div className="flex flex-col overflow-auto border-border border-r">
-            {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading teams…</div>}
-            {error && <div className="m-6 text-destructive text-sm">Failed to load teams</div>}
-            {!isLoading && !error && teams.length === 0 && (
-              <div className="flex h-full items-center justify-center">
-                <Empty>
-                  <EmptyMedia>
-                    <Users className="size-5" />
-                  </EmptyMedia>
-                  <EmptyTitle>No teams yet</EmptyTitle>
-                  <EmptyDescription>
-                    Create a team to group staff by function (e.g. "Billing", "Eng on-call").
-                  </EmptyDescription>
-                  <div className="mt-3">
-                    <Button size="sm" onClick={() => setEditDialog({ mode: 'create', team: null })}>
-                      <Plus className="mr-1 size-4" />
-                      New team
-                    </Button>
-                  </div>
-                </Empty>
-              </div>
-            )}
-            {!isLoading && teams.length > 0 && (
-              <ul className="divide-y divide-border">
-                {teams.map((team) => (
-                  <li key={team.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTeamId(team.id)}
-                      className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50 ${
-                        team.id === selectedTeamId ? 'bg-muted' : ''
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{team.name}</div>
-                        <div className="truncate text-muted-foreground text-xs">
-                          {descriptionByTeam.get(team.id) || 'No description'}
+        <ListDetailLayout
+          listDefaultSize="50%"
+          mobileActive={selectedTeamId ? 'detail' : 'list'}
+          onMobileBack={() => setSelectedTeamId(null)}
+          list={
+            <>
+              {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading teams…</div>}
+              {error && <div className="m-6 text-destructive text-sm">Failed to load teams</div>}
+              {!isLoading && !error && teams.length === 0 && (
+                <div className="flex h-full items-center justify-center">
+                  <Empty>
+                    <EmptyMedia>
+                      <Users className="size-5" />
+                    </EmptyMedia>
+                    <EmptyTitle>No teams yet</EmptyTitle>
+                    <EmptyDescription>
+                      Create a team to group staff by function (e.g. "Billing", "Eng on-call").
+                    </EmptyDescription>
+                    <div className="mt-3">
+                      <Button size="sm" onClick={() => setEditDialog({ mode: 'create', team: null })}>
+                        <Plus className="mr-1 size-4" />
+                        New team
+                      </Button>
+                    </div>
+                  </Empty>
+                </div>
+              )}
+              {!isLoading && teams.length > 0 && (
+                <ul className="divide-y divide-border">
+                  {teams.map((team) => (
+                    <li key={team.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTeamId(team.id)}
+                        className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-muted/50 ${
+                          team.id === selectedTeamId ? 'bg-muted' : ''
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{team.name}</div>
+                          <div className="truncate text-muted-foreground text-xs">
+                            {descriptionByTeam.get(team.id) || 'No description'}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setEditDialog({ mode: 'edit', team })
-                          }}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setDeleteTarget(team)
-                          }}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="flex flex-col overflow-hidden">
-            {selectedTeam ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditDialog({ mode: 'edit', team })
+                            }}
+                          >
+                            <Pencil className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeleteTarget(team)
+                            }}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          }
+          detail={
+            selectedTeam ? (
               <TeamDetail
                 team={selectedTeam}
                 description={descriptionByTeam.get(selectedTeam.id) ?? ''}
@@ -153,9 +157,9 @@ export function TeamsPage() {
               <div className="flex h-full items-center justify-center p-6 text-muted-foreground text-sm">
                 Select a team to view members and edit its description.
               </div>
-            )}
-          </div>
-        </div>
+            )
+          }
+        />
       </PageBody>
 
       <TeamFormDialog

@@ -53,6 +53,8 @@ export function MessagingLayout() {
       list={<ConversationList />}
       detail={<Outlet />}
       right={activeConvId ? <ContextDrawer conversationId={activeConvId} /> : undefined}
+      mobileActive={isContactSelected ? 'detail' : 'list'}
+      onMobileBack={() => navigate({ to: '/inbox' })}
     />
   )
 }
