@@ -6,6 +6,23 @@
 @source "../../modules/**/*.{ts,tsx}";
 @source "../../node_modules/streamdown/dist/*.js";
 
+/* Animatable theme variables — registering as <color> lets dark/light toggles tween. */
+@property --background {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(1 0 0);
+}
+@property --foreground {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.129 0.042 264.695);
+}
+@property --accent {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: oklch(0.968 0.007 247.896);
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -60,6 +77,43 @@
   --color-danger: var(--destructive);
   --color-info: var(--info);
   --color-info-fg: var(--info-fg);
+
+  /* Foreground mix scale — solid interpolations toward background.
+     Replaces the gray ramp; one hue, twelve steps. */
+  --foreground-2: color-mix(in srgb, var(--foreground) 2%, var(--background));
+  --foreground-3: color-mix(in srgb, var(--foreground) 3%, var(--background));
+  --foreground-5: color-mix(in srgb, var(--foreground) 5%, var(--background));
+  --foreground-10: color-mix(in srgb, var(--foreground) 10%, var(--background));
+  --foreground-20: color-mix(in srgb, var(--foreground) 20%, var(--background));
+  --foreground-30: color-mix(in srgb, var(--foreground) 30%, var(--background));
+  --foreground-40: color-mix(in srgb, var(--foreground) 40%, var(--background));
+  --foreground-50: color-mix(in srgb, var(--foreground) 50%, var(--background));
+  --foreground-60: color-mix(in srgb, var(--foreground) 60%, var(--background));
+  --foreground-70: color-mix(in srgb, var(--foreground) 70%, var(--background));
+  --foreground-80: color-mix(in srgb, var(--foreground) 80%, var(--background));
+  --foreground-90: color-mix(in srgb, var(--foreground) 90%, var(--background));
+  --foreground-95: color-mix(in srgb, var(--foreground) 95%, var(--background));
+
+  /* RGB approximations of OKLCH for shadow utilities (low-opacity, exactness not required). */
+  --foreground-rgb: 15, 23, 42;
+  --destructive-rgb: 220, 38, 38;
+  --success-rgb: 34, 159, 90;
+  --warning-rgb: 217, 119, 6;
+  --info-rgb: 95, 95, 200;
+
+  /* Shadow opacity (light mode = subtle). */
+  --shadow-border-opacity: 0.08;
+  --shadow-blur-opacity: 0.06;
+
+  /* Z-index registry. */
+  --z-base: 0;
+  --z-local: 10;
+  --z-sticky: 20;
+  --z-panel: 50;
+  --z-dropdown: 100;
+  --z-tooltip: 150;
+  --z-modal: 200;
+  --z-overlay: 300;
 }
 
 .dark {
@@ -106,6 +160,17 @@
   --color-danger: var(--destructive);
   --color-info: var(--info);
   --color-info-fg: var(--info-fg);
+
+  /* --foreground-N is defined once on :root; color-mix re-resolves against
+     this scope's --foreground/--background, so no override is needed. */
+  --foreground-rgb: 248, 250, 252;
+  --destructive-rgb: 248, 113, 100;
+  --success-rgb: 40, 200, 130;
+  --warning-rgb: 240, 180, 40;
+  --info-rgb: 160, 80, 230;
+
+  --shadow-border-opacity: 0.15;
+  --shadow-blur-opacity: 0.12;
 }
 
 @theme inline {
@@ -156,15 +221,34 @@
   --color-info: var(--info);
   --color-info-foreground: var(--info-fg);
 
-  /* Compact text sizes for dense Linear-style UI (10/11/13 px gaps between Tailwind defaults). */
-  --text-3xs: 0.5625rem; /* 9px */
-  --text-3xs--line-height: 0.75rem;
+  /* Numeric-badge size only. Default body content uses text-xs (12px) and text-sm (14px). */
   --text-2xs: 0.625rem; /* 10px */
   --text-2xs--line-height: 0.875rem;
-  --text-mini: 0.6875rem; /* 11px */
-  --text-mini--line-height: 1rem;
-  --text-compact: 0.8125rem; /* 13px */
-  --text-compact--line-height: 1.125rem;
+
+  /* Expose foreground mix scale as Tailwind utilities (text-foreground-50, bg-foreground-5, etc.). */
+  --color-foreground-2: var(--foreground-2);
+  --color-foreground-3: var(--foreground-3);
+  --color-foreground-5: var(--foreground-5);
+  --color-foreground-10: var(--foreground-10);
+  --color-foreground-20: var(--foreground-20);
+  --color-foreground-30: var(--foreground-30);
+  --color-foreground-40: var(--foreground-40);
+  --color-foreground-50: var(--foreground-50);
+  --color-foreground-60: var(--foreground-60);
+  --color-foreground-70: var(--foreground-70);
+  --color-foreground-80: var(--foreground-80);
+  --color-foreground-90: var(--foreground-90);
+  --color-foreground-95: var(--foreground-95);
+
+  /* Expose z-index registry. */
+  --z-index-base: var(--z-base);
+  --z-index-local: var(--z-local);
+  --z-index-sticky: var(--z-sticky);
+  --z-index-panel: var(--z-panel);
+  --z-index-dropdown: var(--z-dropdown);
+  --z-index-tooltip: var(--z-tooltip);
+  --z-index-modal: var(--z-modal);
+  --z-index-overlay: var(--z-overlay);
 }
 
 @layer base {
@@ -175,6 +259,7 @@
   }
   html {
     @apply overflow-x-hidden;
+    font-size: 15px;
   }
   body {
     @apply min-h-svh w-full bg-background text-foreground;
@@ -215,6 +300,37 @@
 
 @utility faded-bottom {
   @apply after:pointer-events-none after:absolute after:inset-s-0 after:bottom-0 after:hidden after:h-32 after:w-full after:rounded-b-2xl after:bg-[linear-gradient(180deg,transparent_10%,var(--background)_70%)] md:after:block;
+}
+
+/* Layered shadow utilities — foreground-tinted ring + soft-black blur stacks.
+   Use shadow-thin for inputs/cards, shadow-minimal for popovers, shadow-tinted
+   with `style={{ '--shadow-color': 'r,g,b' }}` for status auras. */
+@utility shadow-thin {
+  box-shadow: rgba(var(--foreground-rgb), 0.06) 0 0 0 1px;
+}
+
+@utility shadow-minimal {
+  box-shadow:
+    rgba(var(--foreground-rgb), 0.06) 0 0 0 1px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0 1px 1px -0.5px,
+    rgba(0, 0, 0, var(--shadow-blur-opacity)) 0 3px 3px -1.5px;
+}
+
+@utility shadow-bottom-border {
+  box-shadow: inset 0 -1px 0 var(--color-border);
+}
+
+@utility shadow-tinted {
+  --shadow-color: var(--foreground-rgb);
+  box-shadow:
+    rgba(var(--shadow-color), calc(var(--shadow-border-opacity) * 1.5)) 0 0 0 1px,
+    rgba(var(--shadow-color), var(--shadow-border-opacity)) 0 1px 1px -0.5px,
+    rgba(var(--shadow-color), var(--shadow-blur-opacity)) 0 3px 3px -1.5px,
+    rgba(var(--shadow-color), calc(var(--shadow-blur-opacity) * 0.67)) 0 6px 6px -3px;
+}
+
+.dark .shadow-tinted {
+  box-shadow: oklch(from rgb(var(--shadow-color)) 0.5 c h / 0.6) 0 0 0 1px;
 }
 
 .CollapsibleContent {
@@ -262,4 +378,62 @@ file-tree-container {
   to {
     height: 0;
   }
+}
+
+/* Disable enter/exit animations on Radix overlay components.
+   Vobase's components apply tw-animate-css classes via data-state; setting
+   animation: none on the rendered Radix element wins over the class. */
+[data-radix-dialog-overlay],
+[data-radix-dialog-content],
+[data-radix-alert-dialog-overlay],
+[data-radix-alert-dialog-content],
+[data-radix-popover-content],
+[data-radix-dropdown-menu-content],
+[data-radix-menu-content],
+[data-radix-select-content],
+[data-radix-context-menu-content],
+[data-radix-hover-card-content],
+[data-radix-tooltip-content] {
+  animation: none !important;
+}
+
+/* Sonner per-state tinted backgrounds — gradient overlay over the popover surface. */
+[data-sonner-toast][data-type="error"] {
+  background:
+    linear-gradient(rgba(var(--destructive-rgb), 0.07), rgba(var(--destructive-rgb), 0.07)), var(--popover) !important;
+}
+[data-sonner-toast][data-type="error"] [data-title],
+[data-sonner-toast][data-type="error"] [data-description] {
+  color: color-mix(in srgb, rgb(var(--foreground-rgb)) 70%, rgb(var(--destructive-rgb))) !important;
+}
+
+[data-sonner-toast][data-type="warning"] {
+  background:
+    linear-gradient(rgba(var(--warning-rgb), 0.07), rgba(var(--warning-rgb), 0.07)), var(--popover) !important;
+}
+[data-sonner-toast][data-type="warning"] [data-title],
+[data-sonner-toast][data-type="warning"] [data-description] {
+  color: color-mix(in srgb, rgb(var(--foreground-rgb)) 70%, rgb(var(--warning-rgb))) !important;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background:
+    linear-gradient(rgba(var(--success-rgb), 0.07), rgba(var(--success-rgb), 0.07)), var(--popover) !important;
+}
+[data-sonner-toast][data-type="success"] [data-title],
+[data-sonner-toast][data-type="success"] [data-description] {
+  color: color-mix(in srgb, rgb(var(--foreground-rgb)) 70%, rgb(var(--success-rgb))) !important;
+}
+
+.dark [data-sonner-toast][data-type="error"] {
+  background:
+    linear-gradient(rgba(var(--destructive-rgb), 0.15), rgba(var(--destructive-rgb), 0.15)), var(--popover) !important;
+}
+.dark [data-sonner-toast][data-type="warning"] {
+  background:
+    linear-gradient(rgba(var(--warning-rgb), 0.15), rgba(var(--warning-rgb), 0.15)), var(--popover) !important;
+}
+.dark [data-sonner-toast][data-type="success"] {
+  background:
+    linear-gradient(rgba(var(--success-rgb), 0.15), rgba(var(--success-rgb), 0.15)), var(--popover) !important;
 }

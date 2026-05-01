@@ -95,7 +95,7 @@ There is **no `defineModule()` factory** and no `defineBuiltinModule()`. Modules
 
 ## Design Direction
 
-Linear-inspired: clean density, information-forward, keyboard-first. Light + dark mode, neutral gray + one accent. OKLCH colors. No gradients, no glassmorphism, no decoration without purpose. shadcn/ui components are owned source — customize freely.
+Clean, information-forward, keyboard-friendly UI for non-technical helpdesk staff and the customers they serve. Comfortable type scale (15px base, no sizes below 12px outside numeric badges), generous row padding, recognizable avatars on every list item. Light + dark mode, neutral gray + one accent. OKLCH colors. No gradients, no glassmorphism, no decoration without purpose. shadcn/ui components are owned source — customize freely.
 
 ### Component Libraries (priority order)
 
@@ -120,7 +120,7 @@ Always check these libraries before writing custom components. Each has a corres
 
 When designing new features or revamping UI, use the `react-components` skill + Google Stitch MCP (`generate_screen_from_text`) to generate visual mockups for inspiration. **Always include the design guideline in the prompt** — without it Stitch generates generic UI that won't match Vobase:
 
-> Linear-inspired SaaS dashboard. Clean density, information-forward, keyboard-first. Neutral gray palette with one blue accent. No gradients, no glassmorphism, no decoration without purpose. Dark mode support. Use Tailwind CSS utility classes.
+> Clean, information-forward SaaS dashboard for non-technical operators. 15px base type, no sizes below 12px outside numeric badges, generous row padding, avatars on every list item. Neutral gray palette with one blue accent. No gradients, no glassmorphism, no decoration without purpose. Dark mode support. Use Tailwind CSS utility classes.
 
 Stitch output is for reference only — convert to shadcn/ui + ai-elements + DiceUI components, never ship raw Stitch HTML.
 
