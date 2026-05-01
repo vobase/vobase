@@ -1,4 +1,3 @@
-// shadcn-override-ok: uses project-specific text-compact utility class on badge items
 import * as ComboboxPrimitive from "@diceui/combobox";
 import { Check, ChevronDown, X } from "lucide-react";
 import type * as React from "react";
@@ -125,7 +124,7 @@ function ComboboxBadgeItem({
       )}
       {...props}
     >
-      <span className="truncate text-compact text-secondary-foreground">
+      <span className="truncate text-secondary-foreground text-sm">
         {children}
       </span>
       <ComboboxPrimitive.BadgeItemDelete

@@ -58,7 +58,7 @@ export function ApprovalsPage() {
       <div className="flex items-center justify-between border-border border-b px-5 py-3">
         <h1 className="font-semibold text-sm">Pending Approvals</h1>
         {approvals.length > 0 && (
-          <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 font-medium text-info text-mini">
+          <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 font-medium text-info text-xs">
             {approvals.length} pending
           </span>
         )}

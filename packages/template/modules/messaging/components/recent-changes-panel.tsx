@@ -25,7 +25,7 @@ export function RecentChangesPanel({ conversationId }: RecentChangesPanelProps) 
             <span className="font-medium text-[var(--color-fg)] text-xs">
               {p.resourceModule}:{p.resourceType}
             </span>
-            <RelativeTimeCard date={p.createdAt} className="text-mini text-muted-foreground" />
+            <RelativeTimeCard date={p.createdAt} className="text-muted-foreground text-xs" />
           </div>
           {p.rationale && <p className="mt-0.5 line-clamp-2 text-[var(--color-fg-muted)] text-xs">{p.rationale}</p>}
           <span className="text-2xs text-[var(--color-fg-muted)]">{p.status}</span>

@@ -232,7 +232,7 @@ function NoteRow({
         {renderNoteBodyWithMentions(note.body, note.mentions, directory, currentUserId)}
       </div>
       {isMentioned ? (
-        <div className="mt-1 font-medium text-mini text-rose-600 uppercase tracking-wide dark:text-rose-400">
+        <div className="mt-1 font-medium text-rose-600 text-xs uppercase tracking-wide dark:text-rose-400">
           You were mentioned
         </div>
       ) : null}

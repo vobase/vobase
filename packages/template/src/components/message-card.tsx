@@ -168,7 +168,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
     if (content.card) return renderCard(content.card, message)
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-        <pre className="max-h-32 overflow-auto text-mini text-muted-foreground">
+        <pre className="max-h-32 overflow-auto text-muted-foreground text-xs">
           {JSON.stringify(message.content, null, 2)}
         </pre>
       </div>
@@ -198,7 +198,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
 
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-      <pre className="max-h-32 overflow-auto text-mini text-muted-foreground">
+      <pre className="max-h-32 overflow-auto text-muted-foreground text-xs">
         {JSON.stringify(message.content, null, 2)}
       </pre>
     </div>
