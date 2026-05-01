@@ -1,31 +1,68 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQueryState } from 'nuqs'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { Group, Panel, type PanelImperativeHandle } from 'react-resizable-panels'
 
 import { GradientResizeHandle } from '@/components/ui/gradient-resize-handle'
+import { useViewport } from '@/hooks/use-viewport'
 
 interface ListDetailLayoutProps {
   list: ReactNode
   detail: ReactNode
-  /** Optional filter rail rendered to the LEFT of the list. */
+  /** Optional filter rail rendered to the LEFT of the list (desktop only). */
   left?: ReactNode
   /** Optional contextual pane rendered to the RIGHT of the detail (gated by `?ctx=open`). */
   right?: ReactNode
+  /** Default size of the list pane on desktop. Defaults to 32%. */
+  listDefaultSize?: string
+  /** Default size of the detail pane on desktop. Defaults adapt to whether `right` is shown. */
+  detailDefaultSize?: string
+  /** Which pane to show on mobile. Default `'list'`. */
+  mobileActive?: 'list' | 'detail'
+  /** When set on mobile + showing detail, renders a back bar above the detail content. */
+  onMobileBack?: () => void
 }
 
-function ListDetailLayout({ list, detail, left, right }: ListDetailLayoutProps) {
+function ListDetailLayout({
+  list,
+  detail,
+  left,
+  right,
+  listDefaultSize = '32%',
+  detailDefaultSize,
+  mobileActive = 'list',
+  onMobileBack,
+}: ListDetailLayoutProps) {
+  const viewport = useViewport()
   const [ctx] = useQueryState('ctx', { defaultValue: 'closed' })
   const showRight = !!right && ctx === 'open'
 
   const listRef = useRef<PanelImperativeHandle | null>(null)
   const [listCollapsed, setListCollapsed] = useState(false)
 
-  useEffect(() => {
-    if (window.innerWidth < 900) {
-      listRef.current?.collapse()
+  if (viewport === 'mobile') {
+    if (mobileActive === 'detail') {
+      return (
+        <div className="flex h-full flex-col">
+          {onMobileBack && (
+            <div className="flex shrink-0 items-center border-border border-b bg-background px-2 py-1">
+              <button
+                type="button"
+                onClick={onMobileBack}
+                aria-label="Back to list"
+                className="flex h-9 items-center gap-1 rounded-md px-2 text-muted-foreground text-sm hover:bg-foreground-3 hover:text-foreground"
+              >
+                <ChevronLeft className="size-4" />
+                <span>Back</span>
+              </button>
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">{detail}</div>
+        </div>
+      )
     }
-  }, [])
+    return <div className="h-full overflow-y-auto">{list}</div>
+  }
 
   const handleListResize = () => {
     const next = listRef.current?.isCollapsed() ?? false
@@ -36,6 +73,8 @@ function ListDetailLayout({ list, detail, left, right }: ListDetailLayoutProps) 
     if (listRef.current?.isCollapsed()) listRef.current.expand()
     else listRef.current?.collapse()
   }
+
+  const detailSize = detailDefaultSize ?? (showRight ? '25%' : '50%')
 
   return (
     <Group orientation="horizontal" className="h-full">
@@ -51,7 +90,7 @@ function ListDetailLayout({ list, detail, left, right }: ListDetailLayoutProps) 
       <Panel
         panelRef={listRef}
         id="list"
-        defaultSize="32%"
+        defaultSize={listDefaultSize}
         minSize="240px"
         maxSize="55%"
         collapsible
@@ -66,11 +105,11 @@ function ListDetailLayout({ list, detail, left, right }: ListDetailLayoutProps) 
         toggle={{
           onClick: toggleList,
           icon: listCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />,
-          label: listCollapsed ? 'Show conversation list' : 'Hide conversation list',
+          label: listCollapsed ? 'Show list' : 'Hide list',
         }}
       />
 
-      <Panel id="detail" defaultSize={showRight ? '25%' : '50%'} minSize="25%" className="overflow-y-auto">
+      <Panel id="detail" defaultSize={detailSize} minSize="25%" className="overflow-y-auto">
         {detail}
       </Panel>
 
