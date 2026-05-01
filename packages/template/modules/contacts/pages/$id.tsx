@@ -1,11 +1,12 @@
 import { DriveBrowser } from '@modules/drive/components/drive-browser'
 import { DriveProvider } from '@modules/drive/components/drive-provider'
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, useParams } from '@tanstack/react-router'
-import { ArrowLeft, FolderTree, Mail, Pencil, Phone, Settings2, ShieldOff } from 'lucide-react'
+import { createFileRoute, useParams } from '@tanstack/react-router'
+import { FolderTree, Mail, Pencil, Phone, Settings2, ShieldOff } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
@@ -41,104 +42,99 @@ export function ContactDetailPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="shrink-0 border-border border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Button asChild size="sm" variant="ghost">
-            <Link to="/contacts">
-              <ArrowLeft className="mr-1 size-4" />
-              Contacts
-            </Link>
-          </Button>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate font-semibold text-lg tracking-tight">{contact?.displayName ?? 'Contact'}</h1>
-            {contact && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-xs">
-                {contact.email && (
-                  <span className="inline-flex items-center gap-1">
-                    <Mail className="size-3" />
-                    {contact.email}
-                  </span>
-                )}
-                {contact.phone && (
-                  <span className="inline-flex items-center gap-1">
-                    <Phone className="size-3" />
-                    {contact.phone}
-                  </span>
-                )}
-                <span>
-                  Added <RelativeTimeCard date={contact.createdAt} />
+    <PageLayout>
+      <PageHeader
+        title={contact?.displayName ?? 'Contact'}
+        backTo={{ to: '/contacts', label: 'Contacts' }}
+        meta={
+          contact && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-xs">
+              {contact.email && (
+                <span className="inline-flex items-center gap-1">
+                  <Mail className="size-3" />
+                  {contact.email}
                 </span>
-                {contact.marketingOptOut && (
-                  <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
-                    <ShieldOff className="size-3" />
-                    Marketing opt-out
-                    {contact.marketingOptOutAt && (
-                      <>
-                        {' '}
-                        (<RelativeTimeCard date={contact.marketingOptOutAt} />)
-                      </>
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          {contact && contact.segments.length > 0 && (
-            <div className="hidden flex-wrap items-center gap-1 sm:flex">
-              {contact.segments.map((s) => (
-                <Badge key={s} variant="secondary" className="font-normal">
-                  {s}
-                </Badge>
-              ))}
+              )}
+              {contact.phone && (
+                <span className="inline-flex items-center gap-1">
+                  <Phone className="size-3" />
+                  {contact.phone}
+                </span>
+              )}
+              <span>
+                Added <RelativeTimeCard date={contact.createdAt} />
+              </span>
+              {contact.marketingOptOut && (
+                <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                  <ShieldOff className="size-3" />
+                  Marketing opt-out
+                  {contact.marketingOptOutAt && (
+                    <>
+                      {' '}
+                      (<RelativeTimeCard date={contact.marketingOptOutAt} />)
+                    </>
+                  )}
+                </span>
+              )}
             </div>
-          )}
+          )
+        }
+        actions={
+          contact && (
+            <>
+              {contact.segments.length > 0 && (
+                <div className="hidden flex-wrap items-center gap-1 sm:flex">
+                  {contact.segments.map((s) => (
+                    <Badge key={s} variant="secondary" className="font-normal">
+                      {s}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="mr-1 size-3.5" />
+                Edit
+              </Button>
+            </>
+          )
+        }
+      />
+
+      <PageBody padded={false} scroll={false}>
+        {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading…</div>}
+        {error && <ErrorBanner className="m-6">Failed to load contact</ErrorBanner>}
+        <div className="flex flex-1 flex-col overflow-hidden">
           {contact && (
-            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="mr-1 size-3.5" />
-              Edit
-            </Button>
+            <>
+              <section className="shrink-0 border-border border-b px-6 py-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Settings2 className="size-4 text-muted-foreground" />
+                  <h2 className="font-medium text-sm">Attributes</h2>
+                  <span className="text-muted-foreground text-xs">Typed, org-wide custom fields.</span>
+                </div>
+                <AttributeTable contactId={id} values={contact.attributes} />
+              </section>
+
+              <section className="flex min-h-0 flex-1 flex-col">
+                <div className="flex shrink-0 items-center gap-2 border-border border-b px-6 py-3">
+                  <FolderTree className="size-4 text-muted-foreground" />
+                  <h2 className="font-medium text-sm">Drive</h2>
+                  <span className="text-muted-foreground text-xs">Per-contact uploads and notes.</span>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <DriveProvider
+                    scope={{ scope: 'contact', contactId: id }}
+                    rootLabel={contact.displayName ? `${contact.displayName}'s files` : 'Contact files'}
+                    initialPath="/PROFILE.md"
+                  >
+                    <DriveBrowser />
+                  </DriveProvider>
+                </div>
+              </section>
+            </>
           )}
         </div>
-      </header>
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading…</div>}
-        {error && (
-          <div className="m-6 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-            Failed to load contact
-          </div>
-        )}
-        {contact && (
-          <>
-            <section className="shrink-0 border-border border-b px-6 py-4">
-              <div className="mb-3 flex items-center gap-2">
-                <Settings2 className="size-4 text-muted-foreground" />
-                <h2 className="font-medium text-sm">Attributes</h2>
-                <span className="text-muted-foreground text-xs">Typed, org-wide custom fields.</span>
-              </div>
-              <AttributeTable contactId={id} values={contact.attributes} />
-            </section>
-
-            <section className="flex min-h-0 flex-1 flex-col">
-              <div className="flex shrink-0 items-center gap-2 border-border border-b px-6 py-3">
-                <FolderTree className="size-4 text-muted-foreground" />
-                <h2 className="font-medium text-sm">Drive</h2>
-                <span className="text-muted-foreground text-xs">Per-contact uploads and notes.</span>
-              </div>
-              <div className="min-h-0 flex-1">
-                <DriveProvider
-                  scope={{ scope: 'contact', contactId: id }}
-                  rootLabel={contact.displayName ? `${contact.displayName}'s files` : 'Contact files'}
-                  initialPath="/PROFILE.md"
-                >
-                  <DriveBrowser />
-                </DriveProvider>
-              </div>
-            </section>
-          </>
-        )}
-      </div>
+      </PageBody>
 
       <ContactFormDialog
         open={editOpen}
@@ -147,7 +143,7 @@ export function ContactDetailPage() {
         onSave={handleSave}
         isPending={update.isPending}
       />
-    </div>
+    </PageLayout>
   )
 }
 

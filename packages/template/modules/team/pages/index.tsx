@@ -19,6 +19,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header'
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
 import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'
+import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
@@ -289,40 +290,35 @@ export function StaffListPage() {
   })
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
-        <div>
-          <h1 className="font-semibold text-lg tracking-tight">Team</h1>
-          <p className="text-muted-foreground text-sm">Staff profiles — routing, capacity, and operational context.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link to="/team/teams">
-              <Users2 className="mr-2 size-4" />
-              Teams
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link to="/team/attributes">
-              <Settings2 className="mr-2 size-4" />
-              Attributes
-            </Link>
-          </Button>
-          {canInvite && (
-            <Button size="sm" onClick={() => setInviteOpen(true)}>
-              <Send className="mr-2 size-4" />
-              Invite member
+    <PageLayout>
+      <PageHeader
+        title="Team"
+        description="Staff profiles — routing, capacity, and operational context."
+        actions={
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/team/teams">
+                <Users2 className="mr-2 size-4" />
+                Teams
+              </Link>
             </Button>
-          )}
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-auto px-6 py-4">
-        {error && (
-          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-            Failed to load staff
-          </div>
-        )}
+            <Button asChild size="sm" variant="outline">
+              <Link to="/team/attributes">
+                <Settings2 className="mr-2 size-4" />
+                Attributes
+              </Link>
+            </Button>
+            {canInvite && (
+              <Button size="sm" onClick={() => setInviteOpen(true)}>
+                <Send className="mr-2 size-4" />
+                Invite member
+              </Button>
+            )}
+          </>
+        }
+      />
+      <PageBody>
+        {error && <ErrorBanner className="mb-3">Failed to load staff</ErrorBanner>}
         {isLoading && !staff.length ? (
           <DataTableSkeleton columnCount={columns.length} filterCount={2} />
         ) : (
@@ -330,10 +326,10 @@ export function StaffListPage() {
             <DataTableToolbar table={table} />
           </DataTable>
         )}
-      </div>
+      </PageBody>
 
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
-    </div>
+    </PageLayout>
   )
 }
 

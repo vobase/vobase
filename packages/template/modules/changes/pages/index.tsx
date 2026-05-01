@@ -5,6 +5,7 @@ import { Inbox } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { ProposalRow } from '@/components/changes/proposal-row'
+import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -33,21 +34,15 @@ function ChangesPage() {
   }, [data, filter])
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="sticky top-0 z-10 border-border border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="mx-auto w-full max-w-5xl px-6 pt-6 pb-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <div>
-              <h1 className="font-semibold text-2xl text-foreground tracking-tight">Pending changes</h1>
-              <p className="mt-1 text-muted-foreground text-sm">
-                Review what your agents have proposed before it lands in production data.
-              </p>
-            </div>
-            <span className="font-medium text-muted-foreground text-sm">{data?.length ?? 0} pending</span>
-          </div>
-
-          {moduleCounts.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+    <PageLayout>
+      <PageHeader
+        title="Pending changes"
+        description="Review what your agents have proposed before it lands in production data."
+        className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        actions={<span className="font-medium text-muted-foreground text-sm">{data?.length ?? 0} pending</span>}
+        meta={
+          moduleCounts.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
               <FilterChip
                 label="All"
                 count={data?.length ?? 0}
@@ -64,56 +59,54 @@ function ChangesPage() {
                 />
               ))}
             </div>
-          )}
-        </div>
-      </header>
+          ) : null
+        }
+      />
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl px-6 py-6">
-          {isLoading && (
-            <div className="space-y-4">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-48 w-full rounded-lg" />
-              ))}
-            </div>
-          )}
+      <PageBody className="mx-auto w-full max-w-5xl">
+        {isLoading && (
+          <div className="space-y-4">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-48 w-full rounded-lg" />
+            ))}
+          </div>
+        )}
 
-          {error && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm">
-              {error instanceof Error ? error.message : 'Failed to load proposals'}
-            </div>
-          )}
+        {error && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm">
+            {error instanceof Error ? error.message : 'Failed to load proposals'}
+          </div>
+        )}
 
-          {data && visible.length === 0 && (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia>
-                  <Inbox className="size-6" />
-                </EmptyMedia>
-                <EmptyTitle>{filter === 'all' ? 'No pending proposals' : `Nothing pending in ${filter}`}</EmptyTitle>
-                <EmptyDescription>
-                  {filter === 'all'
-                    ? 'When agents suggest edits to memory, contacts, drive files, or skills, they will queue up here for your review.'
-                    : 'Switch filters to see proposals in other modules, or wait for an agent to suggest something here.'}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
+        {data && visible.length === 0 && (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia>
+                <Inbox className="size-6" />
+              </EmptyMedia>
+              <EmptyTitle>{filter === 'all' ? 'No pending proposals' : `Nothing pending in ${filter}`}</EmptyTitle>
+              <EmptyDescription>
+                {filter === 'all'
+                  ? 'When agents suggest edits to memory, contacts, drive files, or skills, they will queue up here for your review.'
+                  : 'Switch filters to see proposals in other modules, or wait for an agent to suggest something here.'}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
 
-          {data && visible.length > 0 && (
-            <ul className="space-y-4">
-              {visible.map((proposal) => (
-                <ProposalRow
-                  key={proposal.id}
-                  proposal={proposal}
-                  onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
+        {data && visible.length > 0 && (
+          <ul className="space-y-4">
+            {visible.map((proposal) => (
+              <ProposalRow
+                key={proposal.id}
+                proposal={proposal}
+                onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
+              />
+            ))}
+          </ul>
+        )}
+      </PageBody>
+    </PageLayout>
   )
 }
 

@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { ApprovalRow } from '@/components/approval-row'
+import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { messagingClient } from '@/lib/api-client'
 import { hydratePendingApproval } from '@/lib/rpc-utils'
 import type { PendingApproval } from '../schema'
@@ -54,38 +56,42 @@ export function ApprovalsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-border border-b px-5 py-3">
-        <h1 className="font-semibold text-sm">Pending Approvals</h1>
-        {approvals.length > 0 && (
-          <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 font-medium text-info text-xs">
-            {approvals.length} pending
-          </span>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-auto">
+    <PageLayout>
+      <PageHeader
+        title={<span className="text-sm">Pending Approvals</span>}
+        className="px-5 py-3"
+        actions={
+          approvals.length > 0 ? (
+            <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 font-medium text-info text-xs">
+              {approvals.length} pending
+            </span>
+          ) : undefined
+        }
+      />
+      <PageBody padded={false}>
         {isLoading && (
           <div className="flex h-32 items-center justify-center text-muted-foreground text-xs">Loading…</div>
         )}
-        {error && (
-          <div className="m-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs">
-            Failed to load approvals
-          </div>
-        )}
+        {error && <ErrorBanner className="m-4">Failed to load approvals</ErrorBanner>}
         {!isLoading && !error && approvals.length === 0 && (
-          <div className="flex h-48 flex-col items-center justify-center gap-2">
-            <span className="text-2xl">✓</span>
-            <p className="text-muted-foreground text-sm">All clear — nothing pending</p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia>
+                <span className="text-2xl">✓</span>
+              </EmptyMedia>
+              <EmptyTitle>All clear</EmptyTitle>
+              <EmptyDescription>Nothing pending</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent />
+          </Empty>
         )}
         <ul className="divide-y divide-border">
           {approvals.map((approval) => (
             <ApprovalRow key={approval.id} approval={approval} onDecide={handleDecide} />
           ))}
         </ul>
-      </div>
-    </div>
+      </PageBody>
+    </PageLayout>
   )
 }
 

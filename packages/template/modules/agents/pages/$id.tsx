@@ -4,9 +4,10 @@ import { MODEL_OPTIONS } from '@modules/agents/lib/models'
 import { DriveBrowser } from '@modules/drive/components/drive-browser'
 import { DriveProvider } from '@modules/drive/components/drive-provider'
 import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Bot, Save, Trash2 } from 'lucide-react'
+import { Bot, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -62,113 +63,109 @@ function AgentDetailPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-border border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/agents">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <div className="flex size-9 items-center justify-center rounded-md bg-muted">
-            <Bot className="size-5 text-muted-foreground" />
+    <PageLayout>
+      <PageHeader
+        title={agent.name}
+        backTo={{ to: '/agents', label: 'Agents' }}
+        icon={Bot}
+        meta={
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-muted-foreground text-xs">{agent.model}</span>
+            <Badge variant={agent.enabled ? 'default' : 'secondary'}>{agent.enabled ? 'active' : 'disabled'}</Badge>
           </div>
-          <div>
-            <h1 className="font-semibold text-lg tracking-tight">{agent.name}</h1>
-            <p className="font-mono text-muted-foreground text-xs">{agent.model}</p>
-          </div>
-          <Badge variant={agent.enabled ? 'default' : 'secondary'} className="ml-2">
-            {agent.enabled ? 'active' : 'disabled'}
-          </Badge>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-          onClick={() => {
-            if (confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) {
-              remove.mutate(agent.id, { onSuccess: () => navigate({ to: '/agents' }) })
-            }
-          }}
-        >
-          <Trash2 className="mr-1.5 size-3.5" />
-          Delete
-        </Button>
-      </header>
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <section className="shrink-0 border-border border-b px-6 py-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-medium text-sm">Settings</h2>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="agent-enabled" className="text-muted-foreground text-xs">
-                Enabled
-              </Label>
-              <Switch id="agent-enabled" checked={enabled} onCheckedChange={setEnabled} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="agent-name">Name</Label>
-              <Input id="agent-name" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="agent-model">Model</Label>
-              <Select value={model} onValueChange={setModel}>
-                <SelectTrigger id="agent-model">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                  {MODEL_OPTIONS.every((o) => o.value !== agent.model) && (
-                    <SelectItem value={agent.model}>{agent.model}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-muted-foreground text-xs">
-              {update.isError ? (
-                <span className="text-destructive">Failed to save changes.</span>
-              ) : update.isSuccess && !settingsDirty ? (
-                'Saved.'
-              ) : (
-                ' '
-              )}
-            </p>
-            <Button
-              size="sm"
-              onClick={() => update.mutate({ name, model, enabled })}
-              disabled={!settingsDirty || update.isPending}
-            >
-              <Save className="mr-1.5 size-3.5" />
-              {update.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </section>
-
-        <section className="flex min-h-0 flex-1 flex-col">
-          <DriveProvider
-            scope={{ scope: 'agent', agentId: agent.id }}
-            rootLabel={`${agent.name}'s files`}
-            initialPath="/AGENTS.md"
-            renderPreview={({ path, content }) => {
-              if (path === '/AGENTS.md') {
-                return <AgentsMdEditor agentId={agent.id} agentName={agent.name} initialInstructions={content} />
+        }
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => {
+              if (confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) {
+                remove.mutate(agent.id, { onSuccess: () => navigate({ to: '/agents' }) })
               }
-              return null
             }}
           >
-            <DriveBrowser />
-          </DriveProvider>
-        </section>
-      </div>
-    </div>
+            <Trash2 className="mr-1.5 size-3.5" />
+            Delete
+          </Button>
+        }
+      />
+
+      <PageBody padded={false} scroll={false}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <section className="shrink-0 border-border border-b px-6 py-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-medium text-sm">Settings</h2>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="agent-enabled" className="text-muted-foreground text-xs">
+                  Enabled
+                </Label>
+                <Switch id="agent-enabled" checked={enabled} onCheckedChange={setEnabled} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="agent-name">Name</Label>
+                <Input id="agent-name" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="agent-model">Model</Label>
+                <Select value={model} onValueChange={setModel}>
+                  <SelectTrigger id="agent-model">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MODEL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                    {MODEL_OPTIONS.every((o) => o.value !== agent.model) && (
+                      <SelectItem value={agent.model}>{agent.model}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-muted-foreground text-xs">
+                {update.isError ? (
+                  <span className="text-destructive">Failed to save changes.</span>
+                ) : update.isSuccess && !settingsDirty ? (
+                  'Saved.'
+                ) : (
+                  ' '
+                )}
+              </p>
+              <Button
+                size="sm"
+                onClick={() => update.mutate({ name, model, enabled })}
+                disabled={!settingsDirty || update.isPending}
+              >
+                <Save className="mr-1.5 size-3.5" />
+                {update.isPending ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </section>
+
+          <section className="flex min-h-0 flex-1 flex-col">
+            <DriveProvider
+              scope={{ scope: 'agent', agentId: agent.id }}
+              rootLabel={`${agent.name}'s files`}
+              initialPath="/AGENTS.md"
+              renderPreview={({ path, content }) => {
+                if (path === '/AGENTS.md') {
+                  return <AgentsMdEditor agentId={agent.id} agentName={agent.name} initialInstructions={content} />
+                }
+                return null
+              }}
+            >
+              <DriveBrowser />
+            </DriveProvider>
+          </section>
+        </div>
+      </PageBody>
+    </PageLayout>
   )
 }
 

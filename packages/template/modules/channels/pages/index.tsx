@@ -6,6 +6,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Check, Code2, Copy, ExternalLink, Globe, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -574,21 +575,19 @@ export function ChannelsPage() {
   )
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-start justify-between gap-4 border-border border-b px-6 py-4">
-        <div>
-          <h1 className="font-semibold text-lg tracking-tight">Channels</h1>
-          <p className="text-muted-foreground text-sm">
-            Transport adapters connecting customers to this organization's messaging.
-          </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-          <Plus className="size-4" />
-          Add web channel
-        </Button>
-      </header>
+    <PageLayout>
+      <PageHeader
+        title="Channels"
+        description="Transport adapters connecting customers to this organization's messaging."
+        actions={
+          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+            <Plus className="size-4" />
+            Add web channel
+          </Button>
+        }
+      />
 
-      <div className="flex-1 overflow-auto p-6">
+      <PageBody>
         <div className="mx-auto flex max-w-4xl flex-col gap-4">
           <section>
             <h2 className="mb-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Web</h2>
@@ -632,7 +631,7 @@ export function ChannelsPage() {
             )}
           </section>
         </div>
-      </div>
+      </PageBody>
 
       <InstanceFormDialog
         open={createOpen}
@@ -691,7 +690,7 @@ export function ChannelsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
   )
 }
 

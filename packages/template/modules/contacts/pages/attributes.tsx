@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { createFileRoute } from '@tanstack/react-router'
+import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,27 +106,20 @@ export function AttributeDefinitionsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-border border-b px-6 py-4">
-        <Button asChild size="sm" variant="ghost">
-          <Link to="/contacts">
-            <ArrowLeft className="mr-1 size-4" />
-            Contacts
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="font-semibold text-lg tracking-tight">Contact attributes</h1>
-          <p className="text-muted-foreground text-xs">
-            Custom fields shown on every contact. Turn on "show in list" to surface as a contacts-table column.
-          </p>
-        </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="mr-1 size-4" />
-          New attribute
-        </Button>
-      </header>
+    <PageLayout>
+      <PageHeader
+        title="Contact attributes"
+        description='Custom fields shown on every contact. Turn on "show in list" to surface as a contacts-table column.'
+        backTo={{ to: '/contacts', label: 'Contacts' }}
+        actions={
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="mr-1 size-4" />
+            New attribute
+          </Button>
+        }
+      />
 
-      <div className="flex-1 overflow-auto p-6">
+      <PageBody>
         {isLoading && <div className="text-muted-foreground text-sm">Loading attributes…</div>}
         {!isLoading && defs.length === 0 && (
           <div className="flex h-full items-center justify-center">
@@ -204,7 +198,7 @@ export function AttributeDefinitionsPage() {
             </Table>
           </div>
         )}
-      </div>
+      </PageBody>
 
       <AttributeFormDialog
         open={dialogOpen}
@@ -245,7 +239,7 @@ export function AttributeDefinitionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageLayout>
   )
 }
 

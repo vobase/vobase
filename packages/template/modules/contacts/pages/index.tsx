@@ -21,6 +21,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { DataTableColumnHeader } from '@/components/data-table/data-table-column-header'
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
 import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'
+import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -280,32 +281,27 @@ export function ContactsListPage() {
   })
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
-        <div>
-          <h1 className="font-semibold text-lg tracking-tight">Contacts</h1>
-          <p className="text-muted-foreground text-sm">Manage customer contacts and their working memory.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link to="/contacts/attributes">
-              <Settings2 className="mr-2 size-4" />
-              Attributes
-            </Link>
-          </Button>
-          <Button size="sm" onClick={openCreate}>
-            <UserPlus className="mr-2 size-4" />
-            Add contact
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-auto px-6 py-4">
-        {error && (
-          <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-            Failed to load contacts
-          </div>
-        )}
+    <PageLayout>
+      <PageHeader
+        title="Contacts"
+        description="Manage customer contacts and their working memory."
+        actions={
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/contacts/attributes">
+                <Settings2 className="mr-2 size-4" />
+                Attributes
+              </Link>
+            </Button>
+            <Button size="sm" onClick={openCreate}>
+              <UserPlus className="mr-2 size-4" />
+              Add contact
+            </Button>
+          </>
+        }
+      />
+      <PageBody>
+        {error && <ErrorBanner className="mb-3">Failed to load contacts</ErrorBanner>}
         {isLoading && !contacts.length ? (
           <DataTableSkeleton columnCount={columns.length} filterCount={2} />
         ) : (
@@ -313,7 +309,7 @@ export function ContactsListPage() {
             <DataTableToolbar table={table} />
           </DataTable>
         )}
-      </div>
+      </PageBody>
 
       <ContactFormDialog
         open={dialogOpen}
@@ -325,7 +321,7 @@ export function ContactsListPage() {
         onSave={handleSave}
         isPending={create.isPending || update.isPending}
       />
-    </div>
+    </PageLayout>
   )
 }
 

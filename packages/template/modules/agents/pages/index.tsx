@@ -10,6 +10,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Bot, MoreVertical, Plus, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
+import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -165,29 +166,26 @@ export function AgentsListPage() {
   const [createOpen, setCreateOpen] = useState(false)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between border-border border-b px-6 py-4">
-        <div>
-          <h1 className="font-semibold text-lg tracking-tight">Agents</h1>
-          <p className="text-muted-foreground text-sm">
-            Agents configured for this organization. Toggle them on or off, or open one to edit.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link to="/changes">
-              <Sparkles className="mr-1 size-4" />
-              Changes
-            </Link>
-          </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 size-4" />
-            New agent
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-auto p-6">
+    <PageLayout>
+      <PageHeader
+        title="Agents"
+        description="Agents configured for this organization. Toggle them on or off, or open one to edit."
+        actions={
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/changes">
+                <Sparkles className="mr-1 size-4" />
+                Changes
+              </Link>
+            </Button>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 size-4" />
+              New agent
+            </Button>
+          </>
+        }
+      />
+      <PageBody>
         {isLoading ? (
           <p className="text-muted-foreground text-sm">Loading…</p>
         ) : agents.length === 0 ? (
@@ -207,10 +205,10 @@ export function AgentsListPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageBody>
 
       <NewAgentDialog open={createOpen} onOpenChange={setCreateOpen} />
-    </div>
+    </PageLayout>
   )
 }
 
