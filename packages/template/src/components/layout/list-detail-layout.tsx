@@ -1,42 +1,88 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQueryState } from 'nuqs'
-import type * as React from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { Group, Panel, type PanelImperativeHandle } from 'react-resizable-panels'
+
+import { GradientResizeHandle } from '@/components/ui/gradient-resize-handle'
 
 interface ListDetailLayoutProps {
-  list: React.ReactNode
-  detail: React.ReactNode
-  /** Optional filter rail rendered to the LEFT of the list. Width fixed at 180px. */
-  left?: React.ReactNode
-  right?: React.ReactNode
-  listWidth?: 320 | 360
-  onMobileSelect?: () => void
+  list: ReactNode
+  detail: ReactNode
+  /** Optional filter rail rendered to the LEFT of the list. */
+  left?: ReactNode
+  /** Optional contextual pane rendered to the RIGHT of the detail (gated by `?ctx=open`). */
+  right?: ReactNode
 }
 
-function ListDetailLayout({ list, detail, left, right, listWidth = 320 }: ListDetailLayoutProps) {
+function ListDetailLayout({ list, detail, left, right }: ListDetailLayoutProps) {
   const [ctx] = useQueryState('ctx', { defaultValue: 'closed' })
+  const showRight = !!right && ctx === 'open'
+
+  const listRef = useRef<PanelImperativeHandle | null>(null)
+  const [listCollapsed, setListCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (window.innerWidth < 900) {
+      listRef.current?.collapse()
+    }
+  }, [])
+
+  const handleListResize = () => {
+    const next = listRef.current?.isCollapsed() ?? false
+    setListCollapsed((prev) => (prev === next ? prev : next))
+  }
+
+  const toggleList = () => {
+    if (listRef.current?.isCollapsed()) listRef.current.expand()
+    else listRef.current?.collapse()
+  }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <Group orientation="horizontal" className="h-full">
       {left && (
-        <div className="flex w-[180px] shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-r">
-          {left}
-        </div>
+        <>
+          <Panel id="filter" defaultSize="18%" minSize="12%" maxSize="30%" className="overflow-y-auto">
+            {left}
+          </Panel>
+          <GradientResizeHandle disabled={listCollapsed} />
+        </>
       )}
 
-      <div
-        className="flex shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-r"
-        style={{ width: listWidth }}
+      <Panel
+        panelRef={listRef}
+        id="list"
+        defaultSize="32%"
+        minSize="240px"
+        maxSize="55%"
+        collapsible
+        collapsedSize="0%"
+        onResize={handleListResize}
+        className="overflow-y-auto"
       >
         {list}
-      </div>
+      </Panel>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{detail}</div>
+      <GradientResizeHandle
+        toggle={{
+          onClick: toggleList,
+          icon: listCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />,
+          label: listCollapsed ? 'Show conversation list' : 'Hide conversation list',
+        }}
+      />
 
-      {right && ctx === 'open' && (
-        <div className="flex w-[380px] shrink-0 flex-col overflow-y-auto border-[var(--color-border-subtle)] border-l">
-          {right}
-        </div>
+      <Panel id="detail" defaultSize={showRight ? '25%' : '50%'} minSize="25%" className="overflow-y-auto">
+        {detail}
+      </Panel>
+
+      {showRight && (
+        <>
+          <GradientResizeHandle />
+          <Panel id="ctx" defaultSize="25%" minSize="20%" maxSize="40%" className="overflow-y-auto">
+            {right}
+          </Panel>
+        </>
       )}
-    </div>
+    </Group>
   )
 }
 

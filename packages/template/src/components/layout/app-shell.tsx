@@ -3,10 +3,12 @@ import { useUnreadMentionCount } from '@modules/team/hooks/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Bot, GitPullRequestArrow, HardDrive, Inbox, Radio, Settings, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
+import { Group, Panel } from 'react-resizable-panels'
 
 import { ThemeSwitch } from '@/components/theme-switch'
+import { GradientResizeHandle } from '@/components/ui/gradient-resize-handle'
 import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMentionBrowserNotifications } from '@/hooks/use-mention-browser-notifications'
 import { useStaffHeartbeat } from '@/hooks/use-staff-heartbeat'
@@ -39,45 +41,44 @@ const ADMIN_NAV: NavItemDef[] = [
   { icon: Settings, label: 'Settings', to: '/settings', enabled: true },
 ]
 
-function RailItem({ icon: Icon, label, to, enabled, badgeCount }: NavItemDef) {
-  const baseClass = 'relative flex size-10 items-center justify-center rounded-md transition-colors'
+function NavItem({ icon: Icon, label, to, enabled, badgeCount }: NavItemDef) {
+  const base =
+    'group/nav-item relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm transition-colors @max-[160px]/rail:justify-center @max-[160px]/rail:gap-0 @max-[160px]/rail:px-0'
+  const idle = 'text-muted-foreground hover:bg-foreground-3 hover:text-foreground'
+  const active = 'bg-foreground-5 text-foreground'
+
   const badge =
     badgeCount && badgeCount > 0 ? (
       <span
         role="status"
         aria-label={`${badgeCount} unread`}
-        className="absolute top-1 right-1 flex min-w-[16px] items-center justify-center rounded-full bg-primary px-1 font-semibold text-[10px] text-primary-foreground leading-4"
+        className="@max-[160px]/rail:absolute @max-[160px]/rail:top-1 @max-[160px]/rail:right-1 @max-[160px]/rail:ml-0 ml-auto inline-flex @max-[160px]/rail:h-1.5 @max-[160px]/rail:min-w-1.5 min-w-[18px] items-center justify-center rounded-full bg-primary @max-[160px]/rail:p-0 px-1.5 font-semibold @max-[160px]/rail:text-transparent text-2xs text-primary-foreground leading-none"
       >
         {badgeCount > 99 ? '99+' : badgeCount}
       </span>
     ) : null
-  const trigger = enabled ? (
-    <Link
-      to={to}
-      aria-label={label}
-      className={cn(baseClass, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
-      activeProps={{ className: cn(baseClass, 'bg-accent text-foreground') }}
-    >
-      <Icon className="size-[18px]" />
-      {badge}
-    </Link>
-  ) : (
-    <button
-      type="button"
-      aria-label={label}
-      aria-disabled="true"
-      className={cn(baseClass, 'cursor-default text-muted-foreground opacity-40')}
-    >
-      <Icon className="size-[18px]" />
-      {badge}
-    </button>
-  )
+
+  if (!enabled) {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        aria-disabled="true"
+        className={cn(base, 'cursor-default text-muted-foreground opacity-40')}
+      >
+        <Icon className="size-[18px] shrink-0" />
+        <span className="@max-[160px]/rail:hidden truncate">{label}</span>
+        {badge}
+      </button>
+    )
+  }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
-    </Tooltip>
+    <Link to={to} aria-label={label} className={cn(base, idle)} activeProps={{ className: cn(base, active) }}>
+      <Icon className="size-[18px] shrink-0" />
+      <span className="@max-[160px]/rail:hidden truncate">{label}</span>
+      {badge}
+    </Link>
   )
 }
 
@@ -97,46 +98,51 @@ function AppShell({ children }: AppShellProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden bg-background text-foreground">
-        <aside
-          aria-label="Main navigation"
-          className="flex w-14 shrink-0 flex-col items-center border-border border-r bg-sidebar py-3"
-        >
-          <div className="mb-3 flex size-10 items-center justify-center">
-            <span className="font-bold font-mono text-foreground text-mini tracking-widest">VB</span>
-          </div>
+      <Group orientation="horizontal" style={{ height: '100vh' }} className="bg-background text-foreground">
+        <Panel id="rail" defaultSize="220px" minSize="180px" maxSize="320px" collapsible collapsedSize="56px">
+          <aside
+            aria-label="Main navigation"
+            className="@container/rail flex h-full w-full flex-col bg-sidebar px-2 py-3"
+          >
+            <div className="mb-3 flex h-9 items-center @max-[160px]/rail:justify-center @max-[160px]/rail:px-0 px-2.5">
+              <span className="@max-[160px]/rail:hidden font-bold font-mono text-foreground text-sm tracking-widest">
+                VOBASE
+              </span>
+              <span className="@max-[160px]/rail:inline hidden font-bold font-mono text-foreground text-sm tracking-widest">
+                V
+              </span>
+            </div>
 
-          <nav aria-label="Module navigation" className="flex flex-col items-center gap-0.5">
-            {PRIMARY_NAV.map((item) => (
-              <RailItem key={item.to} {...item} badgeCount={badgeFor(item.to)} />
-            ))}
-          </nav>
+            <nav aria-label="Module navigation" className="flex flex-col gap-0.5">
+              {PRIMARY_NAV.map((item) => (
+                <NavItem key={item.to} {...item} badgeCount={badgeFor(item.to)} />
+              ))}
+            </nav>
 
-          <Separator className="my-3 w-8" />
+            <Separator className="my-3" />
 
-          <nav aria-label="Workspace navigation" className="flex flex-col items-center gap-0.5">
-            {ADMIN_NAV.map((item) => (
-              <RailItem key={item.to} {...item} />
-            ))}
-          </nav>
+            <nav aria-label="Workspace navigation" className="flex flex-col gap-0.5">
+              {ADMIN_NAV.map((item) => (
+                <NavItem key={item.to} {...item} />
+              ))}
+            </nav>
 
-          <div className="mt-auto flex w-full flex-col items-center gap-1 px-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex size-10 items-center justify-center">
-                  <ThemeSwitch />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">Toggle theme</TooltipContent>
-            </Tooltip>
-            <NavUser />
-          </div>
-        </aside>
+            <div className="mt-auto flex flex-col gap-1">
+              <div className="flex h-9 items-center @max-[160px]/rail:justify-center @max-[160px]/rail:gap-0 gap-3 rounded-md @max-[160px]/rail:px-0 px-2.5 text-muted-foreground text-sm">
+                <ThemeSwitch />
+                <span className="@max-[160px]/rail:hidden">Theme</span>
+              </div>
+              <NavUser />
+            </div>
+          </aside>
+        </Panel>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
-        </div>
-      </div>
+        <GradientResizeHandle />
+
+        <Panel id="main" defaultSize="86%" minSize="50%">
+          <main className="h-full overflow-hidden">{children}</main>
+        </Panel>
+      </Group>
     </TooltipProvider>
   )
 }
