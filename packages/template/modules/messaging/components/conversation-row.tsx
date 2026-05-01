@@ -3,6 +3,7 @@ import { deriveContactName } from '@modules/messaging/components/contact'
 import { AtSignIcon, ClockIcon } from 'lucide-react'
 
 import { Principal } from '@/components/principal'
+import { PrincipalAvatar } from '@/components/principal/avatar'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { cn } from '@/lib/utils'
 import type { Conversation } from '../schema'
@@ -21,9 +22,7 @@ function derivePreview(conv: Conversation): string | null {
   if (conv.lastMessageKind === 'image') return '[image]'
   if (conv.lastMessageKind === 'card') return conv.lastMessagePreview ?? '[card]'
   if (conv.lastMessageKind === 'card_reply') return conv.lastMessagePreview ?? '[reply]'
-  const text = conv.lastMessagePreview
-  if (!text) return null
-  return text.length > 120 ? `${text.slice(0, 117)}…` : text
+  return conv.lastMessagePreview ?? null
 }
 
 function previewPrefix(conv: Conversation): string {
@@ -59,20 +58,22 @@ function ConversationRow({
         }
       }}
       className={cn(
-        'group flex w-full cursor-default items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] focus-visible:outline-offset-[-2px]',
-        isSelected ? 'border-primary bg-primary/15' : 'border-transparent hover:bg-[var(--color-surface)]/70',
+        'group flex w-full cursor-default items-start gap-3 px-4 py-3 text-left transition-colors',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-[-2px]',
+        isSelected ? 'bg-foreground-5' : 'hover:bg-foreground-3',
       )}
     >
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex items-center gap-1.5">
+      <PrincipalAvatar kind="contact" size="lg" />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
           <Principal
             id={`contact:${conv.contactId}`}
             variant="simple"
             fallbackName={displayName}
             noHover
             className={cn(
-              'flex-1 truncate text-[var(--color-fg)] text-sm tracking-tight',
+              'flex-1 truncate text-foreground text-sm tracking-tight',
               isBold ? 'font-medium' : 'font-normal',
             )}
           />
@@ -89,7 +90,7 @@ function ConversationRow({
           ) : null}
           {isSnoozed && conv.snoozedUntil ? (
             <span
-              className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[var(--color-fg-muted)] text-mini"
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground-50 text-xs"
               data-testid="conversation-row-snoozed"
               title="Snoozed"
             >
@@ -97,20 +98,20 @@ function ConversationRow({
               <RelativeTimeCard date={new Date(conv.snoozedUntil)} length="short" />
             </span>
           ) : conv.lastMessageAt ? (
-            <span className="shrink-0 whitespace-nowrap text-[var(--color-fg-muted)] text-mini">
+            <span className="shrink-0 whitespace-nowrap text-foreground-50 text-xs">
               <RelativeTimeCard date={new Date(conv.lastMessageAt)} length="short" />
             </span>
           ) : null}
         </div>
 
-        <p className="truncate text-[var(--color-fg-muted)] text-xs">
+        <p className="mt-0.5 truncate text-foreground-50 text-xs">
           {preview ? (
             <>
-              {prefix && <span className="text-[var(--color-fg-muted)]/70">{prefix}</span>}
+              {prefix && <span className="text-foreground-40">{prefix}</span>}
               {preview}
             </>
           ) : (
-            ' '
+            ' '
           )}
         </p>
       </div>
