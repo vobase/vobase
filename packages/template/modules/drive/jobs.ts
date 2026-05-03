@@ -6,7 +6,7 @@
  */
 
 import { driveChunks, driveFiles } from '@modules/drive/schema'
-import { type JobDef, recordCostUsage } from '@vobase/core'
+import { type JobDef, logger, recordCostUsage } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
 import type { AppStorage, LlmTask, RealtimeService } from '~/runtime'
@@ -97,6 +97,9 @@ async function markFailed(
   fileId: string,
   processingError: string,
 ): Promise<void> {
+  // Surface the failure in server logs too — without this the row gets a
+  // useful processingError but operators have nothing to grep when triaging.
+  logger.error({ organizationId, fileId, processingError }, '[drive] processFileJob failed')
   await setRowState(db, organizationId, fileId, {
     processingStatus: 'failed',
     extractionKind: 'failed',
@@ -253,6 +256,10 @@ export async function processFileJobHandler(
         })
       }
     } catch (err) {
+      logger.error(
+        { organizationId: orgId, fileId: row.id, error: errMessage(err) },
+        '[drive] processFileJob embedding failed',
+      )
       await setRowState(db, orgId, row.id, {
         extractedText: result.markdown,
         caption,

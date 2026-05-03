@@ -15,8 +15,30 @@
  * tests).
  */
 
-import { EXTRACTABLE_MAX_BYTES } from '../constants'
+import { EXTRACTABLE_MAX_BYTES, MIN_PRINTABLE_RATIO, MIN_READABLE_CHARS_PER_PAGE } from '../constants'
 import { type RenderStubInput, renderStub } from './stub-markdown'
+
+/**
+ * Per-page PDF readability gate. A page whose pdfium-extracted text falls
+ * below `MIN_READABLE_CHARS_PER_PAGE` OR whose printable-char ratio is below
+ * `MIN_PRINTABLE_RATIO` is treated as image-only / watermark-only and routed
+ * through OCR. Ports v1's `isReadableText` from
+ * `legacy/template-v1/modules/knowledge-base/lib/extract.ts:444`. Exported
+ * so the unit test can pin the heuristic without spinning pdfium.
+ */
+export function isReadablePageText(text: string): boolean {
+  const trimmed = text.trim()
+  if (trimmed.length < MIN_READABLE_CHARS_PER_PAGE) return false
+  let printable = 0
+  let total = 0
+  for (let i = 0; i < trimmed.length; ) {
+    const code = trimmed.codePointAt(i) ?? 0
+    total++
+    if ((code >= 0x20 && code < 0x7f) || code >= 0xa0) printable++
+    i += code > 0xffff ? 2 : 1
+  }
+  return total > 0 && printable / total >= MIN_PRINTABLE_RATIO
+}
 
 export type ExtractResult =
   | { kind: 'extracted'; markdown: string; ocrSummary?: string }
@@ -61,7 +83,8 @@ export function sniffMagicBytes(bytes: Buffer | Uint8Array): string | null {
   return null
 }
 
-function extOf(name: string): string {
+/** Lowercase extension without the dot. `'foo.PDF' → 'pdf'`, `'noext' → ''`. */
+export function extOf(name: string): string {
   const dot = name.lastIndexOf('.')
   return dot >= 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
@@ -147,12 +170,15 @@ async function extractPdf(
     let usedOcr = false
     for (let i = 0; i < pageCount; i++) {
       const page = doc.getPage(i)
-      const text = (await page.getText()).trim()
-      if (text.length > 0) {
-        segments.push(`## Page ${i + 1}\n\n${text}`)
+      const rawText = await page.getText()
+      // Trust the pdfium extract only if the page reads as actual text.
+      // Image-only pages and watermark-only pages both fail the readability
+      // gate and route through OCR; pure-text pages avoid the multimodal cost.
+      if (isReadablePageText(rawText)) {
+        segments.push(`## Page ${i + 1}\n\n${rawText.trim()}`)
         continue
       }
-      // Image-only page → fall back to OCR provider.
+      // Image-only / unreadable page → fall back to OCR provider.
       if (!ocr) {
         segments.push(`## Page ${i + 1}\n\n_(no extractable text; OCR not configured)_`)
         continue

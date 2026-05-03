@@ -48,8 +48,13 @@ const providerSchema = z.object({
  * contain `:`, the `key` segment is the rest of the string after we strip the
  * fixed prefix.
  */
+/** Cheap check used by UI gates that don't need to parse the body. */
+export function isVirtualId(id: string): boolean {
+  return id.startsWith('virtual:')
+}
+
 export function parseVirtualId(id: string): VirtualId | null {
-  if (!id.startsWith('virtual:')) return null
+  if (!isVirtualId(id)) return null
   const rest = id.slice('virtual:'.length)
 
   // Provider form: provider:<providerId>:<scopeIdVal>:<key>

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
-import { EXTRACTABLE_MAX_BYTES } from '../constants'
-import { extract, resolveEffectiveMime, sniffMagicBytes } from './extract'
+import { EXTRACTABLE_MAX_BYTES, MIN_READABLE_CHARS_PER_PAGE } from '../constants'
+import { extract, isReadablePageText, resolveEffectiveMime, sniffMagicBytes } from './extract'
 
 describe('sniffMagicBytes', () => {
   test('detects PDF', () => {
@@ -166,5 +166,41 @@ describe('extract', () => {
       expect(result.markdown).toContain('BLUE')
       expect(result.ocrSummary).toBe('A blue square.')
     }
+  })
+})
+
+describe('isReadablePageText', () => {
+  test('empty string fails the gate', () => {
+    expect(isReadablePageText('')).toBe(false)
+  })
+  test('whitespace-only fails the gate', () => {
+    expect(isReadablePageText('   \n\t  \n  ')).toBe(false)
+  })
+  test('short watermark glyph fails the min-length gate', () => {
+    // A scanned page with only a stray "DRAFT" header glyph extracted by
+    // pdfium — the v2 length-only gate would have trusted this. v1's
+    // readability gate (and ours) routes it through OCR instead.
+    const glyph = 'DRAFT'.repeat(3) // 15 chars, well under MIN_READABLE_CHARS_PER_PAGE
+    expect(glyph.length).toBeLessThan(MIN_READABLE_CHARS_PER_PAGE)
+    expect(isReadablePageText(glyph)).toBe(false)
+  })
+  test('garbage non-printable bytes fail the printable-ratio gate', () => {
+    // Page-length string but mostly C0 control bytes (\x01-\x1f, excluding
+    // whitespace) — fails the 60% printable-ratio threshold.
+    const noise = `${'\x01\x02\x03\x04\x05\x06\x07\x08'.repeat(10)}a` // 81 chars, only 1 printable
+    expect(noise.length).toBeGreaterThan(MIN_READABLE_CHARS_PER_PAGE)
+    expect(isReadablePageText(noise)).toBe(false)
+  })
+  test('long English page passes the gate', () => {
+    const text = 'The quick brown fox jumps over the lazy dog. '.repeat(5) // 225 chars, all printable
+    expect(isReadablePageText(text)).toBe(true)
+  })
+  test('CJK content passes (codepoints ≥ 0xa0 count as printable)', () => {
+    const text = `本契約は、当事者間の合意に基づき締結されるものとする。${' x'.repeat(20)}` // 60+ chars
+    expect(isReadablePageText(text)).toBe(true)
+  })
+  test('emoji content passes (surrogate pairs count via codePointAt)', () => {
+    const text = '🌍'.repeat(50) // 50 emoji codepoints, all ≥ 0xa0
+    expect(isReadablePageText(text)).toBe(true)
   })
 })

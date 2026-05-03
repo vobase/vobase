@@ -1,11 +1,25 @@
 /**
- * OCR provider: multimodal caption + transcription via Gemini Flash through
- * `wake/llm.ts`'s `createModel` seam (Bifrost-or-direct routing).
+ * OCR provider: multimodal caption + transcription via the AI SDK v6.
  *
- * Returns both the verbatim transcription (`text`) and a 1-2 sentence
- * description (`summary`) — the summary is what `caption.ts` prefers when
- * deriving a UI caption for an image (raw OCR text is often noisy headers).
+ * Routing — pick the first that has credentials:
+ *   1. Bifrost (`BIFROST_API_KEY` + `BIFROST_URL`) — the gateway speaks the
+ *      OpenAI Responses API, so we use `@ai-sdk/openai` with `baseURL`
+ *      pointed at the gateway and route to `google/gemini-2.0-flash`.
+ *   2. Direct OpenAI (`OPENAI_API_KEY`) — `models.gpt_mini` (cheap
+ *      multimodal). Bare model id is the `openai/`-stripped value.
+ *   3. Otherwise throw — caller (`extract.ts`) reports the failure verbatim
+ *      via `processingError`, so the UI tooltip surfaces "OCR requires …".
+ *
+ * We call `provider.chat(...)` (not the default callable, which prefers
+ * the Responses API + v2-compat shim — that path emits the
+ * "Using v2 specification compatibility mode" warning on every OCR call).
+ *
+ * Why not pi-ai's `createModel`: pi-ai returns v1-spec models; AI SDK v6
+ * requires v2 spec. Routing OCR through `@ai-sdk/openai` directly keeps the
+ * seam version-clean and matches the rest of the project's AI SDK v6 use.
  */
+
+import { models, splitModelId } from '@modules/agents/lib/models'
 
 const OCR_PROMPT = [
   'Describe this image in 1-2 sentences for a customer-service AI agent.',
@@ -25,42 +39,78 @@ export interface OcrResult {
   text: string
 }
 
+type GenerateTextArgs = {
+  model: unknown
+  messages: Array<{
+    role: 'user'
+    content: Array<{ type: 'text'; text: string } | { type: 'image'; image: Buffer | Uint8Array; mediaType?: string }>
+  }>
+}
+type AiSdkOpenai = {
+  createOpenAI: (opts: { apiKey: string; baseURL?: string }) => { chat: (modelId: string) => unknown }
+}
+type AiSdk = { generateText: (args: GenerateTextArgs) => Promise<{ text: string }> }
+
 /**
- * OCR an image buffer. Throws when no LLM key is configured (caller should
- * fall back to binary-stub).
+ * Lazily-resolved chat-model + `generateText` handle, cached for the process
+ * lifetime. An image-heavy PDF can call ocrImage() N times per upload; without
+ * memoization that's N dynamic imports + N `createOpenAI` allocations.
+ */
+let cachedHandle: Promise<{ model: unknown; generateText: AiSdk['generateText'] }> | null = null
+
+function resolveCreds(): { apiKey: string; baseURL: string | undefined; modelId: string } {
+  const bifrostUrl = process.env.BIFROST_URL
+  const bifrostKey = process.env.BIFROST_API_KEY
+  const openaiKey = process.env.OPENAI_API_KEY
+  if (!bifrostKey && !openaiKey) {
+    throw new Error(
+      'OCR requires OPENAI_API_KEY or (BIFROST_API_KEY + BIFROST_URL). Image-heavy PDFs and image uploads will fail until one is set.',
+    )
+  }
+  const useBifrost = Boolean(bifrostKey && bifrostUrl)
+  // Bifrost dispatches on `{provider}/{model}`; direct OpenAI gets the bare
+  // id (strip the `openai/` prefix from the alias map).
+  const fullId = useBifrost ? 'google/gemini-2.0-flash' : models.gpt_mini
+  return {
+    apiKey: (useBifrost ? bifrostKey : openaiKey) as string,
+    baseURL: useBifrost ? bifrostUrl : undefined,
+    modelId: useBifrost ? fullId : splitModelId(fullId).model,
+  }
+}
+
+function getHandle(): Promise<{ model: unknown; generateText: AiSdk['generateText'] }> {
+  if (cachedHandle) return cachedHandle
+  cachedHandle = (async () => {
+    const creds = resolveCreds()
+    // biome-ignore lint/plugin/no-dynamic-import: heavy AI SDK + provider; loaded lazily to keep the frontend bundle slim.
+    const aiSdkOpenai = (await import('@ai-sdk/openai')) as unknown as AiSdkOpenai
+    // biome-ignore lint/plugin/no-dynamic-import: same rationale.
+    const ai = (await import('ai')) as unknown as AiSdk
+    const provider = aiSdkOpenai.createOpenAI({ apiKey: creds.apiKey, baseURL: creds.baseURL })
+    return { model: provider.chat(creds.modelId), generateText: ai.generateText }
+  })()
+  return cachedHandle
+}
+
+/**
+ * OCR an image buffer. Throws when no multimodal-capable provider key is
+ * configured — the message lands verbatim in `processingError` so the UI
+ * tooltip can tell the operator what to set.
  */
 export async function ocrImage(buffer: Buffer | Uint8Array, mimeType: string): Promise<OcrResult> {
-  // biome-ignore lint/plugin/no-dynamic-import: heavy AI SDK; loaded lazily so it stays out of the frontend bundle.
-  const ai = (await import('ai')) as unknown as {
-    generateText: (args: {
-      model: unknown
-      messages: Array<{
-        role: 'user'
-        content: Array<
-          { type: 'text'; text: string } | { type: 'image'; image: Buffer | Uint8Array; mimeType?: string }
-        >
-      }>
-    }) => Promise<{ text: string }>
-  }
-  // Lazy-load the wake-side LLM seam so this lib stays usable in unit tests
-  // that stub out the dynamic import.
-  // biome-ignore lint/plugin/no-dynamic-import: lazy seam through wake/llm to avoid circular import at boot.
-  const wake = (await import('~/wake/llm')) as unknown as { createModel: (id?: string) => unknown }
-  const model = wake.createModel('gemini/gemini-2.0-flash')
-
-  const { text } = await ai.generateText({
+  const { model, generateText } = await getHandle()
+  const { text } = await generateText({
     model,
     messages: [
       {
         role: 'user',
         content: [
-          { type: 'image', image: buffer, mimeType },
+          { type: 'image', image: buffer, mediaType: mimeType },
           { type: 'text', text: OCR_PROMPT },
         ],
       },
     ],
   })
-
   return parseOcrText(text)
 }
 

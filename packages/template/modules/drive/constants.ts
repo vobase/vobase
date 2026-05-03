@@ -35,6 +35,17 @@ export const OCR_PAGE_CAP_PER_DAY_PER_ORG = 200
 export const EMBED_TOKEN_CAP_PER_DAY_PER_ORG = 5_000_000
 
 /**
+ * PDF per-page readability gate. A page whose pdfium-extracted text falls
+ * below either threshold is considered "image-only or watermark-only" and
+ * routed to OCR instead of being trusted as-is. Ports v1's `isReadableText`
+ * (printable-char ratio + min-length) — v2 used to gate purely on
+ * `length === 0`, which silently shipped image PDFs that happened to carry
+ * a stray watermark glyph.
+ */
+export const MIN_READABLE_CHARS_PER_PAGE = 40
+export const MIN_PRINTABLE_RATIO = 0.6
+
+/**
  * Mime types we attempt extraction for. Anything not in this set routes to
  * binary-stub. Magic-byte sniff in `lib/extract.ts` runs first; the extension
  * is only consulted to disambiguate zip-family containers (docx/xlsx/pptx).
