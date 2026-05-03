@@ -14,7 +14,7 @@ export const THEME_OPTIONS: { value: ThemeValue; label: string; Icon: React.Elem
 ]
 
 const ROW_BASE =
-  'flex h-9 items-center gap-3 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground-3 hover:text-foreground @max-[160px]/rail:justify-center @max-[160px]/rail:gap-0 @max-[160px]/rail:px-0 data-[state=open]:bg-foreground-3 data-[state=open]:text-foreground'
+  'flex h-9 items-center gap-3 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground-3 hover:text-foreground @max-[80px]/rail:justify-center @max-[80px]/rail:gap-0 @max-[80px]/rail:px-0 data-[state=open]:bg-foreground-3 data-[state=open]:text-foreground'
 
 interface ThemeSwitchProps {
   /** `'icon'` (default) renders a ghost icon button; `'row'` matches the desktop rail's NavItem shape. */
@@ -33,7 +33,7 @@ export function ThemeSwitch({ variant = 'icon', defaultOpen }: ThemeSwitchProps 
         {variant === 'row' ? (
           <button type="button" aria-label="Toggle theme" className={cn(ROW_BASE)}>
             <TriggerIcon className="size-[18px] shrink-0" aria-hidden="true" />
-            <span className="@max-[160px]/rail:hidden truncate">Theme</span>
+            <span className="@max-[80px]/rail:hidden truncate">Theme</span>
           </button>
         ) : (
           <Button variant="ghost" size="icon" aria-label="Toggle theme">

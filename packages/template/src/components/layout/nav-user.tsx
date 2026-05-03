@@ -27,7 +27,7 @@ function getInitials(name: string | null | undefined, email: string | null | und
 }
 
 const ROW_BASE =
-  'flex h-9 items-center gap-3 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground-3 hover:text-foreground @max-[160px]/rail:justify-center @max-[160px]/rail:gap-0 @max-[160px]/rail:px-0 data-[state=open]:bg-foreground-3 data-[state=open]:text-foreground'
+  'flex h-9 items-center gap-3 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground-3 hover:text-foreground @max-[80px]/rail:justify-center @max-[80px]/rail:gap-0 @max-[80px]/rail:px-0 data-[state=open]:bg-foreground-3 data-[state=open]:text-foreground'
 
 const ICON_BASE =
   'flex size-10 items-center justify-center rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent'
@@ -57,7 +57,7 @@ export function NavUser({ variant = 'icon' }: NavUserProps) {
             <Avatar className={variant === 'row' ? 'size-[18px]' : 'size-7'}>
               <AvatarFallback className="font-medium text-2xs">{initials}</AvatarFallback>
             </Avatar>
-            {variant === 'row' && <span className="@max-[160px]/rail:hidden truncate">{displayName}</span>}
+            {variant === 'row' && <span className="@max-[80px]/rail:hidden truncate">{displayName}</span>}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="end" sideOffset={8} className="min-w-56 rounded-lg">
