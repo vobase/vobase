@@ -1,3 +1,4 @@
+// shadcn-override-ok: aligned surface tokens with project Info/Settings cards (rounded-lg, shadow-sm, no border)
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -6,7 +7,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card"
-      className={cn("rounded-md border bg-card text-card-foreground", className)}
+      className={cn("rounded-lg bg-card text-card-foreground shadow-sm", className)}
       {...props}
     />
   )

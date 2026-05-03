@@ -1,6 +1,5 @@
-export { SettingsCard, SettingsCardFooter } from './settings-card'
+export { SettingsCard } from './settings-card'
 export { SettingsRow } from './settings-row'
 export { SettingsSection } from './settings-section'
 export { SettingsSegmented } from './settings-segmented'
-export { SettingsSelectRow } from './settings-select-row'
 export { SettingsToggle } from './settings-toggle'
