@@ -56,7 +56,7 @@ function NavItem({ icon: Icon, label, to, enabled, badgeCount }: NavItemDef) {
       <span
         role="status"
         aria-label={`${badgeCount} unread`}
-        className="@max-[160px]/rail:absolute @max-[160px]/rail:top-1 @max-[160px]/rail:right-1 @max-[160px]/rail:ml-0 ml-auto inline-flex @max-[160px]/rail:h-1.5 @max-[160px]/rail:min-w-1.5 min-w-[18px] items-center justify-center rounded-full bg-primary @max-[160px]/rail:p-0 px-1.5 font-semibold @max-[160px]/rail:text-transparent text-2xs text-primary-foreground leading-none"
+        className="@max-[160px]/rail:absolute @max-[160px]/rail:top-1 @max-[160px]/rail:right-1 @max-[160px]/rail:ml-0 ml-auto inline-flex @max-[160px]/rail:h-1.5 h-5 @max-[160px]/rail:min-w-1.5 min-w-5 items-center justify-center rounded-full bg-primary @max-[160px]/rail:p-0 px-1.5 font-semibold @max-[160px]/rail:text-transparent text-primary-foreground text-xs leading-none"
       >
         {badgeCount > 99 ? '99+' : badgeCount}
       </span>
