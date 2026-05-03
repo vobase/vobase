@@ -289,12 +289,12 @@ export function ContactsListPage() {
           <>
             <Button asChild size="sm" variant="outline">
               <Link to="/contacts/attributes">
-                <Settings2 className="mr-2 size-4" />
+                <Settings2 />
                 Attributes
               </Link>
             </Button>
             <Button size="sm" onClick={openCreate}>
-              <UserPlus className="mr-2 size-4" />
+              <UserPlus />
               Add contact
             </Button>
           </>

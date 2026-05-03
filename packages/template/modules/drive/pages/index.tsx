@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { HardDrive } from 'lucide-react'
 
 import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { DriveBrowser } from '../components/drive-browser'
@@ -9,7 +8,6 @@ export function DrivePage() {
   return (
     <PageLayout>
       <PageHeader
-        icon={HardDrive}
         title="Drive"
         description="Organization-scope files — brand, policy, and pricing docs. Contact-scope files live on each contact."
       />

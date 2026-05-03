@@ -298,19 +298,19 @@ export function StaffListPage() {
           <>
             <Button asChild size="sm" variant="outline">
               <Link to="/team/teams">
-                <Users2 className="mr-2 size-4" />
+                <Users2 />
                 Teams
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline">
               <Link to="/team/attributes">
-                <Settings2 className="mr-2 size-4" />
+                <Settings2 />
                 Attributes
               </Link>
             </Button>
             {canInvite && (
               <Button size="sm" onClick={() => setInviteOpen(true)}>
-                <Send className="mr-2 size-4" />
+                <Send />
                 Invite member
               </Button>
             )}
