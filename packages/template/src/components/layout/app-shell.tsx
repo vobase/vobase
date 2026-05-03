@@ -4,7 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { Bot, GitPullRequestArrow, HardDrive, Inbox, Menu, Radio, Settings, UserCog, Users } from 'lucide-react'
 import type * as React from 'react'
 import { useState } from 'react'
-import { Group, Panel } from 'react-resizable-panels'
+import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
 
 import { ThemeSwitch } from '@/components/theme-switch'
 import { GradientResizeHandle } from '@/components/ui/gradient-resize-handle'
@@ -14,7 +14,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useMentionBrowserNotifications } from '@/hooks/use-mention-browser-notifications'
 import { useStaffHeartbeat } from '@/hooks/use-staff-heartbeat'
-import { useViewport } from '@/hooks/use-viewport'
+import { useIsMobile } from '@/hooks/use-viewport'
+import { browserStorage } from '@/lib/browser-storage'
 import { cn } from '@/lib/utils'
 import { NavUser } from './nav-user'
 
@@ -148,9 +149,19 @@ function DesktopShell({
   children: React.ReactNode
   badgeFor: (to: string) => number | undefined
 }) {
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: 'vobase:app-shell',
+    storage: browserStorage,
+  })
   return (
-    <Group orientation="horizontal" style={{ height: '100dvh' }} className="bg-background text-foreground">
-      <Panel id="rail" defaultSize="220px" minSize="180px" maxSize="320px" collapsible collapsedSize="56px">
+    <Group
+      orientation="horizontal"
+      style={{ height: '100dvh' }}
+      className="bg-background text-foreground"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
+    >
+      <Panel id="rail" defaultSize="180px" minSize="160px" maxSize="240px" collapsible collapsedSize="56px">
         <aside
           aria-label="Main navigation"
           className="@container/rail flex h-full w-full flex-col bg-sidebar px-2 py-3"
@@ -170,7 +181,7 @@ function DesktopShell({
             ))}
           </nav>
 
-          <Separator className="my-3" />
+          <Separator className="-mx-2 my-1" />
 
           <nav aria-label="Workspace navigation" className="flex flex-col gap-0.5">
             {ADMIN_NAV.map((item) => (
@@ -234,7 +245,7 @@ function MobileShell({
               <MobileMoreNavRow key={item.to} {...item} onClick={() => setMoreOpen(false)} />
             ))}
           </nav>
-          <Separator className="my-2" />
+          <Separator className="-mx-2 my-1" />
           <div className="flex items-center justify-between px-3 pb-2">
             <div className="flex items-center gap-3 text-muted-foreground text-sm">
               <ThemeSwitch />
@@ -255,7 +266,7 @@ function AppShell({ children }: AppShellProps) {
   useMentionBrowserNotifications()
   const { data: unreadMentions } = useUnreadMentionCount()
   const pendingChanges = usePendingChangesCount()
-  const viewport = useViewport()
+  const isMobile = useIsMobile()
 
   function badgeFor(to: string): number | undefined {
     if (to === '/inbox') return unreadMentions ?? 0
@@ -265,7 +276,7 @@ function AppShell({ children }: AppShellProps) {
 
   return (
     <TooltipProvider>
-      {viewport === 'mobile' ? (
+      {isMobile ? (
         <MobileShell badgeFor={badgeFor}>{children}</MobileShell>
       ) : (
         <DesktopShell badgeFor={badgeFor}>{children}</DesktopShell>

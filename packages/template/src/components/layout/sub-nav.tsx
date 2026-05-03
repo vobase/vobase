@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import type * as React from 'react'
 
+import { useIsMobile } from '@/hooks/use-viewport'
 import { cn } from '@/lib/utils'
 
 interface SubNavItem {
@@ -14,15 +15,22 @@ interface SubNavProps {
 }
 
 function SubNav({ items }: SubNavProps) {
+  const isMobile = useIsMobile()
+
   return (
-    <nav aria-label="Sub navigation" className="flex flex-col gap-0.5 p-2">
+    <nav
+      aria-label="Sub navigation"
+      className={cn(
+        isMobile ? 'flex flex-row gap-1 overflow-x-auto whitespace-nowrap px-2 py-1' : 'flex flex-col gap-0.5 p-2',
+      )}
+    >
       {items.map((item) => (
         <Link
           key={item.href}
           to={item.href}
           activeProps={{ 'aria-current': 'page' as const }}
           className={cn(
-            'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm',
+            'flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-sm',
             'text-[var(--color-fg-muted)] transition-colors',
             'hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-fg)]',
             '[&[aria-current=page]]:bg-[var(--color-surface-elevated)]',

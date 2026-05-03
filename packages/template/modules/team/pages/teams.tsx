@@ -8,6 +8,7 @@ import { Pencil, Plus, Trash2, UserMinus, UserPlus, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ListDetailLayout } from '@/components/layout/list-detail-layout'
 import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import {
   AlertDialog,

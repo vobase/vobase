@@ -31,5 +31,9 @@ function useViewport(): Viewport {
   return viewport
 }
 
+function useIsMobile(): boolean {
+  return useViewport() === 'mobile'
+}
+
 export type { Viewport }
-export { useViewport }
+export { useIsMobile, useViewport }

@@ -1,7 +1,5 @@
-import type { ReactNode } from 'react'
 import { Separator } from 'react-resizable-panels'
 
-import { useResizeGradient } from '@/hooks/use-resize-gradient'
 import { cn } from '@/lib/utils'
 
 interface GradientResizeHandleProps {
@@ -9,63 +7,32 @@ interface GradientResizeHandleProps {
   /** Disable drag (and hide visuals); keeps the element in the DOM for stable v4 registration. */
   disabled?: boolean
   /**
-   * Optional toggle affordance rendered as a small button centered on the handle.
-   * Use to wire panel collapse/expand into the divider itself rather than burning
-   * layout space on a dedicated control column.
+   * Hide the visible line (still drags). Use when this divider would stack with an adjacent
+   * border (e.g. a list pane is collapsed to 0 and another rail's divider is just to the left).
    */
-  toggle?: {
-    onClick: () => void
-    icon: ReactNode
-    label: string
-  }
+  hideLine?: boolean
 }
 
 /**
- * Panel divider with a cursor-following gradient overlay. The Separator itself
- * is 12px wide so mouse hover fires reliably across the whole hit zone; the
- * static 1px line and gradient render as centered absolute children.
+ * Panel divider — exactly 1px visible vertical line. The Separator element IS the line
+ * (its width is 1px, its background is the line color), so adjacent panes sit flush. Hover
+ * hit zone is the same 1px since extending it with a pseudo-element conflicts with overlay
+ * children (e.g. toggle buttons). Render expand/collapse affordances as siblings of the
+ * Group, positioned by tracking the list panel's size.
  */
-function GradientResizeHandle({ className, disabled, toggle }: GradientResizeHandleProps) {
-  const { ref, handlers, gradientStyle } = useResizeGradient()
-
+function GradientResizeHandle({ className, disabled, hideLine }: GradientResizeHandleProps) {
   return (
     <Separator
-      elementRef={ref}
       disabled={disabled}
-      onMouseMove={disabled ? undefined : handlers.onMouseMove}
-      onMouseLeave={disabled ? undefined : handlers.onMouseLeave}
       className={cn(
-        'group/sash relative w-3 shrink-0 cursor-col-resize bg-transparent outline-none ring-0',
+        'group/sash relative w-px shrink-0 cursor-col-resize bg-foreground-10 outline-none ring-0',
         'focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0',
         'data-[separator=active]:outline-none data-[separator=focus]:outline-none',
-        disabled && 'pointer-events-none w-0',
+        hideLine && 'bg-transparent',
+        disabled && 'pointer-events-none w-0 bg-transparent',
         className,
       )}
-    >
-      {!disabled && (
-        <>
-          <div className="-translate-x-1/2 pointer-events-none absolute inset-y-0 left-1/2 w-px bg-foreground-10" />
-          <div
-            className="-translate-x-1/2 pointer-events-none absolute inset-y-0 left-1/2 w-0.5"
-            style={gradientStyle}
-          />
-        </>
-      )}
-      {toggle && (
-        <button
-          type="button"
-          aria-label={toggle.label}
-          title={toggle.label}
-          onClick={(e) => {
-            e.stopPropagation()
-            toggle.onClick()
-          }}
-          className="-translate-x-1/2 absolute top-12 left-1/2 z-10 inline-flex size-6 cursor-pointer items-center justify-center rounded-full bg-background text-muted-foreground shadow-thin transition-colors hover:text-foreground"
-        >
-          {toggle.icon}
-        </button>
-      )}
-    </Separator>
+    />
   )
 }
 
