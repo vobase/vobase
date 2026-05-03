@@ -7,6 +7,7 @@
  */
 
 import type { ClassifiedErrorReason } from '@vobase/core'
+import { z } from 'zod'
 
 /**
  * Conversation-lane triggers (always conversation-bound) plus standalone-lane
@@ -43,8 +44,82 @@ export type WakeTrigger =
   | { trigger: 'manual'; conversationId: string; reason: string; actorUserId: string }
   | { trigger: 'operator_thread'; threadId: string; messageIds: string[] }
   | { trigger: 'heartbeat'; scheduleId: string; intendedRunAt: Date; reason: string }
+  /**
+   * Drive caption / OCR finished for a binary-stub or extracted file the
+   * agent asked about (or that arrived as an inbound attachment). The wake
+   * fires conversation-bound so the agent re-reads `messages.md` for the
+   * new caption block. Producer: `modules/drive/jobs.ts`'s `forceCaption`
+   * branch. See `wake/trigger.ts` for the renderer.
+   */
+  | { trigger: 'caption_ready'; conversationId: string; fileId: string }
 
 export type WakeTriggerKind = WakeTrigger['trigger']
+
+/**
+ * Zod mirror of `WakeTrigger`. Used by `wake/inbound.ts`'s payload schema so
+ * pg-boss-delivered triggers are validated at the wake-handler boundary.
+ *
+ * Drift guard: the paired-shape compile-time assertion below locks the Zod
+ * inferred type to the TS union. If TS errors there, you added a variant to
+ * one form but not the other.
+ */
+export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
+  z.object({
+    trigger: z.literal('inbound_message'),
+    conversationId: z.string(),
+    messageIds: z.array(z.string()),
+  }),
+  z.object({
+    trigger: z.literal('approval_resumed'),
+    conversationId: z.string(),
+    approvalId: z.string(),
+    decision: z.enum(['approved', 'rejected']),
+    note: z.string().optional(),
+  }),
+  z.object({
+    trigger: z.literal('supervisor'),
+    conversationId: z.string(),
+    noteId: z.string(),
+    authorUserId: z.string(),
+    mentionedAgentId: z.string().optional(),
+  }),
+  z.object({
+    trigger: z.literal('scheduled_followup'),
+    conversationId: z.string(),
+    reason: z.string(),
+    scheduledAt: z.coerce.date(),
+    sourceWakeId: z.string().optional(),
+  }),
+  z.object({
+    trigger: z.literal('manual'),
+    conversationId: z.string(),
+    reason: z.string(),
+    actorUserId: z.string(),
+  }),
+  z.object({
+    trigger: z.literal('operator_thread'),
+    threadId: z.string(),
+    messageIds: z.array(z.string()),
+  }),
+  z.object({
+    trigger: z.literal('heartbeat'),
+    scheduleId: z.string(),
+    intendedRunAt: z.coerce.date(),
+    reason: z.string(),
+  }),
+  z.object({
+    trigger: z.literal('caption_ready'),
+    conversationId: z.string(),
+    fileId: z.string(),
+  }),
+])
+
+// Drift guard: WakeTrigger and WakeTriggerSchema must stay in sync.
+// If TS errors here, you added a variant to one but not the other.
+const _wakeTriggerSchemaShape: WakeTrigger = {} as z.infer<typeof WakeTriggerSchema>
+const _wakeTriggerTypeShape: z.infer<typeof WakeTriggerSchema> = {} as WakeTrigger
+void _wakeTriggerSchemaShape
+void _wakeTriggerTypeShape
 
 /** Task tag threaded through every LLM call — see `PluginContext.llmCall()`. */
 export type LlmTask =

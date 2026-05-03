@@ -27,6 +27,7 @@ const fakeMessage: Message = {
   parentMessageId: null,
   channelExternalId: null,
   status: null,
+  attachments: [],
   createdAt: new Date(),
 }
 

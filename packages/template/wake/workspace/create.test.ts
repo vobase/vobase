@@ -165,6 +165,10 @@ function makeDriveStub(files: DriveFile[]): FilesService {
       return { swept: 0 }
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async reapIngestedFiles() {
+      return { reaped: 0 }
+    },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async deleteScope() {
       throw new Error('not-implemented-in-phase-1')
     },

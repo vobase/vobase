@@ -134,6 +134,14 @@ export interface FilesService {
   reextract(fileId: string): Promise<void>
   /** Sweep stuck `(pending, *)` rows; safe to call at module init. */
   reapStalePending(): Promise<{ swept: number }>
+  /**
+   * Best-effort delete of just-ingested rows (chunks + storage object + row).
+   * Used by `messaging/service/conversations.ts` on the loser-of-race path
+   * when a concurrent webhook redelivery wins the `messages.channel_external_id`
+   * unique-violation. Errors during storage delete are swallowed (orphan
+   * bytes are the lesser evil — the row is still gone).
+   */
+  reapIngestedFiles(fileIds: readonly string[]): Promise<{ reaped: number }>
   deleteScope(scope: 'contact' | 'staff', scopeId: string): Promise<void>
 }
 
@@ -725,32 +733,54 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       throw new Error(`overlay_path_collision: cannot upload over virtual path ${candidatePath}`)
     }
 
-    const path = await resolveUniquePath(input.scope, input.basePath, displayName)
-    const parentFolderId = await ensureParentFolderId(input.scope, path).catch(() => null)
-    const insertedRows = (await db
-      .insert(driveFiles)
-      .values({
-        organizationId: input.organizationId,
-        scope: scopeName,
-        scopeId: scopeIdVal,
-        parentFolderId,
-        kind: 'file',
-        name: displayName,
-        path,
-        mimeType: input.mimeType,
-        sizeBytes: input.sizeBytes,
-        storageKey: null,
-        originalName: input.originalName,
-        nameStem,
-        source: input.source,
-        uploadedBy: input.uploadedBy,
-        processingStatus: 'pending',
-        extractionKind: 'pending',
-        tags: [],
-      })
-      .returning()) as DriveFile[]
-    const row = insertedRows[0]
-    if (!row) throw new Error('drive/files.ingestUpload: insert returned no rows')
+    // Resolve path + insert under a retry loop. Two writers racing on the
+    // same originalName (e.g. WA webhook redelivery) both compute the same
+    // path via resolveUniquePath's SELECT scan — only one INSERT survives
+    // the (organization, scope, scope_id, path) unique index. The loser
+    // bumps the displayName suffix and retries; bounded at 32 attempts.
+    let row: DriveFile | undefined
+    let path = ''
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const candidate = await resolveUniquePath(input.scope, input.basePath, displayName)
+      const parentFolderId = await ensureParentFolderId(input.scope, candidate).catch(() => null)
+      try {
+        const insertedRows = (await db
+          .insert(driveFiles)
+          .values({
+            organizationId: input.organizationId,
+            scope: scopeName,
+            scopeId: scopeIdVal,
+            parentFolderId,
+            kind: 'file',
+            name: candidate.split('/').slice(-1)[0] ?? displayName,
+            path: candidate,
+            mimeType: input.mimeType,
+            sizeBytes: input.sizeBytes,
+            storageKey: null,
+            originalName: input.originalName,
+            nameStem,
+            source: input.source,
+            uploadedBy: input.uploadedBy,
+            processingStatus: 'pending',
+            extractionKind: 'pending',
+            tags: [],
+          })
+          .returning()) as DriveFile[]
+        row = insertedRows[0]
+        if (!row) throw new Error('drive/files.ingestUpload: insert returned no rows')
+        path = candidate
+        break
+      } catch (err) {
+        lastErr = err
+        if (!isPathUniqueViolation(err)) throw err
+        // Concurrent writer won this path — loop and let resolveUniquePath
+        // bump the suffix on its next SELECT scan.
+      }
+    }
+    if (!row) {
+      throw lastErr ?? new Error('drive/files.ingestUpload: exceeded 32 path-collision retries')
+    }
 
     // Storage upload. On failure mark row terminal-failed (audit trail) and rethrow.
     const storageKey = `${scopeName}/${row.id}/${sanitizeKey(input.originalName)}`
@@ -1046,6 +1076,39 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     throw new Error('not-implemented-in-phase-1: drive/files.deleteScope')
   }
 
+  /**
+   * Loser-of-race reap. Used by messaging when an inbound message
+   * redelivery wins the `channelExternalId` unique-violation between the
+   * idempotency check and the message-tx insert: the loser ingested its
+   * own drive rows already and must clean them up.
+   *
+   * Order: chunks → storage bytes → row. Storage failures are swallowed —
+   * the row is still gone, so future search/list never surfaces them.
+   */
+  async function reapIngestedFiles(fileIds: readonly string[]): Promise<{ reaped: number }> {
+    if (fileIds.length === 0) return { reaped: 0 }
+    const rows = (await db
+      .select()
+      .from(driveFiles)
+      .where(and(eq(driveFiles.organizationId, organizationId), inArray(driveFiles.id, [...fileIds])))) as DriveFile[]
+    let reaped = 0
+    for (const row of rows) {
+      await db
+        .delete(driveChunks)
+        .where(and(eq(driveChunks.organizationId, organizationId), eq(driveChunks.fileId, row.id)))
+      if (deps.storage && row.storageKey) {
+        try {
+          await deps.storage.bucket(DRIVE_STORAGE_BUCKET).delete(row.storageKey)
+        } catch {
+          // best-effort: orphan bytes is the lesser evil
+        }
+      }
+      await db.delete(driveFiles).where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, row.id)))
+      reaped++
+    }
+    return { reaped }
+  }
+
   return {
     getByPath,
     listFolder,
@@ -1064,6 +1127,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     searchDrive,
     reextract,
     reapStalePending,
+    reapIngestedFiles,
     deleteScope,
   }
 }
@@ -1071,6 +1135,25 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
 /** Sanitize a filename for use as a storage key (preserve extension). */
 function sanitizeKey(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/gu, '_')
+}
+
+/**
+ * Detect SQLSTATE 23505 on the drive_files (organization, scope, scope_id,
+ * path) unique index. Walks the error/cause chain so drizzle-wrapped
+ * postgres-js errors trip the retry loop in `ingestUpload`.
+ */
+function isPathUniqueViolation(err: unknown): boolean {
+  let cur: unknown = err
+  for (let depth = 0; depth < 4 && cur; depth++) {
+    if (typeof cur !== 'object') return false
+    const e = cur as { code?: string; constraint_name?: string; constraint?: string; message?: string; cause?: unknown }
+    if (e.code === '23505') return true
+    const constraint = e.constraint_name ?? e.constraint
+    if (typeof constraint === 'string' && constraint.includes('path')) return true
+    if (typeof e.message === 'string' && e.message.includes('drive.files') && e.message.includes('path')) return true
+    cur = e.cause
+  }
+  return false
 }
 
 /**

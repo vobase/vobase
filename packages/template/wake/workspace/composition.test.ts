@@ -113,6 +113,7 @@ function makeStubDrive(): FilesService {
     searchDrive: notImpl,
     reextract: notImpl,
     reapStalePending: notImpl,
+    reapIngestedFiles: notImpl,
     deleteScope: notImpl,
   } as FilesService
 }

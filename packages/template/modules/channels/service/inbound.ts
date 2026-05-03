@@ -63,6 +63,19 @@ export async function dispatchInbound(
       displayName: event.profileName || undefined,
     })
 
+    // Forward inbound media bytes through the trust-bounded attachments[]
+    // seam. The channel adapter (e.g. WA) eagerly downloaded these via
+    // `cachedDownloader` and dropped any oversized items already; the seam
+    // is documented on `CreateInboundMessageInput.attachments`.
+    const attachments = event.media
+      ?.filter((m) => m.data && (m.sizeBytes ?? m.data.length) > 0)
+      .map((m, idx) => ({
+        bytes: m.data,
+        name: m.filename ?? `${event.messageId}-${idx}`,
+        mimeType: m.mimeType,
+        sizeBytes: m.sizeBytes ?? m.data.length,
+      }))
+
     const result = await createInboundMessage({
       organizationId: instance.organizationId,
       channelInstanceId: instance.id,
@@ -72,6 +85,7 @@ export async function dispatchInbound(
       contentType: toContentType(event.messageType),
       profileName: event.profileName,
       initialAssignee: opts?.defaultAssignee ?? null,
+      attachments: attachments && attachments.length > 0 ? attachments : undefined,
     })
 
     if (result.isNew) {

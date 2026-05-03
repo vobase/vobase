@@ -113,6 +113,24 @@ export interface CreateInboundMessageInput {
    * to `'unassigned'`.
    */
   initialAssignee?: string | null
+  /**
+   * Inbound binary attachments (e.g. WhatsApp documents/images/audio/video).
+   *
+   * **Trust boundary** — this field is intentionally NOT validated by Zod
+   * (Buffer would fail validation, and logging the raw bytes would bloat
+   * any payload trace). The contract is: `dispatchInbound` is the only
+   * producer (it forwards `event.media` from `@vobase/core`'s
+   * `MessageReceivedEvent`, which the channel adapter populates with the
+   * downloaded bytes), and `createInboundMessage` is the only consumer
+   * (it pre-writes drive rows via `ingestUpload` BEFORE opening the
+   * message tx). No other caller may construct this field.
+   */
+  attachments?: Array<{
+    bytes: Buffer
+    name: string
+    mimeType: string
+    sizeBytes: number
+  }>
 }
 
 export interface CreateInboundMessageResult {
@@ -195,6 +213,11 @@ export interface MessagingPort {
  * Read-only slice of `MessagingPort` the agent-facing materializers depend on.
  * Defined here (not under `agent.ts`) so the type lives next to its
  * service-layer source-of-truth and `agent.ts` stays purely declarative.
+ *
+ * Drive-attachment lookups for `messages.md` enrichment go through
+ * `messaging/service/drive-attachments.ts` directly (a separate module
+ * function, not part of this read-slice) so existing `MessagingPort`
+ * stubs in tests don't need to satisfy a new method.
  */
 export type MessagingReader = Pick<MessagingPort, 'listMessages' | 'listInternalNotes'>
 

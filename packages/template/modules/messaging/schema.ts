@@ -59,6 +59,13 @@ export interface Message {
   parentMessageId: string | null
   channelExternalId: string | null
   status: string | null
+  /**
+   * Drive-backed attachments referenced by this message. Each entry carries
+   * `driveFileId` (durable handle) plus a path/caption denorm so the
+   * `messages.md` materializer renders without a join hop. Read-mostly,
+   * single-writer (only `messaging/service/**`), defaults to `[]`.
+   */
+  attachments: import('@modules/drive/service/types').MessageAttachmentRef[]
   createdAt: Date
 }
 
@@ -162,6 +169,11 @@ export const messages = messagingPgSchema.table(
     parentMessageId: text('parent_message_id'),
     channelExternalId: text('channel_external_id'),
     status: text('status'),
+    /**
+     * `MessageAttachmentRef[]` payload — see `@modules/drive/service/types`.
+     * Empty array when no attachments. Single-writer (`messaging/service/**`).
+     */
+    attachments: jsonb('attachments').notNull().default(sql`'[]'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

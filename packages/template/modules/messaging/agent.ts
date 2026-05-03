@@ -162,14 +162,63 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
   }),
 ]
 
+import { type DriveFileProjection, getDriveFilesByIds as readDriveFilesByIds } from './service/drive-attachments'
 import { list as listMessages } from './service/messages'
 import { listNotes as listInternalNotes } from './service/notes'
 
 // ─── Materializers ──────────────────────────────────────────────────────────
 
-const messagingReader: MessagingReader = { listMessages, listInternalNotes }
+const messagingReader: MessagingReader = {
+  listMessages,
+  listInternalNotes,
+}
 
-export function renderTranscriptFromMessages(msgs: readonly Message[]): string {
+function humanSize(bytes: number | null | undefined): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function renderAttachmentBlock(
+  ref: { driveFileId: string; path: string; caption: string | null; mimeType: string; sizeBytes: number },
+  driveFile: DriveFileProjection | undefined,
+): string {
+  // Path drift handling: prefer the live drive row's path; fall back to
+  // the denormalized jsonb path. If the drive row is missing entirely
+  // (rare — janitor cleanup or out-of-band delete), surface as
+  // `unavailable` so the agent does not chase a 404 path.
+  if (!driveFile) {
+    return `[file: ${ref.path} — unavailable]`
+  }
+  const path = driveFile.path
+  if (driveFile.extractionKind === 'binary-stub') {
+    return `[binary: ${path} (${ref.mimeType}, ${humanSize(ref.sizeBytes)})]`
+  }
+  if (driveFile.extractionKind === 'failed') {
+    return `[file: ${path} — extraction_failed]`
+  }
+  if (driveFile.extractionKind === 'pending') {
+    return `[file: ${path} — pending extraction]`
+  }
+  // extracted
+  const caption = driveFile.caption ?? ref.caption ?? '(no caption)'
+  return `[file: ${path}]\n  > ${caption}\n  > (cat for full text)`
+}
+
+/**
+ * Render the conversation transcript with optional drive-attachment
+ * caption blocks per message.
+ *
+ * Drive enrichment is a per-wake snapshot. Path drift from re-extraction
+ * (mime reclassification) surfaces on the NEXT wake, never mid-turn —
+ * consistent with the frozen-snapshot rule. A single materialization
+ * sees a single drive state.
+ */
+export function renderTranscriptFromMessages(
+  msgs: readonly Message[],
+  driveFilesById: Map<string, DriveFileProjection> = new Map(),
+): string {
   if (msgs.length === 0) return '# Conversation\n\n_No messages yet._\n'
   const lines = ['# Conversation', '']
   for (const m of msgs) {
@@ -183,14 +232,29 @@ export function renderTranscriptFromMessages(msgs: readonly Message[]): string {
             ? `[card reply: ${JSON.stringify(m.content)}]`
             : `[${m.kind}]`
     lines.push(`**${role}** (${new Date(m.createdAt).toISOString()}):`)
-    lines.push(text, '')
+    lines.push(text)
+    for (const att of m.attachments ?? []) {
+      const driveFile = driveFilesById.get(att.driveFileId)
+      lines.push(renderAttachmentBlock(att, driveFile))
+    }
+    lines.push('')
   }
   return lines.join('\n')
 }
 
-export async function renderTranscript(messaging: MessagingReader, conversationId: string): Promise<string> {
+function collectAttachmentIds(msgs: readonly Message[]): string[] {
+  const ids = new Set<string>()
+  for (const m of msgs) for (const a of m.attachments ?? []) ids.add(a.driveFileId)
+  return [...ids]
+}
+
+export async function renderTranscript(
+  messaging: MessagingReader,
+  conversationId: string,
+  driveFilesById?: Map<string, DriveFileProjection>,
+): Promise<string> {
   const msgs = (await messaging.listMessages(conversationId, { limit: 200 })) as Message[]
-  return renderTranscriptFromMessages(msgs)
+  return renderTranscriptFromMessages(msgs, driveFilesById ?? new Map())
 }
 
 export async function renderInternalNotes(messaging: MessagingReader, conversationId: string): Promise<string> {
@@ -205,14 +269,63 @@ export async function renderInternalNotes(messaging: MessagingReader, conversati
   return lines.join('\n')
 }
 
+/**
+ * Per-wake attachment-prefetch cache. Keyed by `${orgId}:${conversationId}`,
+ * invalidated at the top of every wake (when the materializer factory
+ * runs) and shared between the initial `messages.md` materialization and
+ * `conversationSideLoad`'s per-turn re-render so a single wake issues
+ * exactly ONE batched drive query for attachment enrichment.
+ */
+const wakeAttachmentSnapshot = new Map<string, Promise<Map<string, DriveFileProjection>>>()
+
+function attachmentCacheKey(organizationId: string, conversationId: string): string {
+  return `${organizationId}:${conversationId}`
+}
+
+async function prefetchAttachmentsForConversation(
+  organizationId: string,
+  conversationId: string,
+): Promise<Map<string, DriveFileProjection>> {
+  const msgs = (await messagingReader.listMessages(conversationId, { limit: 200 })) as Message[]
+  const ids = collectAttachmentIds(msgs)
+  if (ids.length === 0) return new Map()
+  return readDriveFilesByIds(organizationId, ids)
+}
+
+export async function getAttachmentSnapshot(
+  organizationId: string,
+  conversationId: string,
+): Promise<Map<string, DriveFileProjection>> {
+  const key = attachmentCacheKey(organizationId, conversationId)
+  let pending = wakeAttachmentSnapshot.get(key)
+  if (!pending) {
+    pending = prefetchAttachmentsForConversation(organizationId, conversationId)
+    wakeAttachmentSnapshot.set(key, pending)
+  }
+  return pending
+}
+
+export function invalidateAttachmentSnapshot(organizationId: string, conversationId: string): void {
+  wakeAttachmentSnapshot.delete(attachmentCacheKey(organizationId, conversationId))
+}
+
 export const messagingMaterializerFactory: WakeMaterializerFactory = (ctx) => {
   if (!ctx.contactId || !ctx.channelInstanceId) return []
+  // Invalidate the per-wake snapshot at wake start. The materializer
+  // callback below seeds the cache lazily on first call; the side-load
+  // contributor reads from it on subsequent turns. Frozen-snapshot rule:
+  // mid-wake `request_caption` writes do NOT mutate this map — they
+  // surface in the NEXT wake's factory invocation.
+  invalidateAttachmentSnapshot(ctx.organizationId, ctx.conversationId)
   const folder = `/contacts/${ctx.contactId}/${ctx.channelInstanceId}`
   return [
     {
       path: `${folder}/messages.md`,
       phase: 'frozen',
-      materialize: (mctx) => renderTranscript(messagingReader, mctx.conversationId),
+      materialize: async (mctx) => {
+        const snapshot = await getAttachmentSnapshot(ctx.organizationId, mctx.conversationId)
+        return renderTranscript(messagingReader, mctx.conversationId, snapshot)
+      },
     },
     {
       path: `${folder}/internal-notes.md`,
@@ -266,11 +379,12 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   // this contributor can flow through `collectAgentContributions` without
   // polluting standalone wakes.
   if (!ctx.contactId) return []
-  const [msgs, contact] = await Promise.all([
+  const [msgs, contact, driveFilesById] = await Promise.all([
     listMessages(ctx.conversationId, { limit: 200 }),
     getContact(ctx.contactId).catch(() => null),
+    getAttachmentSnapshot(ctx.organizationId, ctx.conversationId),
   ])
-  const transcript = renderTranscriptFromMessages(msgs)
+  const transcript = renderTranscriptFromMessages(msgs, driveFilesById)
   const contactBlock = contact
     ? `# Contact\n\nName: ${contact.displayName ?? '(unknown)'}\nPhone: ${contact.phone ?? ''}\nEmail: ${contact.email ?? ''}\nSegments: ${(contact.segments ?? []).join(', ') || '(none)'}\nMemory:\n${contact.memory || '(empty)'}\n`
     : '# Contact\n\n(no profile)\n'

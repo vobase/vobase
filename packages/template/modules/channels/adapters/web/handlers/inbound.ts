@@ -70,6 +70,10 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
 async function handleSessionInbound(c: Context, session: SessionLike, channelInstanceId: string): Promise<Response> {
   let raw: unknown
   try {
+    // TODO(slice-N+1): wire web-channel multipart for inbound attachments
+    // (`createInboundMessage`'s `attachments[]` seam is in place; web is
+    // JSON-only today). Tracked via the drive-upload-ocr-extraction plan
+    // Open Question #1.
     raw = await c.req.json()
   } catch {
     return c.json({ error: 'invalid json' }, 400)

@@ -23,21 +23,29 @@ import { z } from 'zod'
 import type { RealtimeService, ScopedDb } from '~/runtime'
 import type { WakeContext } from './context'
 import { conversationWakeConfig } from './conversation'
-import type { WakeTrigger } from './events'
+import { type WakeTrigger, WakeTriggerSchema } from './events'
 
 /**
  * Job name + payload for inbound-to-wake dispatch.
- * Producers: `modules/channels/service/inbound.ts` (generic) and
- * `modules/channels/adapters/web/handlers/card-reply.ts` (in-app card replies).
+ * Producers: `modules/channels/service/inbound.ts` (generic),
+ * `modules/channels/adapters/web/handlers/card-reply.ts` (in-app card replies),
+ * and `modules/drive/jobs.ts` (caption_ready wakes after binary OCR).
  * Consumer: `createWakeHandler` below (registered in `runtime/bootstrap.ts`).
+ *
+ * `messageId` is optional because non-inbound-message triggers (e.g.
+ * `caption_ready`) have no inbound message to point at. `trigger` is also
+ * optional for back-compat with the long-lived inbound-message producer
+ * shape — when omitted, the handler synthesizes the default
+ * `inbound_message` trigger from `messageId`.
  */
 export const INBOUND_TO_WAKE_JOB = 'channels:inbound-to-wake'
 
 export const InboundToWakePayloadSchema = z.object({
   organizationId: z.string(),
   conversationId: z.string(),
-  messageId: z.string(),
   contactId: z.string(),
+  messageId: z.string().optional(),
+  trigger: WakeTriggerSchema.optional(),
 })
 
 export type InboundToWakePayload = z.infer<typeof InboundToWakePayloadSchema>
@@ -51,7 +59,29 @@ export interface WakeHandlerDeps {
 export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions<WakeContext>) {
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
     const data = rawData as InboundToWakePayload
-    console.log('[wake:conv] handling inbound→wake', { conv: data.conversationId, msg: data.messageId })
+    console.log('[wake:conv] handling inbound→wake', {
+      conv: data.conversationId,
+      msg: data.messageId,
+      trig: data.trigger?.trigger ?? 'inbound_message',
+    })
+
+    // Synthesize triggerOverride at the handler boundary. If the producer
+    // sent an explicit `trigger` (e.g. `caption_ready` from drive jobs),
+    // forward it unchanged. Otherwise reconstruct the default
+    // `inbound_message` trigger from the legacy `messageId` field.
+    let triggerOverride: WakeTrigger | undefined
+    if (data.trigger) {
+      triggerOverride = data.trigger
+    } else if (data.messageId) {
+      triggerOverride = {
+        trigger: 'inbound_message',
+        conversationId: data.conversationId,
+        messageIds: [data.messageId],
+      }
+    } else {
+      console.warn('[wake:conv] payload has neither trigger nor messageId — skipping')
+      return
+    }
 
     let conv: Conversation
     try {
@@ -69,7 +99,15 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
 
     try {
       const agentDefinition = await getAgentDefinition(agentId)
-      const config = await conversationWakeConfig({ data, conv, agentId, agentDefinition, contributions, deps })
+      const config = await conversationWakeConfig({
+        data,
+        conv,
+        agentId,
+        agentDefinition,
+        contributions,
+        deps,
+        triggerOverride,
+      })
       await createHarness<WakeTrigger>(config)
     } catch (err) {
       console.error('[wake:conv] createHarness failed:', err)

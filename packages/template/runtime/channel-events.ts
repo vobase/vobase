@@ -39,6 +39,23 @@ export const ChannelInboundEventSchema = z.object({
   timestamp: z.number(),
   /** Channel-specific extra fields (preserved for passthrough). */
   metadata: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * Lightweight metadata mirror of any attachments carried alongside this
+   * inbound message. **Bytes intentionally do NOT flow through this schema**
+   * — the trust-bounded `attachments[]` field on `CreateInboundMessageInput`
+   * carries the raw `Buffer` between `dispatchInbound` (the only producer)
+   * and `createInboundMessage` (the only consumer). This metadata mirror is
+   * here only for log/audit/debug surfaces that serialise the event.
+   */
+  attachments: z
+    .array(
+      z.object({
+        name: z.string(),
+        mimeType: z.string(),
+        sizeBytes: z.number(),
+      }),
+    )
+    .optional(),
 })
 
 export type ChannelInboundEvent = z.infer<typeof ChannelInboundEventSchema>

@@ -107,6 +107,13 @@ export interface ChannelMedia {
   data: Buffer
   mimeType: string
   filename?: string
+  /**
+   * Total payload size in bytes. Populated by adapters from the downloaded
+   * Buffer length so downstream consumers (drive auto-ingest, oversized
+   * skip) don't re-measure. Optional for back-compat with adapters that
+   * don't yet populate it.
+   */
+  sizeBytes?: number
 }
 
 export interface StatusUpdateEvent {

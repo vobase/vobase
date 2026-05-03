@@ -11,6 +11,8 @@
  * instance to preserve the existing import surface.
  */
 import { channelInstances } from '@modules/channels/schema'
+import { filesServiceFor } from '@modules/drive/service/files'
+import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { conversationEvents } from '@vobase/core'
 import { and, desc, eq, getTableColumns, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
 
@@ -82,6 +84,29 @@ type LateralSelectChain = {
   }
 }
 type DbWithLateral = { select: (fields: unknown) => LateralSelectChain }
+
+/**
+ * Detect a Postgres unique-violation (SQLSTATE 23505) on the
+ * `idx_msg_channel_ext` partial unique index. We match by SQLSTATE first
+ * (postgres-js surfaces the code as `code` on the thrown error) and fall
+ * back to constraint-name detection so e2e harnesses that re-throw a
+ * narrowed error still trip the loser-of-race path.
+ */
+function isUniqueViolationOnExternalId(err: unknown): boolean {
+  // Walk an error chain (drizzle wraps postgres-js errors via `.cause`),
+  // matching either by SQLSTATE 23505 or by the partial-unique-index name.
+  let cur: unknown = err
+  for (let depth = 0; depth < 4 && cur; depth++) {
+    if (typeof cur !== 'object') return false
+    const e = cur as { code?: string; constraint_name?: string; constraint?: string; message?: string; cause?: unknown }
+    if (e.code === '23505') return true
+    const constraint = e.constraint_name ?? e.constraint
+    if (constraint === 'idx_msg_channel_ext') return true
+    if (typeof e.message === 'string' && e.message.includes('idx_msg_channel_ext')) return true
+    cur = e.cause
+  }
+  return false
+}
 
 // ─── shared patch constants ────────────────────────────────────────────────
 const CLEAR_SNOOZE = {
@@ -262,7 +287,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     return row
   }
 
-  async function createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> {
+  async function _createInboundMessage(input: CreateInboundMessageInput): Promise<CreateInboundMessageResult> {
     const { conversation, created } = await resumeOrCreate(
       input.organizationId,
       input.contactId,
@@ -275,6 +300,10 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
       throw new ConversationFailedError(conversation.id)
     }
 
+    // Idempotency-first (Principle 8). Check `messages.channel_external_id`
+    // BEFORE doing any drive ingest. Concurrent webhook redeliveries (WA
+    // retries 5xx) hit this gate; the second observer sees the first's row
+    // and exits without producing duplicate drive rows or duplicate OCR cost.
     const existing = (await db
       .select()
       .from(messages)
@@ -285,69 +314,147 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
 
     if (existing[0]) return { conversation, message: existing[0], isNew: false }
 
+    // Pre-ingest driveFiles BEFORE opening the message tx. Failures (e.g.
+    // storage upload exceptions) are warn-logged and the offending
+    // attachment is dropped; the message itself still posts. The driveFile
+    // row is left in `(failed, failed)` for audit. See `Step 12 — Failure
+    // modes` in `.omc/plans/drive-upload-ocr-extraction.md`.
+    const attachmentRefs: MessageAttachmentRef[] = []
+    const ingestedFileIds: string[] = []
+    if (input.attachments && input.attachments.length > 0) {
+      const drive = filesServiceFor(input.organizationId)
+      for (const att of input.attachments) {
+        try {
+          const ingest = await drive.ingestUpload({
+            organizationId: input.organizationId,
+            scope: { scope: 'contact', contactId: input.contactId },
+            originalName: att.name,
+            mimeType: att.mimeType,
+            sizeBytes: att.sizeBytes,
+            bytes: att.bytes,
+            source: 'customer_inbound',
+            uploadedBy: null,
+            basePath: `/contacts/${input.contactId}/${input.channelInstanceId}/attachments/`,
+          })
+          ingestedFileIds.push(ingest.id)
+          attachmentRefs.push({
+            driveFileId: ingest.id,
+            path: ingest.path,
+            mimeType: att.mimeType,
+            sizeBytes: att.sizeBytes,
+            name: att.name,
+            caption: null,
+            extractionKind: ingest.extractionKind,
+          })
+        } catch (err) {
+          console.warn('[messaging:inbound] attachment ingest failed; omitting from message', {
+            externalMessageId: input.externalMessageId,
+            name: att.name,
+            err: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+    }
+
     const kind = input.contentType === 'image' ? 'image' : 'text'
-    const { message, nextConversation, cancelJobId } = await db.transaction(async (tx) => {
-      const msgRows = (await tx
-        .insert(messages)
-        .values({
-          conversationId: conversation.id,
-          organizationId: input.organizationId,
-          role: 'customer',
-          kind,
-          content: { text: input.content },
-          channelExternalId: input.externalMessageId,
-        })
-        .returning()) as Message[]
-      const msg = msgRows[0]
-      if (!msg) throw new Error('messaging/conversations.createInboundMessage: insert returned no rows')
+    let txOutcome: { message: Message; nextConversation: Conversation; cancelJobId: string | null }
+    try {
+      txOutcome = await db.transaction(async (tx) => {
+        const msgRows = (await tx
+          .insert(messages)
+          .values({
+            conversationId: conversation.id,
+            organizationId: input.organizationId,
+            role: 'customer',
+            kind,
+            content: { text: input.content },
+            channelExternalId: input.externalMessageId,
+            attachments: attachmentRefs,
+          })
+          .returning()) as Message[]
+        const msg = msgRows[0]
+        if (!msg) throw new Error('messaging/conversations.createInboundMessage: insert returned no rows')
 
-      const patch: Record<string, unknown> = { lastMessageAt: new Date(), updatedAt: new Date() }
-      let nextStatus = conversation.status
-      let cancelJobIdLocal: string | null = null
+        const patch: Record<string, unknown> = { lastMessageAt: new Date(), updatedAt: new Date() }
+        let nextStatus = conversation.status
+        let cancelJobIdLocal: string | null = null
 
-      if (created && input.emailSubject && !conversation.emailSubject) {
-        patch.emailSubject = input.emailSubject
+        if (created && input.emailSubject && !conversation.emailSubject) {
+          patch.emailSubject = input.emailSubject
+        }
+
+        if (conversation.status === 'resolved') {
+          nextStatus = transitionConversation(conversation.status, 'active')
+          patch.status = nextStatus
+          Object.assign(patch, CLEAR_RESOLVED)
+        }
+
+        if (conversation.snoozedUntil) {
+          cancelJobIdLocal = conversation.snoozedJobId
+          Object.assign(patch, CLEAR_SNOOZE)
+        }
+
+        const updatedRows = (await tx
+          .update(conversations)
+          .set(patch)
+          .where(eq(conversations.id, conversation.id))
+          .returning()) as Conversation[]
+        const updated = updatedRows[0]
+        if (!updated) throw new Error('messaging/conversations.createInboundMessage: update returned no rows')
+
+        if (conversation.status === 'resolved') {
+          await writeConversationEvent(tx, {
+            conversationId: conversation.id,
+            organizationId: input.organizationId,
+            type: 'conversation.reopened',
+            payload: { trigger: 'new_inbound' },
+          })
+        }
+
+        if (conversation.snoozedUntil) {
+          await writeConversationEvent(tx, {
+            conversationId: conversation.id,
+            organizationId: input.organizationId,
+            type: 'conversation.unsnoozed',
+            payload: { trigger: 'new_inbound', originalUntil: conversation.snoozedUntil.toISOString() },
+          })
+        }
+
+        return { message: msg, nextConversation: updated, cancelJobId: cancelJobIdLocal }
+      })
+    } catch (err) {
+      // Loser-of-race (Step 12 step 3): a concurrent webhook redelivery
+      // committed its message between our existence check and our insert.
+      // Reap our own just-ingested drive rows and observe the winner.
+      if (isUniqueViolationOnExternalId(err)) {
+        if (ingestedFileIds.length > 0) {
+          try {
+            const drive = filesServiceFor(input.organizationId)
+            await drive.reapIngestedFiles(ingestedFileIds)
+          } catch (reapErr) {
+            console.warn('[messaging:inbound] reap-on-loss failed; orphan drive rows possible', {
+              externalMessageId: input.externalMessageId,
+              ingestedFileIds,
+              err: reapErr instanceof Error ? reapErr.message : String(reapErr),
+            })
+          }
+        }
+        const winner = (await db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.organizationId, input.organizationId),
+              eq(messages.channelExternalId, input.externalMessageId),
+            ),
+          )
+          .limit(1)) as Message[]
+        if (winner[0]) return { conversation, message: winner[0], isNew: false }
       }
+      throw err
+    }
 
-      if (conversation.status === 'resolved') {
-        nextStatus = transitionConversation(conversation.status, 'active')
-        patch.status = nextStatus
-        Object.assign(patch, CLEAR_RESOLVED)
-      }
-
-      if (conversation.snoozedUntil) {
-        cancelJobIdLocal = conversation.snoozedJobId
-        Object.assign(patch, CLEAR_SNOOZE)
-      }
-
-      const updatedRows = (await tx
-        .update(conversations)
-        .set(patch)
-        .where(eq(conversations.id, conversation.id))
-        .returning()) as Conversation[]
-      const updated = updatedRows[0]
-      if (!updated) throw new Error('messaging/conversations.createInboundMessage: update returned no rows')
-
-      if (conversation.status === 'resolved') {
-        await writeConversationEvent(tx, {
-          conversationId: conversation.id,
-          organizationId: input.organizationId,
-          type: 'conversation.reopened',
-          payload: { trigger: 'new_inbound' },
-        })
-      }
-
-      if (conversation.snoozedUntil) {
-        await writeConversationEvent(tx, {
-          conversationId: conversation.id,
-          organizationId: input.organizationId,
-          type: 'conversation.unsnoozed',
-          payload: { trigger: 'new_inbound', originalUntil: conversation.snoozedUntil.toISOString() },
-        })
-      }
-
-      return { message: msg, nextConversation: updated, cancelJobId: cancelJobIdLocal }
-    })
+    const { message, nextConversation, cancelJobId } = txOutcome
 
     if (cancelJobId && scheduler) {
       await scheduler.cancel(cancelJobId).catch(() => undefined)
@@ -708,7 +815,7 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     create,
     resumeOrCreate,
     get,
-    createInboundMessage,
+    createInboundMessage: _createInboundMessage,
     snooze,
     unsnooze,
     wakeSnoozed,

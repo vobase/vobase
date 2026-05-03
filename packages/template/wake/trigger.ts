@@ -128,6 +128,11 @@ function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
   return `Heartbeat (${trigger.reason}) at ${trigger.intendedRunAt.toISOString()}. Run your review-and-plan flow.`
 }
 
+function renderCaptionReady(trigger: WakeTrigger, refs: RenderRefs): string {
+  if (trigger.trigger !== 'caption_ready') return ''
+  return `Caption ready for file ${trigger.fileId}. Re-read ${convoFolder(refs)}/messages.md for the updated context.`
+}
+
 // ─── Registry ──────────────────────────────────────────────────────────────
 
 const REGISTRY: Record<WakeTriggerKind, TriggerSpec> = {
@@ -138,6 +143,7 @@ const REGISTRY: Record<WakeTriggerKind, TriggerSpec> = {
   manual: { lane: 'conversation', logPrefix: 'wake:conv', render: renderManual },
   operator_thread: { lane: 'standalone', logPrefix: 'wake:solo', render: renderOperatorThread },
   heartbeat: { lane: 'standalone', logPrefix: 'wake:solo', render: renderHeartbeat },
+  caption_ready: { lane: 'conversation', logPrefix: 'wake:conv', render: renderCaptionReady },
 }
 
 export function resolveTriggerSpec(triggerKind: WakeTriggerKind): TriggerSpec {

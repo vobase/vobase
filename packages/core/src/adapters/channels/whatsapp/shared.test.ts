@@ -310,6 +310,55 @@ describe('parseWhatsAppMessages — sticker animation', () => {
   })
 })
 
+// ─── parseWhatsAppMessages — media sizeBytes ─────────────────────────
+
+describe('parseWhatsAppMessages — media sizeBytes', () => {
+  it('populates sizeBytes from downloaded buffer length on a document attachment', async () => {
+    const bytes = Buffer.alloc(4321, 0x42)
+    const payload = makePayload([
+      {
+        from: '14155551234',
+        id: 'msg_doc',
+        timestamp: '1700000000',
+        type: 'document',
+        document: { id: 'media_doc', mime_type: 'application/pdf', filename: 'quote.pdf' },
+      },
+    ])
+
+    const events = await parseWhatsAppMessages(payload, async () => ({
+      data: bytes,
+      mimeType: 'application/pdf',
+    }))
+    const event = events[0] as MessageReceivedEvent
+    expect(event.media).toBeDefined()
+    expect(event.media?.[0]?.sizeBytes).toBe(4321)
+    expect(event.media?.[0]?.filename).toBe('quote.pdf')
+  })
+
+  it('drops oversized inbound media (> 25 MB) and leaves the message without media', async () => {
+    // 26 MB > 25 MB cap. Use a sparse-allocation strategy so the test stays cheap.
+    const oversize = Buffer.alloc(26 * 1024 * 1024, 0)
+    const payload = makePayload([
+      {
+        from: '14155551234',
+        id: 'msg_huge',
+        timestamp: '1700000000',
+        type: 'document',
+        document: { id: 'media_huge', mime_type: 'application/pdf', filename: 'huge.pdf' },
+      },
+    ])
+
+    const events = await parseWhatsAppMessages(payload, async () => ({
+      data: oversize,
+      mimeType: 'application/pdf',
+    }))
+    const event = events[0] as MessageReceivedEvent
+    // Oversized → media[] is undefined, but the message itself still flows.
+    expect(event.media).toBeUndefined()
+    expect(event.messageType).toBe('document')
+  })
+})
+
 // ─── parseWhatsAppEchoes ─────────────────────────────────────────────
 
 describe('parseWhatsAppEchoes', () => {

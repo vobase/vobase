@@ -53,7 +53,13 @@ export interface ConversationWakeConfigInput {
   data: {
     organizationId: string
     conversationId: string
-    messageId: string
+    /**
+     * Optional. Carried for back-compat with the inbound-message default
+     * trigger fallback below; non-inbound triggers (`supervisor`,
+     * `caption_ready`, …) leave this unset and pass their own
+     * `triggerOverride` instead.
+     */
+    messageId?: string
     contactId: string
   }
   conv: Conversation
@@ -64,9 +70,10 @@ export interface ConversationWakeConfigInput {
   /**
    * Optional explicit trigger to use in place of the default
    * `inbound_message` shape. Supervisor wakes pass a `supervisor` trigger
-   * here so the renderer + `systemHash` reflect the staff-note variant.
-   * The override is forwarded unchanged into `trigger`, `triggerKind`, and
-   * `renderTrigger` — never re-derived downstream.
+   * here so the renderer + `systemHash` reflect the staff-note variant;
+   * `caption_ready` wakes (drive OCR completion) likewise pass their own
+   * variant. The override is forwarded unchanged into `trigger`,
+   * `triggerKind`, and `renderTrigger` — never re-derived downstream.
    */
   triggerOverride?: WakeTrigger
 }
@@ -98,11 +105,13 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // via their `lane` field; `'both'` enrols a tool into both lanes (e.g. add_note).
   const laneTools = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
 
-  const trigger: WakeTrigger = input.triggerOverride ?? {
-    trigger: 'inbound_message',
-    conversationId,
-    messageIds: [data.messageId],
-  }
+  const trigger: WakeTrigger =
+    input.triggerOverride ??
+    (data.messageId
+      ? { trigger: 'inbound_message', conversationId, messageIds: [data.messageId] }
+      : (() => {
+          throw new Error('conversationWakeConfig: triggerOverride or data.messageId is required')
+        })())
   const capability = resolveTriggerSpec(trigger.trigger)
 
   // Supervisor-wake policy is split across two seams:

@@ -13,6 +13,15 @@ import type {
   StatusUpdateEvent,
 } from '../../../contracts/channels'
 
+/**
+ * Inbound attachment size cap. Mirrors the template-side
+ * `modules/drive/constants.ts:INBOUND_ATTACHMENT_MAX_BYTES` (25 MB) so
+ * downstream auto-ingest never receives a payload that drive will reject.
+ * Items above the cap are dropped from `media[]` with a warn-log; the
+ * message itself still flows through (caption text + metadata preserved).
+ */
+const WA_INBOUND_MEDIA_MAX_BYTES = 25 * 1024 * 1024
+
 // ─── Types ───────────────────────────────────────────────────────────
 
 export interface WhatsAppWebhookPayload {
@@ -222,14 +231,25 @@ async function parseInboundMessage(
       if (mediaInfo?.id && downloadMedia) {
         const downloaded = await downloadMedia(mediaInfo.id, msg.type)
         if (downloaded) {
-          media = [
-            {
-              type: msg.type as ChannelMedia['type'],
-              data: downloaded.data,
-              mimeType: downloaded.mimeType,
-              filename: mediaInfo.filename,
-            },
-          ]
+          const sizeBytes = downloaded.data.length
+          if (sizeBytes > WA_INBOUND_MEDIA_MAX_BYTES) {
+            console.warn('[whatsapp] dropping oversized inbound media', {
+              mediaId: mediaInfo.id,
+              type: msg.type,
+              sizeBytes,
+              maxBytes: WA_INBOUND_MEDIA_MAX_BYTES,
+            })
+          } else {
+            media = [
+              {
+                type: msg.type as ChannelMedia['type'],
+                data: downloaded.data,
+                mimeType: downloaded.mimeType,
+                filename: mediaInfo.filename,
+                sizeBytes,
+              },
+            ]
+          }
         }
       }
 
@@ -255,13 +275,23 @@ async function parseInboundMessage(
       if (stickerInfo?.id && downloadMedia) {
         const downloaded = await downloadMedia(stickerInfo.id, 'sticker')
         if (downloaded) {
-          media = [
-            {
-              type: 'image',
-              data: downloaded.data,
-              mimeType: downloaded.mimeType,
-            },
-          ]
+          const sizeBytes = downloaded.data.length
+          if (sizeBytes > WA_INBOUND_MEDIA_MAX_BYTES) {
+            console.warn('[whatsapp] dropping oversized inbound sticker', {
+              stickerId: stickerInfo.id,
+              sizeBytes,
+              maxBytes: WA_INBOUND_MEDIA_MAX_BYTES,
+            })
+          } else {
+            media = [
+              {
+                type: 'image',
+                data: downloaded.data,
+                mimeType: downloaded.mimeType,
+                sizeBytes,
+              },
+            ]
+          }
         }
       }
 

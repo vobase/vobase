@@ -64,6 +64,12 @@ export interface AppendStaffTextMessageInput {
   organizationId: string
   staffUserId: string
   body: string
+  /**
+   * Optional pre-resolved drive attachment refs. Bytes have already been
+   * ingested by the caller (`staff-reply.ts`); this writer only persists
+   * the denormalized refs onto the message row.
+   */
+  attachments?: import('@modules/drive/service/types').MessageAttachmentRef[]
 }
 
 export interface AppendCardReplyInput {
@@ -84,6 +90,7 @@ async function insertMessageRow(
     kind: string
     content: unknown
     parentMessageId?: string | null
+    attachments?: import('@modules/drive/service/types').MessageAttachmentRef[]
   },
 ): Promise<Message> {
   const rows = await txDb
@@ -95,6 +102,7 @@ async function insertMessageRow(
       kind: row.kind,
       content: row.content,
       parentMessageId: row.parentMessageId ?? null,
+      attachments: row.attachments ?? [],
     })
     .returning()
   const result = rows[0]
@@ -257,6 +265,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
         role: 'staff',
         kind: 'text',
         content: { text: input.body },
+        attachments: input.attachments,
       })
       await journalToolEnd(tx, {
         conversationId: input.conversationId,

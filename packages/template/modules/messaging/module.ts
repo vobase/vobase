@@ -10,6 +10,7 @@ import {
   get as getConversation,
   installConversationsService,
 } from './service/conversations'
+import { setDriveAttachmentsDb } from './service/drive-attachments'
 import { createMessagesService, installMessagesService } from './service/messages'
 import {
   buildSupervisorSingletonKey,
@@ -40,6 +41,7 @@ const messaging: ModuleDef = {
     installConversationsService(createConversationsService({ db: ctx.db, scheduler: conversationScheduler }))
     installPendingApprovalsService(createPendingApprovalsService({ db: ctx.db }))
     installMessagesService(createMessagesService({ db: ctx.db }))
+    setDriveAttachmentsDb(ctx.db)
 
     // Agent-mention resolver must be installed BEFORE notes — `addNote`'s
     // post-commit fan-out calls into it.
