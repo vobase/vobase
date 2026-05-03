@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { DriveBrowser } from '@modules/drive/components/drive-browser'
-import { DriveProvider } from '@modules/drive/components/drive-provider'
+import { DriveSection } from '@modules/drive/components/drive-section'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { AccountValues } from '@modules/settings/pages/schemas'
 import { accountSchema } from '@modules/settings/pages/schemas'
@@ -58,9 +57,7 @@ export default function AccountPage() {
 
       {userId && (
         <SettingsSection title="Files" description="Personal files referenced by your agents.">
-          <DriveProvider scope={{ scope: 'staff', userId }} rootLabel="Your files" initialPath="/PROFILE.md">
-            <DriveBrowser />
-          </DriveProvider>
+          <DriveSection scope={{ scope: 'staff', userId }} rootLabel="Your files" initialPath="/PROFILE.md" />
         </SettingsSection>
       )}
     </>
