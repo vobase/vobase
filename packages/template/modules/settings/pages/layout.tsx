@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import type { ApiKeySummaryDto, CreatedApiKeyDto } from '@modules/settings/handlers/api-keys'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
-import type { AppearanceValues, NotificationsValues } from '@modules/settings/pages/schemas'
-import { appearanceSchema, notificationsSchema } from '@modules/settings/pages/schemas'
+import type { NotificationsValues } from '@modules/settings/pages/schemas'
+import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, Copy, MonitorIcon, MoonIcon, SunIcon, Trash2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -41,7 +42,7 @@ interface NotificationPrefsResponse {
   updatedAt: string
 }
 
-type SaveState = 'idle' | 'saving' | 'saved'
+type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 function SaveIndicator({ state }: { state: SaveState }) {
   if (state === 'saving') return <span className="text-muted-foreground text-xs">Saving…</span>
@@ -53,6 +54,7 @@ function SaveIndicator({ state }: { state: SaveState }) {
       </span>
     )
   }
+  if (state === 'error') return <span className="text-destructive text-xs">Save failed</span>
   return null
 }
 
@@ -63,8 +65,7 @@ function useAutoSave<T>(values: T | null | undefined, save: (values: T) => Promi
 
   useEffect(() => {
     if (values === null || values === undefined) return
-    const next = values
-    const serialized = JSON.stringify(next)
+    const serialized = JSON.stringify(values)
     if (lastSerialized.current === null) {
       lastSerialized.current = serialized
       return
@@ -74,13 +75,16 @@ function useAutoSave<T>(values: T | null | undefined, save: (values: T) => Promi
 
     const debounce = setTimeout(() => {
       setState('saving')
-      save(next)
+      save(values)
         .then(() => {
           setState('saved')
           if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
           savedTimerRef.current = setTimeout(() => setState('idle'), 1500)
         })
-        .catch(() => setState('idle'))
+        .catch((err) => {
+          setState('error')
+          toast.error(err instanceof Error ? err.message : 'Save failed')
+        })
     }, 400)
     return () => clearTimeout(debounce)
   }, [values, save])
@@ -97,21 +101,14 @@ function useAutoSave<T>(values: T | null | undefined, save: (values: T) => Promi
 
 function AppearanceSection() {
   const { theme, setTheme } = useTheme()
-  const { mutate } = useSettingsSave('appearance', appearanceSchema)
-  const form = useForm<AppearanceValues>({
-    resolver: zodResolver(appearanceSchema),
-    defaultValues: { fontSize: 'md' },
-  })
-  const fontSize = useWatch({ control: form.control, name: 'fontSize' })
+  const [fontSize, setFontSize] = useState<'sm' | 'md' | 'lg'>('md')
 
   useEffect(() => {
-    if (fontSize) document.documentElement.style.fontSize = FONT_SIZE_MAP[fontSize] ?? '15px'
+    document.documentElement.style.fontSize = FONT_SIZE_MAP[fontSize] ?? '15px'
   }, [fontSize])
 
-  const saveState = useAutoSave({ theme, fontSize: fontSize ?? 'md' }, (v) => mutate(v))
-
   return (
-    <InfoSection title="Appearance" actions={<SaveIndicator state={saveState} />}>
+    <InfoSection title="Appearance">
       <InfoCard>
         <InfoRow label="Theme">
           <SettingsSegmented
@@ -125,8 +122,8 @@ function AppearanceSection() {
         <InfoRow label="Font size">
           <SettingsSegmented
             name="fontSize"
-            value={fontSize ?? 'md'}
-            onValueChange={(v) => form.setValue('fontSize', v as 'sm' | 'md' | 'lg')}
+            value={fontSize}
+            onValueChange={(v) => setFontSize(v as 'sm' | 'md' | 'lg')}
             options={FONT_SIZE_OPTIONS}
             className="w-full sm:w-[260px]"
           />
@@ -163,7 +160,8 @@ function NotificationsSection() {
   }, [data, form])
 
   const watched = useWatch({ control: form.control })
-  const saveState = useAutoSave<NotificationsValues>(data ? (watched as NotificationsValues) : null, (v) => mutate(v))
+  const save = useCallback((v: NotificationsValues) => mutate(v), [mutate])
+  const saveState = useAutoSave<NotificationsValues>(data ? (watched as NotificationsValues) : null, save)
 
   return (
     <InfoSection title="Notifications" actions={<SaveIndicator state={saveState} />}>
@@ -190,42 +188,28 @@ function NotificationsSection() {
   )
 }
 
-interface ApiKeySummary {
-  id: string
-  name: string | null
-  prefix: string
-  start: string | null
-  enabled: boolean
-  lastRequest: string | null
-  createdAt: string
-}
-
-interface CreatedApiKeyResponse extends ApiKeySummary {
-  key: string
-}
-
 function ApiKeysSection() {
   const qc = useQueryClient()
   const [name, setName] = useState('')
-  const [revealed, setRevealed] = useState<CreatedApiKeyResponse | null>(null)
+  const [revealed, setRevealed] = useState<CreatedApiKeyDto | null>(null)
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ['settings', 'api-keys'],
-    queryFn: async (): Promise<ApiKeySummary[]> => {
+    queryFn: async (): Promise<ApiKeySummaryDto[]> => {
       const r = await settingsClient['api-keys'].$get()
       if (!r.ok) throw new Error(`api-keys.list failed: ${r.status}`)
-      return (await r.json()) as ApiKeySummary[]
+      return (await r.json()) as ApiKeySummaryDto[]
     },
   })
 
   const createMut = useMutation({
-    mutationFn: async (input: { name: string }): Promise<CreatedApiKeyResponse> => {
+    mutationFn: async (input: { name: string }): Promise<CreatedApiKeyDto> => {
       const r = await settingsClient['api-keys'].$post({ json: input })
       if (!r.ok) {
         const body = (await r.json().catch(() => null)) as { error?: string } | null
         throw new Error(body?.error ?? 'Failed to create key')
       }
-      return (await r.json()) as CreatedApiKeyResponse
+      return (await r.json()) as CreatedApiKeyDto
     },
     onSuccess: (created) => {
       setRevealed(created)
@@ -249,35 +233,33 @@ function ApiKeysSection() {
 
   function copyKey() {
     if (!revealed) return
-    void navigator.clipboard.writeText(revealed.key).then(() => toast.success('Copied to clipboard'))
+    navigator.clipboard
+      .writeText(revealed.key)
+      .then(() => toast.success('Copied to clipboard'))
+      .catch(() => toast.error('Copy failed'))
+  }
+
+  function onSubmitCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (name.trim().length === 0) return
+    createMut.mutate({ name: name.trim() })
   }
 
   return (
-    <InfoSection
-      title="API Keys"
-      description="Authenticate the Vobase CLI and external integrations."
-      actions={
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (name.trim().length === 0) return
-            createMut.mutate({ name: name.trim() })
-          }}
-        >
-          <Input
-            className="h-8 w-[200px]"
-            placeholder="Key name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={createMut.isPending}
-          />
-          <Button size="sm" type="submit" disabled={createMut.isPending || name.trim().length === 0}>
-            {createMut.isPending ? 'Creating…' : 'Create key'}
-          </Button>
-        </form>
-      }
-    >
+    <InfoSection title="API Keys" description="Authenticate the Vobase CLI and external integrations.">
+      <form className="flex items-center gap-2" onSubmit={onSubmitCreate}>
+        <Input
+          className="h-8 w-[240px]"
+          placeholder="Key name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={createMut.isPending}
+        />
+        <Button size="sm" type="submit" disabled={createMut.isPending || name.trim().length === 0}>
+          {createMut.isPending ? 'Creating…' : 'Create key'}
+        </Button>
+      </form>
+
       {revealed && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
           <div className="mb-2 font-medium text-sm">Copy your new key — it won't be shown again.</div>
@@ -307,7 +289,7 @@ function ApiKeysSection() {
               <div className="flex flex-col">
                 <code className="font-mono text-muted-foreground text-xs">
                   {k.prefix}
-                  {k.start ?? '••••'}…
+                  {k.start}…
                 </code>
                 <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
                   Created <RelativeTimeCard date={new Date(k.createdAt)} length="short" />

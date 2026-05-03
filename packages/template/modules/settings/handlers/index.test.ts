@@ -11,7 +11,17 @@ import settingsRouter from './index'
 
 beforeAll(() => {
   installApiKeysService({
-    list: async () => [],
+    list: async () => [
+      {
+        id: 'apk_existing',
+        name: 'existing',
+        prefix: 'vbt_',
+        start: 'wxyz',
+        enabled: true,
+        lastRequest: null,
+        createdAt: new Date(),
+      },
+    ],
     create: async (_userId, name) => ({
       id: 'apk_test',
       name,
@@ -94,21 +104,6 @@ describe('POST /settings/profile', () => {
   })
 })
 
-// ── /appearance ───────────────────────────────────────────────────────────────
-
-describe('POST /settings/appearance', () => {
-  it('happy path: valid body returns 200 + {ok:true}', async () => {
-    const res = await POST('/appearance', { theme: 'dark', fontSize: 'md' })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true })
-  })
-
-  it('rejection: invalid theme enum returns 400', async () => {
-    const res = await POST('/appearance', { theme: 'retro' })
-    expect(res.status).toBe(400)
-  })
-})
-
 // ── /notifications ────────────────────────────────────────────────────────────
 
 describe('POST /settings/notifications', () => {
@@ -122,21 +117,6 @@ describe('POST /settings/notifications', () => {
 
   it('rejection: string where boolean expected returns 400', async () => {
     const res = await POST('/notifications', { emailEnabled: 'yes' })
-    expect(res.status).toBe(400)
-  })
-})
-
-// ── /display ──────────────────────────────────────────────────────────────────
-
-describe('POST /settings/display', () => {
-  it('happy path: valid body returns 200 + {ok:true}', async () => {
-    const res = await POST('/display', { density: 'compact', showAvatars: true })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true })
-  })
-
-  it('rejection: invalid density enum returns 400', async () => {
-    const res = await POST('/display', { density: 'cozy' })
     expect(res.status).toBe(400)
   })
 })
@@ -155,5 +135,17 @@ describe('POST /settings/api-keys', () => {
   it('rejection: missing required name field returns 400', async () => {
     const res = await POST('/api-keys', {})
     expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /settings/api-keys', () => {
+  it('lists summaries without ever leaking the plaintext key', async () => {
+    const res = await app.request('/settings/api-keys')
+    expect(res.status).toBe(200)
+    const rows = (await res.json()) as Array<Record<string, unknown>>
+    expect(Array.isArray(rows)).toBe(true)
+    for (const row of rows) {
+      expect(Object.hasOwn(row, 'key')).toBe(false)
+    }
   })
 })

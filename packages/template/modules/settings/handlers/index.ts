@@ -10,16 +10,6 @@ const profileSchema = z.object({
   email: z.string().email().optional(),
 })
 
-const appearanceSchema = z.object({
-  theme: z.enum(['light', 'dark', 'system']).optional(),
-  fontSize: z.enum(['sm', 'md', 'lg']).optional(),
-})
-
-const displaySchema = z.object({
-  density: z.enum(['comfortable', 'compact']).optional(),
-  showAvatars: z.boolean().optional(),
-})
-
 const invalidBody = (
   result: { success: boolean; error?: { issues: unknown } },
   c: { json: (b: unknown, s: number) => Response },
@@ -32,7 +22,5 @@ const app = new Hono()
   .route('/', notificationsHandlers)
   .route('/', apiKeysHandlers)
   .post('/profile', zValidator('json', profileSchema, invalidBody), (c) => ok(c))
-  .post('/appearance', zValidator('json', appearanceSchema, invalidBody), (c) => ok(c))
-  .post('/display', zValidator('json', displaySchema, invalidBody), (c) => ok(c))
 
 export default app
