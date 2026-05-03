@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { AppSession, SessionEnv } from '@auth/middleware/require-session'
+import { __resetApiKeysServiceForTests, installApiKeysService } from '@modules/settings/service/api-keys'
 import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
@@ -9,6 +10,20 @@ import { Hono } from 'hono'
 import settingsRouter from './index'
 
 beforeAll(() => {
+  installApiKeysService({
+    list: async () => [],
+    create: async (_userId, name) => ({
+      id: 'apk_test',
+      name,
+      prefix: 'vbt_',
+      start: 'abcd',
+      enabled: true,
+      lastRequest: null,
+      createdAt: new Date(),
+      key: 'vbt_abcdefghijklmnopqrstuvwxyz',
+    }),
+    revoke: async () => true,
+  })
   installNotificationPrefsService({
     get: async (userId) => ({
       userId,
@@ -29,6 +44,7 @@ beforeAll(() => {
 
 afterAll(() => {
   __resetNotificationPrefsServiceForTests()
+  __resetApiKeysServiceForTests()
 })
 
 const app = new Hono<SessionEnv>()
@@ -128,14 +144,16 @@ describe('POST /settings/display', () => {
 // ── /api-keys ─────────────────────────────────────────────────────────────────
 
 describe('POST /settings/api-keys', () => {
-  it('happy path: valid body returns 200 + {ok:true}', async () => {
-    const res = await POST('/api-keys', { name: 'my-key', scope: 'read' })
+  it('happy path: valid body returns the created key (plaintext shown once)', async () => {
+    const res = await POST('/api-keys', { name: 'my-key' })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true })
+    const body = (await res.json()) as { id: string; name: string; key: string }
+    expect(body.name).toBe('my-key')
+    expect(body.key).toMatch(/^vbt_/)
   })
 
   it('rejection: missing required name field returns 400', async () => {
-    const res = await POST('/api-keys', { scope: 'read' })
+    const res = await POST('/api-keys', {})
     expect(res.status).toBe(400)
   })
 })

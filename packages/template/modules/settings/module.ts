@@ -1,5 +1,6 @@
 import type { ModuleDef } from '~/runtime'
 import handlers from './handlers'
+import { createApiKeysService, installApiKeysService } from './service/api-keys'
 import { createNotificationPrefsService, installNotificationPrefsService } from './service/notification-prefs'
 
 const settings: ModuleDef = {
@@ -9,6 +10,7 @@ const settings: ModuleDef = {
   jobs: [],
   init(ctx) {
     installNotificationPrefsService(createNotificationPrefsService({ db: ctx.db }))
+    installApiKeysService(createApiKeysService({ db: ctx.db }))
   },
 }
 

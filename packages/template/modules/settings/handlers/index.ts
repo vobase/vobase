@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
+import apiKeysHandlers from './api-keys'
 import notificationsHandlers from './notifications'
 
 const profileSchema = z.object({
@@ -19,11 +20,6 @@ const displaySchema = z.object({
   showAvatars: z.boolean().optional(),
 })
 
-const apiKeysSchema = z.object({
-  name: z.string().min(1),
-  scope: z.string().optional(),
-})
-
 const invalidBody = (
   result: { success: boolean; error?: { issues: unknown } },
   c: { json: (b: unknown, s: number) => Response },
@@ -34,9 +30,9 @@ const ok = (c: { json: (b: unknown) => Response }) => c.json({ ok: true })
 const app = new Hono()
   .get('/health', (c) => c.json({ module: 'settings', status: 'ok' }))
   .route('/', notificationsHandlers)
+  .route('/', apiKeysHandlers)
   .post('/profile', zValidator('json', profileSchema, invalidBody), (c) => ok(c))
   .post('/appearance', zValidator('json', appearanceSchema, invalidBody), (c) => ok(c))
   .post('/display', zValidator('json', displaySchema, invalidBody), (c) => ok(c))
-  .post('/api-keys', zValidator('json', apiKeysSchema, invalidBody), (c) => ok(c))
 
 export default app

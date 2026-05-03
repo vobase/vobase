@@ -1,20 +1,21 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
-import type { ApiKeysValues, AppearanceValues, NotificationsValues } from '@modules/settings/pages/schemas'
-import { apiKeysSchema, appearanceSchema, notificationsSchema } from '@modules/settings/pages/schemas'
-import { useQuery } from '@tanstack/react-query'
+import type { AppearanceValues, NotificationsValues } from '@modules/settings/pages/schemas'
+import { appearanceSchema, notificationsSchema } from '@modules/settings/pages/schemas'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Check, MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
+import { Check, Copy, MonitorIcon, MoonIcon, SunIcon, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { toast } from 'sonner'
 
 import { InfoCard, InfoRow, InfoSection } from '@/components/info'
 import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
-import { SettingsSegmented, SettingsToggle } from '@/components/settings'
+import { SettingsToggle } from '@/components/settings'
+import { SettingsSegmented } from '@/components/settings/settings-segmented'
 import { useTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { settingsClient } from '@/lib/api-client'
 
 const THEME_OPTIONS = [
@@ -188,48 +189,139 @@ function NotificationsSection() {
   )
 }
 
+interface ApiKeySummary {
+  id: string
+  name: string | null
+  prefix: string
+  start: string | null
+  enabled: boolean
+  lastRequest: string | null
+  createdAt: string
+}
+
+interface CreatedApiKeyResponse extends ApiKeySummary {
+  key: string
+}
+
 function ApiKeysSection() {
-  const { mutate, isPending } = useSettingsSave('api-keys', apiKeysSchema)
-  const form = useForm<ApiKeysValues>({
-    resolver: zodResolver(apiKeysSchema),
-    defaultValues: { name: '', scope: '' },
+  const qc = useQueryClient()
+  const [name, setName] = useState('')
+  const [revealed, setRevealed] = useState<CreatedApiKeyResponse | null>(null)
+
+  const { data: keys = [], isLoading } = useQuery({
+    queryKey: ['settings', 'api-keys'],
+    queryFn: async (): Promise<ApiKeySummary[]> => {
+      const r = await settingsClient['api-keys'].$get()
+      if (!r.ok) throw new Error(`api-keys.list failed: ${r.status}`)
+      return (await r.json()) as ApiKeySummary[]
+    },
   })
 
-  async function onSubmit(values: ApiKeysValues) {
-    await mutate(values)
-    form.reset()
+  const createMut = useMutation({
+    mutationFn: async (input: { name: string }): Promise<CreatedApiKeyResponse> => {
+      const r = await settingsClient['api-keys'].$post({ json: input })
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error ?? 'Failed to create key')
+      }
+      return (await r.json()) as CreatedApiKeyResponse
+    },
+    onSuccess: (created) => {
+      setRevealed(created)
+      setName('')
+      qc.invalidateQueries({ queryKey: ['settings', 'api-keys'] })
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to create key'),
+  })
+
+  const revokeMut = useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const r = await settingsClient['api-keys'][':id'].$delete({ param: { id } })
+      if (!r.ok) throw new Error(`api-keys.revoke failed: ${r.status}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', 'api-keys'] })
+      toast.success('Key revoked')
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to revoke key'),
+  })
+
+  function copyKey() {
+    if (!revealed) return
+    void navigator.clipboard.writeText(revealed.key).then(() => toast.success('Copied to clipboard'))
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      <InfoSection
-        title="API Keys"
-        description="No keys yet. Create one below to authenticate the Vobase CLI or external integrations."
-        actions={
-          <Button size="sm" type="submit" disabled={isPending}>
-            {isPending ? 'Creating…' : 'Create key'}
+    <InfoSection
+      title="API Keys"
+      description="Authenticate the Vobase CLI and external integrations."
+      actions={
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (name.trim().length === 0) return
+            createMut.mutate({ name: name.trim() })
+          }}
+        >
+          <Input
+            className="h-8 w-[200px]"
+            placeholder="Key name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={createMut.isPending}
+          />
+          <Button size="sm" type="submit" disabled={createMut.isPending || name.trim().length === 0}>
+            {createMut.isPending ? 'Creating…' : 'Create key'}
           </Button>
-        }
-      >
-        <InfoCard>
-          <InfoRow label="Key name">
-            <Input className="w-full sm:w-[280px]" placeholder="My API key" {...form.register('name')} />
+        </form>
+      }
+    >
+      {revealed && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+          <div className="mb-2 font-medium text-sm">Copy your new key — it won't be shown again.</div>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 truncate rounded-md bg-background px-3 py-2 font-mono text-xs">{revealed.key}</code>
+            <Button size="sm" variant="outline" onClick={copyKey}>
+              <Copy />
+              Copy
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setRevealed(null)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <InfoCard>
+        {isLoading && <InfoRow label="Loading…" />}
+        {!isLoading && keys.length === 0 && (
+          <InfoRow label="No keys yet">
+            <span className="text-muted-foreground">Create one above to get started.</span>
           </InfoRow>
-          <InfoRow label="Scope">
-            <Select value={form.watch('scope') ?? ''} onValueChange={(v) => form.setValue('scope', v)}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Select scope" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="read">Read</SelectItem>
-                <SelectItem value="write">Write</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
+        )}
+        {keys.map((k) => (
+          <InfoRow key={k.id} label={k.name ?? '(unnamed)'}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col">
+                <code className="font-mono text-muted-foreground text-xs">
+                  {k.prefix}
+                  {k.start ?? '••••'}…
+                </code>
+                <span className="text-muted-foreground text-xs">
+                  Created {new Date(k.createdAt).toLocaleDateString()}
+                  {k.lastRequest ? ` · last used ${new Date(k.lastRequest).toLocaleDateString()}` : ''}
+                </span>
+              </div>
+              <Button size="sm" variant="ghost" disabled={revokeMut.isPending} onClick={() => revokeMut.mutate(k.id)}>
+                <Trash2 />
+                Revoke
+              </Button>
+            </div>
           </InfoRow>
-        </InfoCard>
-      </InfoSection>
-    </form>
+        ))}
+      </InfoCard>
+    </InfoSection>
   )
 }
 
