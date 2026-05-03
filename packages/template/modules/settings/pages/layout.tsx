@@ -16,6 +16,7 @@ import { SettingsSegmented } from '@/components/settings/settings-segmented'
 import { useTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { settingsClient } from '@/lib/api-client'
 
 const THEME_OPTIONS = [
@@ -308,9 +309,14 @@ function ApiKeysSection() {
                   {k.prefix}
                   {k.start ?? '••••'}…
                 </code>
-                <span className="text-muted-foreground text-xs">
-                  Created {new Date(k.createdAt).toLocaleDateString()}
-                  {k.lastRequest ? ` · last used ${new Date(k.lastRequest).toLocaleDateString()}` : ''}
+                <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
+                  Created <RelativeTimeCard date={new Date(k.createdAt)} length="short" />
+                  {k.lastRequest && (
+                    <>
+                      {' · last used '}
+                      <RelativeTimeCard date={new Date(k.lastRequest)} length="short" />
+                    </>
+                  )}
                 </span>
               </div>
               <Button size="sm" variant="ghost" disabled={revokeMut.isPending} onClick={() => revokeMut.mutate(k.id)}>
