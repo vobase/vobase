@@ -45,6 +45,7 @@ import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/
 import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
 import type { RealtimeService, ScopedDb } from './index'
 import { modules } from './modules'
+import { createStorage } from './storage'
 
 // ─── Realtime ───────────────────────────────────────────────────────────────
 
@@ -207,12 +208,15 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const realtime = await buildRealtime(databaseUrl, db)
   const jobs = buildJobQueue(jobHandlers)
   const cli = new CliVerbRegistry()
+  const storage = createStorage()
   setJournalDb(db)
 
   // Extended ctx threaded into every module's `init`. `auth` is bootstrap-tier
   // (constructed above before any module init runs) and read from `ctx.auth`
-  // by drive's RBAC gate and channel-web's session flow.
-  const moduleCtx = { db, organizationId: '', jobs, realtime, auth, cli }
+  // by drive's RBAC gate and channel-web's session flow. `storage` is a
+  // per-bucket key-prefix scoped handle (drive/contact/etc.) backed by either
+  // a local filesystem adapter (dev) or R2 (when env is configured).
+  const moduleCtx = { db, organizationId: '', jobs, realtime, auth, cli, storage }
   await bootModules({
     modules,
     app,

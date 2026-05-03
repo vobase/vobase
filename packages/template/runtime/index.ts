@@ -19,7 +19,10 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 
 import type { WakeContext } from '~/wake/context'
 import type { LlmTask, WakeTrigger } from '~/wake/events'
+import type { AppStorage } from './storage'
 
+export type { AppStorage, BucketHandle, StorageEnv } from './storage'
+export { createStorage } from './storage'
 // Re-export the agent event aliases that modules import alongside the runtime
 // types — saves them from a per-import vendor lookup.
 export type { LlmTask, WakeTrigger }
@@ -108,6 +111,7 @@ export type AuthHandle = Auth
 
 export type ModuleInitCtx = CoreModuleInitCtx<ScopedDb, RealtimeService> & {
   readonly auth: AuthHandle
+  readonly storage: AppStorage
 }
 
 /**
