@@ -1,37 +1,29 @@
-/**
- * AttributeFormField — renders an input for a single attribute definition.
- * Every variant normalises to the same "label on top, full-width h-9 control"
- * shape so the grid doesn't get uneven gaps between types.
- */
-
 import { Check, Minus, X } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import type { AttributeType, AttributeValue, ContactAttributeDefinition } from '../schema'
 
-interface Props {
-  def: ContactAttributeDefinition
+export type AttributeType = 'text' | 'number' | 'boolean' | 'date' | 'enum'
+export type AttributeValue = string | number | boolean | null
+
+export interface AttributeDefinitionLike {
+  key: string
+  label: string
+  type: AttributeType
+  options: string[]
+}
+
+interface ControlProps {
+  def: AttributeDefinitionLike
   value: AttributeValue | undefined
   onChange: (value: AttributeValue | null) => void
   disabled?: boolean
+  idPrefix: string
 }
 
-export function AttributeFormField({ def, value, onChange, disabled }: Props) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={`attr-${def.key}`} className="font-medium text-muted-foreground text-xs">
-        {def.label}
-      </Label>
-      <FieldInput def={def} value={value} onChange={onChange} disabled={disabled} />
-    </div>
-  )
-}
-
-function FieldInput({ def, value, onChange, disabled }: Props) {
-  const id = `attr-${def.key}`
+export function AttributeFieldControl({ def, value, onChange, disabled, idPrefix }: ControlProps) {
+  const id = `${idPrefix}-${def.key}`
   switch (def.type satisfies AttributeType) {
     case 'text':
       return (
