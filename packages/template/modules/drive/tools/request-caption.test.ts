@@ -3,7 +3,7 @@
  *
  * The full integration acceptance test (`drive-request-caption.test.ts`) lives
  * in tests/e2e/ in Commit 2 — it boots a real wake, runs the tool, and asserts
- * the `INBOUND_TO_WAKE_JOB` enqueue with `{ trigger: 'caption_ready', ... }`.
+ * the `AGENTS_WAKE_JOB` enqueue with `{ trigger: 'caption_ready', ... }`.
  *
  * This file pins the surface contract: the tool's `defineAgentTool` shape
  * (audience, lane, name) so frontend / wake builders can rely on it.
@@ -28,7 +28,7 @@ describe('requestCaptionTool', () => {
 
   // FIXTURE-NEEDED: full e2e wake-boot test lives in tests/e2e/drive-request-caption.test.ts
   // (Commit 2). It would: upload an .mp4, agent calls the tool, the job runs
-  // (stubbed multimodal), driveFile flips to `extracted`, INBOUND_TO_WAKE_JOB
+  // (stubbed multimodal), driveFile flips to `extracted`, AGENTS_WAKE_JOB
   // enqueued with { trigger: 'caption_ready', conversationId, fileId }, wake
   // handler boots, wake/trigger.ts:REGISTRY['caption_ready'].render(...) is
   // exercised. Skipped here as a `.todo` so this commit remains test-green

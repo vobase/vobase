@@ -10,7 +10,7 @@ import { type JobDef, recordCostUsage } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
 import type { AppStorage, LlmTask, RealtimeService } from '~/runtime'
-import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 import { DRIVE_PROCESS_FILE_JOB, DRIVE_STORAGE_BUCKET, MAX_CHUNKS_PER_FILE } from './constants'
 import { type DriveCaptionKind, deriveCaption } from './lib/caption'
 import { chunkMarkdown } from './lib/chunker'
@@ -286,10 +286,10 @@ export async function processFileJobHandler(
 async function enqueueCaptionReadyWake(deps: JobDeps, payload: ProcessFilePayload, fileId: string): Promise<void> {
   const wake = payload.wakeOnComplete
   if (!wake) return
-  // Producer-side trigger discriminator; the WakeTrigger union is widened in Commit 2 / Step 11a.
-  // TODO(rename): INBOUND_TO_WAKE_JOB → agents:wake (single wake bus).
+  // Producer-side trigger discriminator; the WakeTrigger union is the single
+  // source of truth for the conversation-lane wake bus.
   await deps.jobs.send(
-    INBOUND_TO_WAKE_JOB,
+    AGENTS_WAKE_JOB,
     {
       organizationId: payload.organizationId,
       conversationId: wake.conversationId,

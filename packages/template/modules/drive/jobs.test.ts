@@ -2,13 +2,13 @@
  * Unit tests for the drive `processFileJobHandler`. Stubs db / storage / jobs
  * / realtime so the test runs in-memory without Docker. Only verifies branch
  * behaviour around state transitions, the binary-stub→stub-content path, and
- * the `forceCaption` → `INBOUND_TO_WAKE_JOB` enqueue with the
+ * the `forceCaption` → `AGENTS_WAKE_JOB` enqueue with the
  * `caption_ready` trigger payload (Step 5 acceptance).
  */
 
 import { describe, expect, it } from 'bun:test'
 
-import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 import { processFileJobHandler } from './jobs'
 import type { DriveFile } from './schema'
 
@@ -148,7 +148,7 @@ describe('processFileJobHandler', () => {
     // Row currently a binary-stub (e.g. an .mp4 inbound attachment). Agent
     // calls request_caption → service enqueues the job with forceCaption=true
     // + wakeOnComplete. The job runs OCR (stubbed below to return a small
-    // image-extract path) and then enqueues INBOUND_TO_WAKE_JOB with the
+    // image-extract path) and then enqueues AGENTS_WAKE_JOB with the
     // caption_ready trigger.
     const rows = [
       makeRow({
@@ -184,7 +184,7 @@ describe('processFileJobHandler', () => {
     )
     expect(result.kind === 'extracted' || result.kind === 'binary-stub').toBe(true)
     // The wake-job assertion is the headline — it should be in jobsCalls.
-    const captionWake = stubs.jobsCalls.find((c) => c.name === INBOUND_TO_WAKE_JOB)
+    const captionWake = stubs.jobsCalls.find((c) => c.name === AGENTS_WAKE_JOB)
     expect(captionWake).toBeDefined()
     if (captionWake) {
       const trigger = captionWake.data.trigger as

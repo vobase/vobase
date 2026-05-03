@@ -40,7 +40,7 @@ import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
 import { createHeartbeatEmitter } from '~/wake/heartbeat'
-import { createWakeHandler, INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { createWakeHandler, AGENTS_WAKE_JOB } from '~/wake/inbound'
 import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
 import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
 import type { RealtimeService, ScopedDb } from './index'
@@ -245,7 +245,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     }),
   )
 
-  // Module-contributed jobs bind here; INBOUND_TO_WAKE_JOB binds separately
+  // Module-contributed jobs bind here; AGENTS_WAKE_JOB binds separately
   // below as a bootstrap concern (modules don't own the wake dispatcher).
   const sortedModules = sortModules([...modules])
   for (const job of collectJobs(sortedModules)) {
@@ -275,7 +275,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const agentContributions = collectAgentContributions(sortedModules)
   setAgentContributions(agentContributions)
   const wakeLogger = createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] })
-  jobHandlers.set(INBOUND_TO_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
+  jobHandlers.set(AGENTS_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
 
   // Operator-thread wakes: staff posts a message in `agent_threads`, the
   // chat surface enqueues this job, and the consumer drives a standalone-lane

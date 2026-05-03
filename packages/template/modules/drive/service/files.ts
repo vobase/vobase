@@ -28,7 +28,7 @@ import { staffProfiles } from '@modules/team/schema'
 import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 
 import type { AppStorage, RealtimeService } from '~/runtime'
-import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 import {
   DRIVE_PROCESS_FILE_JOB,
   DRIVE_REAPER_STALE_MS,
@@ -125,7 +125,7 @@ export interface FilesService {
   /**
    * Agent-side action: forces multimodal caption + extraction on a binary-stub
    * row. The job re-wakes the originating conversation when extraction finishes
-   * via `INBOUND_TO_WAKE_JOB` with a `caption_ready` trigger.
+   * via `AGENTS_WAKE_JOB` with a `caption_ready` trigger.
    */
   requestCaption(input: RequestCaptionInput): Promise<RequestCaptionResult>
   /** Hybrid search across drive chunks; tenant-isolated by `organizationId`. */
@@ -694,6 +694,22 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     throw new Error('not-implemented-in-phase-1: drive/files.grep')
   }
 
+  /** Reconstruct a `DriveScope` from a persisted `(scope, scope_id)` pair. */
+  function scopeFromRow(row: DriveFile): DriveScope | null {
+    switch (row.scope) {
+      case 'organization':
+        return { scope: 'organization' }
+      case 'staff':
+        return { scope: 'staff', userId: row.scopeId }
+      case 'agent':
+        return { scope: 'agent', agentId: row.scopeId }
+      case 'contact':
+        return { scope: 'contact', contactId: row.scopeId }
+      default:
+        return null
+    }
+  }
+
   /**
    * `ON CONFLICT (organizationId, scope, scopeId, path)` loop. Tries the
    * candidate, then `<stem> (2).<ext>`, `<stem> (3).<ext>`, … up to 32 attempts
@@ -817,7 +833,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
         .set({
           processingStatus: 'failed',
           extractionKind: 'failed',
-          processingError: `storage_key_update_failed: ${msg}`,
+          processingError: `post_storage_update_failed: ${msg}`,
         })
         .where(and(eq(driveFiles.organizationId, input.organizationId), eq(driveFiles.id, row.id)))
       notifyDriveFile(row.id, 'updated')
@@ -854,7 +870,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     if (row.extractionKind === 'extracted') {
       // Already-extracted: enqueue an immediate caption_ready wake (no new OCR cost).
       await deps.jobs.send(
-        INBOUND_TO_WAKE_JOB,
+        AGENTS_WAKE_JOB,
         {
           organizationId: input.organizationId,
           conversationId: input.conversationId,
@@ -1025,8 +1041,13 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       const basePath = lastSlash >= 0 ? row.path.slice(0, lastSlash + 1) : '/'
       const candidate = `${basePath}${displayName}`
       if (candidate !== row.path) {
-        patch.path = candidate
-        patch.name = displayName
+        // Guard against the (organization, scope, scope_id, path) unique
+        // index — another row may already occupy the new candidate. Route
+        // through resolveUniquePath so the suffix bumps on collision.
+        const driveScope = scopeFromRow(row)
+        const resolved = driveScope ? await resolveUniquePath(driveScope, basePath, displayName) : candidate
+        patch.path = resolved
+        patch.name = resolved.split('/').slice(-1)[0] ?? displayName
       }
     }
     await db

@@ -5,7 +5,7 @@
  *   1. The `WakeTriggerSchema` validates a `caption_ready` payload.
  *   2. `wake/trigger.ts:REGISTRY['caption_ready'].render` produces the
  *      first-turn cue pointing the agent back at messages.md.
- *   3. `InboundToWakePayloadSchema` accepts a payload that omits
+ *   3. `AgentsWakePayloadSchema` accepts a payload that omits
  *      `messageId` but carries an explicit `caption_ready` trigger,
  *      mirroring what `modules/drive/jobs.ts` enqueues post-OCR.
  *
@@ -17,7 +17,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import { type WakeTrigger, WakeTriggerSchema } from '~/wake/events'
-import { InboundToWakePayloadSchema } from '~/wake/inbound'
+import { AgentsWakePayloadSchema } from '~/wake/inbound'
 import { resolveTriggerSpec } from '~/wake/trigger'
 
 describe('caption_ready wake trigger — Step 11a wiring', () => {
@@ -42,8 +42,8 @@ describe('caption_ready wake trigger — Step 11a wiring', () => {
     expect(cue).toContain('/contacts/ctt0test00/chi0cust00/messages.md')
   })
 
-  it('InboundToWakePayloadSchema accepts caption_ready payload without messageId', () => {
-    const parsed = InboundToWakePayloadSchema.parse({
+  it('AgentsWakePayloadSchema accepts caption_ready payload without messageId', () => {
+    const parsed = AgentsWakePayloadSchema.parse({
       organizationId: 'org-1',
       conversationId: 'conv-x',
       contactId: 'ctt-1',

@@ -14,7 +14,7 @@
  * supervisor-coaching wakes too.
  *
  * Wake mechanism: producer-side, the drive job enqueues
- * `INBOUND_TO_WAKE_JOB` with `{ trigger: 'caption_ready', conversationId,
+ * `AGENTS_WAKE_JOB` with `{ trigger: 'caption_ready', conversationId,
  * fileId }`. The wake-side `WakeTrigger` union is widened to recognise
  * the new variant in Commit 2 / Step 11a; in this commit producers emit
  * the variant as a record and the wake handler ignores unknown triggers

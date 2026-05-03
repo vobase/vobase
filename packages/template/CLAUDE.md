@@ -104,7 +104,7 @@ NB: tool-side `audience: 'customer' | 'internal'` field on `defineAgentTool` is 
 
 | File | Job | Lane |
 |---|---|---|
-| `wake/inbound.ts` | `channels:inbound-to-wake` | conversation |
+| `wake/inbound.ts` | `agents:wake` | conversation |
 | `wake/supervisor.ts` | `messaging:supervisor-to-wake` | conversation |
 | `wake/operator-thread.ts` | `agents:operator-thread-to-wake` | standalone |
 | `wake/heartbeat.ts` | cron-tick callback for `schedules` | standalone |

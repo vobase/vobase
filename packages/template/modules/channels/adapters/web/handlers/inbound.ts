@@ -6,7 +6,7 @@ import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { Context } from 'hono'
 
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
-import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'
 
@@ -51,7 +51,7 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
   })
 
   if (result.isNew) {
-    await requireJobs().send(INBOUND_TO_WAKE_JOB, {
+    await requireJobs().send(AGENTS_WAKE_JOB, {
       organizationId: input.organizationId,
       conversationId: result.conversation.id,
       messageId: result.message.id,

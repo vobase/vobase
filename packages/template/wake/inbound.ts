@@ -1,7 +1,7 @@
 /**
- * Wake handler — processes `channels:inbound-to-wake` jobs by booting a
- * wake via `createHarness` from `@vobase/core`. Sole consumer of that job;
- * sole producer of agent replies on every channel.
+ * Wake handler — processes `agents:wake` jobs by booting a wake via
+ * `createHarness` from `@vobase/core`. Sole consumer of that job; sole
+ * producer of agent replies on every channel.
  *
  * Agents only run when the conversation's assignee is an `agent:<id>`. If the
  * assignee is a user or unassigned, the wake is skipped — no fallback agent.
@@ -26,7 +26,11 @@ import { conversationWakeConfig } from './conversation'
 import { type WakeTrigger, WakeTriggerSchema } from './events'
 
 /**
- * Job name + payload for inbound-to-wake dispatch.
+ * Job name + payload for the conversation-lane wake bus. One queue carries
+ * every producer that needs to wake an agent against a conversation:
+ * inbound channel messages, in-app card replies, drive `caption_ready`
+ * post-OCR wakes, and any future producer that lands here.
+ *
  * Producers: `modules/channels/service/inbound.ts` (generic),
  * `modules/channels/adapters/web/handlers/card-reply.ts` (in-app card replies),
  * and `modules/drive/jobs.ts` (caption_ready wakes after binary OCR).
@@ -38,9 +42,9 @@ import { type WakeTrigger, WakeTriggerSchema } from './events'
  * shape — when omitted, the handler synthesizes the default
  * `inbound_message` trigger from `messageId`.
  */
-export const INBOUND_TO_WAKE_JOB = 'channels:inbound-to-wake'
+export const AGENTS_WAKE_JOB = 'agents:wake'
 
-export const InboundToWakePayloadSchema = z.object({
+export const AgentsWakePayloadSchema = z.object({
   organizationId: z.string(),
   conversationId: z.string(),
   contactId: z.string(),
@@ -48,7 +52,7 @@ export const InboundToWakePayloadSchema = z.object({
   trigger: WakeTriggerSchema.optional(),
 })
 
-export type InboundToWakePayload = z.infer<typeof InboundToWakePayloadSchema>
+export type AgentsWakePayload = z.infer<typeof AgentsWakePayloadSchema>
 
 export interface WakeHandlerDeps {
   realtime: RealtimeService
@@ -58,7 +62,7 @@ export interface WakeHandlerDeps {
 
 export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions<WakeContext>) {
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
-    const data = rawData as InboundToWakePayload
+    const data = rawData as AgentsWakePayload
     console.log('[wake:conv] handling inbound→wake', {
       conv: data.conversationId,
       msg: data.messageId,

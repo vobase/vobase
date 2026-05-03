@@ -8,8 +8,8 @@
  *   3. Enqueues a wake job if the conversation is new (i.e. an agent should run)
  *
  * Adapter handlers parse webhooks then hand normalized events here. All
- * channels share a single wake job name (`channels:inbound-to-wake`); the
- * wake handler is registered in `runtime/bootstrap.ts`.
+ * channels share a single wake job name (`agents:wake`); the wake handler
+ * is registered in `runtime/bootstrap.ts`.
  */
 
 import type { ChannelInstance } from '@modules/channels/schema'
@@ -17,7 +17,7 @@ import { upsertByExternal } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { ChannelEvent, MessageReceivedEvent } from '@vobase/core'
 
-import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 import { requireJobs } from './state'
 
 export interface InboundDispatchResult {
@@ -89,7 +89,7 @@ export async function dispatchInbound(
     })
 
     if (result.isNew) {
-      await jobs.send(INBOUND_TO_WAKE_JOB, {
+      await jobs.send(AGENTS_WAKE_JOB, {
         organizationId: instance.organizationId,
         conversationId: result.conversation.id,
         messageId: result.message.id,

@@ -4,7 +4,7 @@ import { appendCardReplyMessage } from '@modules/messaging/service/messages'
 import type { Context } from 'hono'
 import { z } from 'zod'
 
-import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 
 const CardReplyBodySchema = z.object({
   messageId: z.string().min(1),
@@ -40,7 +40,7 @@ export async function handleCardReply(c: Context): Promise<Response> {
 
   const conv = await getConversation(reply.conversationId)
 
-  await jobs.send(INBOUND_TO_WAKE_JOB, {
+  await jobs.send(AGENTS_WAKE_JOB, {
     organizationId: reply.organizationId,
     conversationId: reply.conversationId,
     messageId: reply.id,
