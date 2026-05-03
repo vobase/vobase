@@ -57,7 +57,7 @@
       "component": "diceui/combobox",
       "file": "src/components/ui/combobox.tsx",
       "source_url": "https://diceui.com/r/combobox.json",
-      "sha256_of_installed_file": "e43c06f5abe694ca0b0979fce88895ac7d3c35863bcb64ed121a72ecdf93fedd",
+      "sha256_of_installed_file": "752b6781e80aae29ea1df9eb14921e17bd8b9eb0667b050efdeca8ea99a620ca",
       "install_timestamp": "2026-04-19T00:00:00.000Z",
       "registry": "diceui"
     },
