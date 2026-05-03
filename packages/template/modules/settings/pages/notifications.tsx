@@ -3,11 +3,12 @@ import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { NotificationsValues } from '@modules/settings/pages/schemas'
 import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useQuery } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 
+import { SettingsCard, SettingsSection, SettingsToggle } from '@/components/settings'
 import { Button } from '@/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form'
 import { settingsClient } from '@/lib/api-client'
 
 interface NotificationPrefsResponse {
@@ -29,100 +30,59 @@ export default function NotificationsPage() {
     },
   })
 
-  const form = useForm<NotificationsValues>({
+  const { handleSubmit, watch, setValue, reset } = useForm<NotificationsValues>({
     resolver: zodResolver(notificationsSchema),
     defaultValues: { mentionsEnabled: true, whatsappEnabled: false, emailEnabled: false },
   })
 
   useEffect(() => {
     if (data) {
-      form.reset({
+      reset({
         mentionsEnabled: data.mentionsEnabled,
         whatsappEnabled: data.whatsappEnabled,
         emailEnabled: data.emailEnabled,
       })
     }
-  }, [data, form])
+  }, [data, reset])
 
   async function onSubmit(values: NotificationsValues) {
     await mutate(values)
   }
 
   return (
-    <div className="max-w-lg space-y-6 p-6">
-      <div>
-        <h2 className="font-semibold text-lg">Notifications</h2>
-        <p className="text-muted-foreground text-sm">
-          Choose how you want to be notified. WhatsApp pings fire when you're mentioned in an internal note while
-          offline (last seen &gt; 2 min ago).
-        </p>
-      </div>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="mentionsEnabled"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                <div>
-                  <FormLabel className="cursor-pointer">Mention notifications</FormLabel>
-                  <p className="text-muted-foreground text-xs">Notify me when an internal note mentions me.</p>
-                </div>
-                <FormControl>
-                  <input
-                    type="checkbox"
-                    checked={field.value ?? false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="whatsappEnabled"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                <FormLabel className="cursor-pointer">WhatsApp</FormLabel>
-                <FormControl>
-                  <input
-                    type="checkbox"
-                    checked={field.value ?? false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="emailEnabled"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                <FormLabel className="cursor-pointer">Email</FormLabel>
-                <FormControl>
-                  <input
-                    type="checkbox"
-                    checked={field.value ?? false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <Button type="submit" disabled={isPending}>
-            {isPending ? 'Saving…' : 'Save notifications'}
-          </Button>
-        </form>
-      </Form>
+    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <SettingsSection title="Notifications">
+          <SettingsCard>
+            <SettingsToggle
+              label="Mention notifications"
+              description="Notify me when an internal note mentions me."
+              checked={watch('mentionsEnabled') ?? true}
+              onCheckedChange={(v) => setValue('mentionsEnabled', v)}
+            />
+            <SettingsToggle
+              label="WhatsApp"
+              description="Ping me on WhatsApp when mentioned while offline (last seen > 2 min ago)."
+              checked={watch('whatsappEnabled') ?? false}
+              onCheckedChange={(v) => setValue('whatsappEnabled', v)}
+            />
+            <SettingsToggle
+              label="Email"
+              checked={watch('emailEnabled') ?? false}
+              onCheckedChange={(v) => setValue('emailEnabled', v)}
+            />
+          </SettingsCard>
+          <div className="flex justify-end pt-2">
+            <Button size="sm" type="submit" disabled={isPending}>
+              {isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </SettingsSection>
+      </form>
     </div>
   )
 }
 
-import { createFileRoute } from '@tanstack/react-router'
 export const Route = createFileRoute('/_app/settings/notifications')({
   component: NotificationsPage,
 })

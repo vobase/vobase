@@ -2,83 +2,65 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { ApiKeysValues } from '@modules/settings/pages/schemas'
 import { apiKeysSchema } from '@modules/settings/pages/schemas'
+import { createFileRoute } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 
+import { SettingsCard, SettingsRow, SettingsSection } from '@/components/settings'
 import { Button } from '@/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function ApiKeysPage() {
   const { mutate, isPending } = useSettingsSave('api-keys', apiKeysSchema)
 
-  const form = useForm<ApiKeysValues>({
+  const { register, handleSubmit, setValue, watch, reset } = useForm<ApiKeysValues>({
     resolver: zodResolver(apiKeysSchema),
     defaultValues: { name: '', scope: '' },
   })
 
   async function onSubmit(values: ApiKeysValues) {
     await mutate(values)
-    form.reset()
+    reset()
   }
 
   return (
-    <div className="max-w-lg space-y-6 p-6">
-      <div>
-        <h2 className="font-semibold text-lg">API keys</h2>
-        <p className="text-muted-foreground text-sm">Manage API keys for programmatic access.</p>
-      </div>
-      <div className="rounded-lg border p-4 text-muted-foreground text-sm">No API keys yet.</div>
-      <div>
-        <h3 className="mb-3 font-medium text-sm">Create new key</h3>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Key name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="My API key" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="scope"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Scope</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select scope" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="read">Read</SelectItem>
-                      <SelectItem value="write">Write</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={isPending}>
+    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+      <SettingsSection title="API Keys">
+        <SettingsCard>
+          <SettingsRow label="No API keys yet." className="text-muted-foreground" />
+        </SettingsCard>
+      </SettingsSection>
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <SettingsSection title="Create new key">
+          <SettingsCard>
+            <SettingsRow label="Key name">
+              <Input className="w-full sm:w-[280px]" placeholder="My API key" {...register('name')} />
+            </SettingsRow>
+            <SettingsRow label="Scope">
+              <Select value={watch('scope') ?? ''} onValueChange={(v) => setValue('scope', v)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Select scope" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="read">Read</SelectItem>
+                  <SelectItem value="write">Write</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </SettingsRow>
+          </SettingsCard>
+          <div className="flex justify-end pt-2">
+            <Button size="sm" type="submit" disabled={isPending}>
               {isPending ? 'Creating…' : 'Create key'}
             </Button>
-          </form>
-        </Form>
-      </div>
+          </div>
+        </SettingsSection>
+      </form>
     </div>
   )
 }
 
-import { createFileRoute } from '@tanstack/react-router'
 export const Route = createFileRoute('/_app/settings/api-keys')({
   component: ApiKeysPage,
 })

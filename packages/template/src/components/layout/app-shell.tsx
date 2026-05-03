@@ -189,12 +189,9 @@ function DesktopShell({
             ))}
           </nav>
 
-          <div className="mt-auto flex flex-col gap-1">
-            <div className="flex h-9 items-center @max-[160px]/rail:justify-center @max-[160px]/rail:gap-0 gap-3 rounded-md @max-[160px]/rail:px-0 px-2.5 text-muted-foreground text-sm">
-              <ThemeSwitch />
-              <span className="@max-[160px]/rail:hidden">Theme</span>
-            </div>
-            <NavUser />
+          <div className="mt-auto flex flex-col gap-0.5">
+            <ThemeSwitch variant="row" />
+            <NavUser variant="row" />
           </div>
         </aside>
       </Panel>

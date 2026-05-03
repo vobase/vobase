@@ -6,6 +6,8 @@ export const profileSchema = z.object({
 })
 
 export const accountSchema = z.object({
+  displayName: z.string().optional(),
+  email: z.string().email().optional(),
   timezone: z.string().optional(),
   language: z.string().optional(),
 })

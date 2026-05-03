@@ -1,76 +1,132 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
-import type { AppearanceValues } from '@modules/settings/pages/schemas'
-import { appearanceSchema } from '@modules/settings/pages/schemas'
-import { useForm } from 'react-hook-form'
+import type { AppearanceValues, DisplayValues } from '@modules/settings/pages/schemas'
+import { appearanceSchema, displaySchema } from '@modules/settings/pages/schemas'
+import { createFileRoute } from '@tanstack/react-router'
+import { MonitorIcon, MoonIcon, SunIcon } from 'lucide-react'
+import { useEffect } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 
+import { SettingsCard, SettingsRow, SettingsSection, SettingsSegmented, SettingsToggle } from '@/components/settings'
 import { useTheme } from '@/components/theme-provider'
-import { THEME_OPTIONS, ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const THEME_OPTIONS = [
+  { value: 'light', label: 'Light', icon: <SunIcon /> },
+  { value: 'dark', label: 'Dark', icon: <MoonIcon /> },
+  { value: 'system', label: 'System', icon: <MonitorIcon /> },
+]
+
+const FONT_SIZE_OPTIONS = [
+  { value: 'sm', label: 'Small' },
+  { value: 'md', label: 'Medium' },
+  { value: 'lg', label: 'Large' },
+]
+
+const DENSITY_OPTIONS = [
+  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'compact', label: 'Compact' },
+]
+
+const FONT_SIZE_MAP: Record<string, string> = {
+  sm: '13px',
+  md: '15px',
+  lg: '17px',
+}
 
 export default function AppearancePage() {
-  const { theme } = useTheme()
-  const currentLabel = THEME_OPTIONS.find((o) => o.value === theme)?.label ?? 'System'
-  const { mutate, isPending } = useSettingsSave('appearance', appearanceSchema)
+  const { theme, setTheme } = useTheme()
+  const { mutate: saveAppearance, isPending: savingAppearance } = useSettingsSave('appearance', appearanceSchema)
+  const { mutate: saveDisplay, isPending: savingDisplay } = useSettingsSave('display', displaySchema)
 
-  const form = useForm<AppearanceValues>({
+  const appearanceForm = useForm<AppearanceValues>({
     resolver: zodResolver(appearanceSchema),
     defaultValues: { fontSize: 'md' },
   })
 
-  async function onSubmit(values: AppearanceValues) {
-    await mutate({ ...values, theme })
+  const displayForm = useForm<DisplayValues>({
+    resolver: zodResolver(displaySchema),
+    defaultValues: { density: 'comfortable', showAvatars: true },
+  })
+
+  const fontSize = useWatch({ control: appearanceForm.control, name: 'fontSize' })
+
+  useEffect(() => {
+    if (fontSize) {
+      document.documentElement.style.fontSize = FONT_SIZE_MAP[fontSize] ?? '15px'
+    }
+  }, [fontSize])
+
+  async function onSubmitAppearance(values: AppearanceValues) {
+    await saveAppearance({ ...values, theme })
+  }
+
+  async function onSubmitDisplay(values: DisplayValues) {
+    await saveDisplay(values)
   }
 
   return (
-    <div className="max-w-lg space-y-6 p-6">
-      <div>
-        <h2 className="font-semibold text-lg">Appearance</h2>
-        <p className="text-muted-foreground text-sm">Customize the look and feel of the app.</p>
-      </div>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-sm">Theme</span>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground text-sm">{currentLabel}</span>
-              <ThemeSwitch />
-            </div>
+    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+      <form onSubmit={appearanceForm.handleSubmit(onSubmitAppearance)}>
+        <SettingsSection title="Appearance">
+          <SettingsCard>
+            <SettingsRow label="Theme">
+              <SettingsSegmented
+                name="theme"
+                value={theme}
+                onValueChange={(v) => setTheme(v as 'light' | 'dark' | 'system')}
+                options={THEME_OPTIONS}
+                className="w-full sm:w-[260px]"
+              />
+            </SettingsRow>
+            <SettingsRow label="Font size">
+              <SettingsSegmented
+                name="fontSize"
+                value={appearanceForm.watch('fontSize') ?? 'md'}
+                onValueChange={(v) => appearanceForm.setValue('fontSize', v as 'sm' | 'md' | 'lg')}
+                options={FONT_SIZE_OPTIONS}
+                className="w-full sm:w-[260px]"
+              />
+            </SettingsRow>
+          </SettingsCard>
+          <div className="flex justify-end pt-2">
+            <Button size="sm" type="submit" disabled={savingAppearance}>
+              {savingAppearance ? 'Saving…' : 'Save'}
+            </Button>
           </div>
-          <FormField
-            control={form.control}
-            name="fontSize"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Font size</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select size" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="sm">Small</SelectItem>
-                    <SelectItem value="md">Medium</SelectItem>
-                    <SelectItem value="lg">Large</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type="submit" disabled={isPending}>
-            {isPending ? 'Saving…' : 'Save appearance'}
-          </Button>
-        </form>
-      </Form>
+        </SettingsSection>
+      </form>
+
+      <form onSubmit={displayForm.handleSubmit(onSubmitDisplay)}>
+        <SettingsSection title="Display">
+          <SettingsCard>
+            <SettingsRow label="Density">
+              <SettingsSegmented
+                name="density"
+                value={displayForm.watch('density') ?? 'comfortable'}
+                onValueChange={(v) => displayForm.setValue('density', v as 'comfortable' | 'compact')}
+                options={DENSITY_OPTIONS}
+                className="w-full sm:w-[260px]"
+              />
+            </SettingsRow>
+            <SettingsToggle
+              label="Show avatars"
+              description="Display profile pictures in lists and conversations."
+              checked={displayForm.watch('showAvatars') ?? true}
+              onCheckedChange={(v) => displayForm.setValue('showAvatars', v)}
+            />
+          </SettingsCard>
+          <div className="flex justify-end pt-2">
+            <Button size="sm" type="submit" disabled={savingDisplay}>
+              {savingDisplay ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </SettingsSection>
+      </form>
     </div>
   )
 }
 
-import { createFileRoute } from '@tanstack/react-router'
 export const Route = createFileRoute('/_app/settings/appearance')({
   component: AppearancePage,
 })
