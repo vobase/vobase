@@ -49,9 +49,32 @@ utility set, and z-index registry (`packages/template/src/styles`).
 `text-mini` / `text-compact` retired in favor of Tailwind's default text
 scale.
 
+**Settings consolidated to one page.** The `/settings/account` placeholder
+form is gone; the user-menu's top item is now a Profile link to the
+authenticated user's `/team/<userId>` detail page. The remaining tabs
+(Appearance, Notifications, API Keys) collapse into a single
+InfoSection-stack `/settings` page (no tabs), mirroring the contact-detail
+layout. `/settings` redirects to itself; the `account`, `profile`, `display`
+sub-routes are deleted along with their no-op POST endpoints
+(`/api/settings/account`, `/api/settings/appearance`, `/api/settings/display`).
+
+**Auto-save settings.** Notifications auto-save with a 400 ms debounce and a
+"Saving… → Saved → Save failed" indicator (toast on error). Theme + font
+size are now treated as client-only state (theme-provider + documentElement
+font-size) — no longer round-tripped through a stub server endpoint that
+swallowed the writes.
+
+**Real API keys.** The API Keys section was a placeholder POSTing to a
+no-op endpoint. It now goes through the existing `auth/api-keys` service
+(the same one that backs `cli-grant` for CLI device-grant auth):
+`GET /api/settings/api-keys` lists summaries (id, name, prefix•start,
+created, last-used), `POST` creates and returns the plaintext token once
+in a green reveal banner with a Copy button, `DELETE :id` revokes (and
+guards by ownership at the query). Tokens are sha256-hashed at rest and
+the `key` field is excluded from list responses (with a regression test).
+Created and last-used render via `RelativeTimeCard`.
+
 **Smaller polish.** Rail nav badge sizing (text-xs / h-5), Add web channel
-CTA size + 480px web preview track, Settings page width unified across
-account / appearance / notifications / api-keys, redundant Drive list-page
-icon removed, list-page action button icons no longer force `mr-2 size-4`
-(`size=sm` slot spacing handles it), `/settings/appearance` drops the
-non-functional Display options block.
+CTA size + 480px web preview track, redundant Drive list-page icon
+removed, list-page action button icons no longer force `mr-2 size-4`
+(`size=sm` slot spacing handles it).
