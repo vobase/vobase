@@ -50,36 +50,34 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <SettingsSection title="Notifications">
-          <SettingsCard>
-            <SettingsToggle
-              label="Mention notifications"
-              description="Notify me when an internal note mentions me."
-              checked={watch('mentionsEnabled') ?? true}
-              onCheckedChange={(v) => setValue('mentionsEnabled', v)}
-            />
-            <SettingsToggle
-              label="WhatsApp"
-              description="Ping me on WhatsApp when mentioned while offline (last seen > 2 min ago)."
-              checked={watch('whatsappEnabled') ?? false}
-              onCheckedChange={(v) => setValue('whatsappEnabled', v)}
-            />
-            <SettingsToggle
-              label="Email"
-              checked={watch('emailEnabled') ?? false}
-              onCheckedChange={(v) => setValue('emailEnabled', v)}
-            />
-          </SettingsCard>
-          <div className="flex justify-end pt-2">
-            <Button size="sm" type="submit" disabled={isPending}>
-              {isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </SettingsSection>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <SettingsSection title="Notifications">
+        <SettingsCard>
+          <SettingsToggle
+            label="Mention notifications"
+            description="Notify me when an internal note mentions me."
+            checked={watch('mentionsEnabled') ?? true}
+            onCheckedChange={(v) => setValue('mentionsEnabled', v)}
+          />
+          <SettingsToggle
+            label="WhatsApp"
+            description="Ping me on WhatsApp when mentioned while offline (last seen > 2 min ago)."
+            checked={watch('whatsappEnabled') ?? false}
+            onCheckedChange={(v) => setValue('whatsappEnabled', v)}
+          />
+          <SettingsToggle
+            label="Email"
+            checked={watch('emailEnabled') ?? false}
+            onCheckedChange={(v) => setValue('emailEnabled', v)}
+          />
+        </SettingsCard>
+        <div className="flex justify-end pt-2">
+          <Button size="sm" type="submit" disabled={isPending}>
+            {isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </SettingsSection>
+    </form>
   )
 }
 

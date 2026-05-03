@@ -63,7 +63,7 @@ function ChangesPage() {
         }
       />
 
-      <PageBody className="mx-auto w-full max-w-5xl">
+      <PageBody className="mx-auto w-full max-w-4xl">
         {isLoading && (
           <div className="space-y-4">
             {[0, 1, 2].map((i) => (

@@ -1,19 +1,55 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, Outlet, redirect, useRouterState } from '@tanstack/react-router'
 import { Bell, KeyRound, Monitor, Settings2 } from 'lucide-react'
 
-import { ContentLayout } from '@/components/layout/content-layout'
-import type { SubNavItem } from '@/components/layout/sub-nav'
-import { SubNav } from '@/components/layout/sub-nav'
+import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
+import { cn } from '@/lib/utils'
 
-export const SETTINGS_NAV_ITEMS: SubNavItem[] = [
-  { href: '/settings/account', label: 'Account', icon: <Settings2 /> },
-  { href: '/settings/appearance', label: 'Appearance', icon: <Monitor /> },
-  { href: '/settings/notifications', label: 'Notifications', icon: <Bell /> },
-  { href: '/settings/api-keys', label: 'API Keys', icon: <KeyRound /> },
+const SETTINGS_NAV_ITEMS = [
+  { href: '/settings/account', label: 'Account', icon: Settings2 },
+  { href: '/settings/appearance', label: 'Appearance', icon: Monitor },
+  { href: '/settings/notifications', label: 'Notifications', icon: Bell },
+  { href: '/settings/api-keys', label: 'API Keys', icon: KeyRound },
 ]
 
+function SettingsTabs() {
+  const path = useRouterState({ select: (s) => s.location.pathname })
+  return (
+    <nav
+      aria-label="Settings sections"
+      className="-mx-6 flex shrink-0 gap-1 overflow-x-auto border-border border-b px-6"
+    >
+      {SETTINGS_NAV_ITEMS.map((item) => {
+        const Icon = item.icon
+        const active = path.startsWith(item.href)
+        return (
+          <Link
+            key={item.href}
+            to={item.href}
+            className={cn(
+              'inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors',
+              active
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="size-4" />
+            {item.label}
+          </Link>
+        )
+      })}
+    </nav>
+  )
+}
+
 export function SettingsLayout() {
-  return <ContentLayout subNav={<SubNav items={SETTINGS_NAV_ITEMS} />} content={<Outlet />} />
+  return (
+    <PageLayout>
+      <PageHeader title="Settings" description="Personal preferences and access keys." meta={<SettingsTabs />} />
+      <PageBody className="mx-auto w-full max-w-4xl space-y-8">
+        <Outlet />
+      </PageBody>
+    </PageLayout>
+  )
 }
 
 export default SettingsLayout

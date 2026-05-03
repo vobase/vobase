@@ -66,7 +66,7 @@ export default function AppearancePage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+    <>
       <form onSubmit={appearanceForm.handleSubmit(onSubmitAppearance)}>
         <SettingsSection title="Appearance">
           <SettingsCard>
@@ -123,7 +123,7 @@ export default function AppearancePage() {
           </div>
         </SettingsSection>
       </form>
-    </div>
+    </>
   )
 }
 

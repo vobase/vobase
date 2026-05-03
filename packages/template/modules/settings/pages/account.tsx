@@ -26,7 +26,7 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+    <>
       <form onSubmit={handleSubmit(onSubmit)}>
         <SettingsSection title="Account">
           <SettingsCard>
@@ -63,7 +63,7 @@ export default function AccountPage() {
           </DriveProvider>
         </SettingsSection>
       )}
-    </div>
+    </>
   )
 }
 

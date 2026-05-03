@@ -24,7 +24,7 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+    <>
       <SettingsSection title="API Keys">
         <SettingsCard>
           <SettingsRow label="No API keys yet." className="text-muted-foreground" />
@@ -57,7 +57,7 @@ export default function ApiKeysPage() {
           </div>
         </SettingsSection>
       </form>
-    </div>
+    </>
   )
 }
 
