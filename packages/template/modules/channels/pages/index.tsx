@@ -435,7 +435,7 @@ function BubblePreview({ instance }: { instance: WebInstance }) {
       <div className="absolute top-4 left-4 text-[10px] text-muted-foreground uppercase tracking-widest">Preview</div>
 
       {/* Welcome panel */}
-      <div className="absolute right-4 bottom-[74px] w-[260px] overflow-hidden rounded-xl bg-white shadow-[0_12px_48px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]">
+      <div className="absolute right-4 bottom-[74px] w-[380px] overflow-hidden rounded-xl bg-white shadow-[0_12px_48px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]">
         <div className="flex items-center gap-3 border-[#e5e5e5] border-b bg-white px-3 py-3">
           <div
             className="flex size-8 items-center justify-center rounded-full text-white"
@@ -533,7 +533,7 @@ function InstanceCard({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
         <ChatLinkField instance={instance} />
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_480px]">
           <EmbedSnippets instance={instance} />
           <BubblePreview instance={instance} />
         </div>
@@ -580,15 +580,15 @@ export function ChannelsPage() {
         title="Channels"
         description="Transport adapters connecting customers to this organization's messaging."
         actions={
-          <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-            <Plus className="size-4" />
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus />
             Add web channel
           </Button>
         }
       />
 
       <PageBody>
-        <div className="mx-auto flex max-w-4xl flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <section>
             <h2 className="mb-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Web</h2>
 

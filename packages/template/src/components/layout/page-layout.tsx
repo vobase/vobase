@@ -30,7 +30,7 @@ interface PageHeaderProps {
 
 function PageHeader({ title, description, icon: Icon, backTo, actions, meta, className }: PageHeaderProps) {
   return (
-    <header className={cn('shrink-0 border-border border-b px-6 py-4', className)}>
+    <header className={cn('shrink-0 border-border border-b px-4 py-4 sm:px-6', className)}>
       <div className="flex items-center gap-3">
         {backTo && (
           <Button asChild size="sm" variant="ghost">
@@ -63,7 +63,14 @@ interface PageBodyProps {
 
 function PageBody({ children, padded = true, scroll = true, className }: PageBodyProps) {
   return (
-    <div className={cn('flex-1', scroll ? 'overflow-auto' : 'overflow-hidden', padded && 'px-6 py-4', className)}>
+    <div
+      className={cn(
+        'flex-1 bg-muted/40',
+        scroll ? 'overflow-auto' : 'overflow-hidden',
+        padded && 'px-4 py-4 sm:px-6',
+        className,
+      )}
+    >
       {children}
     </div>
   )

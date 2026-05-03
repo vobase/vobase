@@ -44,9 +44,16 @@ function SettingsTabs() {
 export function SettingsLayout() {
   return (
     <PageLayout>
-      <PageHeader title="Settings" description="Personal preferences and access keys." meta={<SettingsTabs />} />
-      <PageBody className="mx-auto w-full max-w-4xl space-y-8">
-        <Outlet />
+      <PageHeader
+        title="Settings"
+        description="Personal preferences and access keys."
+        meta={<SettingsTabs />}
+        className="border-b-0"
+      />
+      <PageBody>
+        <div className="mx-auto w-full max-w-4xl space-y-8">
+          <Outlet />
+        </div>
       </PageBody>
     </PageLayout>
   )
