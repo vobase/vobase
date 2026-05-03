@@ -2,7 +2,9 @@
  * Drive files service — factory-DI, scope-partitioned by (scope, scope_id).
  *
  * Real reads: getByPath, listFolder, readContent, getBusinessMd, get.
- * Real writes: create, mkdir, move, remove.
+ * Real writes: create, mkdir, move, remove, ingestUpload, requestCaption,
+ *              reextract, reapStalePending.
+ * Search: searchDrive (hybrid pgvector + tsvector).
  *
  * Virtual overlay (`contact` + `staff` scopes):
  *   - `/PROFILE.md` ↔ `contacts.profile` / `staff_profiles.profile`
@@ -16,19 +18,40 @@
  * persisting to the backing column. `listFolder` at root surfaces the
  * virtual entries even when no `drive.files` rows exist.
  *
- * `grep`, `ingestUpload`, `saveInboundMessageAttachment`, `deleteScope` remain
- * stubbed — covered by later slices.
+ * `grep` and `deleteScope` remain stubbed — covered by later slices.
  */
 
 import { agentDefinitions } from '@modules/agents/schema'
 import { contacts } from '@modules/contacts/schema'
-import { driveFiles } from '@modules/drive/schema'
+import { driveChunks, driveFiles } from '@modules/drive/schema'
 import { staffProfiles } from '@modules/team/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 
+import type { AppStorage, RealtimeService } from '~/runtime'
+import { INBOUND_TO_WAKE_JOB } from '~/wake/inbound'
+import {
+  DRIVE_PROCESS_FILE_JOB,
+  DRIVE_REAPER_STALE_MS,
+  DRIVE_STORAGE_BUCKET,
+  REQUEST_CAPTION_MAX_BYTES,
+} from '../constants'
+import { deriveDriveName } from '../lib/drive-name'
+import { embedTexts, encodeVector } from '../lib/embeddings'
+import { hybridScore } from '../lib/search'
 import type { DriveFile } from '../schema'
 import { listOverlayProviders } from './overlays'
-import type { CreateFileInput, DriveScope, GrepMatch, GrepOpts, IngestUploadInput } from './types'
+import type {
+  CreateFileInput,
+  DriveScope,
+  GrepMatch,
+  GrepOpts,
+  IngestUploadInput,
+  IngestUploadResult,
+  RequestCaptionInput,
+  RequestCaptionResult,
+  SearchDriveHit,
+  SearchDriveInput,
+} from './types'
 import { parseVirtualId, type VirtualBackingScope, type VirtualField } from './virtual-ids'
 
 /** Fallback content when /BUSINESS.md is absent from the drive. */
@@ -54,7 +77,7 @@ type FilesDb = {
       where: (c: unknown) => {
         limit: (n: number) => Promise<unknown[]>
       } & Promise<unknown[]>
-    }
+    } & Promise<unknown[]>
   }
   insert: (t: unknown) => {
     values: (v: unknown) => {
@@ -71,6 +94,7 @@ type FilesDb = {
   delete: (t: unknown) => {
     where: (c: unknown) => Promise<unknown>
   }
+  execute: <T>(q: unknown) => Promise<T[]>
 }
 
 export interface ReadPathResult {
@@ -92,14 +116,48 @@ export interface FilesService {
   mkdir(scope: DriveScope, path: string): Promise<DriveFile>
   move(id: string, newPath: string): Promise<DriveFile>
   remove(id: string): Promise<void>
-  ingestUpload(input: IngestUploadInput): Promise<DriveFile>
-  saveInboundMessageAttachment(msgId: string, targetPath?: string): Promise<DriveFile>
+  /**
+   * Auth-agnostic upload entry point. The HTTP handler enforces scope-write
+   * RBAC; trusted in-process callers (inbound channel ingestion) skip the
+   * gate. Inserts the row, uploads bytes, enqueues `drive:process-file`.
+   */
+  ingestUpload(input: IngestUploadInput): Promise<IngestUploadResult>
+  /**
+   * Agent-side action: forces multimodal caption + extraction on a binary-stub
+   * row. The job re-wakes the originating conversation when extraction finishes
+   * via `INBOUND_TO_WAKE_JOB` with a `caption_ready` trigger.
+   */
+  requestCaption(input: RequestCaptionInput): Promise<RequestCaptionResult>
+  /** Hybrid search across drive chunks; tenant-isolated by `organizationId`. */
+  searchDrive(input: SearchDriveInput): Promise<SearchDriveHit[]>
+  /** Re-extract a file. Recomputes `path` if mime classification flips. */
+  reextract(fileId: string): Promise<void>
+  /** Sweep stuck `(pending, *)` rows; safe to call at module init. */
+  reapStalePending(): Promise<{ swept: number }>
   deleteScope(scope: 'contact' | 'staff', scopeId: string): Promise<void>
+}
+
+/**
+ * Minimal pg-boss-shaped scheduler — enough for `ingestUpload` to enqueue
+ * `drive:process-file` without dragging pg-boss types into the unit-test path.
+ */
+export interface FilesScheduler {
+  send(
+    name: string,
+    data: Record<string, unknown>,
+    opts?: { startAfter?: Date; singletonKey?: string },
+  ): Promise<string>
 }
 
 export interface FilesServiceDeps {
   db: unknown
   organizationId: string
+  /** Storage adapter (`ctx.storage`); optional for tests that exercise read-only paths only. */
+  storage?: AppStorage
+  /** Job queue (`ctx.jobs`); optional for tests that don't enqueue. */
+  jobs?: FilesScheduler
+  /** Realtime fanout (`ctx.realtime`); optional for tests. */
+  realtime?: RealtimeService
 }
 
 /** If `(scope, path)` is a contact/staff/agent virtual path, return the logical field name. */
@@ -177,11 +235,14 @@ export function virtualDriveFile(
     captionModel: null,
     captionUpdatedAt: null,
     extractedText: null,
+    originalName: null,
+    nameStem: null,
     source: null,
     sourceMessageId: null,
     tags: [],
     uploadedBy: null,
     processingStatus: 'ready',
+    extractionKind: 'extracted',
     processingError: null,
     threatScanReport: null,
     createdAt: updatedAt,
@@ -347,11 +408,14 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       captionModel: null,
       captionUpdatedAt: null,
       extractedText: null,
+      originalName: null,
+      nameStem: null,
       source: null,
       sourceMessageId: null,
       tags: [],
       uploadedBy: null,
       processingStatus: 'ready',
+      extractionKind: 'extracted',
       processingError: null,
       threatScanReport: null,
       createdAt: updatedAt,
@@ -622,14 +686,359 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     throw new Error('not-implemented-in-phase-1: drive/files.grep')
   }
 
-  // biome-ignore lint/suspicious/useAwait: contract requires async signature
-  async function ingestUpload(_input: IngestUploadInput): Promise<DriveFile> {
-    throw new Error('not-implemented-in-phase-1: drive/files.ingestUpload')
+  /**
+   * `ON CONFLICT (organizationId, scope, scopeId, path)` loop. Tries the
+   * candidate, then `<stem> (2).<ext>`, `<stem> (3).<ext>`, … up to 32 attempts
+   * before giving up. Returns the resolved unique path.
+   */
+  async function resolveUniquePath(scope: DriveScope, basePath: string, displayName: string): Promise<string> {
+    const safeBase = basePath.endsWith('/') ? basePath : `${basePath}/`
+    const dot = displayName.lastIndexOf('.')
+    const stem = dot > 0 ? displayName.slice(0, dot) : displayName
+    const ext = dot > 0 ? displayName.slice(dot) : ''
+    for (let attempt = 1; attempt <= 32; attempt++) {
+      const candidate = attempt === 1 ? `${safeBase}${stem}${ext}` : `${safeBase}${stem} (${attempt})${ext}`
+      const existing = await getByPath(scope, candidate)
+      if (!existing) return candidate
+    }
+    throw new Error(`drive/files: resolveUniquePath exceeded 32 attempts for ${basePath}${displayName}`)
   }
 
-  // biome-ignore lint/suspicious/useAwait: contract requires async signature
-  async function saveInboundMessageAttachment(_msgId: string, _targetPath?: string): Promise<DriveFile> {
-    throw new Error('not-implemented-in-phase-1: drive/files.saveInboundMessageAttachment')
+  function notifyDriveFile(id: string, action: 'created' | 'updated' | 'deleted'): void {
+    if (deps.realtime) {
+      deps.realtime.notify({ table: 'drive_files', id, action })
+    }
+  }
+
+  async function ingestUpload(input: IngestUploadInput): Promise<IngestUploadResult> {
+    if (!deps.storage) throw new Error('drive/files: storage not installed — pass ctx.storage to setFilesRuntime')
+    if (!deps.jobs) throw new Error('drive/files: jobs not installed — pass ctx.jobs to setFilesRuntime')
+    const { scopeName, scopeIdVal } = scopeId(input.scope)
+    const { nameStem, displayName } = deriveDriveName({
+      originalName: input.originalName,
+      mimeType: input.mimeType,
+    })
+
+    // Overlay collision check — refuse to shadow virtual fields.
+    const candidatePath = `${input.basePath.replace(/\/+$/u, '')}/${displayName}`
+    if (resolveVirtualField(input.scope, candidatePath) !== null) {
+      throw new Error(`overlay_path_collision: cannot upload over virtual path ${candidatePath}`)
+    }
+
+    const path = await resolveUniquePath(input.scope, input.basePath, displayName)
+    const parentFolderId = await ensureParentFolderId(input.scope, path).catch(() => null)
+    const insertedRows = (await db
+      .insert(driveFiles)
+      .values({
+        organizationId: input.organizationId,
+        scope: scopeName,
+        scopeId: scopeIdVal,
+        parentFolderId,
+        kind: 'file',
+        name: displayName,
+        path,
+        mimeType: input.mimeType,
+        sizeBytes: input.sizeBytes,
+        storageKey: null,
+        originalName: input.originalName,
+        nameStem,
+        source: input.source,
+        uploadedBy: input.uploadedBy,
+        processingStatus: 'pending',
+        extractionKind: 'pending',
+        tags: [],
+      })
+      .returning()) as DriveFile[]
+    const row = insertedRows[0]
+    if (!row) throw new Error('drive/files.ingestUpload: insert returned no rows')
+
+    // Storage upload. On failure mark row terminal-failed (audit trail) and rethrow.
+    const storageKey = `${scopeName}/${row.id}/${sanitizeKey(input.originalName)}`
+    try {
+      await deps.storage.bucket(DRIVE_STORAGE_BUCKET).upload(storageKey, input.bytes, { contentType: input.mimeType })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      await db
+        .update(driveFiles)
+        .set({
+          processingStatus: 'failed',
+          extractionKind: 'failed',
+          processingError: `storage_upload_failed: ${msg}`,
+        })
+        .where(and(eq(driveFiles.organizationId, input.organizationId), eq(driveFiles.id, row.id)))
+      notifyDriveFile(row.id, 'updated')
+      throw err
+    }
+    // If the post-upload UPDATE fails, delete the orphan bytes before bailing.
+    try {
+      await db
+        .update(driveFiles)
+        .set({ storageKey })
+        .where(and(eq(driveFiles.organizationId, input.organizationId), eq(driveFiles.id, row.id)))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      try {
+        await deps.storage.bucket(DRIVE_STORAGE_BUCKET).delete(storageKey)
+      } catch {
+        // best-effort: orphan bytes is the lesser evil
+      }
+      await db
+        .update(driveFiles)
+        .set({
+          processingStatus: 'failed',
+          extractionKind: 'failed',
+          processingError: `storage_key_update_failed: ${msg}`,
+        })
+        .where(and(eq(driveFiles.organizationId, input.organizationId), eq(driveFiles.id, row.id)))
+      notifyDriveFile(row.id, 'updated')
+      throw err
+    }
+
+    // Enqueue extraction. If this throws, row stays (pending, pending) — reaper sweeps.
+    await deps.jobs.send(
+      DRIVE_PROCESS_FILE_JOB,
+      { fileId: row.id, organizationId: input.organizationId, forceCaption: false },
+      { singletonKey: `drive:process:${row.id}` },
+    )
+    notifyDriveFile(row.id, 'created')
+    return { id: row.id, path, nameStem, extractionKind: 'pending' }
+  }
+
+  async function ensureParentFolderId(scope: DriveScope, path: string): Promise<string | null> {
+    const parent = parentPathOf(path)
+    if (!parent) return null
+    const row = await getByPath(scope, parent)
+    if (row && row.kind === 'folder') return row.id
+    if (row) throw new Error(`parent is not a folder: ${parent}`)
+    return null
+  }
+
+  async function requestCaption(input: RequestCaptionInput): Promise<RequestCaptionResult> {
+    if (!deps.jobs) throw new Error('drive/files: jobs not installed — pass ctx.jobs to setFilesRuntime')
+    const row = await get(input.fileId)
+    if (!row) return { ok: false, error: 'not_found' }
+    if (row.organizationId !== input.organizationId) return { ok: false, error: 'not_found' }
+    if (row.extractionKind === 'pending' || row.extractionKind === 'failed') {
+      return { ok: false, error: 'not a binary file' }
+    }
+    if (row.extractionKind === 'extracted') {
+      // Already-extracted: enqueue an immediate caption_ready wake (no new OCR cost).
+      await deps.jobs.send(
+        INBOUND_TO_WAKE_JOB,
+        {
+          organizationId: input.organizationId,
+          conversationId: input.conversationId,
+          contactId: input.contactId,
+          trigger: { trigger: 'caption_ready', conversationId: input.conversationId, fileId: row.id },
+        },
+        { singletonKey: `drive:caption-ready:${row.id}` },
+      )
+      return { ok: true, accepted: true, eta_ms: 0 }
+    }
+    // binary-stub
+    if ((row.sizeBytes ?? 0) > REQUEST_CAPTION_MAX_BYTES) {
+      return {
+        ok: false,
+        error: 'file too large for caption',
+        sizeBytes: row.sizeBytes ?? 0,
+        maxBytes: REQUEST_CAPTION_MAX_BYTES,
+      }
+    }
+    await deps.jobs.send(
+      DRIVE_PROCESS_FILE_JOB,
+      {
+        fileId: row.id,
+        organizationId: input.organizationId,
+        forceCaption: true,
+        wakeOnComplete: { conversationId: input.conversationId, contactId: input.contactId },
+      },
+      { singletonKey: `drive:process:${row.id}` },
+    )
+    return { ok: true, accepted: true, eta_ms: 30_000 }
+  }
+
+  async function searchDrive(input: SearchDriveInput): Promise<SearchDriveHit[]> {
+    if (input.organizationId !== organizationId) {
+      // Defensive — service is bound to one org; mismatch indicates wiring bug.
+      throw new Error('drive/files.searchDrive: organizationId mismatch')
+    }
+    const limit = input.limit ?? 10
+
+    // Vector + keyword candidates run in parallel; vector falls back to empty
+    // when no OPENAI key is set so keyword still drives the result set.
+    const [vectorCandidates, keywordCandidates] = await Promise.all([
+      runVectorSearch(input.query, input.scope, limit * 3).catch(() => []),
+      runKeywordSearch(input.query, input.scope, limit * 3).catch(() => []),
+    ])
+
+    const byChunk = new Map<string, { chunkId: string; cosineDistance: number; tsRank: number }>()
+    for (const v of vectorCandidates)
+      byChunk.set(v.chunkId, { chunkId: v.chunkId, cosineDistance: v.cosineDistance, tsRank: 0 })
+    for (const k of keywordCandidates) {
+      const existing = byChunk.get(k.chunkId)
+      if (existing) existing.tsRank = k.tsRank
+      else byChunk.set(k.chunkId, { chunkId: k.chunkId, cosineDistance: 1, tsRank: k.tsRank })
+    }
+    const ranked = [...byChunk.values()]
+      .map((c) => ({ ...c, score: hybridScore({ cosineDistance: c.cosineDistance, tsRank: c.tsRank }) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+
+    if (ranked.length === 0) return []
+
+    const chunkIds = ranked.map((r) => r.chunkId)
+    const chunkRows = (await db
+      .select()
+      .from(driveChunks)
+      .where(and(eq(driveChunks.organizationId, organizationId), inArray(driveChunks.id, chunkIds)))) as Array<{
+      id: string
+      fileId: string
+      chunkIndex: number
+      content: string
+    }>
+    const chunkById = new Map(chunkRows.map((c) => [c.id, c]))
+    const fileIds = [...new Set(chunkRows.map((c) => c.fileId))]
+    const fileRows =
+      fileIds.length > 0
+        ? ((await db
+            .select()
+            .from(driveFiles)
+            .where(and(eq(driveFiles.organizationId, organizationId), inArray(driveFiles.id, fileIds)))) as DriveFile[])
+        : []
+    const fileById = new Map(fileRows.map((f) => [f.id, f]))
+    const hits: SearchDriveHit[] = []
+    for (const r of ranked) {
+      const chunk = chunkById.get(r.chunkId)
+      if (!chunk) continue
+      const file = fileById.get(chunk.fileId)
+      if (!file) continue
+      hits.push({
+        fileId: file.id,
+        path: file.path,
+        caption: file.caption,
+        chunkIndex: chunk.chunkIndex,
+        excerpt: chunk.content.slice(0, 240),
+        score: r.score,
+      })
+    }
+    return hits
+  }
+
+  /** Run pgvector cosine-distance search; returns chunkId + distance. */
+  async function runVectorSearch(
+    query: string,
+    scope: DriveScope | undefined,
+    fetchN: number,
+  ): Promise<Array<{ chunkId: string; cosineDistance: number }>> {
+    const embedded = await embedQueryIfPossible(query)
+    if (!embedded) return []
+    const vec = encodeVector(embedded)
+    const scopeFilter = scope
+      ? sql`AND scope = ${scopeId(scope).scopeName} AND scope_id = ${scopeId(scope).scopeIdVal}`
+      : sql``
+    const rows = (await db.execute<{ id: string; distance: number }>(
+      sql`SELECT id, embedding <=> ${vec}::vector AS distance
+          FROM drive.chunks
+          WHERE organization_id = ${organizationId}
+          ${scopeFilter}
+          ORDER BY embedding <=> ${vec}::vector
+          LIMIT ${fetchN}`,
+    )) as Array<{ id: string; distance: number }>
+    return rows.map((r) => ({ chunkId: r.id, cosineDistance: Number(r.distance) }))
+  }
+
+  /** Run tsvector keyword search; returns chunkId + ts_rank. */
+  async function runKeywordSearch(
+    query: string,
+    scope: DriveScope | undefined,
+    fetchN: number,
+  ): Promise<Array<{ chunkId: string; tsRank: number }>> {
+    const scopeFilter = scope
+      ? sql`AND scope = ${scopeId(scope).scopeName} AND scope_id = ${scopeId(scope).scopeIdVal}`
+      : sql``
+    const rows = (await db.execute<{ id: string; rank: number }>(
+      sql`SELECT id, ts_rank(tsv, websearch_to_tsquery('english', ${query})) AS rank
+          FROM drive.chunks
+          WHERE organization_id = ${organizationId}
+            AND tsv @@ websearch_to_tsquery('english', ${query})
+          ${scopeFilter}
+          ORDER BY rank DESC
+          LIMIT ${fetchN}`,
+    )) as Array<{ id: string; rank: number }>
+    return rows.map((r) => ({ chunkId: r.id, tsRank: Number(r.rank) }))
+  }
+
+  /** Wraps `embedTexts` for query embedding; returns null if the embedder is unavailable. */
+  async function embedQueryIfPossible(query: string): Promise<number[] | null> {
+    if (!process.env.OPENAI_API_KEY) return null
+    try {
+      const { embeddings } = await embedTexts([query])
+      return embeddings[0] ?? null
+    } catch {
+      return null
+    }
+  }
+
+  async function reextract(fileId: string): Promise<void> {
+    if (!deps.jobs) throw new Error('drive/files: jobs not installed — pass ctx.jobs to setFilesRuntime')
+    const row = await get(fileId)
+    if (!row) throw new Error(`drive/files.reextract: not found: ${fileId}`)
+    // Recompute path if mime classification flipped; `nameStem` and `originalName` stay frozen.
+    const patch: Partial<DriveFile> = {
+      processingStatus: 'pending',
+      extractionKind: 'pending',
+      processingError: null,
+    }
+    if (row.originalName && row.mimeType) {
+      const { displayName } = deriveDriveName({ originalName: row.originalName, mimeType: row.mimeType })
+      const lastSlash = row.path.lastIndexOf('/')
+      const basePath = lastSlash >= 0 ? row.path.slice(0, lastSlash + 1) : '/'
+      const candidate = `${basePath}${displayName}`
+      if (candidate !== row.path) {
+        patch.path = candidate
+        patch.name = displayName
+      }
+    }
+    await db
+      .update(driveFiles)
+      .set(patch)
+      .where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, fileId)))
+    await deps.jobs.send(
+      DRIVE_PROCESS_FILE_JOB,
+      { fileId, organizationId, forceCaption: false },
+      { singletonKey: `drive:process:${fileId}` },
+    )
+    notifyDriveFile(fileId, 'updated')
+  }
+
+  async function reapStalePending(): Promise<{ swept: number }> {
+    if (!deps.jobs) return { swept: 0 }
+    const cutoff = new Date(Date.now() - DRIVE_REAPER_STALE_MS)
+    const stale = (await db
+      .select()
+      .from(driveFiles)
+      .where(
+        and(
+          eq(driveFiles.organizationId, organizationId),
+          eq(driveFiles.extractionKind, 'pending'),
+          or(eq(driveFiles.processingStatus, 'pending'), eq(driveFiles.processingStatus, 'processing')),
+          lt(driveFiles.updatedAt, cutoff),
+        ),
+      )) as DriveFile[]
+    let swept = 0
+    for (const row of stale) {
+      await db
+        .update(driveFiles)
+        .set({ processingStatus: 'pending' })
+        .where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, row.id)))
+      await deps.jobs.send(
+        DRIVE_PROCESS_FILE_JOB,
+        { fileId: row.id, organizationId, forceCaption: false },
+        { singletonKey: `drive:process:${row.id}` },
+      )
+      swept++
+    }
+    return { swept }
   }
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
@@ -651,40 +1060,83 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     move,
     remove,
     ingestUpload,
-    saveInboundMessageAttachment,
+    requestCaption,
+    searchDrive,
+    reextract,
+    reapStalePending,
     deleteScope,
   }
 }
 
+/** Sanitize a filename for use as a storage key (preserve extension). */
+function sanitizeKey(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/gu, '_')
+}
+
 /**
- * Module-level db + auth handles — installed once by the drive module at boot
- * so HTTP handlers (which see `organizationId` per-request) can construct a
- * bound `FilesService` via `filesServiceFor(organizationId)` and read the
- * better-auth handle via `getDriveAuth()`.
+ * Module-level handles — installed once by the drive module at boot so HTTP
+ * handlers (which see `organizationId` per-request) can construct a bound
+ * `FilesService` via `filesServiceFor(organizationId)`. Auth is read by drive
+ * scope-RBAC middleware via `getDriveAuth()`.
  *
- * Tests call `setFilesDb(db.db)` directly without auth (auth-gated reads
- * fall back to the no-auth path).
+ * `setFilesDb` is a back-compat alias kept for test code that doesn't enqueue
+ * jobs / upload bytes. New code should call `setFilesRuntime`.
  */
 let _currentDb: unknown = null
 let _currentAuth: unknown = null
+let _currentStorage: AppStorage | null = null
+let _currentJobs: FilesScheduler | null = null
+let _currentRealtime: RealtimeService | null = null
 
-export function setFilesDb(db: unknown, auth: unknown = null): void {
+/**
+ * Install the drive runtime handles. Production callers (module `init`) pass
+ * all five; test code typically passes only `db` (and optionally `auth`).
+ */
+export function setFilesRuntime(
+  db: unknown,
+  auth: unknown,
+  storage: AppStorage | null,
+  jobs: FilesScheduler | null,
+  realtime: RealtimeService | null,
+): void {
   _currentDb = db
   _currentAuth = auth
+  _currentStorage = storage
+  _currentJobs = jobs
+  _currentRealtime = realtime
+}
+
+/** Back-compat alias for tests that only need read paths. */
+export function setFilesDb(db: unknown, auth: unknown = null): void {
+  setFilesRuntime(db, auth, null, null, null)
 }
 
 export function getDriveAuth(): unknown {
   return _currentAuth
 }
 
+/** Storage handle accessor — used by HTTP handlers that stream raw bytes. */
+export function getDriveStorage(): AppStorage | null {
+  return _currentStorage
+}
+
 export function __resetFilesDbForTests(): void {
   _currentDb = null
   _currentAuth = null
+  _currentStorage = null
+  _currentJobs = null
+  _currentRealtime = null
 }
 
 export function filesServiceFor(organizationId: string): FilesService {
   if (!_currentDb) {
-    throw new Error('drive/files: db not installed — call setFilesDb() in module init')
+    throw new Error('drive/files: db not installed — call setFilesRuntime() in module init')
   }
-  return createFilesService({ db: _currentDb, organizationId })
+  return createFilesService({
+    db: _currentDb,
+    organizationId,
+    storage: _currentStorage ?? undefined,
+    jobs: _currentJobs ?? undefined,
+    realtime: _currentRealtime ?? undefined,
+  })
 }

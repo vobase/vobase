@@ -68,11 +68,14 @@ function makeTenantFile(partial: Partial<DriveFile> & { path: string; extractedT
     captionModel: null,
     captionUpdatedAt: null,
     extractedText: partial.extractedText,
+    originalName: null,
+    nameStem: null,
     source: null,
     sourceMessageId: null,
     tags: [],
     uploadedBy: null,
     processingStatus: 'ready',
+    extractionKind: 'extracted',
     processingError: null,
     threatScanReport: null,
     createdAt: new Date(),
@@ -146,8 +149,20 @@ function makeDriveStub(files: DriveFile[]): FilesService {
       throw new Error('not-implemented-in-phase-1')
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
-    async saveInboundMessageAttachment() {
+    async requestCaption() {
       throw new Error('not-implemented-in-phase-1')
+    },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async searchDrive() {
+      throw new Error('not-implemented-in-phase-1')
+    },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async reextract() {
+      throw new Error('not-implemented-in-phase-1')
+    },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async reapStalePending() {
+      return { swept: 0 }
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async deleteScope() {

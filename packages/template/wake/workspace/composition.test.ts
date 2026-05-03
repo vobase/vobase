@@ -109,7 +109,10 @@ function makeStubDrive(): FilesService {
       return ''
     },
     ingestUpload: notImpl,
-    saveInboundMessageAttachment: notImpl,
+    requestCaption: notImpl,
+    searchDrive: notImpl,
+    reextract: notImpl,
+    reapStalePending: notImpl,
     deleteScope: notImpl,
   } as FilesService
 }

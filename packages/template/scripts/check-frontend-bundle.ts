@@ -13,7 +13,28 @@
 
 import { readFileSync } from 'node:fs'
 
-const BANNED = ['~/wake', '~/runtime']
+/**
+ * `BANNED` lists path/module fragments any of which appears in an `import`
+ * statement is a frontend-bundle leak. Includes `~/wake/*` + `~/runtime`
+ * (server runtime), heavy backend deps that must never enter Vite, and the
+ * drive backend libs that lazy-import those deps under the hood.
+ */
+const BANNED = [
+  '~/wake',
+  '~/runtime',
+  // Heavy server-only deps — would balloon the Vite bundle.
+  'mammoth',
+  'xlsx',
+  'officeparser',
+  '@hyzyla/pdfium',
+  'sharp',
+  '@ai-sdk/openai',
+  // Drive backend libs that lazy-import the heavy deps above.
+  '@modules/drive/lib/embeddings',
+  '@modules/drive/lib/ocr-provider',
+  '@modules/drive/lib/extract',
+  '@modules/drive/lib/search',
+]
 const FRONTEND_GLOBS = [
   'src/**/*.{ts,tsx}',
   'modules/*/pages/**/*.{ts,tsx}',

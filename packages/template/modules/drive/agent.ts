@@ -15,6 +15,7 @@ import { defineIndexContributor } from '@vobase/core'
 
 import type { WakeMaterializerFactory } from '~/wake/context'
 import type { DriveReader } from './service/types'
+import { requestCaptionTool } from './tools/request-caption'
 
 export type { DriveReader }
 
@@ -90,4 +91,5 @@ export const driveAgent = {
   agentsMd: [...driveAgentsMdContributors],
   materializers: [driveMaterializerFactory],
   roHints: [...driveRoHints],
+  tools: [requestCaptionTool],
 }

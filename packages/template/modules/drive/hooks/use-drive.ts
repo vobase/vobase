@@ -144,3 +144,44 @@ export function useMoveFile(scope: DriveScopeArg) {
     },
   })
 }
+
+export interface UploadFileResult {
+  ok: true
+  id: string
+  path: string
+  nameStem: string
+  extractionKind: 'pending' | 'extracted' | 'binary-stub' | 'failed'
+}
+
+/**
+ * Multipart upload hook. Posts to `/api/drive/upload` with the bytes + scope
+ * + basePath. Returns the freshly-created drive row id and path. Invalidates
+ * the surrounding tree on success so the new row appears.
+ *
+ * The route expects `multipart/form-data`; this hook builds the FormData here
+ * (the typed Hono RPC client doesn't natively model multipart bodies).
+ */
+export function useUploadFile(scope: DriveScopeArg) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file, basePath = '/' }: { file: File; basePath?: string }) => {
+      const form = new FormData()
+      form.set('file', file)
+      const sb = scopeBody(scope)
+      form.set('scope', sb.scope ?? 'organization')
+      const id = sb.contactId ?? sb.userId ?? sb.agentId
+      if (id) form.set('scopeId', id)
+      form.set('basePath', basePath)
+      // biome-ignore lint/plugin/no-raw-fetch: Hono typed RPC client doesn't model multipart bodies; the upload route is multipart-only.
+      const r = await fetch('/api/drive/upload', { method: 'POST', body: form })
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as { error?: string; message?: string }
+        throw new Error(body.message ?? body.error ?? `drive upload failed: ${r.status}`)
+      }
+      return (await r.json()) as UploadFileResult
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['drive', 'tree', scopeKey(scope)] })
+    },
+  })
+}

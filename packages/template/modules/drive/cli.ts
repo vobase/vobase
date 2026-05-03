@@ -14,6 +14,9 @@ import { z } from 'zod'
 
 import { filesServiceFor } from './service/files'
 import type { DriveScope } from './service/types'
+import { driveReextractVerb } from './verbs/drive-reextract'
+import { driveSearchVerb } from './verbs/drive-search'
+import { driveUploadVerb } from './verbs/drive-upload'
 
 const ScopeSchema = z
   .object({
@@ -146,4 +149,12 @@ export const driveRmVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-export const driveVerbs = [driveLsVerb, driveCatVerb, driveWriteVerb, driveRmVerb] as const
+export const driveVerbs = [
+  driveLsVerb,
+  driveCatVerb,
+  driveWriteVerb,
+  driveRmVerb,
+  driveUploadVerb,
+  driveSearchVerb,
+  driveReextractVerb,
+] as const
