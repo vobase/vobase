@@ -3,7 +3,6 @@ import { useQueryState } from 'nuqs'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { Group, Panel, type PanelImperativeHandle, useDefaultLayout } from 'react-resizable-panels'
 
-import { MobileBackBar } from '@/components/layout/mobile-back-bar'
 import { GradientResizeHandle } from '@/components/ui/gradient-resize-handle'
 import { useIsMobile } from '@/hooks/use-viewport'
 import { browserStorage } from '@/lib/browser-storage'
@@ -22,8 +21,6 @@ interface ListDetailLayoutProps {
   detailDefaultSize?: string
   /** Which pane to show on mobile. Default `'list'`. */
   mobileActive?: 'list' | 'detail'
-  /** When set on mobile + showing detail, renders a back bar above the detail content. */
-  onMobileBack?: () => void
   /** Unique key for persisting this group's pane sizes to localStorage. */
   storageId?: string
 }
@@ -38,7 +35,6 @@ function ListDetailLayout({
   listDefaultSize = '320px',
   detailDefaultSize,
   mobileActive = 'list',
-  onMobileBack,
   storageId = 'list-detail',
 }: ListDetailLayoutProps) {
   const isMobile = useIsMobile()
@@ -66,15 +62,11 @@ function ListDetailLayout({
   })
 
   if (isMobile) {
-    if (mobileActive === 'detail') {
-      return (
-        <div className="flex h-full flex-col">
-          {onMobileBack && <MobileBackBar label="Back" onBack={onMobileBack} ariaLabel="Back to list" />}
-          <div className="flex-1 overflow-hidden">{detail}</div>
-        </div>
-      )
-    }
-    return <div className="h-full overflow-y-auto">{list}</div>
+    return mobileActive === 'detail' ? (
+      <div className="h-full overflow-hidden">{detail}</div>
+    ) : (
+      <div className="h-full overflow-y-auto">{list}</div>
+    )
   }
 
   const handleListResize = ({ asPercentage }: { asPercentage: number }) => {

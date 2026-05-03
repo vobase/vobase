@@ -7,13 +7,14 @@ import { useReassign } from '@modules/messaging/hooks/use-reassign'
 import { useDismissMention, useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { CheckIcon, PanelRightOpenIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
+import { CheckIcon, ChevronLeft, PanelRightOpenIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
 import { useQueryState } from 'nuqs'
 import { useEffect, useMemo } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { useIsMobile } from '@/hooks/use-viewport'
 import { contactsClient, messagingClient } from '@/lib/api-client'
 import type { Conversation, Message } from '../schema'
 import { AssigneeBadge } from './assignee-badge'
@@ -59,6 +60,7 @@ export function ConversationDetail() {
   const params = useParams({ strict: false }) as { contactId: string }
   const contactId = params.contactId
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
 
   const [convParam, setConvParam] = useQueryState('conv')
   const [ctx, setCtx] = useQueryState('ctx', { defaultValue: 'closed' })
@@ -170,7 +172,17 @@ export function ConversationDetail() {
   return (
     <div className="flex h-full flex-col">
       {/* Row 1: contact header + channel tabs */}
-      <div className="flex min-h-[52px] w-full items-center gap-6 border-b bg-background px-4 py-1.5">
+      <div className="flex min-h-[52px] w-full items-center gap-3 border-b bg-background px-2 py-1.5 sm:gap-6 sm:px-4">
+        {isMobile && (
+          <button
+            type="button"
+            onClick={() => navigate({ to: '/inbox' })}
+            aria-label="Back to inbox"
+            className="-ml-1 inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground-3 hover:text-foreground"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+        )}
         <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="truncate font-semibold text-base">{title}</h1>
           {subline && <span className="shrink-0 text-muted-foreground text-xs">{subline}</span>}

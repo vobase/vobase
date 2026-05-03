@@ -4,7 +4,7 @@
  */
 
 import { createFileRoute } from '@tanstack/react-router'
-import { Pencil, Plus, Trash2, UserMinus, UserPlus, Users } from 'lucide-react'
+import { ChevronLeft, Pencil, Plus, Trash2, UserMinus, UserPlus, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useIsMobile } from '@/hooks/use-viewport'
 import {
   type OrgMemberRow,
   type TeamRow,
@@ -75,7 +76,6 @@ export function TeamsPage() {
         <ListDetailLayout
           listDefaultSize="50%"
           mobileActive={selectedTeamId ? 'detail' : 'list'}
-          onMobileBack={() => setSelectedTeamId(null)}
           list={
             <>
               {isLoading && <div className="p-6 text-muted-foreground text-sm">Loading teams…</div>}
@@ -152,6 +152,7 @@ export function TeamsPage() {
               <TeamDetail
                 team={selectedTeam}
                 description={descriptionByTeam.get(selectedTeam.id) ?? ''}
+                onBack={() => setSelectedTeamId(null)}
                 key={selectedTeam.id}
               />
             ) : (
@@ -291,7 +292,8 @@ function TeamFormDialog({
   )
 }
 
-function TeamDetail({ team, description }: { team: TeamRow; description: string }) {
+function TeamDetail({ team, description, onBack }: { team: TeamRow; description: string; onBack: () => void }) {
+  const isMobile = useIsMobile()
   const { data: members = [], isLoading } = useTeamMembers(team.id)
   const { data: orgMembers = [] } = useOrgMembers()
   const upsertDescription = useUpsertTeamDescription()
@@ -346,11 +348,23 @@ function TeamDetail({ team, description }: { team: TeamRow; description: string 
 
   return (
     <div className="flex h-full flex-col overflow-auto">
-      <div className="border-border border-b px-6 py-4">
-        <h2 className="font-semibold text-lg">{team.name}</h2>
-        <p className="text-muted-foreground text-xs">
-          Team id: <code className="font-mono">{team.id}</code>
-        </p>
+      <div className="flex items-center gap-2 border-border border-b px-2 py-3 sm:px-6 sm:py-4">
+        {isMobile && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to teams"
+            className="-ml-1 inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground-3 hover:text-foreground"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+        )}
+        <div className="min-w-0">
+          <h2 className="truncate font-semibold text-lg">{team.name}</h2>
+          <p className="truncate text-muted-foreground text-xs">
+            Team id: <code className="font-mono">{team.id}</code>
+          </p>
+        </div>
       </div>
 
       <section className="border-border border-b px-6 py-4">
