@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LogOut, Palette, UserRound } from 'lucide-react'
+import { LogOut, Settings, UserRound } from 'lucide-react'
 import { useState } from 'react'
 
 import { SignOutDialog } from '@/components/sign-out-dialog'
@@ -85,9 +85,9 @@ export function NavUser({ variant = 'icon' }: NavUserProps) {
               </DropdownMenuItem>
             )}
             <DropdownMenuItem asChild>
-              <Link to="/settings/appearance">
-                <Palette />
-                Appearance
+              <Link to="/settings">
+                <Settings />
+                Settings
               </Link>
             </DropdownMenuItem>
           </DropdownMenuGroup>
