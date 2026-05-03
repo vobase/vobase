@@ -9,11 +9,6 @@ const profileSchema = z.object({
   email: z.string().email().optional(),
 })
 
-const accountSchema = z.object({
-  timezone: z.string().optional(),
-  language: z.string().optional(),
-})
-
 const appearanceSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']).optional(),
   fontSize: z.enum(['sm', 'md', 'lg']).optional(),
@@ -40,7 +35,6 @@ const app = new Hono()
   .get('/health', (c) => c.json({ module: 'settings', status: 'ok' }))
   .route('/', notificationsHandlers)
   .post('/profile', zValidator('json', profileSchema, invalidBody), (c) => ok(c))
-  .post('/account', zValidator('json', accountSchema, invalidBody), (c) => ok(c))
   .post('/appearance', zValidator('json', appearanceSchema, invalidBody), (c) => ok(c))
   .post('/display', zValidator('json', displaySchema, invalidBody), (c) => ok(c))
   .post('/api-keys', zValidator('json', apiKeysSchema, invalidBody), (c) => ok(c))

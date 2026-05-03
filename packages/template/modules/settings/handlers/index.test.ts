@@ -78,21 +78,6 @@ describe('POST /settings/profile', () => {
   })
 })
 
-// ── /account ──────────────────────────────────────────────────────────────────
-
-describe('POST /settings/account', () => {
-  it('happy path: valid body returns 200 + {ok:true}', async () => {
-    const res = await POST('/account', { timezone: 'Asia/Singapore', language: 'en' })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true })
-  })
-
-  it('rejection: non-object body returns 400', async () => {
-    const res = await POST('/account', 'not-an-object')
-    expect(res.status).toBe(400)
-  })
-})
-
 // ── /appearance ───────────────────────────────────────────────────────────────
 
 describe('POST /settings/appearance', () => {

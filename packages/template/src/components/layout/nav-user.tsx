@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { LogOut, Palette, Settings } from 'lucide-react'
+import { LogOut, Palette, UserRound } from 'lucide-react'
 import { useState } from 'react'
 
 import { SignOutDialog } from '@/components/sign-out-dialog'
@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useCurrentUserId } from '@/hooks/use-current-user'
 import { authClient } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +43,7 @@ export function NavUser({ variant = 'icon' }: NavUserProps) {
     data?: { user?: { name?: string | null; email?: string | null } | null } | null
   } | null
   const user = session?.data?.user ?? null
+  const userId = useCurrentUserId()
   const [signOutOpen, setSignOutOpen] = useState(false)
 
   const name = user?.name ?? null
@@ -74,12 +76,14 @@ export function NavUser({ variant = 'icon' }: NavUserProps) {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-              <Link to="/settings/profile">
-                <Settings />
-                Settings
-              </Link>
-            </DropdownMenuItem>
+            {userId && (
+              <DropdownMenuItem asChild>
+                <Link to="/team/$userId" params={{ userId }}>
+                  <UserRound />
+                  Profile
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link to="/settings/appearance">
                 <Palette />

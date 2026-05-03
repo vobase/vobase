@@ -29,12 +29,10 @@ import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as TeamTeamsRouteImport } from './../modules/team/pages/teams'
 import { Route as TeamAttributesRouteImport } from './../modules/team/pages/attributes'
 import { Route as TeamUserIdRouteImport } from './../modules/team/pages/$userId'
-import { Route as ProfileRouteImport } from './../modules/settings/pages/profile'
 import { Route as NotificationsRouteImport } from './../modules/settings/pages/notifications'
 import { Route as DisplayRouteImport } from './../modules/settings/pages/display'
 import { Route as AppearanceRouteImport } from './../modules/settings/pages/appearance'
 import { Route as ApiKeysRouteImport } from './../modules/settings/pages/api-keys'
-import { Route as AccountRouteImport } from './../modules/settings/pages/account'
 import { Route as ApprovalsRouteImport } from './../modules/messaging/pages/approvals'
 import { Route as ContactIdRouteImport } from './../modules/messaging/pages/$contactId'
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
@@ -145,11 +143,6 @@ const TeamUserIdRoute = TeamUserIdRouteImport.update({
   path: '/team/$userId',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
-} as any)
 const NotificationsRoute = NotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -168,11 +161,6 @@ const AppearanceRoute = AppearanceRouteImport.update({
 const ApiKeysRoute = ApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
-  getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
-} as any)
-const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
   getParentRoute: () => DotDotModulesSettingsPagesLayoutRoute,
 } as any)
 const ApprovalsRoute = ApprovalsRouteImport.update({
@@ -221,12 +209,10 @@ export interface FileRoutesByFullPath {
   '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$contactId': typeof ContactIdRoute
   '/inbox/approvals': typeof ApprovalsRoute
-  '/settings/account': typeof AccountRoute
   '/settings/api-keys': typeof ApiKeysRoute
   '/settings/appearance': typeof AppearanceRoute
   '/settings/display': typeof DisplayRoute
   '/settings/notifications': typeof NotificationsRoute
-  '/settings/profile': typeof ProfileRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
   '/team/teams': typeof TeamTeamsRoute
@@ -252,12 +238,10 @@ export interface FileRoutesByTo {
   '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$contactId': typeof ContactIdRoute
   '/inbox/approvals': typeof ApprovalsRoute
-  '/settings/account': typeof AccountRoute
   '/settings/api-keys': typeof ApiKeysRoute
   '/settings/appearance': typeof AppearanceRoute
   '/settings/display': typeof DisplayRoute
   '/settings/notifications': typeof NotificationsRoute
-  '/settings/profile': typeof ProfileRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
   '/team/teams': typeof TeamTeamsRoute
@@ -287,12 +271,10 @@ export interface FileRoutesById {
   '/_app/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/inbox/$contactId': typeof ContactIdRoute
   '/_app/inbox/approvals': typeof ApprovalsRoute
-  '/_app/settings/account': typeof AccountRoute
   '/_app/settings/api-keys': typeof ApiKeysRoute
   '/_app/settings/appearance': typeof AppearanceRoute
   '/_app/settings/display': typeof DisplayRoute
   '/_app/settings/notifications': typeof NotificationsRoute
-  '/_app/settings/profile': typeof ProfileRoute
   '/_app/team/$userId': typeof TeamUserIdRoute
   '/_app/team/attributes': typeof TeamAttributesRoute
   '/_app/team/teams': typeof TeamTeamsRoute
@@ -321,12 +303,10 @@ export interface FileRouteTypes {
     | '/contacts/attributes'
     | '/inbox/$contactId'
     | '/inbox/approvals'
-    | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
-    | '/settings/profile'
     | '/team/$userId'
     | '/team/attributes'
     | '/team/teams'
@@ -352,12 +332,10 @@ export interface FileRouteTypes {
     | '/contacts/attributes'
     | '/inbox/$contactId'
     | '/inbox/approvals'
-    | '/settings/account'
     | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
-    | '/settings/profile'
     | '/team/$userId'
     | '/team/attributes'
     | '/team/teams'
@@ -386,12 +364,10 @@ export interface FileRouteTypes {
     | '/_app/contacts/attributes'
     | '/_app/inbox/$contactId'
     | '/_app/inbox/approvals'
-    | '/_app/settings/account'
     | '/_app/settings/api-keys'
     | '/_app/settings/appearance'
     | '/_app/settings/display'
     | '/_app/settings/notifications'
-    | '/_app/settings/profile'
     | '/_app/team/$userId'
     | '/_app/team/attributes'
     | '/_app/team/teams'
@@ -554,13 +530,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamUserIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/settings/profile': {
-      id: '/_app/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
-    }
     '/_app/settings/notifications': {
       id: '/_app/settings/notifications'
       path: '/notifications'
@@ -587,13 +556,6 @@ declare module '@tanstack/react-router' {
       path: '/api-keys'
       fullPath: '/settings/api-keys'
       preLoaderRoute: typeof ApiKeysRouteImport
-      parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
-    }
-    '/_app/settings/account': {
-      id: '/_app/settings/account'
-      path: '/account'
-      fullPath: '/settings/account'
-      preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof DotDotModulesSettingsPagesLayoutRoute
     }
     '/_app/inbox/approvals': {
@@ -660,22 +622,18 @@ const DotDotModulesMessagingPagesLayoutRouteWithChildren =
   )
 
 interface DotDotModulesSettingsPagesLayoutRouteChildren {
-  AccountRoute: typeof AccountRoute
   ApiKeysRoute: typeof ApiKeysRoute
   AppearanceRoute: typeof AppearanceRoute
   DisplayRoute: typeof DisplayRoute
   NotificationsRoute: typeof NotificationsRoute
-  ProfileRoute: typeof ProfileRoute
 }
 
 const DotDotModulesSettingsPagesLayoutRouteChildren: DotDotModulesSettingsPagesLayoutRouteChildren =
   {
-    AccountRoute: AccountRoute,
     ApiKeysRoute: ApiKeysRoute,
     AppearanceRoute: AppearanceRoute,
     DisplayRoute: DisplayRoute,
     NotificationsRoute: NotificationsRoute,
-    ProfileRoute: ProfileRoute,
   }
 
 const DotDotModulesSettingsPagesLayoutRouteWithChildren =
