@@ -33,7 +33,7 @@ export interface ChannelsState {
   requireSession: MiddlewareHandler | null
   /**
    * Built from `db` at init time — gates `(owner | admin)` on mutation routes
-   * (instances POST/PATCH/DELETE, doctor, managed handshake, signup finish).
+   * (instances POST/PATCH/DELETE, managed handshake, signup finish).
    * Must follow `requireSession` + `requireOrganization` in the chain.
    */
   requireAdmin: MiddlewareHandler | null

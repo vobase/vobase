@@ -2,8 +2,7 @@
  * Admin role-gate verification for channels mutation routes.
  *
  * The threat model: a low-privilege org member must NOT be able to flip a
- * tenant's WhatsApp config, run the doctor probe, or kick the
- * managed-handshake retry hatch. We exercise the real `createRequireRole`
+ * tenant's WhatsApp config. We exercise the real `createRequireRole`
  * middleware against `auth.member` rows so a regression that drops the
  * `lazyRequireAdmin` chain is caught at this layer.
  *

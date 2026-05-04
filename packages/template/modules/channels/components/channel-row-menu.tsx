@@ -1,17 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  Code2,
-  ExternalLink,
-  FileText,
-  MoreVertical,
-  Pause,
-  Play,
-  Plug,
-  QrCode,
-  Stethoscope,
-  Trash2,
-  UserCog,
-} from 'lucide-react'
+import { Code2, ExternalLink, MoreVertical, QrCode, Trash2, UserCog } from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -33,9 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { channelsClient } from '@/lib/api-client'
-import { InstanceDoctorSheet } from './instance-doctor-sheet'
 import { ManagedLinkQrSheet } from './managed-link-qr-sheet'
-import { TemplatesSheet } from './templates-sheet'
 
 interface ChannelRow {
   id: string
@@ -51,14 +37,6 @@ interface ChannelRowMenuProps {
   onEdit?: () => void
   onDelete?: () => void
   onOpenDetails?: (id: string) => void
-}
-
-async function toggleEnabled(id: string, _organizationId: string, enable: boolean) {
-  const r = await channelsClient.instances[':id'].$patch({
-    param: { id },
-    json: { status: enable ? 'active' : 'paused' },
-  })
-  if (!r.ok) throw new Error(`toggle failed: ${r.status}`)
 }
 
 async function deleteInstance(id: string) {
@@ -90,24 +68,15 @@ function WebRowMenu({ row, onEdit, onDelete, onOpenDetails }: ChannelRowMenuProp
   )
 }
 
-function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
+function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
   const qc = useQueryClient()
-  const [doctorOpen, setDoctorOpen] = useState(false)
-  const [templatesOpen, setTemplatesOpen] = useState(false)
   const [linkQrOpen, setLinkQrOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
-  const isPaused = row.status === 'paused'
-  const isError = row.status === 'error'
   const config = row.config as { wabaId?: string; mode?: string; displayPhoneNumber?: string }
   const isManaged = config.mode === 'managed'
   const wabaId = config.wabaId
   const displayPhoneNumber = config.displayPhoneNumber ?? null
-
-  const toggleMutation = useMutation({
-    mutationFn: () => toggleEnabled(row.id, '', !isPaused),
-    onSuccess: () => qc.invalidateQueries({ queryKey: listQueryKey }),
-  })
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteInstance(row.id),
@@ -139,17 +108,9 @@ function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setDoctorOpen(true)}>
-              <Stethoscope className="size-4" />
-              Run health check
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
-              <FileText className="size-4" />
-              Templates…
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onClick={onEdit} disabled={!onEdit}>
               <UserCog className="size-4" />
-              Reassign default…
+              Edit name & default assignee…
             </DropdownMenuItem>
             {wabaId && (
               <DropdownMenuItem asChild>
@@ -164,26 +125,6 @@ function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => toggleMutation.mutate()} disabled={toggleMutation.isPending}>
-              {isPaused ? (
-                <>
-                  <Play className="size-4" />
-                  Resume
-                </>
-              ) : (
-                <>
-                  <Pause className="size-4" />
-                  Pause
-                </>
-              )}
-            </DropdownMenuItem>
-            {isError && (
-              <DropdownMenuItem disabled>
-                <Plug className="size-4" />
-                Reconnect…
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
               <Trash2 className="size-4" />
               {isManaged ? 'Release' : 'Disconnect'}
@@ -191,15 +132,6 @@ function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      <InstanceDoctorSheet
-        instanceId={row.id}
-        displayName={row.displayName}
-        open={doctorOpen}
-        onOpenChange={setDoctorOpen}
-      />
-
-      <TemplatesSheet instanceId={row.id} open={templatesOpen} onOpenChange={setTemplatesOpen} />
 
       {isManaged && (
         <ManagedLinkQrSheet

@@ -4,8 +4,7 @@ import { useMemo } from 'react'
 
 import { DataTable } from '@/components/data-table/data-table'
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
-import { PrincipalAvatar, usePrincipalDirectory } from '@/components/principal'
-import { AvatarGroup } from '@/components/ui/avatar-group'
+import { Principal } from '@/components/principal'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { Status } from '@/components/ui/status'
 import { useDataTable } from '@/hooks/use-data-table'
@@ -50,8 +49,6 @@ function getHealthChip(status: string | null): { variant: 'success' | 'warning' 
   switch (status) {
     case 'active':
       return { variant: 'success', label: 'Healthy' }
-    case 'paused':
-      return { variant: 'warning', label: 'Paused' }
     case 'error':
       return { variant: 'error', label: 'Disconnected' }
     case 'setup':
@@ -69,23 +66,15 @@ function ChannelGlyph({ channel }: { channel: string }) {
   return <Globe className="size-4 text-muted-foreground" />
 }
 
-function AssigneeStack({ assignee }: { assignee: string | null | undefined }) {
-  const dir = usePrincipalDirectory()
+function AssigneeCell({ assignee }: { assignee: string | null | undefined }) {
   if (!assignee) return <span className="text-muted-foreground text-xs">—</span>
-
-  const principal = dir.resolve(assignee)
-  if (!principal) return <span className="text-muted-foreground text-xs">—</span>
-
-  return (
-    <AvatarGroup max={3} size={24}>
-      <PrincipalAvatar kind={principal.kind} size="sm" />
-    </AvatarGroup>
-  )
+  return <Principal id={assignee} variant="inline" noHover />
 }
 
 function buildColumns(
   listQueryKey: readonly unknown[],
   onEditWeb: (row: ChannelInstanceRow) => void,
+  onEditManaged: (row: ChannelInstanceRow) => void,
   onDeleteWeb: (row: ChannelInstanceRow) => void,
   onOpenDetails: (id: string) => void,
 ): ColumnDef<ChannelInstanceRow>[] {
@@ -97,13 +86,11 @@ function buildColumns(
       cell: ({ row }) => {
         const instance = row.original
         const modeChip = instance.channel === 'whatsapp' ? getModeChip(instance.config) : null
-        const isManagedWhatsApp = instance.channel === 'whatsapp' && instance.config.mode === 'managed'
         return (
           <div className="flex flex-wrap items-center gap-2">
             <ChannelGlyph channel={instance.channel} />
             <span className="font-medium text-sm">{instance.displayName ?? '(unnamed)'}</span>
             {modeChip?.label && <Status variant={modeChip.variant as 'info' | 'success'} label={modeChip.label} />}
-            {isManagedWhatsApp && <WebhookStatusBadge instanceId={instance.id} />}
           </div>
         )
       },
@@ -123,17 +110,24 @@ function buildColumns(
     {
       id: 'health',
       header: 'Health',
+      // For managed WhatsApp, the webhook badge IS the health signal — it
+      // tracks verified/failed/pending end-to-end. Generic `status` from the
+      // row would just duplicate (or worse, contradict) it.
       cell: ({ row }) => {
-        const { variant, label } = getHealthChip(row.original.status)
+        const instance = row.original
+        if (instance.channel === 'whatsapp' && instance.config.mode === 'managed') {
+          return <WebhookStatusBadge instanceId={instance.id} />
+        }
+        const { variant, label } = getHealthChip(instance.status)
         return <Status variant={variant} label={label} />
       },
     },
     {
       id: 'assignee',
-      header: 'Active',
+      header: 'Default assignee',
       cell: ({ row }) => {
         const assignee = row.original.config.defaultAssignee as string | null | undefined
-        return <AssigneeStack assignee={assignee} />
+        return <AssigneeCell assignee={assignee} />
       },
     },
     {
@@ -144,15 +138,18 @@ function buildColumns(
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <ChannelRowMenu
-          row={row.original}
-          listQueryKey={listQueryKey}
-          onEdit={() => onEditWeb(row.original)}
-          onDelete={() => onDeleteWeb(row.original)}
-          onOpenDetails={onOpenDetails}
-        />
-      ),
+      cell: ({ row }) => {
+        const isWhatsApp = row.original.channel === 'whatsapp'
+        return (
+          <ChannelRowMenu
+            row={row.original}
+            listQueryKey={listQueryKey}
+            onEdit={() => (isWhatsApp ? onEditManaged(row.original) : onEditWeb(row.original))}
+            onDelete={() => onDeleteWeb(row.original)}
+            onOpenDetails={onOpenDetails}
+          />
+        )
+      },
     },
   ]
 }
@@ -162,6 +159,7 @@ interface ChannelsTableProps {
   isLoading: boolean
   listQueryKey: readonly unknown[]
   onEditWeb: (row: ChannelInstanceRow) => void
+  onEditManaged: (row: ChannelInstanceRow) => void
   onDeleteWeb: (row: ChannelInstanceRow) => void
   onOpenDetails: (id: string) => void
 }
@@ -171,12 +169,13 @@ export function ChannelsTable({
   isLoading,
   listQueryKey,
   onEditWeb,
+  onEditManaged,
   onDeleteWeb,
   onOpenDetails,
 }: ChannelsTableProps) {
   const columns = useMemo(
-    () => buildColumns(listQueryKey, onEditWeb, onDeleteWeb, onOpenDetails),
-    [listQueryKey, onEditWeb, onDeleteWeb, onOpenDetails],
+    () => buildColumns(listQueryKey, onEditWeb, onEditManaged, onDeleteWeb, onOpenDetails),
+    [listQueryKey, onEditWeb, onEditManaged, onDeleteWeb, onOpenDetails],
   )
 
   const { table } = useDataTable({
