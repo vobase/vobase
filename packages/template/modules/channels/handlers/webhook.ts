@@ -2,8 +2,8 @@
  * Generic webhook ingress for inbound channel events.
  *
  * Routes:
- *   - GET  /webhooks/:channel/:instanceId — adapter's webhook challenge handshake
- *   - POST /webhooks/:channel/:instanceId — adapter's verifyWebhook + parseWebhook
+ *   - GET  /webhook/:channel/:instanceId — adapter's webhook challenge handshake
+ *   - POST /webhook/:channel/:instanceId — adapter's verifyWebhook + parseWebhook
  *
  * Resolves the `channel_instances` row, looks up the adapter via the registry,
  * and delegates to the contract methods. Per-channel auth/secret edge cases

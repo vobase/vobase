@@ -72,7 +72,10 @@
       },
       "correctness": {
         "noUnusedImports": "error",
-        "noUnusedVariables": "error"
+        "noUnusedVariables": {
+          "level": "error",
+          "fix": "none"
+        }
       },
       "nursery": {
         "noFloatingPromises": "error",

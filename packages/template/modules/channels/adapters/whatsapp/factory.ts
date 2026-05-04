@@ -13,6 +13,7 @@
  */
 
 import { getVaultFor } from '@modules/integrations/service/registry'
+import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
 import type { ChannelAdapter, ChannelCapabilities } from '@vobase/core'
 import { createWhatsAppAdapter } from '@vobase/core'
 
@@ -49,6 +50,8 @@ interface ManagedConfig {
   appSecret?: string
   appId?: string
   apiVersion?: string
+  /** Indicative env label — passed through to verify-token derivation. */
+  environment?: 'production' | 'staging' | string
 }
 
 function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig & Record<string, unknown> {
@@ -169,6 +172,25 @@ function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
     previous: () => readCachedRotation().previous,
   })
 
+  // Derive the verify token deterministically from BETTER_AUTH_SECRET so the
+  // GET hub challenge handler answers correctly when the platform validates
+  // the registered webhook URL. Same derivation runs at registration time
+  // (modules/integrations/module.ts) — by tying both ends to the same KEK
+  // they always agree without coordination. Falls back to undefined when the
+  // secret isn't set; the GET handler then 403s the challenge but the
+  // adapter still works for outbound (managed mode doesn't use this token
+  // for anything else).
+  const betterAuthSecret = process.env.BETTER_AUTH_SECRET
+  const environment = (config.environment as 'production' | 'staging' | undefined) ?? 'production'
+  const webhookVerifyToken = betterAuthSecret
+    ? deriveVerifyToken({
+        tenantSlug: tenantId,
+        environment,
+        provider: 'whatsapp',
+        betterAuthSecret,
+      })
+    : undefined
+
   return createWhatsAppAdapter({
     phoneNumberId: config.phoneNumberId ?? '',
     // Managed mode never holds the Meta bearer locally — the platform proxy
@@ -176,7 +198,7 @@ function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
     // internal assertions.
     accessToken: 'managed:proxy',
     appSecret: config.appSecret ?? 'managed:proxy',
-    webhookVerifyToken: undefined,
+    webhookVerifyToken,
     appId: config.appId,
     apiVersion: config.apiVersion,
     transport,

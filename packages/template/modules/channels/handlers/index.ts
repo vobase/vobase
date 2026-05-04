@@ -3,11 +3,11 @@
  *
  * Layout:
  *   - /instances       → generic CRUD on `channel_instances` (session-required)
- *   - /webhooks/:c/:i  → generic provider-webhook ingress (PUBLIC, HMAC-gated)
+ *   - /webhook/:c/:i   → generic provider-webhook ingress (PUBLIC, HMAC-gated)
  *   - /adapters/web    → web-specific routes (PUBLIC, anonymous-session)
  *
  * Auth split: `/instances` is admin and must run behind the same `requireSession`
- * gate every other admin module uses. `/webhooks` and `/adapters/web` must stay
+ * gate every other admin module uses. `/webhook` and `/adapters/web` must stay
  * unauthenticated — providers and anonymous browser sessions can't carry a staff
  * cookie. A module-level `requireSession: true` flag would gate everything, so
  * we apply it inline on `/instances/*` only via a lazy proxy that pulls the
@@ -37,7 +37,7 @@ const app = new Hono()
   .use('/whatsapp/managed/*', lazyRequireSession)
   .use('/whatsapp/signup/*', lazyRequireSession)
   .route('/instances', instances)
-  .route('/webhooks', webhook)
+  .route('/webhook', webhook)
   .route('/adapters/web', webAdapter)
   .route('/whatsapp', managedWhatsapp)
   .route('/whatsapp/signup', whatsappSignup)

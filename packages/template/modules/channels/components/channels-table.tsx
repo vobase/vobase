@@ -10,6 +10,7 @@ import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { Status } from '@/components/ui/status'
 import { useDataTable } from '@/hooks/use-data-table'
 import { ChannelRowMenu } from './channel-row-menu'
+import { WebhookStatusBadge } from './webhook-status-badge'
 
 export interface ChannelInstanceRow {
   id: string
@@ -96,11 +97,13 @@ function buildColumns(
       cell: ({ row }) => {
         const instance = row.original
         const modeChip = instance.channel === 'whatsapp' ? getModeChip(instance.config) : null
+        const isManagedWhatsApp = instance.channel === 'whatsapp' && instance.config.mode === 'managed'
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ChannelGlyph channel={instance.channel} />
             <span className="font-medium text-sm">{instance.displayName ?? '(unnamed)'}</span>
             {modeChip?.label && <Status variant={modeChip.variant as 'info' | 'success'} label={modeChip.label} />}
+            {isManagedWhatsApp && <WebhookStatusBadge instanceId={instance.id} />}
           </div>
         )
       },

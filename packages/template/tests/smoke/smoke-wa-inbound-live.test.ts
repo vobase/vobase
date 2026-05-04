@@ -72,7 +72,7 @@ describe('WhatsApp inbound smoke', () => {
     const body = waBody(PHONE_NUMBER_ID)
     const sig = sign(body, APP_SECRET)
 
-    const res = await fetch(`/api/channels/webhooks/whatsapp/${INSTANCE_ID}`, {
+    const res = await fetch(`/api/channels/webhook/whatsapp/${INSTANCE_ID}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-hub-signature-256': sig },
       body,

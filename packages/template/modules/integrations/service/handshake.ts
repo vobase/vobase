@@ -64,6 +64,12 @@ export function isAllowedPlatformBaseUrl(platformBaseUrl: string): boolean {
   } catch {
     return false
   }
+  // Localhost is always allowed in non-production so local dev "just works"
+  // without forcing an explicit allowlist entry. Production never legitimately
+  // reaches a localhost platformBaseUrl.
+  if (process.env.NODE_ENV !== 'production' && (host === 'localhost' || host === '127.0.0.1')) {
+    return true
+  }
   const hosts = platformHostAllowlist()
   if (hosts.size === 0) {
     // No allowlist configured → only allow localhost (dev) by default; refuse
@@ -176,4 +182,114 @@ export async function releaseWithPlatform(input: {
     throw new PlatformHandshakeError(`platform release failed (${res.status})`, res.status)
   }
   return (await res.json()) as { released: boolean }
+}
+
+/**
+ * Register a webhook URL + verify token with the platform for a given
+ * `(channelInstanceId, provider)`. The platform runs the provider's
+ * challenge protocol against the URL before persisting; on success, future
+ * inbound forwards target the supplied URL verbatim.
+ *
+ * Idempotent: re-calling with the same payload re-runs the challenge and
+ * refreshes `lastVerifiedAt`. Re-calling with a different URL replaces it.
+ *
+ * `environment` is a free-text indicative label here — the platform stores
+ * it for human readability but doesn't use it for routing (channelInstanceId
+ * is the routing key).
+ */
+export async function registerWebhookWithPlatform(input: {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+  environment: string
+  provider: string
+  channelInstanceId: string
+  webhookUrl: string
+  verifyToken: string
+}): Promise<{ ok: true; registeredAt: string }> {
+  const body = JSON.stringify({
+    environment: input.environment,
+    provider: input.provider,
+    channelInstanceId: input.channelInstanceId,
+    webhookUrl: input.webhookUrl,
+    verifyToken: input.verifyToken,
+  })
+  const { res } = await signedPlatformPost('/api/provisioning/webhook-endpoints/register', body, input)
+  if (!res.ok) {
+    let payload: unknown
+    try {
+      payload = await res.json()
+    } catch {
+      payload = null
+    }
+    const reason = (payload as { reason?: string } | null)?.reason
+    throw new PlatformHandshakeError(
+      `platform webhook registration failed (${res.status}${reason ? `: ${reason}` : ''})`,
+      res.status,
+      reason,
+    )
+  }
+  return (await res.json()) as { ok: true; registeredAt: string }
+}
+
+export interface WebhookEndpointStatus {
+  id: string
+  channelInstanceId: string
+  provider: string
+  webhookUrl: string
+  environmentLabel: string | null
+  lastVerifiedAt: string | null
+  lastVerifyStatus: 'ok' | 'failed' | 'pending' | null
+  lastVerifyError: string | null
+  registeredAt: string
+}
+
+/** Read this tenant's registered webhook endpoints from the platform. */
+export async function fetchWebhookEndpointStatus(input: {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+  provider?: string
+  channelInstanceId?: string
+}): Promise<WebhookEndpointStatus[]> {
+  const params = new URLSearchParams()
+  if (input.provider) params.set('provider', input.provider)
+  if (input.channelInstanceId) params.set('channelInstanceId', input.channelInstanceId)
+  const query = params.toString()
+  // GET requests are signed via the same v2 path; signedPlatformPost only
+  // does POST, so we sign manually here matching the same canonical payload.
+  if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
+    throw new PlatformHandshakeError(
+      `platformBaseUrl '${input.platformBaseUrl}' is not in META_PLATFORM_HOSTNAME_ALLOWLIST`,
+      null,
+      'platform_url_not_allowed',
+    )
+  }
+  const path = `/api/provisioning/webhook-endpoints/status${query ? `?${query}` : ''}`
+  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
+  const { pathOnly, sortedQuery } = splitPathAndQuery(path)
+  const bodyDigest = sha256Hex('') // empty body for GET
+  const v2Payload = `GET|${pathOnly}|${sortedQuery}|${bodyDigest}`
+  const signed = signRequest({
+    body: v2Payload,
+    routineSecret: input.tenantHmacSecret,
+    rotationKey: input.tenantHmacSecret,
+    keyVersion: 1,
+  })
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-Tenant-Id': input.tenantId,
+      'X-Vobase-Routine-Sig': signed.routineSignature,
+      'X-Vobase-Rotation-Sig': signed.rotationSignature,
+      'X-Vobase-Key-Version': String(signed.keyVersion),
+      'X-Vobase-Sig-Version': '2',
+      'X-Vobase-Body-Digest': bodyDigest,
+    },
+  })
+  if (!res.ok) {
+    throw new PlatformHandshakeError(`platform status fetch failed (${res.status})`, res.status)
+  }
+  const data = (await res.json()) as { endpoints: WebhookEndpointStatus[] }
+  return data.endpoints
 }

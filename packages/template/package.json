@@ -31,6 +31,7 @@
     "lint:fix": "biome check --write ."
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.54",
     "@ariakit/react": "^0.4.26",
     "@diceui/combobox": "^1.2.2",
     "@diceui/mention": "^0.8.0",
@@ -39,7 +40,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hono/zod-validator": "^0.7.6",
-    "@ai-sdk/openai": "^3.0.54",
     "@hookform/resolvers": "^5.2.2",
     "@hyzyla/pdfium": "^2.1.12",
     "@mariozechner/pi-agent-core": "^0.70.6",
@@ -84,6 +84,7 @@
     "pg-boss": "^12.18.1",
     "platejs": "^53.0.3",
     "postgres": "^3.4.9",
+    "qrcode.react": "^4.2.0",
     "radix-ui": "^1.4.3",
     "react": "^19.2.5",
     "react-day-picker": "^9.14.0",

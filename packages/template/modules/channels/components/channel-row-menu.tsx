@@ -7,6 +7,7 @@ import {
   Pause,
   Play,
   Plug,
+  QrCode,
   Stethoscope,
   Trash2,
   UserCog,
@@ -33,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { channelsClient } from '@/lib/api-client'
 import { InstanceDoctorSheet } from './instance-doctor-sheet'
+import { ManagedLinkQrSheet } from './managed-link-qr-sheet'
 import { TemplatesSheet } from './templates-sheet'
 
 interface ChannelRow {
@@ -92,13 +94,15 @@ function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
   const qc = useQueryClient()
   const [doctorOpen, setDoctorOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [linkQrOpen, setLinkQrOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const isPaused = row.status === 'paused'
   const isError = row.status === 'error'
-  const config = row.config as { wabaId?: string; mode?: string }
+  const config = row.config as { wabaId?: string; mode?: string; displayPhoneNumber?: string }
   const isManaged = config.mode === 'managed'
   const wabaId = config.wabaId
+  const displayPhoneNumber = config.displayPhoneNumber ?? null
 
   const toggleMutation = useMutation({
     mutationFn: () => toggleEnabled(row.id, '', !isPaused),
@@ -115,64 +119,78 @@ function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8" aria-label="Row actions">
-            <MoreVertical className="size-4" />
+      <div className="flex items-center justify-end gap-1">
+        {isManaged && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setLinkQrOpen(true)}
+            aria-label="Show QR to link tester"
+          >
+            <QrCode className="size-4" />
+            <span className="text-xs">Link QR</span>
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setDoctorOpen(true)}>
-            <Stethoscope className="size-4" />
-            Run health check
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
-            <FileText className="size-4" />
-            Templates…
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled>
-            <UserCog className="size-4" />
-            Reassign default…
-          </DropdownMenuItem>
-          {wabaId && (
-            <DropdownMenuItem asChild>
-              <a
-                href={`https://business.facebook.com/wa/manage/phone-numbers/?waba_id=${wabaId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="size-4" />
-                Open in Meta WABA Manager
-              </a>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-8" aria-label="Row actions">
+              <MoreVertical className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setDoctorOpen(true)}>
+              <Stethoscope className="size-4" />
+              Run health check
             </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => toggleMutation.mutate()} disabled={toggleMutation.isPending}>
-            {isPaused ? (
-              <>
-                <Play className="size-4" />
-                Resume
-              </>
-            ) : (
-              <>
-                <Pause className="size-4" />
-                Pause
-              </>
-            )}
-          </DropdownMenuItem>
-          {isError && (
+            <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
+              <FileText className="size-4" />
+              Templates…
+            </DropdownMenuItem>
             <DropdownMenuItem disabled>
-              <Plug className="size-4" />
-              Reconnect…
+              <UserCog className="size-4" />
+              Reassign default…
             </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
-            <Trash2 className="size-4" />
-            {isManaged ? 'Release' : 'Disconnect'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {wabaId && (
+              <DropdownMenuItem asChild>
+                <a
+                  href={`https://business.facebook.com/wa/manage/phone-numbers/?waba_id=${wabaId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="size-4" />
+                  Open in Meta WABA Manager
+                </a>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => toggleMutation.mutate()} disabled={toggleMutation.isPending}>
+              {isPaused ? (
+                <>
+                  <Play className="size-4" />
+                  Resume
+                </>
+              ) : (
+                <>
+                  <Pause className="size-4" />
+                  Pause
+                </>
+              )}
+            </DropdownMenuItem>
+            {isError && (
+              <DropdownMenuItem disabled>
+                <Plug className="size-4" />
+                Reconnect…
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive focus:text-destructive">
+              <Trash2 className="size-4" />
+              {isManaged ? 'Release' : 'Disconnect'}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       <InstanceDoctorSheet
         instanceId={row.id}
@@ -182,6 +200,15 @@ function WhatsAppRowMenu({ row, listQueryKey }: ChannelRowMenuProps) {
       />
 
       <TemplatesSheet instanceId={row.id} open={templatesOpen} onOpenChange={setTemplatesOpen} />
+
+      {isManaged && (
+        <ManagedLinkQrSheet
+          open={linkQrOpen}
+          onOpenChange={setLinkQrOpen}
+          channelInstanceId={row.id}
+          displayPhoneNumber={displayPhoneNumber}
+        />
+      )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
