@@ -79,9 +79,14 @@ async function runSignupFlow(mode: 'cloud' | 'coexistence'): Promise<SignupExcha
 interface WhatsAppSignupButtonProps {
   /** Optional callback fired with the new instance id on success. */
   onConnected?: (instanceId: string) => void
+  /**
+   * `hero` (default) — full layout with large primary, helper text, and outline secondary.
+   * `compact` — primary lg button only, secondary rendered as a smaller link-style affordance below.
+   */
+  variant?: 'hero' | 'compact'
 }
 
-export function WhatsAppSignupButton({ onConnected }: WhatsAppSignupButtonProps) {
+export function WhatsAppSignupButton({ onConnected, variant = 'hero' }: WhatsAppSignupButtonProps) {
   const [error, setError] = useState<string | null>(null)
 
   const mutation = useMutation({
@@ -101,6 +106,51 @@ export function WhatsAppSignupButton({ onConnected }: WhatsAppSignupButtonProps)
   })
 
   const launching = mutation.isPending
+
+  if (variant === 'compact') {
+    return (
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          size="lg"
+          className="gap-2"
+          disabled={launching}
+          onClick={() => mutation.mutate('coexistence')}
+        >
+          <MessageCircle className="size-4" />
+          {launching ? 'Connecting…' : 'Connect existing WhatsApp Business App'}
+        </Button>
+        <button
+          type="button"
+          className="text-left text-muted-foreground text-xs underline-offset-4 hover:text-foreground hover:underline disabled:pointer-events-none disabled:opacity-50"
+          disabled={launching}
+          onClick={() => mutation.mutate('cloud')}
+        >
+          Use a new number (Cloud API) instead
+        </button>
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertTitle>Connect failed</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>{error}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setError(null)
+                  mutation.mutate('coexistence')
+                }}
+              >
+                Try again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
