@@ -7,11 +7,11 @@
  */
 
 import type { Auth } from '@auth'
-import { createRequireSession } from '@auth/middleware'
+import { createRequireRole, createRequireSession } from '@auth/middleware'
 import type { RateLimiter } from '@vobase/core'
 import type { MiddlewareHandler } from 'hono'
 
-import type { RealtimeService } from '~/runtime'
+import type { RealtimeService, ScopedDb } from '~/runtime'
 
 export interface JobQueue {
   send(name: string, data: unknown): Promise<string>
@@ -21,6 +21,8 @@ interface ChannelsStateDeps {
   jobs?: JobQueue | null
   realtime?: RealtimeService | null
   auth?: Auth | null
+  /** Required to build the `requireAdmin` middleware for mutation routes. */
+  db?: ScopedDb | null
   rateLimits?: RateLimiter | null
 }
 
@@ -29,6 +31,12 @@ export interface ChannelsState {
   realtime: RealtimeService | null
   auth: Auth | null
   requireSession: MiddlewareHandler | null
+  /**
+   * Built from `db` at init time — gates `(owner | admin)` on mutation routes
+   * (instances POST/PATCH/DELETE, doctor, managed handshake, signup finish).
+   * Must follow `requireSession` + `requireOrganization` in the chain.
+   */
+  requireAdmin: MiddlewareHandler | null
   rateLimits: RateLimiter | null
 }
 
@@ -38,6 +46,7 @@ export function createChannelsState(deps: ChannelsStateDeps = {}): ChannelsState
     realtime: deps.realtime ?? null,
     auth: deps.auth ?? null,
     requireSession: deps.auth ? createRequireSession(deps.auth) : null,
+    requireAdmin: deps.db ? createRequireRole(deps.db, ['owner', 'admin']) : null,
     rateLimits: deps.rateLimits ?? null,
   }
 }
@@ -75,6 +84,10 @@ export function getAuth(): Auth | null {
 
 export function getRequireSession(): MiddlewareHandler | null {
   return _current?.requireSession ?? null
+}
+
+export function getRequireAdmin(): MiddlewareHandler | null {
+  return _current?.requireAdmin ?? null
 }
 
 /** Lazy accessor — returns null if state isn't installed (e.g. unit tests). */

@@ -38,6 +38,7 @@ const channels: ModuleDef = {
         jobs: ctx.jobs as unknown as JobQueue,
         realtime: ctx.realtime,
         auth: ctx.auth,
+        db: ctx.db,
         rateLimits: ctx.rateLimits,
       }),
     )

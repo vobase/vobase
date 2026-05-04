@@ -49,7 +49,7 @@ import {
 } from '@modules/channels/adapters/whatsapp/meta-oauth'
 import { createInstance, getInstance } from '@modules/channels/service/instances'
 import { consumeNonce, mintNonce } from '@modules/channels/service/signup-nonces'
-import { getJobs, getRateLimits } from '@modules/channels/service/state'
+import { getJobs, getRateLimits, getRequireAdmin } from '@modules/channels/service/state'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -232,23 +232,35 @@ const app = new Hono<OrganizationEnv>()
       201,
     )
   })
-  .post('/finish/:instanceId', async (c) => {
-    const organizationId = c.get('organizationId')
-    const instanceId = c.req.param('instanceId')
-    const instance = await getInstance(instanceId)
-    if (!instance || instance.organizationId !== organizationId) {
-      return c.json({ error: 'not_found' }, 404)
-    }
-    if (instance.channel !== 'whatsapp') {
-      return c.json({ error: 'wrong_channel' }, 400)
-    }
-    const jobs = getJobs()
-    if (!jobs) {
-      return c.json({ error: 'jobs_unavailable' }, 503)
-    }
-    const jobData: WhatsappSetupJobData = { instanceId, organizationId }
-    await jobs.send(WHATSAPP_SETUP_JOB, jobData)
-    return c.json({ enqueued: true })
-  })
+  .post(
+    '/finish/:instanceId',
+    async (c, next) => {
+      // Re-enqueueing the WhatsApp setup job rotates the webhook subscription;
+      // staff-level members shouldn't be able to bounce the integration. `/start`
+      // and `/exchange` stay at requireOrganization (any org member can connect
+      // a number) — only the retry hatch is admin-gated.
+      const mw = getRequireAdmin()
+      if (!mw) return c.json({ error: 'auth not initialised' }, 503)
+      return mw(c, next)
+    },
+    async (c) => {
+      const organizationId = c.get('organizationId')
+      const instanceId = c.req.param('instanceId')
+      const instance = await getInstance(instanceId)
+      if (!instance || instance.organizationId !== organizationId) {
+        return c.json({ error: 'not_found' }, 404)
+      }
+      if (instance.channel !== 'whatsapp') {
+        return c.json({ error: 'wrong_channel' }, 400)
+      }
+      const jobs = getJobs()
+      if (!jobs) {
+        return c.json({ error: 'jobs_unavailable' }, 503)
+      }
+      const jobData: WhatsappSetupJobData = { instanceId, organizationId }
+      await jobs.send(WHATSAPP_SETUP_JOB, jobData)
+      return c.json({ enqueued: true })
+    },
+  )
 
 export default app

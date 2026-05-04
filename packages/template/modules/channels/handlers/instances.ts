@@ -17,8 +17,16 @@ import {
   removeInstance,
   updateInstance,
 } from '@modules/channels/service/instances'
-import { Hono } from 'hono'
+import { getRequireAdmin } from '@modules/channels/service/state'
+import { Hono, type MiddlewareHandler } from 'hono'
 import { z } from 'zod'
+
+/** Lazy admin gate — pulls from channels state installed in `module.ts.init`. */
+const lazyRequireAdmin: MiddlewareHandler = async (c, next) => {
+  const mw = getRequireAdmin()
+  if (!mw) return c.json({ error: 'auth not initialised' }, 503)
+  return mw(c, next)
+}
 
 const createBody = z.object({
   channel: z.string().min(1).max(64),
@@ -55,8 +63,14 @@ function mergeConfig(existing: Record<string, unknown>, patch: Record<string, un
   return next
 }
 
+// Reads (GET) require any org member. Mutations + doctor require admin: a
+// rogue staff member shouldn't be able to flip a tenant's WhatsApp config or
+// trigger an outbound `runDoctor` probe (which leaks setup-stage diagnostics).
 const app = new Hono<OrganizationEnv>()
   .use('*', requireOrganization)
+  .use('/', async (c, next) => (c.req.method === 'GET' ? next() : lazyRequireAdmin(c, next)))
+  .use('/:id', async (c, next) => (c.req.method === 'GET' ? next() : lazyRequireAdmin(c, next)))
+  .use('/:id/doctor', lazyRequireAdmin)
   .get('/', async (c) => {
     const channel = c.req.query('channel') ?? undefined
     const rows = await listInstances(c.get('organizationId'), channel)
