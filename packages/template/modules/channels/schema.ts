@@ -98,3 +98,56 @@ export const channelInstances = channelsPgSchema.table(
     check('channel_instances_role_check', sql`role IN ('customer','staff')`),
   ],
 )
+
+/**
+ * Per-conversation 24-hour service window tracking for WhatsApp (and future)
+ * channels with `capabilities.messagingWindow = true`.
+ * Single-writer: `messaging/service/sessions.ts`.
+ * Cross-schema FK to `messaging.conversations(id)` enforced post-push.
+ */
+export const conversationSessions = channelsPgSchema.table(
+  'conversation_sessions',
+  {
+    /** Cross-schema FK to messaging.conversations(id); enforced post-push. */
+    conversationId: text('conversation_id').primaryKey(),
+    /** Cross-schema FK to channels.channel_instances(id); enforced post-push. */
+    channelInstanceId: text('channel_instance_id').notNull(),
+    sessionState: text('session_state').notNull().default('open'),
+    windowOpenedAt: timestamp('window_opened_at', { withTimezone: true }).notNull(),
+    windowExpiresAt: timestamp('window_expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [index('idx_conv_sessions_expires').on(t.windowExpiresAt)],
+)
+
+export interface ConversationSession {
+  conversationId: string
+  channelInstanceId: string
+  sessionState: string
+  windowOpenedAt: Date
+  windowExpiresAt: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+/**
+ * CSRF nonce store for WhatsApp Embedded Signup flow.
+ * Single-writer: `channels/adapters/whatsapp/handlers/signup.ts`.
+ */
+export const signupNonces = channelsPgSchema.table('signup_nonces', {
+  nonce: text('nonce').primaryKey(),
+  organizationId: text('organization_id').notNull(),
+  sessionId: text('session_id').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
+export interface SignupNonce {
+  nonce: string
+  organizationId: string
+  sessionId: string
+  expiresAt: Date
+}

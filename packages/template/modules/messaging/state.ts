@@ -9,6 +9,45 @@
 import { applyTransition, type TransitionTable } from '~/runtime'
 import type { ConversationStatus } from './schema'
 
+// ─── Message delivery status FSM ────────────────────────────────────────────
+
+export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
+
+/** Ordered status progression; backward moves are forbidden. */
+const MESSAGE_STATUS_ORDER: MessageStatus[] = ['queued', 'sent', 'delivered', 'read']
+
+/** Terminal statuses that accept no further transitions. */
+export const MESSAGE_STATUS_TERMINAL: ReadonlySet<MessageStatus> = new Set(['failed'])
+
+export function advanceMessageStatus(current: MessageStatus, next: MessageStatus): MessageStatus {
+  if (MESSAGE_STATUS_TERMINAL.has(current)) {
+    throw new Error(`invalid_status_transition: message status "${current}" is terminal`)
+  }
+  if (next === 'failed') return 'failed'
+  const curIdx = MESSAGE_STATUS_ORDER.indexOf(current)
+  const nextIdx = MESSAGE_STATUS_ORDER.indexOf(next)
+  if (nextIdx < curIdx) {
+    throw new Error(`invalid_status_transition: message status cannot move backward: ${current} -> ${next}`)
+  }
+  return next
+}
+
+// ─── Echo metadata key constants ─────────────────────────────────────────────
+
+export const ECHO_META_SOURCE = 'echoSource' as const
+export const ECHO_META_FLAG = 'echo' as const
+export const ECHO_META_DIRECTION = 'direction' as const
+
+// ─── Window / session codes ───────────────────────────────────────────────────
+
+export const WINDOW_SESSION_STATE_OPEN = 'open' as const
+export const WINDOW_SESSION_STATE_CLOSED = 'closed' as const
+export const WINDOW_DURATION_MS = 24 * 60 * 60 * 1000
+
+// ─── Error codes ─────────────────────────────────────────────────────────────
+
+export const ERROR_CODE_WINDOW_EXPIRED = 'window_expired' as const
+
 export const conversationTransitions: TransitionTable<ConversationStatus> = {
   transitions: [
     // agent-driven

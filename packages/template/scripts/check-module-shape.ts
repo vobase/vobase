@@ -52,6 +52,15 @@ const THREADS_WRITE_ALLOWED = ['modules/agents/service/threads.ts']
 const _CHANGES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(changeProposals|changeHistory)\b/
 const _CHANGES_WRITE_ALLOWED = ['modules/changes/service/proposals.ts']
 
+const REACTIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*messageReactions\b/
+const REACTIONS_WRITE_ALLOWED = ['modules/messaging/service/reactions.ts']
+
+const SESSIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*conversationSessions\b/
+const SESSIONS_WRITE_ALLOWED = ['modules/messaging/service/sessions.ts']
+
+const SIGNUP_NONCES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*signupNonces\b/
+const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/adapters/whatsapp/handlers/signup.ts']
+
 /**
  * `learning_proposals` migration guard. After Slice C the table, schema, and
  * service are deleted; any code-resurrection (typo, copy-paste, partial
@@ -86,6 +95,36 @@ async function checkJournalWriteAuthority(): Promise<void> {
             file: fullPath,
             line: i + 1,
             message: `writes to "${m[2]}" only allowed in modules/agents/service/threads.ts (one-write-path)`,
+          })
+        }
+      }
+      if (!REACTIONS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = REACTIONS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "${m[2]}" only allowed in messaging/service/reactions.ts (one-write-path)`,
+          })
+        }
+      }
+      if (!SESSIONS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = SESSIONS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "${m[2]}" only allowed in messaging/service/sessions.ts (one-write-path)`,
+          })
+        }
+      }
+      if (!SIGNUP_NONCES_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = SIGNUP_NONCES_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "${m[2]}" only allowed in channels/adapters/whatsapp/handlers/signup.ts (one-write-path)`,
           })
         }
       }

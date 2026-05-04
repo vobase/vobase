@@ -107,7 +107,7 @@ export interface PendingApproval {
 
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
-import { check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { check, index, jsonb, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { messagingPgSchema } from '~/runtime'
 
@@ -174,6 +174,13 @@ export const messages = messagingPgSchema.table(
      * Empty array when no attachments. Single-writer (`messaging/service/**`).
      */
     attachments: jsonb('attachments').notNull().default(sql`'[]'::jsonb`),
+    /**
+     * Bounded metadata for echo flags, status history, and reaction counts.
+     * NOT `.strict()` — future provider fields won't break existing rows.
+     * Use `extractEchoMetadata(row.metadata)` at read time for safe projection.
+     * Single-writer (`messaging/service/**`).
+     */
+    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -268,3 +275,31 @@ export const pendingApprovals = messagingPgSchema.table(
     check('pending_approvals_status_check', sql`status IN ('pending','approved','rejected','expired')`),
   ],
 )
+
+/**
+ * Per-reaction row for WhatsApp (and future) channels.
+ * Composite primary key prevents duplicate emoji per (message, reactor).
+ * Single-writer: `messaging/service/reactions.ts`.
+ */
+export const messageReactions = messagingPgSchema.table(
+  'message_reactions',
+  {
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    /** Cross-schema FK to channels.channel_instances(id); enforced post-push. */
+    channelInstanceId: text('channel_instance_id').notNull(),
+    reactorExternalId: text('reactor_external_id').notNull(),
+    emoji: text('emoji').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.reactorExternalId, t.emoji] })],
+)
+
+export interface MessageReaction {
+  messageId: string
+  channelInstanceId: string
+  reactorExternalId: string
+  emoji: string
+  createdAt: Date
+}
