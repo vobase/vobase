@@ -12,7 +12,7 @@ import type { HttpClient } from '../../../http/client'
 import { chunkText, createApiClient, errorToSendResult } from './api'
 import { createManagementOperations } from './management'
 import type { WhatsAppWebhookPayload } from './shared'
-import { parseWhatsAppMessages, parseWhatsAppStatuses, shouldUpdateStatus } from './shared'
+import { parseWhatsAppContactUpdates, parseWhatsAppEchoes, parseWhatsAppMessages, parseWhatsAppStatuses, shouldUpdateStatus } from './shared'
 import { createTemplateOperations } from './templates'
 import type { WhatsAppChannelConfig } from './types'
 import {
@@ -291,7 +291,11 @@ export function createWhatsAppAdapter(
       }
     }
 
-    return [...dedupedMessages, ...orderedStatuses, ...templateStatusEvents]
+    // Wire smb_message_echoes and account_update (contact-change) fields.
+    const echoEvents = await parseWhatsAppEchoes(payload, cachedDownloader)
+    const contactUpdateEvents = parseWhatsAppContactUpdates(payload)
+
+    return [...dedupedMessages, ...orderedStatuses, ...templateStatusEvents, ...echoEvents, ...contactUpdateEvents]
   }
 
   // ─── Send ──────────────────────────────────────────────────────

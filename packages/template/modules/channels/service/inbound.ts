@@ -1,13 +1,14 @@
 /**
  * Generic inbound dispatcher.
  *
- * Handles three event kinds emitted by channel adapters:
- *   - `message_received` — persist message, seed 24h window, enqueue wake
- *   - `status_update`    — advance delivery status FSM on the outbound message
- *   - `reaction`         — upsert/remove from message_reactions
+ * Handles four event kinds emitted by channel adapters:
+ *   - `message_received` (customer) — persist, seed 24h window, enqueue wake
+ *   - `message_received` (echo)     — persist role='staff', no window, no wake
+ *   - `status_update`               — advance delivery status FSM
+ *   - `reaction`                    — upsert/remove from message_reactions
  *
- * Echo branching (smb_message_echoes → role='staff', no wake, no window) is
- * added by Slice D on top of this file.
+ * Echo detection: `event.metadata.echo === true` (set by parseWhatsAppEchoes).
+ * Echoes persist with role='staff' and never open the 24h window or wake agents.
  */
 
 import type { ChannelInstance } from '@modules/channels/schema'
@@ -121,6 +122,11 @@ export async function dispatchInbound(
     // Safe projection — never pass raw adapter metadata (may contain PII/provider fields).
     const metadata = extractEchoMetadata(event.metadata)
 
+    // Echo events (smb_message_echoes) arrive with metadata.echo=true — they are
+    // messages staff sent via the WhatsApp Business App, not customer inbound.
+    const isEcho = metadata.echo === true
+    const role = isEcho ? 'staff' : 'customer'
+
     const result = await createInboundMessage({
       organizationId: instance.organizationId,
       channelInstanceId: instance.id,
@@ -133,14 +139,16 @@ export async function dispatchInbound(
       attachments: attachments && attachments.length > 0 ? attachments : undefined,
       threadKey,
       metadata,
+      role,
     })
 
-    // Seed the 24h messaging window on customer inbound (capabilities check).
-    if (adapter?.capabilities.messagingWindow && result.message.role === 'customer') {
+    // Seed the 24h messaging window on customer inbound only (echoes never open it).
+    if (!isEcho && adapter?.capabilities.messagingWindow && result.message.role === 'customer') {
       await seedOnInbound(result.conversation.id, instance.id)
     }
 
-    if (result.isNew) {
+    // Echoes never wake the agent — they are staff-authored, not customer-driven.
+    if (!isEcho && result.isNew) {
       await jobs.send(AGENTS_WAKE_JOB, {
         organizationId: instance.organizationId,
         conversationId: result.conversation.id,

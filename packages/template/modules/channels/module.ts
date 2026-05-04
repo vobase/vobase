@@ -6,6 +6,7 @@
  */
 
 import type { ModuleDef } from '~/runtime'
+import { channelsAgent } from './agent'
 import { createWebAdapter, WEB_CAPABILITIES, WEB_CHANNEL_NAME } from './adapters/web/adapter'
 import { createWebInstancesService, installWebInstancesService } from './adapters/web/service/instances'
 import {
@@ -22,6 +23,7 @@ const channels: ModuleDef = {
   name: 'channels',
   requires: ['messaging', 'contacts', 'drive'],
   web: { routes: { basePath: '/api/channels', handler: handlers } },
+  agent: channelsAgent,
   jobs: [],
   init(ctx) {
     installChannelsState(
