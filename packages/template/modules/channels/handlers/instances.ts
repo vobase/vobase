@@ -9,6 +9,7 @@
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
+import { runDoctor } from '@modules/channels/service/doctor'
 import {
   createInstance,
   getInstance,
@@ -112,6 +113,19 @@ const app = new Hono<OrganizationEnv>()
     const id = c.req.param('id')
     await removeInstance(id, c.get('organizationId'))
     return c.json({ ok: true })
+  })
+  .post('/:id/doctor', async (c) => {
+    const id = c.req.param('id')
+    const organizationId = c.get('organizationId')
+    try {
+      const result = await runDoctor(id, organizationId)
+      return c.json(result)
+    } catch (err) {
+      if (err instanceof Error && err.message === 'doctor: instance not found') {
+        return c.json({ error: 'not_found' }, 404)
+      }
+      throw err
+    }
   })
 
 export default app

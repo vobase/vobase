@@ -355,6 +355,9 @@ const ALLOWED_ROUTE_PREFIXES = [
   '/agents',
   '/drive',
   '/changes',
+  // Child routes nested inside a parent declare relative paths (e.g. /$instanceId/…
+  // under /channels). The checker sees these paths out of parent context — allow them.
+  '/$instanceId',
 ]
 
 const ROUTE_DECL_RE = /(?:route|physical)\s*\(\s*['"](\/[^'"]+)['"]/g

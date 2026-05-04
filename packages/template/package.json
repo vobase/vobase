@@ -25,6 +25,7 @@
     "test": "bun test",
     "test:e2e": "bun test tests/e2e",
     "test:smoke": "for f in tests/smoke/*.ts; do bun run \"$f\" || exit 1; done",
+    "smoke:wa": "bun test tests/smoke/smoke-wa-inbound-live.test.ts tests/smoke/smoke-wa-echo-live.test.ts tests/smoke/smoke-wa-doctor-live.test.ts tests/smoke/smoke-wa-templates-live.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."

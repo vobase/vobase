@@ -15,7 +15,9 @@ export const routes = rootRoute('root.tsx', [
     physical('/team', '../modules/team/pages'),
     physical('/agents', '../modules/agents/pages'),
     physical('/drive', '../modules/drive/pages'),
-    route('/channels', '../modules/channels/pages/index.tsx'),
+    route('/channels', '../modules/channels/pages/index.tsx', [
+      route('/$instanceId/templates', '../modules/channels/pages/templates.tsx'),
+    ]),
     route('/changes', '../modules/changes/pages/index.tsx'),
     route('/settings', '../modules/settings/pages/layout.tsx', [physical('/', '../modules/settings/pages')]),
   ]),
