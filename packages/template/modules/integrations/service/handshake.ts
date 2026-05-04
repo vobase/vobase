@@ -6,7 +6,7 @@
  * so handlers + auto-provisioner + tests don't reimplement it.
  */
 
-import { signRequest } from '@vobase/core'
+import { type SignedRequest, signRequest } from '@vobase/core'
 
 const META_PLATFORM_HOSTNAME_ALLOWLIST_ENV = 'META_PLATFORM_HOSTNAME_ALLOWLIST'
 
@@ -79,12 +79,24 @@ interface HandshakeInput {
   channelInstanceId: string
 }
 
+interface SignedPlatformPostInput {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+}
+
 /**
- * Call the platform's `POST /api/managed-whatsapp/sandbox/create` over the
- * 2-key signed contract. Returns the sandbox-pool allocation. Throws
- * `PlatformHandshakeError` on transport / auth / pool-exhausted errors.
+ * Sign + POST a JSON body to a platform path on behalf of `tenantId`. Both the
+ * legacy single-key `X-Platform-Signature` header (used by un-upgraded
+ * platforms) and the 2-key headers (used by upgraded platforms) are sent so
+ * either side can roll forward independently. Hostname is validated against
+ * the env allowlist before the request leaves the process.
  */
-export async function handshakeWithPlatform(input: HandshakeInput): Promise<HandshakeAllocation> {
+async function signedPlatformPost(
+  path: string,
+  body: string,
+  input: SignedPlatformPostInput,
+): Promise<{ res: Response; signed: SignedRequest }> {
   if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
     throw new PlatformHandshakeError(
       `platformBaseUrl '${input.platformBaseUrl}' is not in META_PLATFORM_HOSTNAME_ALLOWLIST`,
@@ -93,22 +105,13 @@ export async function handshakeWithPlatform(input: HandshakeInput): Promise<Hand
     )
   }
 
-  const url = `${input.platformBaseUrl.replace(/\/$/, '')}/api/managed-whatsapp/sandbox/create`
-  const body = JSON.stringify({
-    environment: input.environment,
-    channelInstanceId: input.channelInstanceId,
-  })
-
-  // Tenant-→-platform legacy contract uses one shared HMAC secret +
-  // X-Platform-Signature over body. We sign the body with both 2-key
-  // signatures too so the upgraded platform can transparently roll forward.
+  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
   const signed = signRequest({
     body,
     routineSecret: input.tenantHmacSecret,
     rotationKey: input.tenantHmacSecret,
     keyVersion: 1,
   })
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -121,6 +124,20 @@ export async function handshakeWithPlatform(input: HandshakeInput): Promise<Hand
     },
     body,
   })
+  return { res, signed }
+}
+
+/**
+ * Call the platform's `POST /api/managed-whatsapp/sandbox/create` over the
+ * 2-key signed contract. Returns the sandbox-pool allocation. Throws
+ * `PlatformHandshakeError` on transport / auth / pool-exhausted errors.
+ */
+export async function handshakeWithPlatform(input: HandshakeInput): Promise<HandshakeAllocation> {
+  const body = JSON.stringify({
+    environment: input.environment,
+    channelInstanceId: input.channelInstanceId,
+  })
+  const { res } = await signedPlatformPost('/api/managed-whatsapp/sandbox/create', body, input)
 
   if (!res.ok) {
     let payload: unknown
@@ -144,31 +161,8 @@ export async function releaseWithPlatform(input: {
   tenantHmacSecret: string
   environment: 'production' | 'staging'
 }): Promise<{ released: boolean }> {
-  if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
-    throw new PlatformHandshakeError(
-      `platformBaseUrl '${input.platformBaseUrl}' is not in META_PLATFORM_HOSTNAME_ALLOWLIST`,
-      null,
-      'platform_url_not_allowed',
-    )
-  }
-
-  const url = `${input.platformBaseUrl.replace(/\/$/, '')}/api/managed-whatsapp/tenant/release`
   const body = JSON.stringify({ environment: input.environment })
-  const signed = signRequest({
-    body,
-    routineSecret: input.tenantHmacSecret,
-    rotationKey: input.tenantHmacSecret,
-    keyVersion: 1,
-  })
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': input.tenantId,
-      'X-Platform-Signature': signed.routineSignature,
-    },
-    body,
-  })
+  const { res } = await signedPlatformPost('/api/managed-whatsapp/tenant/release', body, input)
   if (!res.ok) {
     throw new PlatformHandshakeError(`platform release failed (${res.status})`, res.status)
   }

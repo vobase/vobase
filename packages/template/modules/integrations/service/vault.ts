@@ -74,9 +74,26 @@ function decryptFromString(encoded: string): string {
   return decryptSecretEnvelope(deserializeEnvelope(encoded))
 }
 
+export interface StoreSecretInput {
+  /** Current key pair (always required). */
+  current: VaultPair
+  /**
+   * Optional previous pair held during a rotation grace window. The platform
+   * surfaces this on first-handshake when the tenant boots into a pool slot
+   * mid-rotation, so inbound webhooks signed with the older pair still verify
+   * until `previous.validUntil` elapses.
+   */
+  previous?: { routineSecret: string; rotationKey: string; keyVersion: number; validUntil: Date } | null
+}
+
 export interface IntegrationsVault {
-  /** Persist a fresh secret pair, replacing any existing row. Used on first handshake. */
-  storeSecret(provider: VaultProvider, pair: VaultPair): Promise<void>
+  /**
+   * Persist a fresh secret pair (and optional previous pair), replacing any
+   * existing row. Used on first handshake. The legacy single-arg form
+   * (`storeSecret(provider, pair)`) remains supported for callers that have no
+   * previous pair to persist.
+   */
+  storeSecret(provider: VaultProvider, input: VaultPair | StoreSecretInput): Promise<void>
   /** Read the current + (optional) previous pair. Returns null if not set. */
   readSecret(provider: VaultProvider): Promise<VaultRotation | null>
   /**
@@ -92,11 +109,19 @@ export interface IntegrationsVault {
   rotate(provider: VaultProvider, next: VaultPair, previousValidUntil: Date): Promise<void>
 }
 
+function isStoreSecretInput(v: VaultPair | StoreSecretInput): v is StoreSecretInput {
+  return 'current' in v
+}
+
 export function createIntegrationsVault({ db, organizationId }: VaultDeps): IntegrationsVault {
   return {
-    async storeSecret(provider, pair) {
-      const routineEnv = encryptToString(pair.routineSecret)
-      const rotationEnv = encryptToString(pair.rotationKey)
+    async storeSecret(provider, input) {
+      const normalized: StoreSecretInput = isStoreSecretInput(input) ? input : { current: input, previous: null }
+      const routineEnv = encryptToString(normalized.current.routineSecret)
+      const rotationEnv = encryptToString(normalized.current.rotationKey)
+      const prev = normalized.previous ?? null
+      const prevRoutineEnv = prev ? encryptToString(prev.routineSecret) : null
+      const prevRotationEnv = prev ? encryptToString(prev.rotationKey) : null
       await db
         .insert(integrationSecrets)
         .values({
@@ -104,19 +129,24 @@ export function createIntegrationsVault({ db, organizationId }: VaultDeps): Inte
           provider,
           routineSecretEnvelope: routineEnv,
           rotationKeyEnvelope: rotationEnv,
-          keyVersion: pair.keyVersion,
+          keyVersion: normalized.current.keyVersion,
+          routineSecretPreviousEnvelope: prevRoutineEnv,
+          rotationKeyPreviousEnvelope: prevRotationEnv,
+          previousKeyVersion: prev?.keyVersion ?? null,
+          previousValidUntil: prev?.validUntil ?? null,
         })
         .onConflictDoUpdate({
           target: [integrationSecrets.organizationId, integrationSecrets.provider],
           set: {
             routineSecretEnvelope: routineEnv,
             rotationKeyEnvelope: rotationEnv,
-            keyVersion: pair.keyVersion,
-            // Clear stale previous pair on full re-store (re-handshake).
-            routineSecretPreviousEnvelope: null,
-            rotationKeyPreviousEnvelope: null,
-            previousKeyVersion: null,
-            previousValidUntil: null,
+            keyVersion: normalized.current.keyVersion,
+            // Either persist a fresh previous pair (mid-rotation handshake)
+            // or wipe stale previous data (clean re-handshake).
+            routineSecretPreviousEnvelope: prevRoutineEnv,
+            rotationKeyPreviousEnvelope: prevRotationEnv,
+            previousKeyVersion: prev?.keyVersion ?? null,
+            previousValidUntil: prev?.validUntil ?? null,
           },
         })
     },

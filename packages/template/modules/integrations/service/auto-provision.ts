@@ -90,10 +90,29 @@ export async function autoProvisionManagedWhatsApp(input: AutoProvisionInput): P
     }
   }
 
+  // Persist the previous pair if the platform surfaced one — booting into a
+  // pool slot mid-rotation means inbound webhooks signed with the older pair
+  // must still verify until `previousValidUntil` elapses.
+  const previous =
+    allocation.routineSecretPrevious && allocation.rotationKeyPrevious && allocation.previousValidUntil
+      ? {
+          routineSecret: allocation.routineSecretPrevious,
+          rotationKey: allocation.rotationKeyPrevious,
+          // First handshake always pins keyVersion=1, so previous is keyVersion 0.
+          // Platform's `AllocationResult` does not surface a `previousKeyVersion`
+          // field today; future rotations will rely on `vault.rotate(...)`.
+          keyVersion: Math.max(0, allocation.keyVersion - 1),
+          validUntil: new Date(allocation.previousValidUntil),
+        }
+      : null
+
   await vault.storeSecret('vobase-platform', {
-    routineSecret: allocation.routineSecret,
-    rotationKey: allocation.rotationKey,
-    keyVersion: allocation.keyVersion,
+    current: {
+      routineSecret: allocation.routineSecret,
+      rotationKey: allocation.rotationKey,
+      keyVersion: allocation.keyVersion,
+    },
+    previous,
   })
 
   const db = input.db ?? getInstalledDb()
