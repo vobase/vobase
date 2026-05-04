@@ -11,7 +11,12 @@
 import { describe, expect, test } from 'bun:test'
 import { signHmac } from '@vobase/core'
 
-import { createManagedTransport, verifyInboundManagedWebhook } from './managed-transport'
+import {
+  createManagedTransport,
+  __test_sha256Hex as sha256Hex,
+  __test_splitPathAndQuery as splitPathAndQuery,
+  verifyInboundManagedWebhook,
+} from './managed-transport'
 
 const CURRENT = {
   routineSecret: 'routine-secret-aaa',
@@ -49,7 +54,7 @@ describe('createManagedTransport', () => {
     expect(t.baseUrl).toBe('https://platform.voltade.app/api/managed-whatsapp/pc-1/graph')
   })
 
-  test('signRequest returns 2-key headers + tenant id', () => {
+  test('signRequest returns 2-key headers + tenant id + sig-v2 metadata (empty body)', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
       platformBaseUrl: 'https://platform.voltade.app',
@@ -57,15 +62,71 @@ describe('createManagedTransport', () => {
       current: CURRENT,
       previous: null,
     })
-    const headers = t.signRequest('POST', '/api/managed-whatsapp/pc-1/graph/12345/messages')
+    const path = '/api/managed-whatsapp/pc-1/graph/12345/messages'
+    const headers = t.signRequest('POST', path)
     expect(headers['X-Tenant-Id']).toBe('t-acme')
     expect(headers['X-Vobase-Key-Version']).toBe('5')
+    expect(headers['X-Vobase-Sig-Version']).toBe('2')
+    const emptyDigest = sha256Hex('')
+    expect(headers['X-Vobase-Body-Digest']).toBe(emptyDigest)
 
-    const expectedPayload = 'POST/api/managed-whatsapp/pc-1/graph/12345/messages'
-    expect(headers['X-Vobase-Routine-Sig']).toBe(signHmac(expectedPayload, CURRENT.routineSecret))
-    expect(headers['X-Vobase-Rotation-Sig']).toBe(signHmac(expectedPayload, CURRENT.rotationKey))
-    // Legacy single-key header for v1 platforms.
-    expect(headers['X-Platform-Signature']).toBe(headers['X-Vobase-Routine-Sig'])
+    // v2 payload is METHOD|path|sortedQuery|sha256(body); empty body + no query.
+    const v2Payload = `POST|${path}||${emptyDigest}`
+    expect(headers['X-Vobase-Routine-Sig']).toBe(signHmac(v2Payload, CURRENT.routineSecret))
+    expect(headers['X-Vobase-Rotation-Sig']).toBe(signHmac(v2Payload, CURRENT.rotationKey))
+    // Legacy v1 header (METHOD+path) for un-upgraded platforms.
+    expect(headers['X-Platform-Signature']).toBe(signHmac(`POST${path}`, CURRENT.routineSecret))
+  })
+
+  test('signRequest folds setPendingBody into the v2 digest', () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    const body = '{"messaging_product":"whatsapp","to":"x"}'
+    t.setPendingBody?.(body)
+    const path = '/api/managed-whatsapp/pc-1/graph/12345/messages'
+    const headers = t.signRequest('POST', path)
+    const digest = sha256Hex(body)
+    expect(headers['X-Vobase-Body-Digest']).toBe(digest)
+    const v2Payload = `POST|${path}||${digest}`
+    expect(headers['X-Vobase-Routine-Sig']).toBe(signHmac(v2Payload, CURRENT.routineSecret))
+  })
+
+  test('pending body resets between calls (no cross-request bleed)', () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    t.setPendingBody?.('one-shot')
+    const first = t.signRequest('POST', '/api/managed-whatsapp/pc-1/graph/12345')
+    const second = t.signRequest('POST', '/api/managed-whatsapp/pc-1/graph/12345')
+    // Second call had no setPendingBody → digest of empty.
+    expect(second['X-Vobase-Body-Digest']).toBe(sha256Hex(''))
+    expect(second['X-Vobase-Routine-Sig']).not.toBe(first['X-Vobase-Routine-Sig'])
+  })
+
+  test('signRequest folds sorted query string into the v2 payload (SH2)', () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    // Same logical query, different declared order — must produce identical signatures.
+    const a = t.signRequest('GET', '/api/managed-whatsapp/pc-1/graph/12345?b=2&a=1')
+    const b = t.signRequest('GET', '/api/managed-whatsapp/pc-1/graph/12345?a=1&b=2')
+    expect(a['X-Vobase-Routine-Sig']).toBe(b['X-Vobase-Routine-Sig'])
+    // Tampering with a value must invalidate.
+    const c = t.signRequest('GET', '/api/managed-whatsapp/pc-1/graph/12345?a=1&b=3')
+    expect(a['X-Vobase-Routine-Sig']).not.toBe(c['X-Vobase-Routine-Sig'])
   })
 
   test('signRequest method is uppercased before hashing', () => {
@@ -79,6 +140,18 @@ describe('createManagedTransport', () => {
     const lower = t.signRequest('get', '/api/managed-whatsapp/pc-1/graph/12345')
     const upper = t.signRequest('GET', '/api/managed-whatsapp/pc-1/graph/12345')
     expect(lower['X-Vobase-Routine-Sig']).toBe(upper['X-Vobase-Routine-Sig'])
+  })
+})
+
+describe('splitPathAndQuery', () => {
+  test('no query → empty sorted', () => {
+    expect(splitPathAndQuery('/foo/bar')).toEqual({ pathOnly: '/foo/bar', sortedQuery: '' })
+  })
+  test('canonicalises ordering', () => {
+    expect(splitPathAndQuery('/foo?b=2&a=1').sortedQuery).toBe('a=1&b=2')
+  })
+  test('stable on duplicate keys (sorted by value)', () => {
+    expect(splitPathAndQuery('/foo?a=2&a=1').sortedQuery).toBe('a=1&a=2')
   })
 })
 

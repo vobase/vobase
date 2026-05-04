@@ -146,8 +146,20 @@ export function createApiClient(config: WhatsAppChannelConfig, httpClient?: Http
   async function transportFetch(path: string, init: RequestInit = {}): Promise<Response> {
     const url = transport ? `${transport.baseUrl}${path}` : graphUrl(apiVersion, path)
 
+    if (transport) {
+      // Plumb the body to the transport so sig-v2 can include its digest.
+      // Only string bodies sign as bytes; binary bodies are excluded from
+      // the digest (caller MUST sign-out-of-band for FormData uploads, but
+      // the WA adapter never sends FormData through the proxied path).
+      const body = init.body
+      const bodyString = typeof body === 'string' ? body : null
+      transport.setPendingBody?.(bodyString)
+    }
+
+    const u = new URL(url)
+    const pathWithQuery = u.search ? `${u.pathname}${u.search}` : u.pathname
     const authHeaders = transport
-      ? transport.signRequest(init.method ?? 'GET', new URL(url).pathname)
+      ? transport.signRequest(init.method ?? 'GET', pathWithQuery)
       : { Authorization: `Bearer ${accessToken}` }
 
     const res = await fetch(url, {
@@ -255,7 +267,12 @@ export function createApiClient(config: WhatsAppChannelConfig, httpClient?: Http
           } catch {
             downloadUrl = `${transport.mediaDownloadUrl}?mediaId=${encodeURIComponent(mediaId)}`
           }
-          const authHeaders = transport.signRequest('GET', new URL(downloadUrl).pathname)
+          // Media download is GET-with-query; include the query in the
+          // signed path so SH2 (query-not-signed) can't redirect us.
+          const dlUrl = new URL(downloadUrl)
+          const dlPath = dlUrl.search ? `${dlUrl.pathname}${dlUrl.search}` : dlUrl.pathname
+          transport.setPendingBody?.(null)
+          const authHeaders = transport.signRequest('GET', dlPath)
           binRes = await fetch(downloadUrl, { headers: authHeaders })
         } else {
           const meta = await graphFetch(`/${mediaId}`)

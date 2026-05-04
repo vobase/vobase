@@ -51,31 +51,57 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
   const proxyBase = `${proxyOrigin}/api/managed-whatsapp/${input.platformChannelId}/graph`
   const mediaBase = `${proxyOrigin}/api/managed-whatsapp/${input.platformChannelId}/media-download`
 
+  // Per-transport mutable buffer — the adapter sets this before calling
+  // `signRequest` so the body digest can be folded into the v2 payload
+  // without re-plumbing the entire transport API.
+  let pendingBody: string | null = null
+
   return {
     baseUrl: proxyBase,
     mediaDownloadUrl: mediaBase,
     signRequest(method: string, path: string): Record<string, string> {
-      // Sign `method+path` per the platform's tenant→platform contract. The
-      // 2-key signed slate uses the request line itself; the body is empty
-      // for GETs and JSON for POSTs/PUTs (the api.ts caller already sets
-      // Content-Type for non-binary bodies).
+      // Two signatures attached to every request during rollout:
+      //
+      //   v1 (legacy)  — `${METHOD}${path}` only, in `X-Platform-Signature`.
+      //                  Read by un-upgraded platforms. Drop after platform
+      //                  flips `MANAGED_REQUIRE_SIG_V2=true`.
+      //   v2 (new)     — `${METHOD}|${pathWithoutQuery}|${sortedCanonicalQuery}
+      //                  |${sha256(body)}` in `X-Vobase-Routine-Sig` /
+      //                  `X-Vobase-Rotation-Sig`. Closes SH1 (body unsigned)
+      //                  and SH2 (query string unsigned) — tampering with
+      //                  either now invalidates the rotation signature.
+      //
+      // Body is plumbed via a per-request hook on the transport state (see
+      // `setPendingBody` below), since the adapter calls `signRequest`
+      // immediately before issuing fetch and we have no other channel to the
+      // request body in time. Empty when absent.
       const cur = resolve(input.current)
-      const payload = `${method.toUpperCase()}${path}`
-      const signed = signRequest({
-        body: payload,
+      const { pathOnly, sortedQuery } = splitPathAndQuery(path)
+      const bodyDigest = sha256Hex(pendingBody ?? '')
+      const v2Payload = `${method.toUpperCase()}|${pathOnly}|${sortedQuery}|${bodyDigest}`
+      const v1Payload = `${method.toUpperCase()}${path}`
+      const v2 = signRequest({
+        body: v2Payload,
         routineSecret: cur.routineSecret,
         rotationKey: cur.rotationKey,
         keyVersion: cur.keyVersion,
       })
+      const v1Sig = signHmac(v1Payload, cur.routineSecret)
+      // Reset the per-request body buffer so a stale value can't carry over
+      // to a follow-up unrelated request that forgot to call setPendingBody.
+      pendingBody = null
       return {
         'X-Tenant-Id': input.tenantId,
-        // Legacy single-key header preserved for v1 platforms during rollout.
-        'X-Platform-Signature': signed.routineSignature,
-        // 2-key headers for upgraded platforms.
-        'X-Vobase-Routine-Sig': signed.routineSignature,
-        'X-Vobase-Rotation-Sig': signed.rotationSignature,
-        'X-Vobase-Key-Version': String(signed.keyVersion),
+        'X-Platform-Signature': v1Sig,
+        'X-Vobase-Routine-Sig': v2.routineSignature,
+        'X-Vobase-Rotation-Sig': v2.rotationSignature,
+        'X-Vobase-Key-Version': String(v2.keyVersion),
+        'X-Vobase-Sig-Version': '2',
+        'X-Vobase-Body-Digest': bodyDigest,
       }
+    },
+    setPendingBody(body) {
+      pendingBody = body ?? null
     },
     async verifyInboundWebhook(request: Request): Promise<boolean> {
       // Inbound managed webhooks come from the platform forwarder. Two
@@ -132,6 +158,35 @@ function constantTimeEqual(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) acc |= a.charCodeAt(i) ^ b.charCodeAt(i)
   return acc === 0
 }
+
+function sha256Hex(s: string): string {
+  return new Bun.CryptoHasher('sha256').update(s).digest('hex')
+}
+
+/**
+ * Split a request path into `(pathOnly, sortedCanonicalQuery)` so the v2
+ * signature can include a stable representation of the query string.
+ *
+ * Sort by key, then by value, then percent-decode-encode round trip. The
+ * platform side does the exact same canonicalisation before verifying.
+ */
+function splitPathAndQuery(path: string): { pathOnly: string; sortedQuery: string } {
+  const qIdx = path.indexOf('?')
+  if (qIdx < 0) return { pathOnly: path, sortedQuery: '' }
+  const pathOnly = path.slice(0, qIdx)
+  const rawQuery = path.slice(qIdx + 1)
+  if (rawQuery.length === 0) return { pathOnly, sortedQuery: '' }
+  const params = new URLSearchParams(rawQuery)
+  const entries: Array<[string, string]> = []
+  for (const [k, v] of params) entries.push([k, v])
+  entries.sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : a[0] < b[0] ? -1 : 1))
+  const sorted = new URLSearchParams()
+  for (const [k, v] of entries) sorted.append(k, v)
+  return { pathOnly, sortedQuery: sorted.toString() }
+}
+
+export const __test_splitPathAndQuery = splitPathAndQuery
+export const __test_sha256Hex = sha256Hex
 
 /**
  * Verify an inbound webhook signed by the platform forwarder. Accepts the

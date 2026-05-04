@@ -8,6 +8,15 @@ export interface WhatsAppTransportConfig {
   /** Returns headers to include in proxied requests (HMAC signature + tenant ID). */
   signRequest: (method: string, path: string) => Record<string, string>
   /**
+   * Optional pre-sign hook — the adapter calls this immediately before
+   * `signRequest` so the transport can fold the request body into the
+   * v2 signature payload (sig-v2 binds method + path + sorted query +
+   * body-digest; without the body the digest is empty). Implementations
+   * may store the body in a per-request scratch buffer and consume it on
+   * the next `signRequest` call.
+   */
+  setPendingBody?: (body: string | null) => void
+  /**
    * When set, the adapter calls this on inbound webhooks instead of falling
    * back to "trust the proxy". Returns `true` if the platform-forwarded
    * payload's signature checks out against the rotation pair held by the
