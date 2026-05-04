@@ -19,6 +19,7 @@ export const WEB_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: false,
   streaming: true,
   messagingWindow: false,
+  nativeThreading: false,
 }
 
 export function createWebAdapter(_config: Record<string, unknown>, _instanceId: string): ChannelAdapter {

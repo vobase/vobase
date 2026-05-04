@@ -101,7 +101,42 @@ async function checkJournalWriteAuthority(): Promise<void> {
   }
 }
 
-const MODULE_FILES = ['agents', 'contacts', 'drive', 'messaging', 'team']
+const REQUIRED_CAPABILITY_KEYS = [
+  'templates',
+  'media',
+  'reactions',
+  'readReceipts',
+  'typingIndicators',
+  'streaming',
+  'messagingWindow',
+  'nativeThreading',
+] as const
+
+async function checkCapabilityLiterals(): Promise<void> {
+  const glob = new Bun.Glob('**/adapters/**/{factory,adapter}.ts')
+  const searchRoot = join(MODULES_DIR)
+  const capBlockRe = /capabilities\s*(?::\s*ChannelCapabilities)?\s*=\s*\{([^}]+)\}/g
+
+  for await (const entry of glob.scan({ cwd: searchRoot })) {
+    if (entry.endsWith('.test.ts')) continue
+    const fullPath = join(searchRoot, entry)
+    const text = await Bun.file(fullPath).text()
+    const matches = [...text.matchAll(capBlockRe)]
+    for (const match of matches) {
+      const block = match[1]
+      for (const key of REQUIRED_CAPABILITY_KEYS) {
+        if (!new RegExp(`\\b${key}\\s*:`).test(block)) {
+          errors.push({
+            file: fullPath,
+            message: `capability literal missing required key "${key}" — add it to ChannelCapabilities`,
+          })
+        }
+      }
+    }
+  }
+}
+
+const MODULE_FILES = ['agents', 'contacts', 'drive', 'messaging', 'team', 'channels']
 
 const INLINE_LITERAL_RE = /^\s{2,}(tools|listeners|materializers|commands|sideLoad)\s*:\s*[[{]/
 const CTX_REGISTER_RE = /ctx\.register[A-Z]\w*/
@@ -310,6 +345,7 @@ async function checkRouteSurfaces(): Promise<void> {
 }
 
 await checkJournalWriteAuthority()
+await checkCapabilityLiterals()
 await checkModuleTsShape()
 await checkRouteSurfaces()
 checkModuleContracts()

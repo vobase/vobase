@@ -18,6 +18,7 @@ import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { ChannelEvent, MessageReceivedEvent } from '@vobase/core'
 
 import { AGENTS_WAKE_JOB } from '~/wake/inbound'
+import { get as registryGet } from './registry'
 import { requireJobs } from './state'
 
 export interface InboundDispatchResult {
@@ -76,6 +77,9 @@ export async function dispatchInbound(
         sizeBytes: m.sizeBytes ?? m.data.length,
       }))
 
+    const adapter = registryGet(instance.channel, instance.config, instance.id)
+    const threadKey = adapter?.resolveThreadKey?.(event) ?? 'default'
+
     const result = await createInboundMessage({
       organizationId: instance.organizationId,
       channelInstanceId: instance.id,
@@ -86,6 +90,7 @@ export async function dispatchInbound(
       profileName: event.profileName,
       initialAssignee: opts?.defaultAssignee ?? null,
       attachments: attachments && attachments.length > 0 ? attachments : undefined,
+      threadKey,
     })
 
     if (result.isNew) {

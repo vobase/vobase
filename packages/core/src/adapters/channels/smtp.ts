@@ -21,6 +21,7 @@ const EMAIL_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: false,
   streaming: false,
   messagingWindow: false,
+  nativeThreading: true,
 }
 
 /**

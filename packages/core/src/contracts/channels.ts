@@ -43,6 +43,13 @@ export interface ChannelAdapter {
    *  (e.g. Messenger/Instagram where Meta sends all events to one URL). */
   extractInstanceIdentifier?(payload: unknown): string | null
 
+  /**
+   * Resolve the thread key for an inbound message. Chat adapters omit this
+   * (dispatcher defaults to `'default'`); email adapters extract the RFC 5322
+   * References root so each email topic maps to its own conversation.
+   */
+  resolveThreadKey?(event: MessageReceivedEvent): string
+
   /** Adapter-specific outbound serialization (template, interactive, media routing). */
   serializeOutbound?(message: { content: string; contentData: unknown }): OutboundMessage
 
@@ -70,6 +77,7 @@ export interface ChannelCapabilities {
   typingIndicators: boolean
   streaming: boolean
   messagingWindow: boolean
+  nativeThreading: boolean
 }
 
 // ─── Inbound Events ─────────────────────────────────────────────────

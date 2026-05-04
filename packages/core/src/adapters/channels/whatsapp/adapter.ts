@@ -501,6 +501,7 @@ export function createWhatsAppAdapter(
     typingIndicators: false,
     streaming: false,
     messagingWindow: true,
+    nativeThreading: false,
   }
 
   return {

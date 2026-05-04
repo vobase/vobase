@@ -23,6 +23,7 @@ export const WHATSAPP_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: true,
   streaming: false,
   messagingWindow: true,
+  nativeThreading: false,
 }
 
 function pick(...candidates: Array<string | undefined>): string {

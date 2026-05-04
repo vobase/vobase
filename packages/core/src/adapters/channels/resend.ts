@@ -18,6 +18,7 @@ const EMAIL_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: false,
   streaming: false,
   messagingWindow: false,
+  nativeThreading: true,
 }
 
 export function createResendAdapter(config: ResendAdapterConfig): ChannelAdapter {
