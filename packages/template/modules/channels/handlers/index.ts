@@ -24,6 +24,7 @@ import managedWhatsapp from '../adapters/whatsapp/handlers/managed'
 import { getRequireSession } from '../service/state'
 import instances from './instances'
 import webhook from './webhook'
+import whatsappSignup from './whatsapp-signup'
 
 const lazyRequireSession: MiddlewareHandler = async (c, next) => {
   const mw = getRequireSession()
@@ -34,9 +35,11 @@ const lazyRequireSession: MiddlewareHandler = async (c, next) => {
 const app = new Hono()
   .use('/instances/*', lazyRequireSession)
   .use('/whatsapp/managed/*', lazyRequireSession)
+  .use('/whatsapp/signup/*', lazyRequireSession)
   .route('/instances', instances)
   .route('/webhooks', webhook)
   .route('/adapters/web', webAdapter)
   .route('/whatsapp', managedWhatsapp)
+  .route('/whatsapp/signup', whatsappSignup)
 
 export default app

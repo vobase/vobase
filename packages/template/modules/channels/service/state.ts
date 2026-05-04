@@ -8,6 +8,7 @@
 
 import type { Auth } from '@auth'
 import { createRequireSession } from '@auth/middleware'
+import type { RateLimiter } from '@vobase/core'
 import type { MiddlewareHandler } from 'hono'
 
 import type { RealtimeService } from '~/runtime'
@@ -20,6 +21,7 @@ interface ChannelsStateDeps {
   jobs?: JobQueue | null
   realtime?: RealtimeService | null
   auth?: Auth | null
+  rateLimits?: RateLimiter | null
 }
 
 export interface ChannelsState {
@@ -27,6 +29,7 @@ export interface ChannelsState {
   realtime: RealtimeService | null
   auth: Auth | null
   requireSession: MiddlewareHandler | null
+  rateLimits: RateLimiter | null
 }
 
 export function createChannelsState(deps: ChannelsStateDeps = {}): ChannelsState {
@@ -35,6 +38,7 @@ export function createChannelsState(deps: ChannelsStateDeps = {}): ChannelsState
     realtime: deps.realtime ?? null,
     auth: deps.auth ?? null,
     requireSession: deps.auth ? createRequireSession(deps.auth) : null,
+    rateLimits: deps.rateLimits ?? null,
   }
 }
 
@@ -71,4 +75,14 @@ export function getAuth(): Auth | null {
 
 export function getRequireSession(): MiddlewareHandler | null {
   return _current?.requireSession ?? null
+}
+
+/** Lazy accessor — returns null if state isn't installed (e.g. unit tests). */
+export function getJobs(): JobQueue | null {
+  return _current?.jobs ?? null
+}
+
+/** Lazy accessor — returns null if state isn't installed (e.g. unit tests). */
+export function getRateLimits(): RateLimiter | null {
+  return _current?.rateLimits ?? null
 }

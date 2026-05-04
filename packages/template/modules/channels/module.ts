@@ -13,10 +13,12 @@ import {
   WHATSAPP_CAPABILITIES,
   WHATSAPP_CHANNEL_NAME,
 } from './adapters/whatsapp/factory'
+import { runWhatsappSetupJob, WHATSAPP_SETUP_JOB, type WhatsappSetupJobData } from './adapters/whatsapp/jobs/setup'
 import { channelsAgent } from './agent'
 import handlers from './handlers'
 import { createChannelInstancesService, installChannelInstancesService } from './service/instances'
 import { register as registerAdapter } from './service/registry'
+import { createSignupNoncesService, installSignupNoncesService } from './service/signup-nonces'
 import { createChannelsState, installChannelsState, type JobQueue } from './service/state'
 
 const channels: ModuleDef = {
@@ -24,17 +26,24 @@ const channels: ModuleDef = {
   requires: ['messaging', 'contacts', 'drive'],
   web: { routes: { basePath: '/api/channels', handler: handlers } },
   agent: channelsAgent,
-  jobs: [],
+  jobs: [
+    {
+      name: WHATSAPP_SETUP_JOB,
+      handler: (data: unknown) => runWhatsappSetupJob(data as WhatsappSetupJobData),
+    },
+  ],
   init(ctx) {
     installChannelsState(
       createChannelsState({
         jobs: ctx.jobs as unknown as JobQueue,
         realtime: ctx.realtime,
         auth: ctx.auth,
+        rateLimits: ctx.rateLimits,
       }),
     )
     installChannelInstancesService(createChannelInstancesService({ db: ctx.db }))
     installWebInstancesService(createWebInstancesService({ db: ctx.db }))
+    installSignupNoncesService(createSignupNoncesService({ db: ctx.db }))
 
     registerAdapter(WEB_CHANNEL_NAME, createWebAdapter, WEB_CAPABILITIES)
     registerAdapter(WHATSAPP_CHANNEL_NAME, createWhatsAppAdapterFromConfig, WHATSAPP_CAPABILITIES)

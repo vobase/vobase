@@ -59,7 +59,7 @@ const SESSIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*conversationSessions\
 const SESSIONS_WRITE_ALLOWED = ['modules/messaging/service/sessions.ts']
 
 const SIGNUP_NONCES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*signupNonces\b/
-const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/adapters/whatsapp/handlers/signup.ts']
+const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/service/signup-nonces.ts']
 
 /**
  * `learning_proposals` migration guard. After Slice C the table, schema, and
@@ -124,7 +124,7 @@ async function checkJournalWriteAuthority(): Promise<void> {
           errors.push({
             file: fullPath,
             line: i + 1,
-            message: `writes to "${m[2]}" only allowed in channels/adapters/whatsapp/handlers/signup.ts (one-write-path)`,
+            message: `writes to "${m[2]}" only allowed in channels/service/signup-nonces.ts (one-write-path)`,
           })
         }
       }

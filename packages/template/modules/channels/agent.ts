@@ -1,25 +1,14 @@
 /**
- * Agent-facing surfaces for the channels module.
+ * Agent-facing surfaces for the channels umbrella.
  *
- * Currently contributes a single AGENTS.md section explaining WhatsApp coexistence
- * echo semantics so agents don't mistakenly acknowledge staff-typed messages.
+ * Aggregates per-adapter `agentsMd` contributors. The umbrella never inlines
+ * its own behavior fragments — each adapter owns the prose for the channel-
+ * specific semantics it surfaces (echoes, native threading, etc.).
  */
+import type { IndexContributor } from '@vobase/core'
 
-import { defineIndexContributor, type IndexContributor } from '@vobase/core'
-
-import { whatsappAgentsMd } from './adapters/whatsapp/agent'
-
-const AGENTS_MD_FILE = 'AGENTS.md'
-
-const channelsAgentsMdContributors: readonly IndexContributor[] = [
-  defineIndexContributor({
-    file: AGENTS_MD_FILE,
-    priority: 55,
-    name: 'channels.whatsapp-echoes',
-    render: () => whatsappAgentsMd,
-  }),
-]
+import { whatsappAgentsMdContributors } from './adapters/whatsapp/agent'
 
 export const channelsAgent = {
-  agentsMd: [...channelsAgentsMdContributors],
+  agentsMd: [...whatsappAgentsMdContributors] as IndexContributor[],
 } satisfies { agentsMd?: IndexContributor[] }
