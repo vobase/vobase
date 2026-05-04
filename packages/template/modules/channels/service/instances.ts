@@ -11,7 +11,7 @@
  */
 
 import { type ChannelInstance, channelInstances } from '@modules/channels/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 
@@ -135,4 +135,94 @@ export function updateInstance(
 }
 export function removeInstance(id: string, organizationId: string): Promise<void> {
   return current().remove(id, organizationId)
+}
+
+// ─── Managed-mode upsert ────────────────────────────────────────────────────
+
+export interface UpsertManagedInput {
+  organizationId: string
+  /**
+   * Channel adapter discriminator (e.g., `'whatsapp'`). Must match a
+   * registered adapter in `service/registry.ts`.
+   */
+  channel: string
+  /**
+   * Stable platform-side identifier — used as the idempotency key. Re-pushing
+   * with the same `(organizationId, channel, platformChannelId)` is a no-op
+   * (returns the existing row).
+   */
+  platformChannelId: string
+  displayName: string
+  /**
+   * Adapter config to merge into the existing row (or insert as the seed).
+   * The integrations module owns the platform-specific shape; channels just
+   * persists it as opaque JSONB.
+   */
+  config: Record<string, unknown>
+}
+
+/**
+ * Single-write-path entry point for the integrations module to materialize a
+ * platform-managed channel instance. Channels owns the row; integrations is
+ * the only caller. Idempotent on `(organizationId, channel, config.platformChannelId)`.
+ */
+export async function upsertManagedInstance(
+  db: ScopedDb,
+  input: UpsertManagedInput,
+): Promise<{ instance: ChannelInstance; isNew: boolean }> {
+  // Look up existing by `config->>'platformChannelId'` so re-handshakes are
+  // no-ops. We can't put a unique index on a JSONB key without a generated
+  // column, so the lookup is at-most-one filtered by channel + org.
+  const existing = await db
+    .select()
+    .from(channelInstances)
+    .where(
+      and(
+        eq(channelInstances.organizationId, input.organizationId),
+        eq(channelInstances.channel, input.channel),
+        sql`(config->>'platformChannelId') = ${input.platformChannelId}`,
+      ),
+    )
+    .limit(1)
+
+  if (existing.length > 0) {
+    const row = existing[0]
+    if (!row) {
+      // Defensive — Array.length > 0 implies row, but TS narrowing requires the guard.
+      throw new Error('channels/instances: managed lookup returned empty row')
+    }
+    const merged = { ...row.config, ...input.config }
+    const [updated] = await db
+      .update(channelInstances)
+      .set({
+        displayName: input.displayName,
+        config: merged,
+        status: 'active',
+        setupStage: 'active',
+        lastError: null,
+      })
+      .where(eq(channelInstances.id, row.id))
+      .returning()
+    if (!updated) {
+      throw new Error('channels/instances: managed upsert update returned no row')
+    }
+    return { instance: updated, isNew: false }
+  }
+
+  const [created] = await db
+    .insert(channelInstances)
+    .values({
+      organizationId: input.organizationId,
+      channel: input.channel,
+      role: 'customer',
+      displayName: input.displayName,
+      config: { ...input.config, platformChannelId: input.platformChannelId, mode: 'managed' },
+      status: 'active',
+      setupStage: 'active',
+    })
+    .returning()
+  if (!created) {
+    throw new Error('channels/instances: managed insert returned no row')
+  }
+  return { instance: created, isNew: true }
 }

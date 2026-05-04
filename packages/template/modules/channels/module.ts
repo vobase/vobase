@@ -6,7 +6,6 @@
  */
 
 import type { ModuleDef } from '~/runtime'
-import { channelsAgent } from './agent'
 import { createWebAdapter, WEB_CAPABILITIES, WEB_CHANNEL_NAME } from './adapters/web/adapter'
 import { createWebInstancesService, installWebInstancesService } from './adapters/web/service/instances'
 import {
@@ -14,6 +13,7 @@ import {
   WHATSAPP_CAPABILITIES,
   WHATSAPP_CHANNEL_NAME,
 } from './adapters/whatsapp/factory'
+import { channelsAgent } from './agent'
 import handlers from './handlers'
 import { createChannelInstancesService, installChannelInstancesService } from './service/instances'
 import { register as registerAdapter } from './service/registry'

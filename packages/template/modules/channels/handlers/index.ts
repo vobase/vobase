@@ -20,6 +20,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 
 import webAdapter from '../adapters/web/handlers'
+import managedWhatsapp from '../adapters/whatsapp/handlers/managed'
 import { getRequireSession } from '../service/state'
 import instances from './instances'
 import webhook from './webhook'
@@ -32,8 +33,10 @@ const lazyRequireSession: MiddlewareHandler = async (c, next) => {
 
 const app = new Hono()
   .use('/instances/*', lazyRequireSession)
+  .use('/whatsapp/managed/*', lazyRequireSession)
   .route('/instances', instances)
   .route('/webhooks', webhook)
   .route('/adapters/web', webAdapter)
+  .route('/whatsapp', managedWhatsapp)
 
 export default app
