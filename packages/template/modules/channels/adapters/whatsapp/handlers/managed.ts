@@ -25,7 +25,7 @@ const app = new Hono<OrganizationEnv>().use('*', requireOrganization).delete('/m
 
   const platformBaseUrl = (row.config.platformBaseUrl as string | undefined) ?? ''
   const environment = (row.config.environment as 'production' | 'staging' | undefined) ?? 'production'
-  const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+  const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
   const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
 
   if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {

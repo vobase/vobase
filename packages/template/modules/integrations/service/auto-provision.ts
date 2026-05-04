@@ -2,9 +2,9 @@
  * Auto-provision managed WhatsApp channel on tenant boot.
  *
  * Gated on `META_PLATFORM_AUTO_PROVISION=true`. When the tenant has a
- * `vobase-platform` HMAC secret + `PLATFORM_TENANT_ID` env vars set and no
- * managed instance for the current `(environment)` exists yet, hit the
- * platform handshake and persist the result.
+ * `vobase-platform` HMAC secret + `VITE_PLATFORM_TENANT_SLUG` env vars set
+ * and no managed instance for the current `(environment)` exists yet, hit
+ * the platform handshake and persist the result.
  *
  * Idempotent — `upsertManagedInstance` no-ops if the instance row already
  * exists for `(organization, channel='whatsapp', platformChannelId)`.
@@ -41,14 +41,14 @@ export async function autoProvisionManagedWhatsApp(input: AutoProvisionInput): P
     return { status: 'skipped', reason: 'META_PLATFORM_AUTO_PROVISION not enabled' }
   }
 
-  const platformBaseUrl = readEnv('PLATFORM_URL')
-  const tenantId = readEnv('PLATFORM_TENANT_ID')
+  const platformBaseUrl = readEnv('VITE_PLATFORM_URL')
+  const tenantId = readEnv('VITE_PLATFORM_TENANT_SLUG')
   const tenantHmacSecret = readEnv('PLATFORM_HMAC_SECRET')
 
   if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {
     return {
       status: 'skipped',
-      reason: 'PLATFORM_URL / PLATFORM_TENANT_ID / PLATFORM_HMAC_SECRET not configured',
+      reason: 'VITE_PLATFORM_URL / VITE_PLATFORM_TENANT_SLUG / PLATFORM_HMAC_SECRET not configured',
     }
   }
 

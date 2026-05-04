@@ -142,9 +142,9 @@ async function loadRotation(organizationId: string): Promise<VaultRotation> {
 }
 
 function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
-  const tenantId = process.env.PLATFORM_TENANT_ID
+  const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG
   if (!tenantId) {
-    throw new Error('whatsapp adapter (managed): PLATFORM_TENANT_ID env var is required')
+    throw new Error('whatsapp adapter (managed): VITE_PLATFORM_TENANT_SLUG env var is required')
   }
 
   // Warm the cache eagerly so the first outbound dispatch doesn't pay the
