@@ -191,4 +191,6 @@ Opt-in. `bun create vobase` runs `vobase install --defaults` last (with `--no-de
 
 Email OTP via better-auth. Dev-only `POST /api/auth/dev-login` (`{ email, name? }`) bypasses OTP — used by seed, e2e, agent-browser. Not in production.
 
+`BETTER_AUTH_SECRET` is the KEK seed for envelope-encrypted access tokens (WhatsApp Embedded Signup BISU tokens, managed-channel HMAC secret material). Must be ≥32 chars. Rotation requires a manual re-encryption migration over `channel_instances.config.accessTokenEnvelope` and `integrations.secret`.
+
 Dockerfile + `railway.json`. Set `DATABASE_URL`, `BIFROST_API_KEY`+`BIFROST_URL` (or `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`), `META_WA_*` for WhatsApp, `R2_*` for non-local storage.
