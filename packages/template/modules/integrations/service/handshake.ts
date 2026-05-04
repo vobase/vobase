@@ -6,7 +6,9 @@
  * so handlers + auto-provisioner + tests don't reimplement it.
  */
 
-import { type SignedRequest, signRequest } from '@vobase/core'
+import { type SignedRequest, signHmac, signRequest } from '@vobase/core'
+
+import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
 
 const META_PLATFORM_HOSTNAME_ALLOWLIST_ENV = 'META_PLATFORM_HOSTNAME_ALLOWLIST'
 
@@ -106,8 +108,11 @@ async function signedPlatformPost(
   }
 
   const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
+  const { pathOnly, sortedQuery } = splitPathAndQuery(path)
+  const bodyDigest = sha256Hex(body)
+  const v2Payload = `POST|${pathOnly}|${sortedQuery}|${bodyDigest}`
   const signed = signRequest({
-    body,
+    body: v2Payload,
     routineSecret: input.tenantHmacSecret,
     rotationKey: input.tenantHmacSecret,
     keyVersion: 1,
@@ -117,10 +122,14 @@ async function signedPlatformPost(
     headers: {
       'Content-Type': 'application/json',
       'X-Tenant-Id': input.tenantId,
-      'X-Platform-Signature': signed.routineSignature,
+      // legacy v1 — keep until platform's MANAGED_REQUIRE_SIG_V2=true rollout finishes
+      'X-Platform-Signature': signHmac(body, input.tenantHmacSecret),
+      // v2 contract
       'X-Vobase-Routine-Sig': signed.routineSignature,
       'X-Vobase-Rotation-Sig': signed.rotationSignature,
       'X-Vobase-Key-Version': String(signed.keyVersion),
+      'X-Vobase-Sig-Version': '2',
+      'X-Vobase-Body-Digest': bodyDigest,
     },
     body,
   })

@@ -185,6 +185,8 @@ function splitPathAndQuery(path: string): { pathOnly: string; sortedQuery: strin
   return { pathOnly, sortedQuery: sorted.toString() }
 }
 
+export { sha256Hex, splitPathAndQuery }
+// back-compat aliases for existing test imports
 export const __test_splitPathAndQuery = splitPathAndQuery
 export const __test_sha256Hex = sha256Hex
 
