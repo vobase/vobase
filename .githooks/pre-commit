@@ -1,17 +1,30 @@
 #!/usr/bin/env sh
-# Whitelist gate for bun.lock — fails the commit if bun.lock contains
-# workspace entries outside the globs declared in root package.json.
-#
-# Triggered when bun.lock is part of the staged change. Other commits pass
-# through untouched.
+# Pre-commit gates. Each block is independently skippable when no relevant
+# files are staged, so the hook stays fast on small diffs.
 #
 # Enable once per clone: `git config core.hooksPath .githooks`
 
+# ─── bun.lock whitelist gate ────────────────────────────────────────────────
+# Fails the commit if bun.lock contains workspace entries outside the globs
+# declared in root package.json. Triggered only when bun.lock is staged.
 if git diff --cached --name-only | grep -qx 'bun.lock'; then
   bun run scripts/check-lockfile-workspaces.ts || {
     echo ""
     echo "  ↳ run \`bun install\` inside a Linux Docker container, then re-stage:"
     echo "     docker run --rm -v \"\$PWD:/app\" -w /app oven/bun:1.3.13 bun install"
+    exit 1
+  }
+fi
+
+# ─── Secret scan ────────────────────────────────────────────────────────────
+# Fails the commit if a Meta App Secret, WhatsApp BISU token, Slack/AWS/OpenAI/
+# Anthropic/Google/GitHub/Stripe key, or PEM private key would be committed.
+# Reads .gitleaks.toml. Falls back to a built-in regex scanner when the
+# `gitleaks` binary isn't on $PATH (no install required for contributors).
+if [ -n "$(git diff --cached --name-only --diff-filter=ACM)" ]; then
+  bun run scripts/check-secrets.ts || {
+    echo ""
+    echo "  ↳ if these are placeholders/fixtures, add the path or pattern to .gitleaks.toml [allowlist]"
     exit 1
   }
 fi

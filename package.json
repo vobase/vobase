@@ -19,6 +19,7 @@
     "version-packages": "changeset version",
     "release": "bash scripts/release.sh",
     "check:lockfile": "bun run scripts/check-lockfile-workspaces.ts",
+    "check:secrets": "bun run scripts/check-secrets.ts",
     "knip": "knip"
   },
   "devDependencies": {

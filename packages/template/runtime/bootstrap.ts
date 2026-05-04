@@ -27,6 +27,7 @@ import {
   createCatalogRoute,
   createCliDispatchRoute,
   createLogger,
+  createRateLimiter,
   createRealtimeService,
   type ScheduleOpts,
   setJournalDb,
@@ -40,7 +41,7 @@ import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
 import { createHeartbeatEmitter } from '~/wake/heartbeat'
-import { createWakeHandler, AGENTS_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB, createWakeHandler } from '~/wake/inbound'
 import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
 import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
 import type { RealtimeService, ScopedDb } from './index'
@@ -209,6 +210,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const jobs = buildJobQueue(jobHandlers)
   const cli = new CliVerbRegistry()
   const storage = createStorage()
+  const rateLimits = createRateLimiter(db)
   setJournalDb(db)
 
   // Extended ctx threaded into every module's `init`. `auth` is bootstrap-tier
@@ -216,7 +218,9 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // by drive's RBAC gate and channel-web's session flow. `storage` is a
   // per-bucket key-prefix scoped handle (drive/contact/etc.) backed by either
   // a local filesystem adapter (dev) or R2 (when env is configured).
-  const moduleCtx = { db, organizationId: '', jobs, realtime, auth, cli, storage }
+  // `rateLimits` is a shared sliding-window limiter backed by `infra.rate_limits`,
+  // used by webhook routers + outbound channel adapters to gate per-tenant volume.
+  const moduleCtx = { db, organizationId: '', jobs, realtime, auth, cli, storage, rateLimits }
   await bootModules({
     modules,
     app,

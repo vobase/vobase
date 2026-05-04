@@ -5,7 +5,15 @@ import { drizzle } from 'drizzle-orm/pglite'
 import type { VobaseDb } from '../db/client'
 import type { Scheduler } from '../jobs/queue'
 import { createTestPGlite } from '../test-helpers'
-import { checkAndRecordWebhook, createWebhookRoutes, signHmac, verifyHmacSignature, type WebhookConfig } from '.'
+import {
+  checkAndRecordWebhook,
+  createWebhookRoutes,
+  signHmac,
+  signRequest,
+  verifyHmacSignature,
+  verifyRequest,
+  type WebhookConfig,
+} from '.'
 
 let db: VobaseDb
 let pglite: PGlite
@@ -413,5 +421,156 @@ describe('createWebhookRoutes', () => {
     expect(res.status).toBe(401)
     expect(await res.json()).toEqual({ error: 'Invalid signature' })
     expect(scheduler.calls).toHaveLength(0)
+  })
+})
+
+describe('signRequest / verifyRequest (2-key rotation)', () => {
+  const body = '{"event":"managed-channel.send","id":"evt_42"}'
+  const routineV1 = 'routine-secret-instance-abc'
+  const rotationV1 = 'rotation-key-version-1'
+  const rotationV2 = 'rotation-key-version-2'
+
+  test('signed payload verifies under matching slate entry', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 })
+    const result = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: sig.keyVersion,
+      maxKeyVersionSeen: 0,
+      accept: [{ routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 }],
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.nextMaxKeyVersionSeen).toBe(1)
+  })
+
+  test('rejects downgrade — older keyVersion than seen', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 })
+    const result = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: 1,
+      maxKeyVersionSeen: 2,
+      accept: [
+        { routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 },
+        { routineSecret: routineV1, rotationKey: rotationV2, keyVersion: 2 },
+      ],
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('downgrade')
+  })
+
+  test('accepts equal keyVersion (same-version retry is normal)', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 3 })
+    const result = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: 3,
+      maxKeyVersionSeen: 3,
+      accept: [{ routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 3 }],
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.nextMaxKeyVersionSeen).toBe(3)
+  })
+
+  test('rotation in flight — slate carries both v1 and v2', () => {
+    const sigV2 = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV2, keyVersion: 2 })
+    const sigV1 = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 })
+    const accept = [
+      { routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 },
+      { routineSecret: routineV1, rotationKey: rotationV2, keyVersion: 2 },
+    ]
+    const r1 = verifyRequest({
+      body,
+      routineSignature: sigV2.routineSignature,
+      rotationSignature: sigV2.rotationSignature,
+      keyVersion: 2,
+      maxKeyVersionSeen: 1,
+      accept,
+    })
+    expect(r1.ok).toBe(true)
+    // Once we've seen v2, an in-flight v1 (older) is downgraded.
+    const r2 = verifyRequest({
+      body,
+      routineSignature: sigV1.routineSignature,
+      rotationSignature: sigV1.rotationSignature,
+      keyVersion: 1,
+      maxKeyVersionSeen: 2,
+      accept,
+    })
+    expect(r2.ok).toBe(false)
+    if (!r2.ok) expect(r2.reason).toBe('downgrade')
+  })
+
+  test('rejects when slate has no entry for the inbound version', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV2, keyVersion: 2 })
+    const result = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: 2,
+      maxKeyVersionSeen: 0,
+      accept: [{ routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 }],
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('unknown_version')
+  })
+
+  test('rejects bad routine signature', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 })
+    const tampered = sig.routineSignature.slice(0, -1) + (sig.routineSignature.endsWith('0') ? '1' : '0')
+    const result = verifyRequest({
+      body,
+      routineSignature: tampered,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: 1,
+      maxKeyVersionSeen: 0,
+      accept: [{ routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 }],
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('bad_routine_sig')
+  })
+
+  test('rejects bad rotation signature', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 })
+    const tampered = sig.rotationSignature.slice(0, -1) + (sig.rotationSignature.endsWith('0') ? '1' : '0')
+    const result = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: tampered,
+      keyVersion: 1,
+      maxKeyVersionSeen: 0,
+      accept: [{ routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 }],
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('bad_rotation_sig')
+  })
+
+  test('rejects malformed keyVersion (negative or non-integer)', () => {
+    const sig = signRequest({ body, routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 })
+    const accept = [{ routineSecret: routineV1, rotationKey: rotationV1, keyVersion: 1 }]
+    const negative = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: -1,
+      maxKeyVersionSeen: 0,
+      accept,
+    })
+    expect(negative.ok).toBe(false)
+    if (!negative.ok) expect(negative.reason).toBe('malformed')
+
+    const fractional = verifyRequest({
+      body,
+      routineSignature: sig.routineSignature,
+      rotationSignature: sig.rotationSignature,
+      keyVersion: 1.5,
+      maxKeyVersionSeen: 0,
+      accept,
+    })
+    expect(fractional.ok).toBe(false)
+    if (!fractional.ok) expect(fractional.reason).toBe('malformed')
   })
 })

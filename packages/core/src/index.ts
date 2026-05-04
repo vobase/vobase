@@ -322,9 +322,21 @@ export {
 } from './harness/with-journaled-tx'
 // ─── HMAC + Webhooks ─────────────────────────────────────────────────
 export {
+  CURRENT_KEK_VERSION,
   createWebhookRoutes,
+  decryptSecretEnvelope,
+  EnvelopeTamperError,
+  EnvelopeVersionError,
+  encryptSecretEnvelope,
+  type SecretEnvelope,
+  type SignedRequest,
+  type SignRequestInput,
   signHmac,
+  signRequest,
+  type VerifyRequestInput,
+  type VerifyRequestResult,
   verifyHmacSignature,
+  verifyRequest,
   type WebhookConfig,
   webhookDedup as webhookDedupTable,
 } from './hmac'
@@ -368,6 +380,8 @@ export {
   type ModuleRoutes,
   sortModules,
 } from './module/module-def'
+// ─── Rate Limits ─────────────────────────────────────────────────────
+export { createRateLimiter, type RateLimiter } from './rate-limits'
 export type {
   CreateRealtimeOptions,
   RealtimeExecutor,
@@ -407,6 +421,7 @@ export {
   threads,
 } from './schemas/harness'
 export { integrationsTable } from './schemas/integrations'
+export { rateLimits as rateLimitsTable } from './schemas/rate-limits'
 export { sequences } from './schemas/sequences'
 export { storageObjects } from './schemas/storage'
 export { webhookDedup } from './schemas/webhook-dedup'

@@ -1,0 +1,108 @@
+# Vobase secret-scan rules.
+#
+# Run via `bun run check:secrets` (the runner falls back to a built-in regex
+# scanner when the `gitleaks` binary isn't on $PATH). The .githooks/pre-commit
+# hook calls this on every commit.
+#
+# Allowlist matches anything that's clearly a fixture / placeholder so the
+# scan stays useful without drowning in false positives.
+
+title = "vobase secret scan"
+
+[allowlist]
+description = "Test fixtures, placeholders, and example values"
+paths = [
+  '''(.*?\.test\.ts$)''',
+  '''(.*?\.smoke\..*$)''',
+  '''(.*?\.example$)''',
+  '''(.*?\.example\..*$)''',
+  '''(legacy/template-v1/.*)''',
+  '''(packages/template/tests/.*)''',
+  '''(packages/core/tests/.*)''',
+  '''(\.gitleaks\.toml$)''',
+  '''(scripts/check-secrets\.ts$)''',
+  '''(\.claude/.*)''',
+  '''(\.omc/.*)''',
+  '''(.*\.lock$)''',
+  '''(.*\.min\.js$)''',
+  '''(.*\.svg$)''',
+  '''(.*\.png$)''',
+  '''(.*\.jpe?g$)''',
+]
+regexes = [
+  # Generic placeholder strings used in docs / .env.example
+  '''change-?me''',
+  '''your-?(secret|key|token)''',
+  '''xxxx+''',
+  '''fake-?''',
+  '''test-?(secret|key|token|password)''',
+  '''example\.''',
+  '''sk-test-''',
+  '''sk-fake-''',
+]
+
+[[rules]]
+id = "meta-app-secret"
+description = "Meta App Secret env var with literal value"
+regex = '''(?i)META_APP_SECRET\s*=\s*['"]?[A-Fa-f0-9]{32,}['"]?'''
+tags = ["secret", "meta"]
+
+[[rules]]
+id = "whatsapp-bisu-token"
+description = "WhatsApp Business Solution User token (EAA prefix, ~200 chars)"
+regex = '''EAA[A-Za-z0-9]{30,}'''
+tags = ["secret", "whatsapp"]
+
+[[rules]]
+id = "slack-bot-token"
+description = "Slack bot/user/app tokens"
+regex = '''xox[baprs]-[A-Za-z0-9-]{10,}'''
+tags = ["secret", "slack"]
+
+[[rules]]
+id = "aws-access-key-id"
+description = "AWS Access Key ID"
+regex = '''(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])'''
+tags = ["secret", "aws"]
+
+[[rules]]
+id = "aws-secret-access-key"
+description = "AWS Secret Access Key (assignment form)"
+regex = '''(?i)aws_secret_access_key\s*[:=]\s*['"]?[A-Za-z0-9/+=]{40}['"]?'''
+tags = ["secret", "aws"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API key"
+regex = '''sk-(?:proj-)?[A-Za-z0-9_-]{30,}'''
+tags = ["secret", "openai"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_-]{30,}'''
+tags = ["secret", "anthropic"]
+
+[[rules]]
+id = "google-api-key"
+description = "Google API key"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+tags = ["secret", "google"]
+
+[[rules]]
+id = "github-pat"
+description = "GitHub personal access tokens"
+regex = '''(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}'''
+tags = ["secret", "github"]
+
+[[rules]]
+id = "private-key-block"
+description = "PEM-encoded private key"
+regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----'''
+tags = ["secret", "key"]
+
+[[rules]]
+id = "stripe-live-secret"
+description = "Stripe live secret key"
+regex = '''sk_live_[A-Za-z0-9]{20,}'''
+tags = ["secret", "stripe"]

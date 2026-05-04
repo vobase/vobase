@@ -55,6 +55,118 @@ export function signHmac(payload: string, secret: string): string {
   return new Bun.CryptoHasher('sha256', secret).update(payload).digest('hex')
 }
 
+// ─── Two-key rotating HMAC (managed-channel rotation contract) ──────────────
+//
+// Managed channels (vobase-platform → template) sign requests with TWO keys:
+//
+//   1. `routineSecret` — long-lived per-instance secret. Stable identity.
+//   2. `rotationKey`   — short-lived rolling key, bumped via `keyVersion`.
+//
+// The verifier accepts a slate of `(secret, keyVersion)` pairs (typically
+// "current" and "previous" so a rotation in flight isn't a hard cutover) and
+// requires the inbound `keyVersion` to be strictly monotonic — a request
+// signed with version N is rejected once we've seen N+1, even if its
+// signature is otherwise valid. This kills replay-with-downgrade where an
+// attacker captures an old request and replays it after rotation.
+//
+// Wire format the platform uses:
+//
+//   x-vobase-routine-sig:  hex(HMAC-SHA256(routineSecret, body))
+//   x-vobase-rotation-sig: hex(HMAC-SHA256(rotationKey, body))
+//   x-vobase-key-version:  decimal integer (monotonic per channel instance)
+//
+// Both signatures must verify against any element of the `accept` slate that
+// also matches `keyVersion`. The caller persists `maxKeyVersionSeen` per
+// channel instance and refreshes it whenever it advances.
+
+export interface SignRequestInput {
+  body: string
+  routineSecret: string
+  rotationKey: string
+  keyVersion: number
+}
+
+export interface SignedRequest {
+  routineSignature: string
+  rotationSignature: string
+  keyVersion: number
+}
+
+/** Sign a request payload with both keys. The platform side calls this per outgoing request. */
+export function signRequest(input: SignRequestInput): SignedRequest {
+  return {
+    routineSignature: signHmac(input.body, input.routineSecret),
+    rotationSignature: signHmac(input.body, input.rotationKey),
+    keyVersion: input.keyVersion,
+  }
+}
+
+export interface VerifyRequestInput {
+  body: string
+  routineSignature: string
+  rotationSignature: string
+  /** `keyVersion` advertised by the inbound request. */
+  keyVersion: number
+  /**
+   * Highest `keyVersion` previously seen for this channel instance. Inbound
+   * `keyVersion` strictly less than this is rejected (downgrade defense).
+   * Use 0 on first-ever verification.
+   */
+  maxKeyVersionSeen: number
+  /**
+   * Acceptable `(secret, keyVersion)` slate. Typically the "current" pair
+   * plus an optional "previous" pair so a rotation in flight isn't a hard
+   * cutover. The slate must include an entry whose `keyVersion` matches
+   * the inbound `keyVersion`.
+   */
+  accept: ReadonlyArray<{ routineSecret: string; rotationKey: string; keyVersion: number }>
+}
+
+export type VerifyRequestResult =
+  | { ok: true; nextMaxKeyVersionSeen: number }
+  | { ok: false; reason: 'downgrade' | 'unknown_version' | 'bad_routine_sig' | 'bad_rotation_sig' | 'malformed' }
+
+/**
+ * Verify a 2-key signed request. Both signatures must match an `accept`
+ * entry whose `keyVersion` equals the inbound `keyVersion`, and the inbound
+ * `keyVersion` must be `>= maxKeyVersionSeen` (strict equality is allowed
+ * — same-version retries are normal; downgrades are not).
+ */
+export function verifyRequest(input: VerifyRequestInput): VerifyRequestResult {
+  if (!Number.isInteger(input.keyVersion) || input.keyVersion < 0) {
+    return { ok: false, reason: 'malformed' }
+  }
+  if (input.keyVersion < input.maxKeyVersionSeen) {
+    return { ok: false, reason: 'downgrade' }
+  }
+  const slot = input.accept.find((s) => s.keyVersion === input.keyVersion)
+  if (!slot) {
+    return { ok: false, reason: 'unknown_version' }
+  }
+  if (!verifyHmacSignature(input.body, input.routineSignature, slot.routineSecret)) {
+    return { ok: false, reason: 'bad_routine_sig' }
+  }
+  if (!verifyHmacSignature(input.body, input.rotationSignature, slot.rotationKey)) {
+    return { ok: false, reason: 'bad_rotation_sig' }
+  }
+  return {
+    ok: true,
+    nextMaxKeyVersionSeen: Math.max(input.maxKeyVersionSeen, input.keyVersion),
+  }
+}
+
+// ─── Envelope encryption re-export ─────────────────────────────────────────
+
+export {
+  __resetEnvelopeCachesForTests,
+  CURRENT_KEK_VERSION,
+  decryptSecretEnvelope,
+  EnvelopeTamperError,
+  EnvelopeVersionError,
+  encryptSecretEnvelope,
+  type SecretEnvelope,
+} from './encrypt'
+
 /**
  * Record a webhook and report whether it is a duplicate. Single round-trip
  * upsert — the conflict branch returns zero rows, which atomically classifies

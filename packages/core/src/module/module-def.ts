@@ -15,6 +15,7 @@ import type { Hono, MiddlewareHandler } from 'hono'
 
 import type { HarnessHooks } from '../harness/create-harness'
 import type { AgentTool, SideLoadContributor, WorkspaceMaterializerFactory } from '../harness/types'
+import type { RateLimiter } from '../rate-limits'
 import type { JobDef, ScopedScheduler } from '../scheduler/types'
 import type { CliVerbRegistry } from '../workspace/cli/registry'
 import type { IndexContributor } from '../workspace/index-file-builder'
@@ -39,6 +40,14 @@ export interface ModuleInitCtx<Db = unknown, Realtime = unknown> {
    * registry; HTTP-RPC and in-process transports both dispatch through it.
    */
   readonly cli: CliVerbRegistry
+  /**
+   * Sliding-window rate limiter backed by `infra.rate_limits`. Modules call
+   * `ctx.rateLimits.acquire(key, limit, windowSeconds)` to gate inbound webhook
+   * volume, outbound provider calls, or per-tenant quotas. State persists in
+   * Postgres (uses `now()`) so the limit is shared across template instances
+   * and survives restarts.
+   */
+  readonly rateLimits: RateLimiter
 }
 
 export interface ModuleRoutes {
