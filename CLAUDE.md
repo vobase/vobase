@@ -25,7 +25,7 @@ Every change must be clean, high quality, and maintainable. No exceptions.
 - Every handler validates input with Zod. Return typed errors via `VobaseError` factories.
 - Tests for every feature. Colocate tests next to implementation (`*.test.ts`).
 - Zero tech debt tolerance: fix what you touch. No TODO comments without linked issues.
-- Biome for formatting + linting. Run `bun run lint` before committing.
+- Biome for formatting + linting. Run `bun run lint` before committing. Biome's `lineWidth` is 120 — do not hard-wrap comments, JSDoc, or markdown at 80 chars. Let prose flow; only break for paragraph boundaries, list items, or genuine readability gains.
 - Dynamic `import()` only for: heavy optional deps (MCP SDK, AI SDK, googleapis, mammoth, etc.), config-gated features, test mocking. Local module imports must be static.
 - Prefer Bun native APIs over `node:*` modules: `Bun.file()`, `Bun.write()`, `Bun.spawnSync()`, `Bun.Glob`, `$` shell. Use `node:path` and `node:fs` only when no Bun equivalent exists.
 - Search existing patterns before writing new code. Mirror established naming and error handling.
