@@ -2,8 +2,9 @@
  * CaptionPort unit tests.
  *
  * Two paths:
- *   stub — CAPTION_PROVIDER / GOOGLE_API_KEY unset -> returns '[caption pending]'
- *   gemini — env set, fetch injected -> calls generateContent and returns text
+ *   stub — no provider env -> returns '[caption pending]'
+ *   openai — OPENAI_API_KEY set, fetch injected -> calls Chat Completions
+ *            vision and returns the assistant message text
  *
  * The fetch injection in createCaptionPort(opts) avoids globalThis.fetch
  * mutation between tests.
@@ -13,24 +14,23 @@ import { describe, expect, it } from 'bun:test'
 
 import { createCaptionPort } from './caption'
 
-const GEMINI_TEXT = 'A product catalog image showing various items with pricing.'
+const VISION_TEXT = 'A product catalog image showing various items with pricing.'
 
-const GEMINI_RESPONSE = {
-  candidates: [
+const OPENAI_RESPONSE = {
+  id: 'chatcmpl-test',
+  choices: [
     {
-      content: {
-        parts: [{ text: GEMINI_TEXT }],
-        role: 'model',
-      },
-      finishReason: 'STOP',
+      index: 0,
+      message: { role: 'assistant', content: VISION_TEXT },
+      finish_reason: 'stop',
     },
   ],
-  usageMetadata: { promptTokenCount: 150, candidatesTokenCount: 12 },
+  usage: { prompt_tokens: 150, completion_tokens: 12, total_tokens: 162 },
 }
 
 function okJsonFetch(_url: string, _init?: RequestInit): Promise<Response> {
   return Promise.resolve(
-    new Response(JSON.stringify(GEMINI_RESPONSE), {
+    new Response(JSON.stringify(OPENAI_RESPONSE), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     }),
@@ -45,43 +45,53 @@ function throwFetch(_url: string, _init?: RequestInit): Promise<Response> {
   return Promise.reject(new Error('network failure'))
 }
 
-/** Build a Gemini-path port with injected fetch; sets env transiently. */
-function makeGeminiPort(fetchImpl = okJsonFetch as typeof globalThis.fetch) {
-  const savedProvider = process.env.CAPTION_PROVIDER
-  const savedKey = process.env.GOOGLE_API_KEY
-  process.env.CAPTION_PROVIDER = 'gemini'
-  process.env.GOOGLE_API_KEY = 'test-api-key'
-  const port = createCaptionPort({ fetch: fetchImpl })
-  process.env.CAPTION_PROVIDER = savedProvider
-  process.env.GOOGLE_API_KEY = savedKey
-  return port
+const PROVIDER_ENV_KEYS = ['OPENAI_API_KEY', 'BIFROST_API_KEY', 'BIFROST_URL'] as const
+
+function withProviderEnv<T>(set: Partial<Record<(typeof PROVIDER_ENV_KEYS)[number], string>>, fn: () => T): T {
+  const saved: Partial<Record<(typeof PROVIDER_ENV_KEYS)[number], string | undefined>> = {}
+  for (const k of PROVIDER_ENV_KEYS) saved[k] = process.env[k]
+  for (const k of PROVIDER_ENV_KEYS) delete process.env[k]
+  for (const [k, v] of Object.entries(set)) process.env[k] = v
+  try {
+    return fn()
+  } finally {
+    for (const k of PROVIDER_ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k]
+      else process.env[k] = saved[k]
+    }
+  }
+}
+
+function makeOpenAIPort(fetchImpl = okJsonFetch as typeof globalThis.fetch) {
+  return withProviderEnv({ OPENAI_API_KEY: 'test-api-key' }, () => createCaptionPort({ fetch: fetchImpl }))
+}
+
+function makeStubPort() {
+  return withProviderEnv({}, () => createCaptionPort())
 }
 
 // ---------------------------------------------------------------------------
 
-describe('CaptionPort — stub path (env unset)', () => {
+describe('CaptionPort — stub path (no provider env)', () => {
   it('captionImage returns [caption pending]', async () => {
-    const port = createCaptionPort()
-    expect(await port.captionImage('https://example.com/img.jpg')).toBe('[caption pending]')
+    expect(await makeStubPort().captionImage('https://example.com/img.jpg')).toBe('[caption pending]')
   })
 
   it('captionVideo returns [caption pending]', async () => {
-    const port = createCaptionPort()
-    expect(await port.captionVideo('https://example.com/vid.mp4')).toBe('[caption pending]')
+    expect(await makeStubPort().captionVideo('https://example.com/vid.mp4')).toBe('[caption pending]')
   })
 
   it('extractText returns [caption pending]', async () => {
-    const port = createCaptionPort()
-    expect(await port.extractText('https://example.com/doc.pdf', 'application/pdf')).toBe('[caption pending]')
+    expect(await makeStubPort().extractText('https://example.com/doc.pdf', 'application/pdf')).toBe('[caption pending]')
   })
 })
 
 // ---------------------------------------------------------------------------
 
-describe('CaptionPort — Gemini path (env set)', () => {
-  it('captionImage calls Gemini generateContent and returns text', async () => {
-    const port = makeGeminiPort()
-    expect(await port.captionImage('https://example.com/img.jpg')).toBe(GEMINI_TEXT)
+describe('CaptionPort — OpenAI path (OPENAI_API_KEY set)', () => {
+  it('captionImage calls Chat Completions vision and returns text', async () => {
+    const port = makeOpenAIPort()
+    expect(await port.captionImage('https://example.com/img.jpg')).toBe(VISION_TEXT)
   })
 
   it('captionImage includes hint in prompt when provided', async () => {
@@ -91,42 +101,74 @@ describe('CaptionPort — Gemini path (env set)', () => {
       capturedBody = JSON.parse((init?.body as string) ?? '{}')
       return okJsonFetch(url, init)
     }
-    const port = makeGeminiPort(captureFetch as typeof globalThis.fetch)
+    const port = makeOpenAIPort(captureFetch as typeof globalThis.fetch)
     await port.captionImage('https://example.com/img.jpg', 'product brochure')
-    const body = capturedBody as { contents: Array<{ parts: Array<{ text?: string }> }> }
-    const promptPart = body.contents[0].parts.find((p) => p.text)
+    const body = capturedBody as {
+      messages: Array<{ content: Array<{ type: string; text?: string }> }>
+    }
+    const promptPart = body.messages[0].content.find((p) => p.type === 'text')
     expect(promptPart?.text).toContain('product brochure')
   })
 
-  it('captionVideo calls Gemini and returns text', async () => {
-    const port = makeGeminiPort()
-    expect(await port.captionVideo('https://example.com/vid.mp4')).toBe(GEMINI_TEXT)
-  })
-
-  it('extractText passes mime type in fileData and returns text', async () => {
+  it('captionImage sends image_url content with the asset URL', async () => {
     let capturedBody: unknown
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
     const captureFetch = async (url: string, init?: RequestInit) => {
       capturedBody = JSON.parse((init?.body as string) ?? '{}')
       return okJsonFetch(url, init)
     }
-    const port = makeGeminiPort(captureFetch as typeof globalThis.fetch)
-    const result = await port.extractText('https://example.com/doc.pdf', 'application/pdf')
-    expect(result).toBe(GEMINI_TEXT)
+    const port = makeOpenAIPort(captureFetch as typeof globalThis.fetch)
+    await port.captionImage('https://example.com/img.jpg')
     const body = capturedBody as {
-      contents: Array<{ parts: Array<{ fileData?: { mimeType: string } }> }>
+      messages: Array<{ content: Array<{ type: string; image_url?: { url: string } }> }>
     }
-    const fileDataPart = body.contents[0].parts.find((p) => p.fileData)
-    expect(fileDataPart?.fileData?.mimeType).toBe('application/pdf')
+    const imagePart = body.messages[0].content.find((p) => p.type === 'image_url')
+    expect(imagePart?.image_url?.url).toBe('https://example.com/img.jpg')
   })
 
-  it('returns [caption pending] on Gemini HTTP error', async () => {
-    const port = makeGeminiPort(errFetch as typeof globalThis.fetch)
+  it('captionVideo always returns [caption pending] (gpt-mini cannot ingest video)', async () => {
+    const port = makeOpenAIPort()
+    expect(await port.captionVideo('https://example.com/vid.mp4')).toBe('[caption pending]')
+  })
+
+  it('extractText calls vision when mime is image/*', async () => {
+    const port = makeOpenAIPort()
+    expect(await port.extractText('https://example.com/scan.png', 'image/png')).toBe(VISION_TEXT)
+  })
+
+  it('extractText returns [caption pending] for non-image mime types', async () => {
+    const port = makeOpenAIPort()
+    expect(await port.extractText('https://example.com/doc.pdf', 'application/pdf')).toBe('[caption pending]')
+  })
+
+  it('returns [caption pending] on OpenAI HTTP error', async () => {
+    const port = makeOpenAIPort(errFetch as typeof globalThis.fetch)
     expect(await port.captionImage('https://example.com/img.jpg')).toBe('[caption pending]')
   })
 
   it('returns [caption pending] on network failure', async () => {
-    const port = makeGeminiPort(throwFetch as typeof globalThis.fetch)
+    const port = makeOpenAIPort(throwFetch as typeof globalThis.fetch)
     expect(await port.captionImage('https://example.com/img.jpg')).toBe('[caption pending]')
+  })
+})
+
+// ---------------------------------------------------------------------------
+
+describe('CaptionPort — Bifrost routing', () => {
+  it('uses Bifrost url + prefixed model id when both env vars are set', async () => {
+    let capturedUrl: string | undefined
+    let capturedBody: unknown
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    const captureFetch = async (url: string, init?: RequestInit) => {
+      capturedUrl = url
+      capturedBody = JSON.parse((init?.body as string) ?? '{}')
+      return okJsonFetch(url, init)
+    }
+    const port = withProviderEnv({ BIFROST_API_KEY: 'bif-key', BIFROST_URL: 'http://bifrost.local' }, () =>
+      createCaptionPort({ fetch: captureFetch as typeof globalThis.fetch }),
+    )
+    await port.captionImage('https://example.com/img.jpg')
+    expect(capturedUrl).toBe('http://bifrost.local/v1/chat/completions')
+    expect((capturedBody as { model: string }).model).toBe('openai/gpt-5.4-mini')
   })
 })
