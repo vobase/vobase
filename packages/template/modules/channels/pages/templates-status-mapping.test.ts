@@ -24,7 +24,17 @@ describe('template status → Status variant mapping', () => {
     expect(TEMPLATE_STATUS_VARIANT_MAP.DISABLED).toBe('warning')
   })
 
-  test('all four statuses are covered', () => {
-    expect(Object.keys(TEMPLATE_STATUS_VARIANT_MAP).sort()).toEqual(['APPROVED', 'DISABLED', 'PENDING', 'REJECTED'])
+  test('PENDING_DELETION maps to info', () => {
+    expect(TEMPLATE_STATUS_VARIANT_MAP.PENDING_DELETION).toBe('info')
+  })
+
+  test('all five statuses are covered', () => {
+    expect(Object.keys(TEMPLATE_STATUS_VARIANT_MAP).sort()).toEqual([
+      'APPROVED',
+      'DISABLED',
+      'PENDING',
+      'PENDING_DELETION',
+      'REJECTED',
+    ])
   })
 })
