@@ -80,6 +80,12 @@ export interface IntegrationsVault {
   /** Read the current + (optional) previous pair. Returns null if not set. */
   readSecret(provider: VaultProvider): Promise<VaultRotation | null>
   /**
+   * Cheap existence check — no decryption. Use this on boot paths when only
+   * "do we have a secret stashed?" matters; `readSecret` does 2 AES-GCM
+   * decrypts that are wasted work for that question.
+   */
+  hasSecret(provider: VaultProvider): Promise<boolean>
+  /**
    * Rotate to a new pair. Promotes current → previous (with grace window),
    * sets new pair as current. Rejects monotonic downgrades.
    */
@@ -113,6 +119,15 @@ export function createIntegrationsVault({ db, organizationId }: VaultDeps): Inte
             previousValidUntil: null,
           },
         })
+    },
+
+    async hasSecret(provider) {
+      const [row] = await db
+        .select({ provider: integrationSecrets.provider })
+        .from(integrationSecrets)
+        .where(and(eq(integrationSecrets.organizationId, organizationId), eq(integrationSecrets.provider, provider)))
+        .limit(1)
+      return row !== undefined
     },
 
     async readSecret(provider) {

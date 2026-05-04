@@ -91,9 +91,54 @@ export function createWhatsAppAdapterFromConfig(
 
 // ─── Managed-mode adapter ───────────────────────────────────────────────────
 
-interface CachedRotation {
-  current: { routineSecret: string; rotationKey: string; keyVersion: number }
-  previous: { routineSecret: string; rotationKey: string; keyVersion: number; validUntil: Date } | null
+import type { VaultRotation } from '@modules/integrations/service/vault'
+
+/**
+ * Module-level cache of decrypted vault rotations, keyed by organizationId.
+ * The registry creates a new adapter per dispatch (`registry.get(...)`), so
+ * caching inside the closure would never hit. Module-scope keeps the read at
+ * O(1) per dispatch with a bounded TTL so a `vault.rotate(...)` propagates
+ * within seconds.
+ */
+const ROTATION_CACHE_TTL_MS = 60_000
+interface RotationCacheEntry {
+  rotation: VaultRotation
+  expiresAt: number
+  inflight: Promise<VaultRotation> | null
+}
+const rotationCache = new Map<string, RotationCacheEntry>()
+
+export function __resetManagedRotationCacheForTests(): void {
+  rotationCache.clear()
+}
+
+async function loadRotation(organizationId: string): Promise<VaultRotation> {
+  const now = Date.now()
+  const entry = rotationCache.get(organizationId)
+  if (entry?.inflight) return entry.inflight
+  if (entry && entry.expiresAt > now) return entry.rotation
+
+  const vault = getVaultFor(organizationId)
+  const inflight = vault.readSecret('vobase-platform').then((rotation) => {
+    if (!rotation) {
+      rotationCache.delete(organizationId)
+      throw new Error('whatsapp adapter (managed): no vobase-platform secret in vault — handshake must run first')
+    }
+    rotationCache.set(organizationId, {
+      rotation,
+      expiresAt: Date.now() + ROTATION_CACHE_TTL_MS,
+      inflight: null,
+    })
+    return rotation
+  })
+  rotationCache.set(organizationId, {
+    rotation:
+      entry?.rotation ??
+      ({ current: { routineSecret: '', rotationKey: '', keyVersion: 0 }, previous: null } as VaultRotation),
+    expiresAt: 0,
+    inflight,
+  })
+  return inflight
 }
 
 function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
@@ -102,45 +147,27 @@ function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
     throw new Error('whatsapp adapter (managed): PLATFORM_TENANT_ID env var is required')
   }
 
-  const vault = getVaultFor(config.organizationId)
-  let cached: CachedRotation | null = null
-  let inflight: Promise<CachedRotation> | null = null
-
-  function refresh(): Promise<CachedRotation> {
-    if (inflight) return inflight
-    const p = vault.readSecret('vobase-platform').then((rotation) => {
-      if (!rotation) {
-        inflight = null
-        throw new Error('whatsapp adapter (managed): no vobase-platform secret in vault — handshake must run first')
-      }
-      cached = rotation as CachedRotation
-      inflight = null
-      return cached
-    })
-    inflight = p
-    return p
-  }
-
-  // Warm the cache eagerly — outbound calls happen async so this resolves
-  // before the adapter is exercised in normal operation.
-  void refresh().catch(() => {
-    // Surface the error on the next sign attempt rather than crashing init.
+  // Warm the cache eagerly so the first outbound dispatch doesn't pay the
+  // vault round-trip. Failures surface on the next sign attempt.
+  void loadRotation(config.organizationId).catch(() => {
+    /* swallowed — re-thrown synchronously via the thunk below if cache miss */
   })
+
+  function readCachedRotation(): VaultRotation {
+    const entry = rotationCache.get(config.organizationId)
+    if (!entry || entry.expiresAt === 0) {
+      throw new Error('whatsapp adapter (managed): vault not yet loaded — outbound called before handshake completed')
+    }
+    return entry.rotation
+  }
 
   const transport = createManagedTransport({
     platformChannelId: config.platformChannelId,
     platformBaseUrl: config.platformBaseUrl,
     tenantId,
-    get current() {
-      if (!cached) {
-        throw new Error('whatsapp adapter (managed): vault not yet loaded — outbound called before handshake completed')
-      }
-      return cached.current
-    },
-    get previous() {
-      return cached?.previous ?? null
-    },
-  } as unknown as Parameters<typeof createManagedTransport>[0])
+    current: () => readCachedRotation().current,
+    previous: () => readCachedRotation().previous,
+  })
 
   return createWhatsAppAdapter({
     phoneNumberId: config.phoneNumberId ?? '',

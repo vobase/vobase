@@ -91,17 +91,16 @@ export function createRateLimiter(db: RateLimitDb): RateLimiter {
           SELECT ${key}, now(), (SELECT n + 1 FROM live)
           WHERE (SELECT n FROM live) < ${limitVal}
           RETURNING hit_at
-        ),
-        oldest AS (
-          SELECT min(hit_at) AS t
-          FROM "infra"."rate_limits"
-          WHERE key = ${key} AND hit_at >= (now() - ${window})
         )
         SELECT
           (SELECT count(*) FROM ins) > 0 AS allowed,
           CASE
             WHEN (SELECT count(*) FROM ins) > 0 THEN NULL
-            ELSE (SELECT t + ${window} FROM oldest)
+            ELSE (
+              SELECT min(hit_at) + ${window}
+              FROM "infra"."rate_limits"
+              WHERE key = ${key} AND hit_at >= (now() - ${window})
+            )
           END AS retry_after
       `)
 

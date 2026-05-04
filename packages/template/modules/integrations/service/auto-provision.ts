@@ -14,7 +14,7 @@ import { upsertManagedInstance } from '@modules/channels/service/instances'
 import { logger } from '@vobase/core'
 
 import type { ScopedDb } from '~/runtime'
-import { handshakeWithPlatform, PlatformHandshakeError } from './handshake'
+import { type HandshakeAllocation, handshakeWithPlatform, PlatformHandshakeError } from './handshake'
 import { getInstalledDb, getVaultFor } from './registry'
 
 interface AutoProvisionInput {
@@ -52,15 +52,14 @@ export async function autoProvisionManagedWhatsApp(input: AutoProvisionInput): P
     }
   }
 
-  // Check vault first — if we already have a secret stashed, the handshake
-  // already happened. Skip the network round-trip.
+  // Existence-only check — boot path doesn't need the decrypted material,
+  // and `readSecret` would burn 2 AES-GCM decrypts to throw the result away.
   const vault = getVaultFor(input.organizationId)
-  const existing = await vault.readSecret('vobase-platform')
-  if (existing) {
+  if (await vault.hasSecret('vobase-platform')) {
     return { status: 'already_provisioned' }
   }
 
-  let allocation: Awaited<ReturnType<typeof handshakeWithPlatform>>
+  let allocation: HandshakeAllocation
   try {
     allocation = await handshakeWithPlatform({
       platformBaseUrl,

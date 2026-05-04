@@ -10,6 +10,22 @@ import { signRequest } from '@vobase/core'
 
 const META_PLATFORM_HOSTNAME_ALLOWLIST_ENV = 'META_PLATFORM_HOSTNAME_ALLOWLIST'
 
+let allowlistCache: { raw: string; hosts: ReadonlySet<string> } | null = null
+
+function platformHostAllowlist(): ReadonlySet<string> {
+  const raw = process.env[META_PLATFORM_HOSTNAME_ALLOWLIST_ENV] ?? ''
+  if (!allowlistCache || allowlistCache.raw !== raw) {
+    const hosts = new Set(
+      raw
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
+    allowlistCache = { raw, hosts }
+  }
+  return allowlistCache.hosts
+}
+
 export interface HandshakeAllocation {
   platformChannelId: string
   wabaId: string
@@ -46,16 +62,13 @@ export function isAllowedPlatformBaseUrl(platformBaseUrl: string): boolean {
   } catch {
     return false
   }
-  const allowlist = (process.env[META_PLATFORM_HOSTNAME_ALLOWLIST_ENV] ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-  if (allowlist.length === 0) {
+  const hosts = platformHostAllowlist()
+  if (hosts.size === 0) {
     // No allowlist configured → only allow localhost (dev) by default; refuse
     // any external host. Deployments MUST set the env var explicitly.
     return host === 'localhost' || host === '127.0.0.1'
   }
-  return allowlist.includes(host)
+  return hosts.has(host)
 }
 
 interface HandshakeInput {

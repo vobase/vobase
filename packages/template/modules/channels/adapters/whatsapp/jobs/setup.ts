@@ -13,6 +13,8 @@
  * can surface a retry CTA. The job itself is idempotent: re-running after
  * partial success is safe (Meta returns success on duplicate subscribe).
  */
+
+import { randomInt } from 'node:crypto'
 import {
   decryptInstanceAccessToken,
   loadMetaOAuthConfigFromEnv,
@@ -40,12 +42,14 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
     const accessToken = decryptInstanceAccessToken(cfg)
     const oauthConfig = loadMetaOAuthConfigFromEnv()
 
-    await subscribeAppToWaba(cfg.wabaId, accessToken, oauthConfig)
-
-    if (cfg.coexistence !== true && cfg.phoneNumberId) {
-      const pin = generateRegistrationPin()
-      await registerPhoneNumber(cfg.phoneNumberId, pin, accessToken, oauthConfig)
-    }
+    // Subscribe + register are independent Meta calls — run in parallel to
+    // halve the job's wall-clock time on Cloud-API setup.
+    const subscribe = subscribeAppToWaba(cfg.wabaId, accessToken, oauthConfig)
+    const register =
+      cfg.coexistence !== true && cfg.phoneNumberId
+        ? registerPhoneNumber(cfg.phoneNumberId, generateRegistrationPin(), accessToken, oauthConfig)
+        : Promise.resolve()
+    await Promise.all([subscribe, register])
 
     await updateInstance(instance.id, instance.organizationId, {
       setupStage: 'active',
@@ -64,6 +68,5 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
 }
 
 function generateRegistrationPin(): string {
-  const n = Math.floor(Math.random() * 1_000_000)
-  return n.toString().padStart(6, '0')
+  return randomInt(0, 1_000_000).toString().padStart(6, '0')
 }

@@ -15,6 +15,9 @@ import type { VaultRotation } from '@modules/integrations/service/vault'
 import type { WhatsAppTransportConfig } from '@vobase/core'
 import { signRequest, verifyRequest } from '@vobase/core'
 
+export type RotationCurrent = VaultRotation['current']
+export type RotationPrevious = VaultRotation['previous']
+
 export interface ManagedTransportInput {
   /** Platform-issued channel id (per-tenant + per-env). */
   platformChannelId: string
@@ -22,10 +25,18 @@ export interface ManagedTransportInput {
   platformBaseUrl: string
   /** Tenant identity headers attached to every proxied request. */
   tenantId: string
-  /** Current 2-key pair from the integrations vault. */
-  current: VaultRotation['current']
+  /**
+   * Current 2-key pair. Accepts either the rotation object directly or a
+   * thunk — the thunk form lets callers defer vault lookup to sign-time so a
+   * module-level cache invalidation rotates without re-creating the adapter.
+   */
+  current: RotationCurrent | (() => RotationCurrent)
   /** Optional previous pair held during rotation grace. */
-  previous: VaultRotation['previous']
+  previous: RotationPrevious | (() => RotationPrevious)
+}
+
+function resolve<T>(v: T | (() => T)): T {
+  return typeof v === 'function' ? (v as () => T)() : v
 }
 
 /**
@@ -45,12 +56,13 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
       // 2-key signed slate uses the request line itself; the body is empty
       // for GETs and JSON for POSTs/PUTs (the api.ts caller already sets
       // Content-Type for non-binary bodies).
+      const cur = resolve(input.current)
       const payload = `${method.toUpperCase()}${path}`
       const signed = signRequest({
         body: payload,
-        routineSecret: input.current.routineSecret,
-        rotationKey: input.current.rotationKey,
-        keyVersion: input.current.keyVersion,
+        routineSecret: cur.routineSecret,
+        rotationKey: cur.rotationKey,
+        keyVersion: cur.keyVersion,
       })
       return {
         'X-Tenant-Id': input.tenantId,

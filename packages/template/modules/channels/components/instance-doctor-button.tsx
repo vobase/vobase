@@ -9,6 +9,7 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Status } from '@/components/ui/status'
 import { channelsClient } from '@/lib/api-client'
 
@@ -27,10 +28,18 @@ interface DoctorResult {
 
 type CheckStatus = 'green' | 'amber' | 'red'
 
-function checkToVariant(s: CheckStatus) {
-  if (s === 'green') return 'success' as const
-  if (s === 'amber') return 'warning' as const
-  return 'error' as const
+const DOCTOR_SKELETON_KEYS = ['debug-token', 'subscribed-apps', 'templates', 'phone', 'reach'] as const
+
+const STATUS_VARIANT: Record<CheckStatus, 'success' | 'warning' | 'error'> = {
+  green: 'success',
+  amber: 'warning',
+  red: 'error',
+}
+
+function summariseChecks(checks: DoctorCheck[]): { variant: 'success' | 'warning' | 'error'; label: string } {
+  if (checks.some((c) => c.status === 'red')) return { variant: 'error', label: 'Issues detected' }
+  if (checks.every((c) => c.status === 'green')) return { variant: 'success', label: 'All checks passed' }
+  return { variant: 'warning', label: 'Some checks need attention' }
 }
 
 export function InstanceDoctorButton({ instanceId, displayName }: { instanceId: string; displayName?: string | null }) {
@@ -52,8 +61,7 @@ export function InstanceDoctorButton({ instanceId, displayName }: { instanceId: 
     mutate()
   }
 
-  const allGreen = data ? data.checks.every((c) => c.status === 'green') : false
-  const anyRed = data ? data.checks.some((c) => c.status === 'red') : false
+  const summary = data ? summariseChecks(data.checks) : null
 
   return (
     <>
@@ -72,8 +80,8 @@ export function InstanceDoctorButton({ instanceId, displayName }: { instanceId: 
           <div className="mt-6 space-y-3">
             {isPending && (
               <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-14 animate-pulse rounded-lg bg-muted" />
+                {DOCTOR_SKELETON_KEYS.map((k) => (
+                  <Skeleton key={k} className="h-14 rounded-lg" />
                 ))}
               </div>
             )}
@@ -84,19 +92,17 @@ export function InstanceDoctorButton({ instanceId, displayName }: { instanceId: 
               </div>
             )}
 
-            {data && (
+            {data && summary && (
               <>
                 <div className="mb-4 flex items-center gap-2 text-muted-foreground text-sm">
-                  {allGreen && <Status variant="success" label="All checks passed" />}
-                  {!allGreen && anyRed && <Status variant="error" label="Issues detected" />}
-                  {!allGreen && !anyRed && <Status variant="warning" label="Some checks need attention" />}
+                  <Status variant={summary.variant} label={summary.label} />
                 </div>
 
                 {data.checks.map((check) => (
                   <div key={check.id} className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sm">{check.label}</span>
-                      <Status variant={checkToVariant(check.status)} label={check.status} />
+                      <Status variant={STATUS_VARIANT[check.status]} label={check.status} />
                     </div>
                     <p className="text-muted-foreground text-xs">{check.detail}</p>
                   </div>

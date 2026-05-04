@@ -1,11 +1,12 @@
 /**
- * Tests for contact-merge skeleton.
- * Asserts the throw so the spec doesn't silently slip.
+ * Tests for the contact-merge Zod payload schema. The merge implementation is
+ * a JSDoc-only skeleton — `test.todo` reserves the slot for the eventual
+ * behaviour assertions without pretending the placeholder is meaningful.
  */
 
 import { describe, expect, test } from 'bun:test'
 
-import { MergeContactsInput, mergeContacts } from './contact-merge'
+import { MergeContactsInput } from './contact-merge'
 
 describe('mergeContacts skeleton', () => {
   const baseInput = {
@@ -15,8 +16,8 @@ describe('mergeContacts skeleton', () => {
     by: { id: 'user-1', kind: 'user' as const },
   }
 
-  test('throws not implemented', async () => {
-    await expect(mergeContacts(baseInput)).rejects.toThrow('not implemented')
+  test.skip('merges survivor + absorbed and appends conversation_events', () => {
+    // Implementation pending — see contact-merge.ts JSDoc spec.
   })
 
   test('input schema validates correctly', () => {

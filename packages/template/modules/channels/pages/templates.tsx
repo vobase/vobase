@@ -5,7 +5,7 @@
  * Template creation/editing is deferred entirely to Meta WABA Manager.
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
@@ -35,39 +35,19 @@ interface InstanceRow {
   config: Record<string, unknown>
 }
 
-const templateStatusVariant = (status: string) => {
-  switch (status.toUpperCase()) {
-    case 'APPROVED':
-      return 'success' as const
-    case 'REJECTED':
-      return 'error' as const
-    case 'PENDING':
-    case 'PENDING_DELETION':
-      return 'info' as const
-    case 'DISABLED':
-      return 'warning' as const
-    default:
-      return 'neutral' as const
-  }
-}
+const TEMPLATES_SKELETON_KEYS = ['row-1', 'row-2', 'row-3'] as const
 
-/** Maps Meta template status → DiceUI Status variant (for unit tests). */
+/** Maps Meta template status → DiceUI Status variant. Single source of truth. */
 export const TEMPLATE_STATUS_VARIANT_MAP = {
   PENDING: 'info',
+  PENDING_DELETION: 'info',
   APPROVED: 'success',
   REJECTED: 'error',
   DISABLED: 'warning',
 } as const
 
-async function fetchTemplates(instanceId: string): Promise<WhatsAppTemplate[]> {
-  // Templates are fetched through the generic instances endpoint config
-  // The adapter syncs them via syncTemplates — here we load from instance config cache
-  const r = await channelsClient.instances[':id'].$get({ param: { id: instanceId } })
-  if (!r.ok) throw new Error(`instance fetch failed: ${r.status}`)
-  const instance = (await r.json()) as InstanceRow
-  const templates = instance.config.templates as WhatsAppTemplate[] | undefined
-  return templates ?? []
-}
+const templateStatusVariant = (status: string) =>
+  TEMPLATE_STATUS_VARIANT_MAP[status.toUpperCase() as keyof typeof TEMPLATE_STATUS_VARIANT_MAP] ?? ('neutral' as const)
 
 async function fetchInstance(instanceId: string): Promise<InstanceRow> {
   const r = await channelsClient.instances[':id'].$get({ param: { id: instanceId } })
@@ -76,26 +56,23 @@ async function fetchInstance(instanceId: string): Promise<InstanceRow> {
 }
 
 function TemplatesTable({ instanceId }: { instanceId: string }) {
-  const { data: instance } = useQuery({
-    queryKey: ['channels', 'instance', instanceId],
-    queryFn: () => fetchInstance(instanceId),
-  })
   const {
-    data: templates = [],
+    data: instance,
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ['channels', 'templates', instanceId],
-    queryFn: () => fetchTemplates(instanceId),
+    queryKey: ['channels', 'instance', instanceId],
+    queryFn: () => fetchInstance(instanceId),
   })
 
   const wabaId = instance?.config.wabaId as string | undefined
+  const templates = (instance?.config.templates as WhatsAppTemplate[] | undefined) ?? []
 
   if (isLoading) {
     return (
       <div className="space-y-2">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-14 rounded-lg" />
+        {TEMPLATES_SKELETON_KEYS.map((k) => (
+          <Skeleton key={k} className="h-14 rounded-lg" />
         ))}
       </div>
     )
@@ -164,6 +141,7 @@ function TemplatesTable({ instanceId }: { instanceId: string }) {
 
 function ChannelTemplatesPage() {
   const { instanceId } = useParams({ from: '/_app/channels/$instanceId/templates' })
+  const queryClient = useQueryClient()
   const [syncing, setSyncing] = useState(false)
 
   const { data: instance } = useQuery({
@@ -176,8 +154,10 @@ function ChannelTemplatesPage() {
   async function handleSync() {
     setSyncing(true)
     try {
-      // Sync is triggered by re-fetching; the adapter handles it server-side
-      await channelsClient.instances[':id'].$get({ param: { id: instanceId } })
+      // The adapter's `syncTemplates` runs server-side on instance fetch; we
+      // invalidate so TanStack Query re-issues the GET and downstream
+      // consumers see the refreshed config.
+      await queryClient.invalidateQueries({ queryKey: ['channels', 'instance', instanceId] })
     } finally {
       setSyncing(false)
     }

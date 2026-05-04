@@ -126,7 +126,7 @@ const app = new Hono<OrganizationEnv>()
 
     const ok = await consumeNonce({ nonce: data.nonce, organizationId, sessionId })
     if (!ok) {
-      await bumpValidationFailureBucket(c.req.raw.headers)
+      void bumpValidationFailureBucket(c.req.raw.headers)
       return c.json({ error: 'invalid_or_expired_nonce' }, 401)
     }
 
@@ -145,32 +145,32 @@ const app = new Hono<OrganizationEnv>()
     } catch (err) {
       const meta = err as MetaOAuthError
       console.error(`[wa-signup] code exchange failed: kind=${meta.kind ?? 'unknown'} code=${meta.code ?? 'none'}`)
-      await bumpValidationFailureBucket(c.req.raw.headers)
+      void bumpValidationFailureBucket(c.req.raw.headers)
       return c.json({ error: 'oauth_exchange_failed' }, 502)
     }
 
     try {
       const debug = await verifyAccessTokenViaDebugToken(accessToken, oauthConfig)
       if (!debug.isValid) {
-        await bumpValidationFailureBucket(c.req.raw.headers)
+        void bumpValidationFailureBucket(c.req.raw.headers)
         return c.json({ error: 'token_not_valid' }, 401)
       }
       if (debug.appId !== oauthConfig.appId) {
         console.error(`[wa-signup] app_id mismatch: token app_id=${debug.appId} expected=${oauthConfig.appId}`)
-        await bumpValidationFailureBucket(c.req.raw.headers)
+        void bumpValidationFailureBucket(c.req.raw.headers)
         return c.json({ error: 'app_id_mismatch' }, 401)
       }
       if (!debug.targetIds.includes(data.wabaId)) {
         console.error(
           `[wa-signup] wabaId mismatch: claimed=${data.wabaId} token target_ids=${debug.targetIds.join(',')}`,
         )
-        await bumpValidationFailureBucket(c.req.raw.headers)
+        void bumpValidationFailureBucket(c.req.raw.headers)
         return c.json({ error: 'wabaId_mismatch' }, 401)
       }
     } catch (err) {
       const meta = err as MetaOAuthError
       console.error(`[wa-signup] debug_token failed: kind=${meta.kind ?? 'unknown'} code=${meta.code ?? 'none'}`)
-      await bumpValidationFailureBucket(c.req.raw.headers)
+      void bumpValidationFailureBucket(c.req.raw.headers)
       return c.json({ error: 'debug_token_failed' }, 502)
     }
 

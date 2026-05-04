@@ -15,7 +15,7 @@
  * Single-writer for `channels.signup_nonces`.
  */
 import { signupNonces } from '@modules/channels/schema'
-import { eq, lt, sql } from 'drizzle-orm'
+import { lt, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
 
 import type { ScopedDb } from '~/runtime'
@@ -85,8 +85,6 @@ export function createSignupNoncesService(deps: { db: ScopedDb }): SignupNoncesS
       .returning({ nonce: signupNonces.nonce })
     return rows.length
   }
-
-  void eq
 
   return { mintNonce, consumeNonce, pruneExpired }
 }
