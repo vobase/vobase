@@ -37,6 +37,7 @@ const INSTANCE: ChannelInstance = {
   channel: 'whatsapp',
   displayName: 'Test WA',
   config: {},
+  platformChannelId: null,
   role: 'customer',
   webhookSecret: null,
   status: null,

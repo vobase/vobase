@@ -165,64 +165,77 @@ export interface UpsertManagedInput {
  * Single-write-path entry point for the integrations module to materialize a
  * platform-managed channel instance. Channels owns the row; integrations is
  * the only caller. Idempotent on `(organizationId, channel, config.platformChannelId)`.
+ *
+ * The atomic INSERT … ON CONFLICT closes the SELECT-then-INSERT TOCTOU
+ * window where two concurrent handshakes (boot auto-provision + admin
+ * fallback handler) could each pass the existence probe and double-insert.
+ * The conflict target is the partial unique index
+ * `uq_channel_instances_managed_platform_id` over the generated
+ * `platform_channel_id` column.
  */
 export async function upsertManagedInstance(
   db: ScopedDb,
   input: UpsertManagedInput,
 ): Promise<{ instance: ChannelInstance; isNew: boolean }> {
-  // Look up existing by `config->>'platformChannelId'` so re-handshakes are
-  // no-ops. We can't put a unique index on a JSONB key without a generated
-  // column, so the lookup is at-most-one filtered by channel + org.
-  const existing = await db
-    .select()
-    .from(channelInstances)
-    .where(
-      and(
-        eq(channelInstances.organizationId, input.organizationId),
-        eq(channelInstances.channel, input.channel),
-        sql`(config->>'platformChannelId') = ${input.platformChannelId}`,
-      ),
-    )
-    .limit(1)
-
-  if (existing.length > 0) {
-    const row = existing[0]
-    if (!row) {
-      // Defensive — Array.length > 0 implies row, but TS narrowing requires the guard.
-      throw new Error('channels/instances: managed lookup returned empty row')
-    }
-    const merged = { ...row.config, ...input.config }
-    const [updated] = await db
-      .update(channelInstances)
-      .set({
-        displayName: input.displayName,
-        config: merged,
-        status: 'active',
-        setupStage: 'active',
-        lastError: null,
-      })
-      .where(eq(channelInstances.id, row.id))
-      .returning()
-    if (!updated) {
-      throw new Error('channels/instances: managed upsert update returned no row')
-    }
-    return { instance: updated, isNew: false }
-  }
-
-  const [created] = await db
+  const seedConfig = { ...input.config, platformChannelId: input.platformChannelId, mode: 'managed' }
+  const [row] = await db
     .insert(channelInstances)
     .values({
       organizationId: input.organizationId,
       channel: input.channel,
       role: 'customer',
       displayName: input.displayName,
-      config: { ...input.config, platformChannelId: input.platformChannelId, mode: 'managed' },
+      config: seedConfig,
       status: 'active',
       setupStage: 'active',
     })
-    .returning()
-  if (!created) {
-    throw new Error('channels/instances: managed insert returned no row')
+    .onConflictDoUpdate({
+      target: [channelInstances.organizationId, channelInstances.channel, channelInstances.platformChannelId],
+      // The conflict target is a PARTIAL unique index
+      // (`uq_channel_instances_managed_platform_id`) with predicate
+      // `WHERE platform_channel_id IS NOT NULL`. Postgres requires the
+      // ON CONFLICT clause to repeat that predicate so it can match the
+      // partial index — drizzle exposes that via `targetWhere`.
+      targetWhere: sql`platform_channel_id IS NOT NULL`,
+      // Re-handshake: shallow-merge `config` so existing keys (e.g. an
+      // adapter-set `lastSyncAt`) survive while the new payload overlays.
+      // Use SQL merge so the existing row's own `config` is read at conflict
+      // time — passing `input.config` directly would clobber any merge.
+      set: {
+        displayName: input.displayName,
+        // Pass the patch as a serialized JSON string so postgres-js can bind
+        // it as text; the explicit `::jsonb` cast turns it back at the
+        // database boundary. Avoids the postgres-js auto-binder choking on
+        // a plain JS object passed through `sql\`...\``.
+        config: sql`${channelInstances.config} || ${JSON.stringify(seedConfig)}::jsonb`,
+        status: 'active',
+        setupStage: 'active',
+        lastError: null,
+      },
+    })
+    .returning({
+      id: channelInstances.id,
+      organizationId: channelInstances.organizationId,
+      channel: channelInstances.channel,
+      role: channelInstances.role,
+      displayName: channelInstances.displayName,
+      config: channelInstances.config,
+      platformChannelId: channelInstances.platformChannelId,
+      webhookSecret: channelInstances.webhookSecret,
+      status: channelInstances.status,
+      setupStage: channelInstances.setupStage,
+      lastError: channelInstances.lastError,
+      createdAt: channelInstances.createdAt,
+      updatedAt: channelInstances.updatedAt,
+      // `xmax = 0` is the canonical Postgres trick to detect "this row was
+      // newly inserted" vs "this row was the conflict target updated" inside
+      // a single ON CONFLICT statement — without a second round-trip.
+      xmax: sql<string>`xmax`.as('xmax'),
+    })
+  if (!row) {
+    throw new Error('channels/instances: managed upsert returned no row')
   }
-  return { instance: created, isNew: true }
+  const isNew = row.xmax === '0'
+  const { xmax: _xmax, ...rest } = row
+  return { instance: rest, isNew }
 }

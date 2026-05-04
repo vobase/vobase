@@ -15,7 +15,7 @@
 
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, jsonb, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { channelsPgSchema } from '~/runtime'
 
@@ -30,6 +30,8 @@ export interface ChannelInstance {
   role: ChannelInstanceRole
   displayName: string | null
   config: Record<string, unknown>
+  /** Generated mirror of `config->>'platformChannelId'`. NULL on non-managed rows. */
+  platformChannelId: string | null
   webhookSecret: string | null
   status: string | null
   setupStage: string | null
@@ -79,6 +81,14 @@ export const channelInstances = channelsPgSchema.table(
     displayName: text('display_name'),
     /** Adapter-specific config (validated by the adapter's own Zod schema). */
     config: jsonb('config').notNull().$type<Record<string, unknown>>().default({}),
+    /**
+     * Generated mirror of `config->>'platformChannelId'` for managed-mode
+     * rows. Lets us put a partial unique index on
+     * `(organization_id, channel, platform_channel_id)` which closes the
+     * SELECT-then-INSERT TOCTOU window in `upsertManagedInstance`. NULL for
+     * non-managed rows; partial index excludes them.
+     */
+    platformChannelId: text('platform_channel_id').generatedAlwaysAs(sql`(config->>'platformChannelId')`),
     /** HMAC shared secret for inbound webhook verification (channels that opt in). */
     webhookSecret: text('webhook_secret'),
     status: text('status').default('active'),
@@ -95,6 +105,9 @@ export const channelInstances = channelsPgSchema.table(
   (t) => [
     index('idx_channel_instances_organization').on(t.organizationId),
     index('idx_channel_instances_channel').on(t.channel),
+    uniqueIndex('uq_channel_instances_managed_platform_id')
+      .on(t.organizationId, t.channel, t.platformChannelId)
+      .where(sql`platform_channel_id IS NOT NULL`),
     check('channel_instances_role_check', sql`role IN ('customer','staff')`),
   ],
 )
