@@ -2,31 +2,13 @@
  * Tenant-side handshake against the platform's `/sandbox/create` endpoint.
  *
  * Single owner of the platform-facing IO for managed-channel provisioning —
- * keeps `signRequest` + tenant-id headers + base-URL allowlist in one place
- * so handlers + auto-provisioner + tests don't reimplement it.
+ * keeps `signRequest`, tenant-id headers, and host validation in one place so
+ * handlers + tests don't reimplement it.
  */
 
 import { type SignedRequest, signHmac, signRequest } from '@vobase/core'
 
 import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
-
-const META_PLATFORM_HOSTNAME_ALLOWLIST_ENV = 'META_PLATFORM_HOSTNAME_ALLOWLIST'
-
-let allowlistCache: { raw: string; hosts: ReadonlySet<string> } | null = null
-
-function platformHostAllowlist(): ReadonlySet<string> {
-  const raw = process.env[META_PLATFORM_HOSTNAME_ALLOWLIST_ENV] ?? ''
-  if (!allowlistCache || allowlistCache.raw !== raw) {
-    const hosts = new Set(
-      raw
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-    )
-    allowlistCache = { raw, hosts }
-  }
-  return allowlistCache.hosts
-}
 
 export interface HandshakeAllocation {
   platformChannelId: string
@@ -53,9 +35,10 @@ export class PlatformHandshakeError extends Error {
 }
 
 /**
- * Validate that a `platformBaseUrl` is in the env-configured allowlist. The
- * allowlist defends against a compromised platform-→-tenant control payload
- * pointing the tenant at an attacker-controlled platform URL.
+ * Reject any `platformBaseUrl` whose hostname doesn't match the env-baked
+ * `VITE_PLATFORM_URL`. Defends against a row-supplied `platformBaseUrl`
+ * (admin-writable via PATCH /api/channels/instances/:id) being redirected to
+ * a different host. Localhost is auto-allowed in non-production for dev.
  */
 export function isAllowedPlatformBaseUrl(platformBaseUrl: string): boolean {
   let host: string
@@ -64,19 +47,16 @@ export function isAllowedPlatformBaseUrl(platformBaseUrl: string): boolean {
   } catch {
     return false
   }
-  // Localhost is always allowed in non-production so local dev "just works"
-  // without forcing an explicit allowlist entry. Production never legitimately
-  // reaches a localhost platformBaseUrl.
   if (process.env.NODE_ENV !== 'production' && (host === 'localhost' || host === '127.0.0.1')) {
     return true
   }
-  const hosts = platformHostAllowlist()
-  if (hosts.size === 0) {
-    // No allowlist configured → only allow localhost (dev) by default; refuse
-    // any external host. Deployments MUST set the env var explicitly.
+  const configured = process.env.VITE_PLATFORM_URL ?? ''
+  if (!configured) return host === 'localhost' || host === '127.0.0.1'
+  try {
+    return new URL(configured).hostname === host
+  } catch {
     return host === 'localhost' || host === '127.0.0.1'
   }
-  return hosts.has(host)
 }
 
 interface HandshakeInput {
@@ -107,7 +87,7 @@ async function signedPlatformPost(
 ): Promise<{ res: Response; signed: SignedRequest }> {
   if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
     throw new PlatformHandshakeError(
-      `platformBaseUrl '${input.platformBaseUrl}' is not in META_PLATFORM_HOSTNAME_ALLOWLIST`,
+      `platformBaseUrl '${input.platformBaseUrl}' hostname doesn't match VITE_PLATFORM_URL`,
       null,
       'platform_url_not_allowed',
     )
@@ -244,6 +224,56 @@ export interface WebhookEndpointStatus {
   registeredAt: string
 }
 
+/**
+ * Read the platform's sandbox pool availability count. Used by the tenant
+ * UI to gray out the "claim sandbox" button when no pool slots are free,
+ * sparing the user a pointless click that would 503.
+ *
+ * The platform's `GET /api/managed-whatsapp/health` is signed with the
+ * legacy v1 contract (`X-Platform-Signature: signHmac(`GET${path}`, secret)`)
+ * since it pre-dates the v2 rollout. We don't bother layering v2 on top —
+ * the value here is non-secret pool capacity, not control-plane material.
+ */
+export async function fetchSandboxAvailability(input: {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+}): Promise<{ sandboxPoolAvailable: number; schemaVersion: string }> {
+  if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
+    throw new PlatformHandshakeError(
+      `platformBaseUrl '${input.platformBaseUrl}' hostname doesn't match VITE_PLATFORM_URL`,
+      null,
+      'platform_url_not_allowed',
+    )
+  }
+  const path = '/api/managed-whatsapp/health'
+  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-Tenant-Id': input.tenantId,
+      'X-Platform-Signature': signHmac(`GET${path}`, input.tenantHmacSecret),
+    },
+  })
+  if (!res.ok) {
+    throw new PlatformHandshakeError(`platform health fetch failed (${res.status})`, res.status)
+  }
+  const data = (await res.json()) as {
+    ok: boolean
+    sandboxPoolAvailable?: number
+    schemaVersion?: string
+  }
+  if (typeof data.sandboxPoolAvailable !== 'number') {
+    // Unauthenticated branch returns just `{ ok: true }` — should never hit
+    // since we sign, but treat as zero rather than NaN to fail the UI gate.
+    return { sandboxPoolAvailable: 0, schemaVersion: data.schemaVersion ?? '' }
+  }
+  return {
+    sandboxPoolAvailable: data.sandboxPoolAvailable,
+    schemaVersion: data.schemaVersion ?? '',
+  }
+}
+
 /** Read this tenant's registered webhook endpoints from the platform. */
 export async function fetchWebhookEndpointStatus(input: {
   platformBaseUrl: string
@@ -260,7 +290,7 @@ export async function fetchWebhookEndpointStatus(input: {
   // does POST, so we sign manually here matching the same canonical payload.
   if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
     throw new PlatformHandshakeError(
-      `platformBaseUrl '${input.platformBaseUrl}' is not in META_PLATFORM_HOSTNAME_ALLOWLIST`,
+      `platformBaseUrl '${input.platformBaseUrl}' hostname doesn't match VITE_PLATFORM_URL`,
       null,
       'platform_url_not_allowed',
     )

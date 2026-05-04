@@ -47,9 +47,14 @@ import {
 import { channelsClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { type ChannelInstanceRow, ChannelsTable } from '../components/channels-table'
+import { ClaimSandboxDialog } from '../components/claim-sandbox-dialog'
 import { ConnectWhatsAppSheet } from '../components/connect-whatsapp-sheet'
 import { WebChannelDetailsSheet } from '../components/web-channel-details-sheet'
 import { WhatsAppEmptyState } from '../components/whatsapp-empty-state'
+
+// Gates the "Platform sandbox" Add-channel item — without a configured
+// platform there's nothing to claim from, and the menu item would just 503.
+const PLATFORM_CONFIGURED = Boolean(import.meta.env.VITE_PLATFORM_URL)
 
 // ─── Web instance types + fetchers ──────────────────────────────────────────
 
@@ -282,8 +287,14 @@ export function ChannelsPage() {
   })
 
   const [connectWaOpen, setConnectWaOpen] = useState(false)
+  const [claimSandboxOpen, setClaimSandboxOpen] = useState(false)
   const [createWebOpen, setCreateWebOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<WebInstance | null>(null)
+  // Managed-WhatsApp edit target — separate from `editTarget` because managed
+  // rows aren't `WebInstance`-shaped (no `origin` field, different URL bases).
+  // The dialog itself stays generic since it only edits `displayName +
+  // defaultAssignee`; only the submit path differs.
+  const [editManagedTarget, setEditManagedTarget] = useState<ChannelInstanceRow | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<WebInstance | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<string | null>(null)
 
@@ -330,6 +341,11 @@ export function ChannelsPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setConnectWaOpen(true)}>WhatsApp</DropdownMenuItem>
+              {PLATFORM_CONFIGURED && (
+                <DropdownMenuItem onClick={() => setClaimSandboxOpen(true)}>
+                  Platform sandbox (WhatsApp)
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setCreateWebOpen(true)}>Web chat</DropdownMenuItem>
               {hasWhatsApp && wabaId && (
                 <>
@@ -360,6 +376,7 @@ export function ChannelsPage() {
             isLoading={isLoading}
             listQueryKey={ALL_INSTANCES_KEY}
             onEditWeb={(row) => setEditTarget(toWebInstance(row))}
+            onEditManaged={setEditManagedTarget}
             onDeleteWeb={(row) => setDeleteTarget(toWebInstance(row))}
             onOpenDetails={setDetailsTarget}
           />
@@ -371,6 +388,36 @@ export function ChannelsPage() {
         open={connectWaOpen}
         onOpenChange={setConnectWaOpen}
         onConnected={handleWhatsAppConnected}
+      />
+
+      {/* Platform sandbox claim dialog (replaces boot-time auto-provision) */}
+      <ClaimSandboxDialog
+        open={claimSandboxOpen}
+        onOpenChange={setClaimSandboxOpen}
+        onClaimed={handleWhatsAppConnected}
+      />
+
+      {/* Managed-WhatsApp edit dialog — same form shape as web (only edits
+          displayName + defaultAssignee), but submits via the generic
+          PATCH /instances/:id with `configPatch`. */}
+      <InstanceFormDialog
+        open={!!editManagedTarget}
+        onOpenChange={(o) => {
+          if (!o) setEditManagedTarget(null)
+        }}
+        initial={{
+          displayName: editManagedTarget?.displayName ?? '',
+          defaultAssignee:
+            (editManagedTarget?.config as { defaultAssignee?: string | null } | undefined)?.defaultAssignee ?? null,
+        }}
+        title="Edit channel"
+        description="Update the name and default assignee for this WhatsApp channel."
+        submitLabel="Save changes"
+        onSubmit={async (body) => {
+          if (!editManagedTarget) return
+          await updateMutation.mutateAsync({ id: editManagedTarget.id, body })
+          setEditManagedTarget(null)
+        }}
       />
 
       {/* Web channel embed sheet */}

@@ -152,6 +152,14 @@ export interface UpsertManagedInput {
    * (returns the existing row).
    */
   platformChannelId: string
+  /**
+   * Optional explicit row id. Used on first insert so the tenant's
+   * `channel_instances.id` matches the same id used by the platform's
+   * `tester_links.channel_instance_id` (and therefore the URL the platform
+   * forwards inbound webhooks to). Ignored on conflict — Postgres can't
+   * change a primary key in `ON CONFLICT DO UPDATE`.
+   */
+  id?: string
   displayName: string
   /**
    * Adapter config to merge into the existing row (or insert as the seed).
@@ -181,6 +189,7 @@ export async function upsertManagedInstance(
   const [row] = await db
     .insert(channelInstances)
     .values({
+      ...(input.id ? { id: input.id } : {}),
       organizationId: input.organizationId,
       channel: input.channel,
       role: 'customer',
