@@ -8,6 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { ChannelInstance } from '@modules/channels/schema'
+import { createContactsService, installContactsService } from '@modules/contacts/service/contacts'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
 import { messages } from '@modules/messaging/schema'
 import { createConversationsService, installConversationsService } from '@modules/messaging/service/conversations'
@@ -65,6 +66,9 @@ beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
 
+  installContactsService(
+    createContactsService({ db: db.db, realtime: { notify: () => {}, subscribe: () => () => {} } }),
+  )
   installConversationsService(createConversationsService({ db: db.db }))
   installMessagesService(createMessagesService({ db: db.db }))
   installSessionsService(createSessionsService({ db: db.db }))
