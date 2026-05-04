@@ -12,7 +12,13 @@ import type { HttpClient } from '../../../http/client'
 import { chunkText, createApiClient, errorToSendResult } from './api'
 import { createManagementOperations } from './management'
 import type { WhatsAppWebhookPayload } from './shared'
-import { parseWhatsAppContactUpdates, parseWhatsAppEchoes, parseWhatsAppMessages, parseWhatsAppStatuses, shouldUpdateStatus } from './shared'
+import {
+  parseWhatsAppContactUpdates,
+  parseWhatsAppEchoes,
+  parseWhatsAppMessages,
+  parseWhatsAppStatuses,
+  shouldUpdateStatus,
+} from './shared'
 import { createTemplateOperations } from './templates'
 import type { WhatsAppChannelConfig } from './types'
 import {
@@ -137,7 +143,16 @@ export function createWhatsAppAdapter(
   // ─── Webhook verification ──────────────────────────────────────
 
   async function verifyWebhook(request: Request): Promise<boolean> {
-    if (transport) return true
+    if (transport) {
+      // Managed mode: if the transport supplied a verifier, use it. The legacy
+      // "return true" branch is preserved for transports that explicitly opt
+      // out (e.g. test harnesses) but production managed transports MUST
+      // supply `verifyInboundWebhook`.
+      if (transport.verifyInboundWebhook) {
+        return transport.verifyInboundWebhook(request)
+      }
+      return true
+    }
 
     const signature = request.headers.get('x-hub-signature-256')
     if (!signature || signature.length === 0) return false

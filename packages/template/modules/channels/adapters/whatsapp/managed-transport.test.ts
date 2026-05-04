@@ -82,6 +82,135 @@ describe('createManagedTransport', () => {
   })
 })
 
+describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', () => {
+  function buildRequest(body: string, headers: Record<string, string> = {}): Request {
+    return new Request('https://tenant.example/api/channels/webhook/whatsapp/inst-1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body,
+    })
+  }
+
+  test('accepts v2 2-key signed payload (current pair)', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    expect(t.verifyInboundWebhook).toBeDefined()
+    const body = '{"hello":"world"}'
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(body, {
+        'X-Vobase-Routine-Sig': signHmac(body, CURRENT.routineSecret),
+        'X-Vobase-Rotation-Sig': signHmac(body, CURRENT.rotationKey),
+        'X-Vobase-Key-Version': String(CURRENT.keyVersion),
+      }),
+    )
+    expect(ok).toBe(true)
+  })
+
+  test('rejects v2 with bad rotation signature', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    const body = '{"a":1}'
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(body, {
+        'X-Vobase-Routine-Sig': signHmac(body, CURRENT.routineSecret),
+        'X-Vobase-Rotation-Sig': 'deadbeef'.repeat(8),
+        'X-Vobase-Key-Version': String(CURRENT.keyVersion),
+      }),
+    )
+    expect(ok).toBe(false)
+  })
+
+  test('falls back to v1 legacy header when v2 headers absent', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    const body = '{"hello":"v1"}'
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(body, { 'X-Platform-Signature': signHmac(body, CURRENT.routineSecret) }),
+    )
+    expect(ok).toBe(true)
+  })
+
+  test('rejects v1 with wrong secret', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    const body = '{"hello":"v1"}'
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(body, { 'X-Platform-Signature': signHmac(body, 'wrong-secret') }),
+    )
+    expect(ok).toBe(false)
+  })
+
+  test('rejects when no signature headers at all', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    const ok = await t.verifyInboundWebhook?.(buildRequest('{"a":1}'))
+    expect(ok).toBe(false)
+  })
+
+  test('v1 fallback honors previous pair during grace window', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: PREVIOUS,
+    })
+    const body = '{"old":"v1"}'
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(body, { 'X-Platform-Signature': signHmac(body, PREVIOUS.routineSecret) }),
+    )
+    expect(ok).toBe(true)
+  })
+
+  test('thunk-form rotation values are honored', async () => {
+    let live = CURRENT
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: () => live,
+      previous: () => null,
+    })
+    // Rotate the source-of-truth pair AFTER transport creation; verifier
+    // must pick up the new value.
+    live = { routineSecret: 'fresh-routine', rotationKey: 'fresh-rotation', keyVersion: 99 }
+    const body = '{"after":"rotate"}'
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(body, {
+        'X-Vobase-Routine-Sig': signHmac(body, 'fresh-routine'),
+        'X-Vobase-Rotation-Sig': signHmac(body, 'fresh-rotation'),
+        'X-Vobase-Key-Version': '99',
+      }),
+    )
+    expect(ok).toBe(true)
+  })
+})
+
 describe('verifyInboundManagedWebhook', () => {
   test('accepts current-key signed payload', () => {
     const body = '{"hello":"world"}'

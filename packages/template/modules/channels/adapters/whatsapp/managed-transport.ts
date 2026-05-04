@@ -7,13 +7,16 @@
  * the 2-key HMAC contract (routine + rotation, monotonic keyVersion).
  *
  * Inbound webhooks (forwarded by the platform's per-environment router) carry
- * the same signed-headers contract; `verifyInboundWebhook` accepts current OR
- * previous-during-grace per the rotation window.
+ * the same signed-headers contract; the transport's `verifyInboundWebhook`
+ * hook (consumed by the WhatsApp adapter) accepts the v2 2-key headers, falls
+ * back to the legacy v1 single-key `X-Platform-Signature` while platforms are
+ * rolling out, and honors current OR previous-during-grace per the rotation
+ * window.
  */
 
 import type { VaultRotation } from '@modules/integrations/service/vault'
 import type { WhatsAppTransportConfig } from '@vobase/core'
-import { signRequest, verifyRequest } from '@vobase/core'
+import { signHmac, signRequest, verifyRequest } from '@vobase/core'
 
 export type RotationCurrent = VaultRotation['current']
 export type RotationPrevious = VaultRotation['previous']
@@ -74,7 +77,60 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
         'X-Vobase-Key-Version': String(signed.keyVersion),
       }
     },
+    async verifyInboundWebhook(request: Request): Promise<boolean> {
+      // Inbound managed webhooks come from the platform forwarder. Two
+      // signatures may be present:
+      //   v2 — `X-Vobase-Routine-Sig` + `X-Vobase-Rotation-Sig` + `X-Vobase-Key-Version`
+      //   v1 — legacy `X-Platform-Signature` (HMAC-SHA256 of body with the
+      //        platform-shared secret, which is the SAME value the tenant
+      //        holds as `routineSecret` in the vault during the v1 era).
+      // We accept v2 first; if absent we fall back to v1 so a not-yet-upgraded
+      // platform can still forward. Once all platforms are on v2 the v1
+      // branch can be deleted.
+      const cur = resolve(input.current)
+      const prev = resolve(input.previous)
+      const rawBody = await request.clone().text()
+
+      const routineSig = request.headers.get('X-Vobase-Routine-Sig')
+      const rotationSig = request.headers.get('X-Vobase-Rotation-Sig')
+      const keyVersionRaw = request.headers.get('X-Vobase-Key-Version')
+
+      if (routineSig && rotationSig && keyVersionRaw) {
+        const keyVersion = Number.parseInt(keyVersionRaw, 10)
+        if (!Number.isFinite(keyVersion)) return false
+        const result = verifyInboundManagedWebhook({
+          rawBody,
+          routineSignature: routineSig,
+          rotationSignature: rotationSig,
+          keyVersion,
+          current: cur,
+          previous: prev,
+        })
+        return result.ok
+      }
+
+      // v1 fallback (legacy single-key header). The platform signs body with
+      // its tenant HMAC secret; on the tenant side we hold the same secret
+      // as `routineSecret`.
+      const legacySig = request.headers.get('X-Platform-Signature')
+      if (!legacySig) return false
+      const expected = signHmac(rawBody, cur.routineSecret)
+      if (constantTimeEqual(legacySig, expected)) return true
+      if (prev) {
+        const expectedPrev = signHmac(rawBody, prev.routineSecret)
+        return constantTimeEqual(legacySig, expectedPrev)
+      }
+      return false
+    },
   }
+}
+
+/** Hex string equality with constant time when lengths match. */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let acc = 0
+  for (let i = 0; i < a.length; i++) acc |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return acc === 0
 }
 
 /**

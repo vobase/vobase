@@ -7,6 +7,15 @@ export interface WhatsAppTransportConfig {
   mediaDownloadUrl: string
   /** Returns headers to include in proxied requests (HMAC signature + tenant ID). */
   signRequest: (method: string, path: string) => Record<string, string>
+  /**
+   * When set, the adapter calls this on inbound webhooks instead of falling
+   * back to "trust the proxy". Returns `true` if the platform-forwarded
+   * payload's signature checks out against the rotation pair held by the
+   * tenant vault, `false` otherwise. Without this, a managed-mode adapter
+   * accepts ANY POST to its webhook path — a misrouted payload (or attacker
+   * spoofing the platform forwarder) bypasses authentication entirely.
+   */
+  verifyInboundWebhook?: (request: Request) => Promise<boolean>
 }
 
 export interface WhatsAppChannelConfig {
