@@ -24,6 +24,8 @@ import {
   createPendingApprovalsService,
   installPendingApprovalsService,
 } from './service/pending-approvals'
+import { createReactionsService, installReactionsService } from './service/reactions'
+import { createSessionsService, installSessionsService } from './service/sessions'
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
 import { convReassignVerb } from './verbs/conv-reassign'
 import * as web from './web'
@@ -89,6 +91,8 @@ const messaging: ModuleDef = {
       }),
     )
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
+    installSessionsService(createSessionsService({ db: ctx.db }))
+    installReactionsService(createReactionsService({ db: ctx.db }))
     ctx.cli.registerAll([...messagingVerbs, convReassignVerb])
   },
 }

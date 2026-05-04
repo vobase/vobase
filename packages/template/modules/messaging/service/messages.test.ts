@@ -22,6 +22,7 @@ const fakeParent: Message = {
   channelExternalId: null,
   status: null,
   attachments: [],
+  metadata: {},
   createdAt: new Date(),
 }
 
@@ -36,6 +37,7 @@ const fakeReplyRow: Message = {
   channelExternalId: null,
   status: null,
   attachments: [],
+  metadata: {},
   createdAt: new Date(),
 }
 

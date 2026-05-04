@@ -66,6 +66,8 @@ export interface Message {
    * single-writer (only `messaging/service/**`), defaults to `[]`.
    */
   attachments: import('@modules/drive/service/types').MessageAttachmentRef[]
+  /** Echo flags, status history. Use `extractEchoMetadata(row.metadata)` for safe projection. */
+  metadata: Record<string, unknown>
   createdAt: Date
 }
 

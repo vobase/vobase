@@ -125,6 +125,7 @@ describe('messages.md attachments — render + snapshot semantics', () => {
           extractionKind: 'extracted' as const,
         },
       ],
+      metadata: {},
       createdAt: new Date(),
     }
     const transcript = renderTranscriptFromMessages([fakeRow], new Map())
@@ -153,6 +154,7 @@ describe('messages.md attachments — render + snapshot semantics', () => {
           extractionKind: 'binary-stub' as const,
         },
       ],
+      metadata: {},
       createdAt: new Date(),
     }
     const driveMap = new Map<string, DriveFileProjection>([

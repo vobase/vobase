@@ -4,7 +4,8 @@
  */
 
 import type { Tx } from '~/runtime'
-import type { Conversation, InternalNote, Message, PendingApproval } from '../schema'
+import type { Conversation, InternalNote, Message, MessageRole, PendingApproval } from '../schema'
+import type { MessageMetadata } from './echo-metadata'
 
 export interface AuthorRefAgent {
   kind: 'agent'
@@ -131,6 +132,16 @@ export interface CreateInboundMessageInput {
     mimeType: string
     sizeBytes: number
   }>
+  /**
+   * Safe echo/status metadata subset. Populated by `extractEchoMetadata()` in
+   * `dispatchInbound`; never the raw provider payload (PII boundary).
+   */
+  metadata?: MessageMetadata
+  /**
+   * Override message role. Defaults to `'customer'`. Slice D sets `'staff'`
+   * for SMB echo events so they appear as outbound staff messages.
+   */
+  role?: MessageRole
 }
 
 export interface CreateInboundMessageResult {

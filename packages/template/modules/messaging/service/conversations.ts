@@ -365,11 +365,12 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
           .values({
             conversationId: conversation.id,
             organizationId: input.organizationId,
-            role: 'customer',
+            role: input.role ?? 'customer',
             kind,
             content: { text: input.content },
             channelExternalId: input.externalMessageId,
             attachments: attachmentRefs,
+            metadata: input.metadata ?? {},
           })
           .returning()) as Message[]
         const msg = msgRows[0]

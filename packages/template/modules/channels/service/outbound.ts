@@ -18,6 +18,7 @@ import {
   appendStaffTextMessage,
   appendTextMessage,
 } from '@modules/messaging/service/messages'
+import { checkWindow } from '@modules/messaging/service/sessions'
 import type { OutboundMessage, SendResult } from '@vobase/core'
 import { nanoid } from 'nanoid'
 
@@ -130,7 +131,20 @@ export async function dispatchOutbound(event: ChannelOutboundEvent): Promise<Dis
     throw new Error(`channels/outbound: no adapter registered for "${instance.channel}"`)
   }
 
-  // 4. Send via adapter; the contract guarantees SendResult, no throw.
+  // 4. Enforce 24h messaging window for windowed channels (e.g. WhatsApp).
+  //    Message row already persisted for audit; return window_expired result
+  //    without calling the wire so the agent can fall back to a template.
+  if (adapter.capabilities.messagingWindow) {
+    const win = await checkWindow(event.conversationId)
+    if (!win.open) {
+      return {
+        messageId: persisted.id,
+        send: { success: false, code: 'window_expired' } as SendResult,
+      }
+    }
+  }
+
+  // 5. Send via adapter; the contract guarantees SendResult, no throw.
   const outbound = buildOutboundMessage(event, recipient, persisted)
   const send = await adapter.send(outbound)
 

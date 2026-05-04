@@ -12,17 +12,24 @@
 
 import { messages } from '@modules/messaging/schema'
 import { journalAppend as append, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
-import { and, asc, desc, eq, gt } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, sql } from 'drizzle-orm'
 
 import type { OutboundToolName } from '~/runtime/channel-events'
 import type { Message } from '../schema'
+import { advanceMessageStatus, type MessageStatus } from '../state'
+import type { MessageMetadata } from './echo-metadata'
+import { extractEchoMetadata } from './echo-metadata'
 
-type TxShape = { insert: InsertFn } & {
+type UpdateFn = (t: unknown) => {
+  set: (v: unknown) => { where: (c: unknown) => { returning: () => Promise<unknown[]> } }
+}
+type TxShape = { insert: InsertFn; update?: UpdateFn } & {
   select?: () => { from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } } }
 }
 type DbHandle = {
   transaction: <T>(fn: (tx: TxShape) => Promise<T>) => Promise<T>
   select?: () => { from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } } }
+  update?: UpdateFn
   insert?: InsertFn
 }
 
@@ -180,6 +187,14 @@ type ListableDb = {
   }
 }
 
+export interface UpdateDeliveryStatusInput {
+  /** The channel-external message ID (wamid) from the status webhook. */
+  channelExternalId: string
+  status: MessageStatus
+  errorCode?: string
+  errorMessage?: string
+}
+
 export interface MessagesService {
   appendTextMessage(input: AppendTextMessageInput): Promise<Message>
   appendCardMessage(input: AppendCardMessageInput): Promise<Message>
@@ -187,6 +202,7 @@ export interface MessagesService {
   appendStaffTextMessage(input: AppendStaffTextMessageInput): Promise<Message>
   appendCardReplyMessage(input: AppendCardReplyInput): Promise<Message>
   list(conversationId: string, opts?: { limit?: number; since?: Date }): Promise<Message[]>
+  updateDeliveryStatus(input: UpdateDeliveryStatusInput): Promise<void>
 }
 
 export interface MessagesServiceDeps {
@@ -342,6 +358,44 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     return (rows as Message[]).reverse()
   }
 
+  async function updateDeliveryStatus(input: UpdateDeliveryStatusInput): Promise<void> {
+    await db.transaction(async (tx) => {
+      const txDb = tx as {
+        select: () => { from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } } }
+        update: UpdateFn
+      }
+      const rows = await txDb
+        .select()
+        .from(messages)
+        .where(eq(messages.channelExternalId, input.channelExternalId))
+        .limit(1)
+      const existing = rows[0] as Message | undefined
+      if (!existing) return
+
+      const currentStatus = (existing.status ?? 'queued') as MessageStatus
+      const nextStatus = advanceMessageStatus(currentStatus, input.status)
+
+      const existingMeta = extractEchoMetadata(existing.metadata as Record<string, unknown> | undefined)
+      const statusEntry: Record<string, unknown> = { status: nextStatus, ts: new Date().toISOString() }
+      if (input.errorCode) statusEntry.errorCode = input.errorCode
+      if (input.errorMessage) statusEntry.errorMessage = input.errorMessage
+
+      const updatedMeta: MessageMetadata & { statusHistory?: unknown[] } = {
+        ...existingMeta,
+        statusHistory: [
+          ...(((existing.metadata as Record<string, unknown>)?.statusHistory as unknown[]) ?? []),
+          statusEntry,
+        ],
+      }
+
+      await txDb
+        .update(messages)
+        .set({ status: nextStatus, metadata: sql`${JSON.stringify(updatedMeta)}::jsonb` })
+        .where(eq(messages.channelExternalId, input.channelExternalId))
+        .returning()
+    })
+  }
+
   return {
     appendTextMessage,
     appendCardMessage,
@@ -349,6 +403,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     appendStaffTextMessage,
     appendCardReplyMessage,
     list,
+    updateDeliveryStatus,
   }
 }
 
@@ -392,4 +447,8 @@ export async function appendCardReplyMessage(input: AppendCardReplyInput): Promi
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function list(conversationId: string, opts?: { limit?: number; since?: Date }): Promise<Message[]> {
   return currentMessages().list(conversationId, opts)
+}
+
+export async function updateDeliveryStatus(input: UpdateDeliveryStatusInput): Promise<void> {
+  return currentMessages().updateDeliveryStatus(input)
 }

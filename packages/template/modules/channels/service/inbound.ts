@@ -1,21 +1,23 @@
 /**
  * Generic inbound dispatcher.
  *
- * Takes a `ChannelEvent` (from `@vobase/core`) plus the resolved
- * `channel_instances` row and:
- *   1. Upserts the contact via contacts service
- *   2. Persists the message via messaging service (idempotent on externalMessageId)
- *   3. Enqueues a wake job if the conversation is new (i.e. an agent should run)
+ * Handles three event kinds emitted by channel adapters:
+ *   - `message_received` — persist message, seed 24h window, enqueue wake
+ *   - `status_update`    — advance delivery status FSM on the outbound message
+ *   - `reaction`         — upsert/remove from message_reactions
  *
- * Adapter handlers parse webhooks then hand normalized events here. All
- * channels share a single wake job name (`agents:wake`); the wake handler
- * is registered in `runtime/bootstrap.ts`.
+ * Echo branching (smb_message_echoes → role='staff', no wake, no window) is
+ * added by Slice D on top of this file.
  */
 
 import type { ChannelInstance } from '@modules/channels/schema'
 import { upsertByExternal } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
-import type { ChannelEvent, MessageReceivedEvent } from '@vobase/core'
+import { extractEchoMetadata } from '@modules/messaging/service/echo-metadata'
+import { updateDeliveryStatus } from '@modules/messaging/service/messages'
+import { removeReaction, upsertReaction } from '@modules/messaging/service/reactions'
+import { seedOnInbound } from '@modules/messaging/service/sessions'
+import type { ChannelEvent, MessageReceivedEvent, ReactionEvent, StatusUpdateEvent } from '@vobase/core'
 
 import { AGENTS_WAKE_JOB } from '~/wake/inbound'
 import { get as registryGet } from './registry'
@@ -46,6 +48,32 @@ function toContentType(
   }
 }
 
+async function handleStatusUpdate(event: StatusUpdateEvent): Promise<void> {
+  await updateDeliveryStatus({
+    channelExternalId: event.messageId,
+    status: event.status,
+    errorCode: event.metadata?.errorCode as string | undefined,
+    errorMessage: event.metadata?.errorMessage as string | undefined,
+  })
+}
+
+async function handleReaction(event: ReactionEvent, instance: ChannelInstance): Promise<void> {
+  if (event.action === 'remove') {
+    await removeReaction({
+      messageId: event.messageId,
+      fromExternal: event.from,
+      emoji: event.emoji,
+    })
+  } else {
+    await upsertReaction({
+      messageId: event.messageId,
+      channelInstanceId: instance.id,
+      fromExternal: event.from,
+      emoji: event.emoji,
+    })
+  }
+}
+
 export async function dispatchInbound(
   events: ChannelEvent[],
   instance: ChannelInstance,
@@ -55,6 +83,16 @@ export async function dispatchInbound(
   const jobs = requireJobs()
 
   for (const event of events) {
+    if (event.type === 'status_update') {
+      await handleStatusUpdate(event)
+      continue
+    }
+
+    if (event.type === 'reaction') {
+      await handleReaction(event, instance)
+      continue
+    }
+
     if (event.type !== 'message_received') continue
 
     const externalKey = `${instance.channel}:${event.from}`
@@ -80,6 +118,9 @@ export async function dispatchInbound(
     const adapter = registryGet(instance.channel, instance.config, instance.id)
     const threadKey = adapter?.resolveThreadKey?.(event) ?? 'default'
 
+    // Safe projection — never pass raw adapter metadata (may contain PII/provider fields).
+    const metadata = extractEchoMetadata(event.metadata)
+
     const result = await createInboundMessage({
       organizationId: instance.organizationId,
       channelInstanceId: instance.id,
@@ -91,7 +132,13 @@ export async function dispatchInbound(
       initialAssignee: opts?.defaultAssignee ?? null,
       attachments: attachments && attachments.length > 0 ? attachments : undefined,
       threadKey,
+      metadata,
     })
+
+    // Seed the 24h messaging window on customer inbound (capabilities check).
+    if (adapter?.capabilities.messagingWindow && result.message.role === 'customer') {
+      await seedOnInbound(result.conversation.id, instance.id)
+    }
 
     if (result.isNew) {
       await jobs.send(AGENTS_WAKE_JOB, {
