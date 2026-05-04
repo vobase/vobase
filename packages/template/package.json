@@ -39,7 +39,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hono/zod-validator": "^0.7.6",
-    "@ai-sdk/openai": "^2.0.51",
+    "@ai-sdk/openai": "^3.0.54",
     "@hookform/resolvers": "^5.2.2",
     "@hyzyla/pdfium": "^2.1.12",
     "@mariozechner/pi-agent-core": "^0.70.6",

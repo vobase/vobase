@@ -10,13 +10,9 @@
  *   3. Otherwise throw — caller (`extract.ts`) reports the failure verbatim
  *      via `processingError`, so the UI tooltip surfaces "OCR requires …".
  *
- * We call `provider.chat(...)` (not the default callable, which prefers
- * the Responses API + v2-compat shim — that path emits the
- * "Using v2 specification compatibility mode" warning on every OCR call).
- *
- * Why not pi-ai's `createModel`: pi-ai returns v1-spec models; AI SDK v6
- * requires v2 spec. Routing OCR through `@ai-sdk/openai` directly keeps the
- * seam version-clean and matches the rest of the project's AI SDK v6 use.
+ * We call `provider.chat(...)` explicitly (Chat Completions) rather than the
+ * default callable (Responses API) so Bifrost — which only speaks Chat
+ * Completions — and direct OpenAI both go through the same code path.
  */
 
 import { models, splitModelId } from '@modules/agents/lib/models'

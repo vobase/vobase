@@ -62,13 +62,14 @@ export function DrivePreview() {
             const override = renderPreview?.({ path: selectedPath, content: data.content, scope })
             if (override) return override
             if (isMarkdownPath(selectedPath)) {
+              // Include processingStatus in the key so the editor remounts
+              // when extraction flips pending → ready (or failed) and the
+              // freshly-arrived markdown becomes the initial value. Plate's
+              // initial value is captured at mount, so without this the pane
+              // sticks on the empty pre-extract content until a hard refresh.
+              const editorKey = `${selectedPath}:${data.file?.processingStatus ?? 'na'}`
               return (
-                <DriveMarkdownEditor
-                  key={selectedPath}
-                  scope={scope}
-                  path={selectedPath}
-                  initialMarkdown={data.content}
-                />
+                <DriveMarkdownEditor key={editorKey} scope={scope} path={selectedPath} initialMarkdown={data.content} />
               )
             }
             return (
