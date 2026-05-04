@@ -54,7 +54,7 @@ interface ManagedConfig {
   environment?: 'production' | 'staging' | string
 }
 
-function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig & Record<string, unknown> {
+export function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig & Record<string, unknown> {
   return (
     c.mode === 'managed' &&
     typeof c.platformChannelId === 'string' &&
@@ -170,6 +170,13 @@ function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
     tenantId,
     current: () => readCachedRotation().current,
     previous: () => readCachedRotation().previous,
+    // Inbound webhooks can race the eager warm-load above. Awaiting the
+    // load (which dedups via the inflight cache entry) before the verifier
+    // resolves the sync thunks lets the first inbound succeed without a
+    // 500. Outbound calls keep the strict synchronous contract.
+    ensureReady: async () => {
+      await loadRotation(config.organizationId)
+    },
   })
 
   // Derive the verify token deterministically from BETTER_AUTH_SECRET so the

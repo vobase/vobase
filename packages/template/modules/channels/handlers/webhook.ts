@@ -40,7 +40,8 @@ const app = new Hono()
 
     if (!adapter.parseWebhook) return c.json({ error: 'unsupported' }, 400)
     const events = await adapter.parseWebhook(c.req.raw)
-    const results = await dispatchInbound(events, instance)
+    const defaultAssignee = (instance.config as { defaultAssignee?: string | null }).defaultAssignee ?? null
+    const results = await dispatchInbound(events, instance, { defaultAssignee })
     return c.json({ received: true, processed: results.length, results })
   })
 

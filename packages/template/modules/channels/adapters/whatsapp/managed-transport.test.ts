@@ -156,12 +156,22 @@ describe('splitPathAndQuery', () => {
 })
 
 describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', () => {
+  const WEBHOOK_URL = 'https://tenant.example/api/channels/webhook/whatsapp/inst-1'
+  const WEBHOOK_PATH = '/api/channels/webhook/whatsapp/inst-1'
+
   function buildRequest(body: string, headers: Record<string, string> = {}): Request {
-    return new Request('https://tenant.example/api/channels/webhook/whatsapp/inst-1', {
+    return new Request(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body,
     })
+  }
+
+  // Mirrors the platform forwarder's canonical v2 payload (see
+  // vobase-platform/modules/managed-whatsapp/jobs.ts:478) and the tenant
+  // outbound transport (see `signRequest` in this file).
+  function v2PayloadFor(body: string): string {
+    return `POST|${WEBHOOK_PATH}||${sha256Hex(body)}`
   }
 
   test('accepts v2 2-key signed payload (current pair)', async () => {
@@ -174,10 +184,11 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
     })
     expect(t.verifyInboundWebhook).toBeDefined()
     const body = '{"hello":"world"}'
+    const payload = v2PayloadFor(body)
     const ok = await t.verifyInboundWebhook?.(
       buildRequest(body, {
-        'X-Vobase-Routine-Sig': signHmac(body, CURRENT.routineSecret),
-        'X-Vobase-Rotation-Sig': signHmac(body, CURRENT.rotationKey),
+        'X-Vobase-Routine-Sig': signHmac(payload, CURRENT.routineSecret),
+        'X-Vobase-Rotation-Sig': signHmac(payload, CURRENT.rotationKey),
         'X-Vobase-Key-Version': String(CURRENT.keyVersion),
       }),
     )
@@ -195,8 +206,29 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
     const body = '{"a":1}'
     const ok = await t.verifyInboundWebhook?.(
       buildRequest(body, {
-        'X-Vobase-Routine-Sig': signHmac(body, CURRENT.routineSecret),
+        'X-Vobase-Routine-Sig': signHmac(v2PayloadFor(body), CURRENT.routineSecret),
         'X-Vobase-Rotation-Sig': 'deadbeef'.repeat(8),
+        'X-Vobase-Key-Version': String(CURRENT.keyVersion),
+      }),
+    )
+    expect(ok).toBe(false)
+  })
+
+  test('rejects v2 when body is tampered after signing', async () => {
+    const t = createManagedTransport({
+      platformChannelId: 'pc-1',
+      platformBaseUrl: 'https://platform.voltade.app',
+      tenantId: 't-1',
+      current: CURRENT,
+      previous: null,
+    })
+    const signed = '{"original":"body"}'
+    const tampered = '{"tampered":"body"}'
+    const payload = v2PayloadFor(signed)
+    const ok = await t.verifyInboundWebhook?.(
+      buildRequest(tampered, {
+        'X-Vobase-Routine-Sig': signHmac(payload, CURRENT.routineSecret),
+        'X-Vobase-Rotation-Sig': signHmac(payload, CURRENT.rotationKey),
         'X-Vobase-Key-Version': String(CURRENT.keyVersion),
       }),
     )
@@ -273,10 +305,11 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
     // must pick up the new value.
     live = { routineSecret: 'fresh-routine', rotationKey: 'fresh-rotation', keyVersion: 99 }
     const body = '{"after":"rotate"}'
+    const payload = v2PayloadFor(body)
     const ok = await t.verifyInboundWebhook?.(
       buildRequest(body, {
-        'X-Vobase-Routine-Sig': signHmac(body, 'fresh-routine'),
-        'X-Vobase-Rotation-Sig': signHmac(body, 'fresh-rotation'),
+        'X-Vobase-Routine-Sig': signHmac(payload, 'fresh-routine'),
+        'X-Vobase-Rotation-Sig': signHmac(payload, 'fresh-rotation'),
         'X-Vobase-Key-Version': '99',
       }),
     )
@@ -288,7 +321,7 @@ describe('verifyInboundManagedWebhook', () => {
   test('accepts current-key signed payload', () => {
     const body = '{"hello":"world"}'
     const result = verifyInboundManagedWebhook({
-      rawBody: body,
+      signedPayload: body,
       routineSignature: signHmac(body, CURRENT.routineSecret),
       rotationSignature: signHmac(body, CURRENT.rotationKey),
       keyVersion: CURRENT.keyVersion,
@@ -308,7 +341,7 @@ describe('verifyInboundManagedWebhook', () => {
     // verification is one-way monotonic.
     const body = '{"old":"signed"}'
     const result = verifyInboundManagedWebhook({
-      rawBody: body,
+      signedPayload: body,
       routineSignature: signHmac(body, PREVIOUS.routineSecret),
       rotationSignature: signHmac(body, PREVIOUS.rotationKey),
       keyVersion: PREVIOUS.keyVersion,
@@ -326,7 +359,7 @@ describe('verifyInboundManagedWebhook', () => {
     // Sign with the older pair but advertise its lower keyVersion. Without a
     // previous slate entry that advances, this should be rejected.
     const result = verifyInboundManagedWebhook({
-      rawBody: body,
+      signedPayload: body,
       routineSignature: signHmac(body, PREVIOUS.routineSecret),
       rotationSignature: signHmac(body, PREVIOUS.rotationKey),
       keyVersion: PREVIOUS.keyVersion,
@@ -342,7 +375,7 @@ describe('verifyInboundManagedWebhook', () => {
   test('rejects bad routine signature', () => {
     const body = '{"hello":"world"}'
     const result = verifyInboundManagedWebhook({
-      rawBody: body,
+      signedPayload: body,
       routineSignature: 'deadbeef'.repeat(8),
       rotationSignature: signHmac(body, CURRENT.rotationKey),
       keyVersion: CURRENT.keyVersion,
@@ -355,7 +388,7 @@ describe('verifyInboundManagedWebhook', () => {
   test('rejects bad rotation signature', () => {
     const body = '{"hello":"world"}'
     const result = verifyInboundManagedWebhook({
-      rawBody: body,
+      signedPayload: body,
       routineSignature: signHmac(body, CURRENT.routineSecret),
       rotationSignature: 'deadbeef'.repeat(8),
       keyVersion: CURRENT.keyVersion,

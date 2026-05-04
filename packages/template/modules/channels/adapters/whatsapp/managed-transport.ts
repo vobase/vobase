@@ -36,6 +36,15 @@ export interface ManagedTransportInput {
   current: RotationCurrent | (() => RotationCurrent)
   /** Optional previous pair held during rotation grace. */
   previous: RotationPrevious | (() => RotationPrevious)
+  /**
+   * Optional async pre-step run by `verifyInboundWebhook` BEFORE resolving
+   * the current/previous thunks. Lets the factory await a cold vault load
+   * (the webhook can race the eager warm-load that runs during adapter
+   * construction). Outbound `signRequest` is synchronous by contract, so it
+   * doesn't use this hook — outbound first-call latency is acceptable, but
+   * an inbound 401 from a transient unloaded cache is not.
+   */
+  ensureReady?: () => Promise<void>
 }
 
 function resolve<T>(v: T | (() => T)): T {
@@ -113,6 +122,7 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
       // We accept v2 first; if absent we fall back to v1 so a not-yet-upgraded
       // platform can still forward. Once all platforms are on v2 the v1
       // branch can be deleted.
+      if (input.ensureReady) await input.ensureReady()
       const cur = resolve(input.current)
       const prev = resolve(input.previous)
       const rawBody = await request.clone().text()
@@ -124,8 +134,17 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
       if (routineSig && rotationSig && keyVersionRaw) {
         const keyVersion = Number.parseInt(keyVersionRaw, 10)
         if (!Number.isFinite(keyVersion)) return false
+        // Reconstruct the same canonical v2 payload the platform signed:
+        //   `${METHOD}|${pathOnly}|${sortedCanonicalQuery}|${sha256(body)}`.
+        // The forwarder signs this string (not the raw body) so a tampered
+        // URL or query string invalidates the signature — same contract our
+        // outbound transport uses (see `signRequest` above).
+        const url = new URL(request.url)
+        const { pathOnly, sortedQuery } = splitPathAndQuery(url.pathname + url.search)
+        const bodyDigest = sha256Hex(rawBody)
+        const v2Payload = `${request.method.toUpperCase()}|${pathOnly}|${sortedQuery}|${bodyDigest}`
         const result = verifyInboundManagedWebhook({
-          rawBody,
+          signedPayload: v2Payload,
           routineSignature: routineSig,
           rotationSignature: rotationSig,
           keyVersion,
@@ -196,7 +215,12 @@ export const __test_sha256Hex = sha256Hex
  * generic webhook router when `instance.config.mode === 'managed'`.
  */
 export function verifyInboundManagedWebhook(input: {
-  rawBody: string
+  /**
+   * Canonical v2 string the platform signed:
+   * `${METHOD}|${pathOnly}|${sortedQuery}|${sha256(body)}`. Tampering with URL,
+   * query, or body invalidates the signature.
+   */
+  signedPayload: string
   routineSignature: string
   rotationSignature: string
   keyVersion: number
@@ -219,7 +243,7 @@ export function verifyInboundManagedWebhook(input: {
   }
 
   const result = verifyRequest({
-    body: input.rawBody,
+    body: input.signedPayload,
     routineSignature: input.routineSignature,
     rotationSignature: input.rotationSignature,
     keyVersion: input.keyVersion,
