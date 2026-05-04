@@ -1,5 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, FileText, MoreVertical, Pause, Play, Plug, Stethoscope, Trash2, UserCog } from 'lucide-react'
+import {
+  Code2,
+  ExternalLink,
+  FileText,
+  MoreVertical,
+  Pause,
+  Play,
+  Plug,
+  Stethoscope,
+  Trash2,
+  UserCog,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -37,6 +48,7 @@ interface ChannelRowMenuProps {
   listQueryKey: readonly unknown[]
   onEdit?: () => void
   onDelete?: () => void
+  onOpenDetails?: (id: string) => void
 }
 
 async function toggleEnabled(id: string, _organizationId: string, enable: boolean) {
@@ -52,7 +64,7 @@ async function deleteInstance(id: string) {
   if (!r.ok) throw new Error(`delete failed: ${r.status}`)
 }
 
-function WebRowMenu({ row, listQueryKey, onEdit, onDelete }: ChannelRowMenuProps) {
+function WebRowMenu({ row, onEdit, onDelete, onOpenDetails }: ChannelRowMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -61,6 +73,10 @@ function WebRowMenu({ row, listQueryKey, onEdit, onDelete }: ChannelRowMenuProps
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => onOpenDetails?.(row.id)}>
+          <Code2 className="size-4" />
+          Embed code…
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">

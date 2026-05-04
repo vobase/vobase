@@ -48,6 +48,7 @@ import { channelsClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { type ChannelInstanceRow, ChannelsTable } from '../components/channels-table'
 import { ConnectWhatsAppSheet } from '../components/connect-whatsapp-sheet'
+import { WebChannelDetailsSheet } from '../components/web-channel-details-sheet'
 import { WhatsAppEmptyState } from '../components/whatsapp-empty-state'
 
 // ─── Web instance types + fetchers ──────────────────────────────────────────
@@ -284,6 +285,7 @@ export function ChannelsPage() {
   const [createWebOpen, setCreateWebOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<WebInstance | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<WebInstance | null>(null)
+  const [detailsTarget, setDetailsTarget] = useState<string | null>(null)
 
   const hasWhatsApp = instances.some((i) => i.channel === 'whatsapp')
   const wabaId = instances.find((i) => i.channel === 'whatsapp')?.config.wabaId as string | undefined
@@ -359,6 +361,7 @@ export function ChannelsPage() {
             listQueryKey={ALL_INSTANCES_KEY}
             onEditWeb={(row) => setEditTarget(toWebInstance(row))}
             onDeleteWeb={(row) => setDeleteTarget(toWebInstance(row))}
+            onOpenDetails={setDetailsTarget}
           />
         )}
       </PageBody>
@@ -368,6 +371,15 @@ export function ChannelsPage() {
         open={connectWaOpen}
         onOpenChange={setConnectWaOpen}
         onConnected={handleWhatsAppConnected}
+      />
+
+      {/* Web channel embed sheet */}
+      <WebChannelDetailsSheet
+        open={!!detailsTarget}
+        instanceId={detailsTarget ?? ''}
+        onOpenChange={(o) => {
+          if (!o) setDetailsTarget(null)
+        }}
       />
 
       {/* Web channel dialogs */}

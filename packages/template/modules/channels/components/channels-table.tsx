@@ -86,6 +86,7 @@ function buildColumns(
   listQueryKey: readonly unknown[],
   onEditWeb: (row: ChannelInstanceRow) => void,
   onDeleteWeb: (row: ChannelInstanceRow) => void,
+  onOpenDetails: (id: string) => void,
 ): ColumnDef<ChannelInstanceRow>[] {
   return [
     {
@@ -146,6 +147,7 @@ function buildColumns(
           listQueryKey={listQueryKey}
           onEdit={() => onEditWeb(row.original)}
           onDelete={() => onDeleteWeb(row.original)}
+          onOpenDetails={onOpenDetails}
         />
       ),
     },
@@ -158,12 +160,20 @@ interface ChannelsTableProps {
   listQueryKey: readonly unknown[]
   onEditWeb: (row: ChannelInstanceRow) => void
   onDeleteWeb: (row: ChannelInstanceRow) => void
+  onOpenDetails: (id: string) => void
 }
 
-export function ChannelsTable({ rows, isLoading, listQueryKey, onEditWeb, onDeleteWeb }: ChannelsTableProps) {
+export function ChannelsTable({
+  rows,
+  isLoading,
+  listQueryKey,
+  onEditWeb,
+  onDeleteWeb,
+  onOpenDetails,
+}: ChannelsTableProps) {
   const columns = useMemo(
-    () => buildColumns(listQueryKey, onEditWeb, onDeleteWeb),
-    [listQueryKey, onEditWeb, onDeleteWeb],
+    () => buildColumns(listQueryKey, onEditWeb, onDeleteWeb, onOpenDetails),
+    [listQueryKey, onEditWeb, onDeleteWeb, onOpenDetails],
   )
 
   const { table } = useDataTable({
