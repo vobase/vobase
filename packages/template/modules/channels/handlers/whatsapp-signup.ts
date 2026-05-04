@@ -53,6 +53,8 @@ import { getJobs, getRateLimits, getRequireAdmin } from '@modules/channels/servi
 import { Hono } from 'hono'
 import { z } from 'zod'
 
+import { sourceIpFromHeaders } from '~/runtime/request-ip'
+
 const exchangeBody = z.object({
   code: z.string().min(1).max(2048),
   phoneNumberId: z.string().min(1).max(64),
@@ -71,15 +73,6 @@ const RATE_LIMIT_WINDOW_SECONDS = 60 * 60 // 1 hour
 const RATE_LIMIT_MAX_SUCCESSES = 10
 const VALIDATION_FAILURE_BUCKET_PER_MINUTE = 60
 const VALIDATION_FAILURE_WINDOW_SECONDS = 60
-
-function sourceIpFromHeaders(headers: Headers): string {
-  const xff = headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first && first.length > 0) return first
-  }
-  return headers.get('x-real-ip')?.trim() || 'unknown'
-}
 
 async function bumpValidationFailureBucket(headers: Headers): Promise<void> {
   const rl = getRateLimits()

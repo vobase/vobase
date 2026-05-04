@@ -126,6 +126,14 @@ Browser                        Vobase backend                     Meta
   re-wraps DEKs only; payload ciphertext is never re-encrypted.
 - **No request bodies are logged.** Set `VOBASE_LOG_MESSAGE_BODIES=1` for
   inbound message body logging during local debugging only.
+- **`TRUST_PROXY_HOPS` (env)** controls how the per-IP failure bucket
+  identifies the client. Default `0` ignores `X-Forwarded-For` entirely (use
+  `x-real-ip` or peer-only) so a spoofed XFF can't deflate the bucket. Set to
+  `1` when running directly behind a single trusted reverse-proxy (Railway
+  edge, Cloudflare in front of an origin with no other hop), `2` when there
+  are two trusted proxies, etc. The parser walks the rightmost `N` entries —
+  trusting only what your own infra appended. Misconfigure this and a single
+  attacker can impersonate any IP for the per-IP bucket.
 
 ### Coexistence vs Cloud differences
 
