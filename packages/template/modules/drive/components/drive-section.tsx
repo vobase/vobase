@@ -1,14 +1,19 @@
 import { InfoCard } from '@/components/info'
-import { DriveBrowser } from './drive-browser'
+import { cn } from '@/lib/utils'
+import { DriveBrowser, type DriveBrowserOrientation } from './drive-browser'
 import { DriveProvider, type DriveProviderProps } from './drive-provider'
 
-type DriveSectionProps = Omit<DriveProviderProps, 'children'>
+type DriveSectionProps = Omit<DriveProviderProps, 'children'> & {
+  /** Pass-through to DriveBrowser. `vertical` stacks file-list above preview. */
+  orientation?: DriveBrowserOrientation
+  className?: string
+}
 
-export function DriveSection({ scope, rootLabel, initialPath, renderPreview }: DriveSectionProps) {
+export function DriveSection({ scope, rootLabel, initialPath, renderPreview, orientation, className }: DriveSectionProps) {
   return (
-    <InfoCard className="h-[60vh] min-h-[420px]">
+    <InfoCard className={cn('h-[60vh] min-h-[420px]', className)}>
       <DriveProvider scope={scope} rootLabel={rootLabel} initialPath={initialPath} renderPreview={renderPreview}>
-        <DriveBrowser />
+        <DriveBrowser orientation={orientation} />
       </DriveProvider>
     </InfoCard>
   )

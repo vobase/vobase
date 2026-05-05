@@ -1,26 +1,18 @@
 /**
- * StaffFormDialog — create (upsert) or edit a staff profile.
+ * StaffFormDialog — edit a staff profile's identity fields.
  *
- * Tag-like fields (sectors / expertise / languages) are entered as comma-
- * separated strings and split on save. Swap to DiceUI TagsInput when the
- * component lands in the template.
+ * Profile narrative is edited via `/PROFILE.md` in the staff member's Drive,
+ * so it isn't part of this dialog. Custom attributes are edited inline on the
+ * detail page.
  */
 
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import type { Availability, StaffProfile } from '../schema'
 
 const AVAILABILITY_OPTIONS: { value: Availability; label: string }[] = [
@@ -31,7 +23,6 @@ const AVAILABILITY_OPTIONS: { value: Availability; label: string }[] = [
 ]
 
 export interface StaffFormValues {
-  userId: string
   displayName: string
   title: string
   sectors: string[]
@@ -39,14 +30,12 @@ export interface StaffFormValues {
   languages: string[]
   capacity: number
   availability: Availability
-  profile: string
 }
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Null → create mode (userId editable). Present → edit mode (userId frozen). */
-  staff: StaffProfile | null
+  staff: StaffProfile
   onSave: (values: StaffFormValues) => void
   isPending: boolean
 }
@@ -59,8 +48,6 @@ const fromCsv = (s: string) =>
     .filter(Boolean)
 
 export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }: Props) {
-  const isEdit = Boolean(staff)
-  const [userId, setUserId] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [title, setTitle] = useState('')
   const [sectors, setSectors] = useState('')
@@ -68,36 +55,28 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
   const [languages, setLanguages] = useState('')
   const [capacity, setCapacity] = useState('10')
   const [availability, setAvailability] = useState<Availability>('active')
-  const [profile, setProfile] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    setUserId(staff?.userId ?? '')
-    setDisplayName(staff?.displayName ?? '')
-    setTitle(staff?.title ?? '')
-    setSectors(toCsv(staff?.sectors ?? []))
-    setExpertise(toCsv(staff?.expertise ?? []))
-    setLanguages(toCsv(staff?.languages ?? []))
-    setCapacity(String(staff?.capacity ?? 10))
-    setAvailability(staff?.availability ?? 'active')
-    setProfile(staff?.profile ?? '')
+    setDisplayName(staff.displayName ?? '')
+    setTitle(staff.title ?? '')
+    setSectors(toCsv(staff.sectors))
+    setExpertise(toCsv(staff.expertise))
+    setLanguages(toCsv(staff.languages))
+    setCapacity(String(staff.capacity))
+    setAvailability(staff.availability)
     setError(null)
   }, [open, staff])
 
   function submit() {
     setError(null)
-    if (!isEdit && !userId.trim()) {
-      setError('User ID is required (must match a better-auth user in this organization).')
-      return
-    }
     const cap = Number(capacity)
     if (Number.isNaN(cap) || cap < 0 || cap > 1000) {
-      setError('Capacity must be a number between 0 and 1000.')
+      setError('Capacity must be between 0 and 1000.')
       return
     }
     onSave({
-      userId: userId.trim(),
       displayName: displayName.trim(),
       title: title.trim(),
       sectors: fromCsv(sectors),
@@ -105,7 +84,6 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
       languages: fromCsv(languages),
       capacity: cap,
       availability,
-      profile,
     })
   }
 
@@ -113,26 +91,9 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit staff profile' : 'Add staff'}</DialogTitle>
-          <DialogDescription>
-            Domain profile for routing and operations. Identity + auth live in the organization members table.
-          </DialogDescription>
+          <DialogTitle>Edit staff profile</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-1">
-          <div className="space-y-1.5">
-            <Label htmlFor="staff-user-id">User ID</Label>
-            <Input
-              id="staff-user-id"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="alice-user-id"
-              disabled={isEdit}
-              className={isEdit ? 'opacity-60' : ''}
-            />
-            <p className="text-muted-foreground text-xs">
-              {isEdit ? 'User ID is immutable.' : 'Must match an existing organization member.'}
-            </p>
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="staff-display-name">Display name</Label>
@@ -179,7 +140,6 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
               onChange={(e) => setLanguages(e.target.value)}
               placeholder="en, zh"
             />
-            <p className="text-muted-foreground text-xs">Separate with commas.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -209,19 +169,6 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
               </Select>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="staff-profile">Profile</Label>
-            <Textarea
-              id="staff-profile"
-              rows={4}
-              value={profile}
-              onChange={(e) => setProfile(e.target.value)}
-              placeholder="Narrative routing hints, language preferences, OOO schedule…"
-            />
-            <p className="text-muted-foreground text-xs">
-              Human-authored. Surfaced as <code>/PROFILE.md</code> in this staff member's Drive.
-            </p>
-          </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
         </div>
         <DialogFooter>
@@ -229,7 +176,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
             Cancel
           </Button>
           <Button onClick={submit} disabled={isPending}>
-            {isPending ? 'Saving…' : isEdit ? 'Save changes' : 'Add staff'}
+            {isPending ? 'Saving…' : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

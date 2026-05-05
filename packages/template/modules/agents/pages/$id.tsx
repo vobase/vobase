@@ -6,7 +6,7 @@ import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-r
 import { Bot, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { InfoCard, InfoRow, InfoSection } from '@/components/info'
+import { InfoCard, InfoRow } from '@/components/info'
 import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -84,20 +84,7 @@ function AgentDetailPage() {
       />
 
       <PageBody className="space-y-6">
-        <InfoSection
-          title="Settings"
-          description="Identity, model selection, and runtime status."
-          actions={
-            <Button
-              size="sm"
-              onClick={() => update.mutate({ name, model, enabled })}
-              disabled={!settingsDirty || update.isPending}
-            >
-              <Save />
-              {update.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          }
-        >
+        <div className="space-y-3">
           <InfoCard>
             <InfoRow label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-[280px]" />
@@ -123,8 +110,18 @@ function AgentDetailPage() {
               <Switch checked={enabled} onCheckedChange={setEnabled} />
             </InfoRow>
           </InfoCard>
+          <div className="flex items-center justify-end">
+            <Button
+              size="sm"
+              onClick={() => update.mutate({ name, model, enabled })}
+              disabled={!settingsDirty || update.isPending}
+            >
+              <Save />
+              {update.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
           {update.isError && <p className="text-destructive text-xs">Failed to save changes.</p>}
-        </InfoSection>
+        </div>
 
         <DriveSection
           scope={{ scope: 'agent', agentId: agent.id }}

@@ -1,19 +1,13 @@
 /**
  * ContactFormDialog — create or edit a contact's basic identity fields.
- * Custom attributes are edited inline on the detail page.
+ * Used by the contacts list page to add a new contact; the detail page edits
+ * inline.
  */
 
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -74,9 +68,6 @@ export function ContactFormDialog({ open, onOpenChange, contact, onSave, isPendi
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit contact' : 'New contact'}</DialogTitle>
-          <DialogDescription>
-            Identity and marketing preferences. Custom attributes are edited on the contact page.
-          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
@@ -119,15 +110,11 @@ export function ContactFormDialog({ open, onOpenChange, contact, onSave, isPendi
               onChange={(e) => setSegments(e.target.value)}
               placeholder="pro-plan, long-term"
             />
-            <p className="text-muted-foreground text-xs">Comma separated. Used for filtering and campaigns.</p>
           </div>
           <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-            <div className="space-y-0.5">
-              <Label htmlFor="contact-optout" className="font-normal text-sm">
-                Marketing opt-out
-              </Label>
-              <p className="text-muted-foreground text-xs">Exclude from broadcasts and campaigns.</p>
-            </div>
+            <Label htmlFor="contact-optout" className="font-normal text-sm">
+              Marketing opt-out
+            </Label>
             <Switch id="contact-optout" checked={marketingOptOut} onCheckedChange={setMarketingOptOut} />
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
