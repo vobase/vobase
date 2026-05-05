@@ -81,7 +81,8 @@ describe('createLearningProposalObserver', () => {
     for (const ev of events) await observer(ev)
 
     expect(insertCalls).toHaveLength(1)
-    const call = insertCalls[0]!
+    const call = insertCalls[0]
+    if (!call) throw new Error('expected insertCalls[0]')
     expect(call.resourceModule).toBe('agents')
     expect(call.resourceType).toBe('agent_memory')
     expect(call.resourceId).toBe('agt-1')
@@ -124,8 +125,10 @@ describe('createLearningProposalObserver', () => {
     for (const ev of events) await observer(ev)
 
     expect(insertCalls).toHaveLength(2)
-    expect((insertCalls[0]!.payload as { body: string }).body).toContain('supervisor')
-    expect((insertCalls[1]!.payload as { body: string }).body).toContain('internal_note')
+    const [first, second] = insertCalls
+    if (!first || !second) throw new Error('expected two insertCalls')
+    expect((first.payload as { body: string }).body).toContain('supervisor')
+    expect((second.payload as { body: string }).body).toContain('internal_note')
   })
 
   it('skips reassignment_note signals', async () => {
