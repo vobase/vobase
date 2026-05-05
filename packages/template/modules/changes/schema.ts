@@ -10,7 +10,8 @@ import { check, index, jsonb, real, text, timestamp, uniqueIndex } from 'drizzle
 
 import { changesPgSchema } from '~/runtime'
 
-export type ChangeStatus = 'pending' | 'approved' | 'rejected' | 'auto_written' | 'superseded'
+export const CHANGE_STATUS_VALUES = ['pending', 'approved', 'rejected', 'auto_written', 'superseded'] as const
+export type ChangeStatus = (typeof CHANGE_STATUS_VALUES)[number]
 export type ChangedByKind = 'user' | 'agent'
 
 export interface ChangeProposalRow {

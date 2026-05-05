@@ -2,7 +2,7 @@ import { conversations } from '@modules/messaging/schema'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
 import type { ChangePayload } from '@vobase/core'
 import { conflict, journalGetLatestTurnIndex as getLatestTurnIndex, notFound, validation } from '@vobase/core'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 import type { RealtimeService } from '~/runtime'
@@ -16,6 +16,20 @@ import {
   changeHistory,
   changeProposals,
 } from '../schema'
+
+/** History-listing filter — `status: 'all'` or undefined includes every decided variant. */
+export interface ListHistoryOptions {
+  resourceModule?: string
+  status?: ChangeStatus | 'all'
+  limit?: number
+}
+
+/** Same join shape as the inbox — UI needs the conversation→contact pill. */
+export interface ChangeProposalHistoryItem extends ChangeProposalRow {
+  conversationContactId: string | null
+}
+
+const DECIDED_STATUSES: ChangeStatus[] = ['approved', 'rejected', 'auto_written', 'superseded']
 
 // ─── Materializer registry ───────────────────────────────────────────────────
 
@@ -176,6 +190,7 @@ export interface ChangeProposalsService {
     note?: string,
   ): Promise<DecideResult>
   listInbox(organizationId: string, limit?: number): Promise<ChangeProposalInboxItem[]>
+  listDecided(organizationId: string, opts?: ListHistoryOptions): Promise<ChangeProposalHistoryItem[]>
   recordChange(input: RecordChangeInput): Promise<{ id: string }>
   setRealtime(handle: RealtimeService | null): void
 }
@@ -246,16 +261,17 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
 
   async function insertProposal(input: InsertProposalInput): Promise<{ id: string; status: ChangeStatus }> {
     const reg = getRegistration(input.resourceModule, input.resourceType)
-    // Friendly conflict at the service layer: agents can be told "you already have a
-    // pending proposal on this target" instead of bumping into the DB unique index.
-    const dup = await findPendingDuplicate(input)
-    if (dup) {
-      throw conflict(
-        `change-proposals: ${input.resourceModule}/${input.resourceType}/${input.resourceId} already has a pending proposal (id=${dup.id})`,
-      )
-    }
-
     const status: ChangeStatus = reg.requiresApproval ? 'pending' : 'auto_written'
+    // Pending rows compete for the partial unique index; auto-writes materialize
+    // immediately and never collide, so the duplicate check only applies to pending.
+    if (status === 'pending') {
+      const dup = await findPendingDuplicate(input)
+      if (dup) {
+        throw conflict(
+          `change-proposals: ${input.resourceModule}/${input.resourceType}/${input.resourceId} already has a pending proposal (id=${dup.id})`,
+        )
+      }
+    }
     const id = nanoid(10)
     const proposal = buildProposalRow(input, id, status)
 
@@ -407,10 +423,49 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     }))
   }
 
+  async function listDecided(
+    organizationId: string,
+    opts: ListHistoryOptions = {},
+  ): Promise<ChangeProposalHistoryItem[]> {
+    const limit = opts.limit ?? 100
+    const wantedStatuses = opts.status && opts.status !== 'all' ? [opts.status] : DECIDED_STATUSES
+
+    const conds = [
+      eq(changeProposals.organizationId, organizationId),
+      inArray(changeProposals.status, wantedStatuses),
+    ]
+    if (opts.resourceModule) conds.push(eq(changeProposals.resourceModule, opts.resourceModule))
+
+    const rows = (await db
+      .select()
+      .from(changeProposals)
+      .where(and(...conds))
+      .orderBy(desc(sql`COALESCE(${changeProposals.decidedAt}, ${changeProposals.createdAt})`))
+      .limit(limit)) as unknown as ChangeProposalRow[]
+
+    const conversationIds = Array.from(
+      new Set(rows.map((r) => r.conversationId).filter((id): id is string => Boolean(id))),
+    )
+    const contactByConvId = new Map<string, string>()
+    if (conversationIds.length > 0) {
+      const convRows = (await db
+        .select()
+        .from(conversations)
+        .where(inArray(conversations.id, conversationIds))) as Array<{ id: string; contactId: string }>
+      for (const cv of convRows) contactByConvId.set(cv.id, cv.contactId)
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      conversationContactId: row.conversationId ? (contactByConvId.get(row.conversationId) ?? null) : null,
+    }))
+  }
+
   return {
     insertProposal,
     decideChangeProposal,
     listInbox,
+    listDecided,
     async recordChange(input: RecordChangeInput): Promise<{ id: string }> {
       const id = await writeHistoryRow(db, input)
       return { id }
@@ -523,6 +578,13 @@ export function decideChangeProposal(
 
 export function listInbox(organizationId: string, limit?: number): Promise<ChangeProposalInboxItem[]> {
   return current().listInbox(organizationId, limit)
+}
+
+export function listDecided(
+  organizationId: string,
+  opts?: ListHistoryOptions,
+): Promise<ChangeProposalHistoryItem[]> {
+  return current().listDecided(organizationId, opts)
 }
 
 /** Sanctioned write path into `change_history`. `check:shape` blocks any other path. */

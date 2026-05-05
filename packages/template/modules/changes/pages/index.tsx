@@ -3,19 +3,35 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Inbox } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { z } from 'zod'
 
+import { ChangeHistoryList } from '@/components/changes/change-history-list'
 import { ProposalRow } from '@/components/changes/proposal-row'
 import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
+const searchSchema = z.object({
+  tab: z.enum(['pending', 'history']).optional(),
+})
+
 export const Route = createFileRoute('/_app/changes')({
+  validateSearch: searchSchema,
   component: ChangesPage,
 })
 
 function ChangesPage() {
   const qc = useQueryClient()
+  const navigate = Route.useNavigate()
+  const search = Route.useSearch()
+  const tab = search.tab ?? 'pending'
+
+  const setTab = (next: 'pending' | 'history') => {
+    navigate({ search: (prev) => ({ ...prev, tab: next === 'pending' ? undefined : next }) })
+  }
+
   const { data, isLoading, error } = useChangeProposalsInbox()
   const [filter, setFilter] = useState<string>('all')
 
@@ -36,70 +52,85 @@ function ChangesPage() {
   return (
     <PageLayout>
       <PageHeader
-        title="Pending changes"
+        title="Changes"
         description="Review what your agents have proposed before it lands in production data."
         className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
-        actions={<span className="font-medium text-muted-foreground text-sm">{data?.length ?? 0} pending</span>}
-        meta={
-          moduleCounts.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <FilterChip
-                label="All"
-                count={data?.length ?? 0}
-                active={filter === 'all'}
-                onClick={() => setFilter('all')}
-              />
-              {moduleCounts.map(([mod, count]) => (
-                <FilterChip
-                  key={mod}
-                  label={mod}
-                  count={count}
-                  active={filter === mod}
-                  onClick={() => setFilter(mod)}
-                />
-              ))}
-            </div>
-          ) : null
-        }
       />
 
       <PageBody>
-        <div className="mx-auto w-full max-w-4xl space-y-4">
-          {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-48 w-full rounded-lg" />)}
+        <div className="mx-auto w-full max-w-4xl">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'history')} className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="pending">
+                Pending{typeof data?.length === 'number' && data.length > 0 ? ` (${data.length})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+            </TabsList>
 
-          {error && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm">
-              {error instanceof Error ? error.message : 'Failed to load proposals'}
-            </div>
-          )}
+            <TabsContent value="pending" className="space-y-4">
+              {moduleCounts.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <FilterChip
+                    label="All"
+                    count={data?.length ?? 0}
+                    active={filter === 'all'}
+                    onClick={() => setFilter('all')}
+                  />
+                  {moduleCounts.map(([mod, count]) => (
+                    <FilterChip
+                      key={mod}
+                      label={mod}
+                      count={count}
+                      active={filter === mod}
+                      onClick={() => setFilter(mod)}
+                    />
+                  ))}
+                </div>
+              )}
 
-          {data && visible.length === 0 && (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia>
-                  <Inbox className="size-6" />
-                </EmptyMedia>
-                <EmptyTitle>{filter === 'all' ? 'No pending proposals' : `Nothing pending in ${filter}`}</EmptyTitle>
-                <EmptyDescription>
-                  {filter === 'all'
-                    ? 'When agents suggest edits to memory, contacts, drive files, or skills, they will queue up here for your review.'
-                    : 'Switch filters to see proposals in other modules, or wait for an agent to suggest something here.'}
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
+              {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-48 w-full rounded-lg" />)}
 
-          {data && visible.length > 0 && (
-            <ul className="space-y-4">
-              {visible.map((proposal) => (
-                <ProposalRow
-                  key={proposal.id}
-                  proposal={proposal}
-                  onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
-                />
-              ))}
-            </ul>
-          )}
+              {error && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-destructive text-sm">
+                  {error instanceof Error ? error.message : 'Failed to load proposals'}
+                </div>
+              )}
+
+              {data && visible.length === 0 && (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia>
+                      <Inbox className="size-6" />
+                    </EmptyMedia>
+                    <EmptyTitle>
+                      {filter === 'all' ? 'No pending proposals' : `Nothing pending in ${filter}`}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {filter === 'all'
+                        ? 'When agents suggest edits to memory, contacts, drive files, or skills, they will queue up here for your review.'
+                        : 'Switch filters to see proposals in other modules, or wait for an agent to suggest something here.'}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              )}
+
+              {data && visible.length > 0 && (
+                <ul className="space-y-4">
+                  {visible.map((proposal) => (
+                    <ProposalRow
+                      key={proposal.id}
+                      proposal={proposal}
+                      onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
+                    />
+                  ))}
+                </ul>
+              )}
+            </TabsContent>
+
+            <TabsContent value="history">
+              <ChangeHistoryList />
+            </TabsContent>
+          </Tabs>
         </div>
       </PageBody>
     </PageLayout>

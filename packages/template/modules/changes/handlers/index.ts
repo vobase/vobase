@@ -4,7 +4,8 @@ import { errorHandler } from '@vobase/core'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-import { decideChangeProposal, listInbox } from '../service/proposals'
+import { CHANGE_STATUS_VALUES } from '../schema'
+import { decideChangeProposal, listDecided, listInbox } from '../service/proposals'
 
 const decideBodySchema = z.object({
   decision: z.enum(['approved', 'rejected']),
@@ -12,13 +13,33 @@ const decideBodySchema = z.object({
   note: z.string().optional(),
 })
 
+const historyQuerySchema = z.object({
+  resourceModule: z.string().optional(),
+  status: z.enum([...CHANGE_STATUS_VALUES, 'all']).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+})
+
 const app = new Hono<OrganizationEnv>()
   .use('/inbox', requireOrganization)
+  .use('/history', requireOrganization)
   .use('/proposals/:id/decide', requireOrganization)
   .get('/inbox', async (c) => {
     const proposals = await listInbox(c.get('organizationId'))
     return c.json(proposals)
   })
+  .get(
+    '/history',
+    zValidator('query', historyQuerySchema, (result, c) => {
+      if (!result.success) {
+        return c.json({ error: 'invalid_query', issues: result.error.issues }, 400)
+      }
+    }),
+    async (c) => {
+      const opts = c.req.valid('query')
+      const rows = await listDecided(c.get('organizationId'), opts)
+      return c.json(rows)
+    },
+  )
   .post(
     '/proposals/:id/decide',
     zValidator('json', decideBodySchema, (result, c) => {

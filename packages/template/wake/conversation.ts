@@ -41,6 +41,7 @@ import type { WakeTrigger } from './events'
 import type { LlmEmitter } from './llm'
 import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
+import { createLearningProposalObserver } from './observers/learning-proposals'
 import { createMemoryDistillListener } from './observers/memory-distill'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
 import { resolvePlatformHint } from './platform-hints'
@@ -230,6 +231,13 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     logger: deps.logger,
   })
 
+  const learningProposalListener = createLearningProposalObserver({
+    organizationId: data.organizationId,
+    agentId,
+    conversationId,
+    logger: deps.logger,
+  })
+
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
   const sseListener = buildSseListener({
@@ -281,6 +289,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
         sseListener,
         workspaceSyncListener as OnEventListener<WakeTrigger>,
         memoryDistillListener as OnEventListener<WakeTrigger>,
+        learningProposalListener as OnEventListener<WakeTrigger>,
       ],
       toolFilter: supervisorKind === 'coaching' ? (t) => t.audience !== 'customer' : undefined,
     }),

@@ -48,6 +48,12 @@ export const HIST_APPROVED_SLACK_LINK = 'hst02slack'
 export const HIST_REJECTED_AGGRESSIVE = 'hst03aggrs'
 export const HIST_AUTO_AGENT_MEM = 'hst04mem01'
 
+export const PROP_APPROVED_SLACK = 'lpr0app001'
+export const PROP_REJECTED_AGGRESSIVE = 'lpr0rej001'
+export const PROP_AUTO_DEREK = 'lpr0autodk'
+export const PROP_AUTO_AGENT_MEM = 'lpr0automm'
+export const PROP_REJECTED_PRICEDROP = 'lpr0rejprc'
+
 interface InsertOp {
   values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
 }
@@ -373,6 +379,160 @@ export async function seed(db: unknown): Promise<void> {
       changedByKind: 'agent',
       appliedProposalId: null,
       createdAt: hoursAgo(40),
+    })
+    .onConflictDoNothing()
+
+  // ── 3. Decided proposals (populate the History tab — pair with history rows above) ──
+
+  await ins(changeProposals)
+    .values({
+      id: PROP_APPROVED_SLACK,
+      organizationId: MERIDIAN_ORG_ID,
+      resourceModule: 'agents',
+      resourceType: 'learned_skill',
+      resourceId: 'slack-routing-link',
+      payload: {
+        kind: 'markdown_patch',
+        mode: 'replace',
+        field: 'body',
+        body:
+          '# Slack routing for staff handoffs\n\n' +
+          'When handing off to staff, post a Slack thread to #cs-meridian with the conversation deep-link and a 3-bullet summary.',
+      },
+      status: 'approved',
+      confidence: 0.92,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
+      proposedByKind: 'agent',
+      rationale:
+        'Drafted after Carol handed off three conversations manually last week. Standardizes the Slack-bridge so escalations have consistent context.',
+      expectedOutcome:
+        'After approval, every handoff posts the same 3-bullet summary into #cs-meridian — Carol stops re-typing context and on-call staff sees what the agent already tried.',
+      conversationId: null,
+      decidedByUserId: ALICE_USER_ID,
+      decidedAt: hoursAgo(48),
+      decidedNote: 'Approved — matches our existing Slack convention.',
+      appliedHistoryId: HIST_APPROVED_SLACK_LINK,
+      createdAt: hoursAgo(50),
+    })
+    .onConflictDoNothing()
+
+  await ins(changeProposals)
+    .values({
+      id: PROP_REJECTED_AGGRESSIVE,
+      organizationId: MERIDIAN_ORG_ID,
+      resourceModule: 'agents',
+      resourceType: 'learned_skill',
+      resourceId: 'aggressive-upsell',
+      payload: {
+        kind: 'markdown_patch',
+        mode: 'replace',
+        field: 'body',
+        body: 'Always end every conversation with a Pro-tier upsell offer.',
+      },
+      status: 'rejected',
+      confidence: 0.41,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
+      proposedByKind: 'agent',
+      rationale:
+        'Sentinel observed three conversations where mentioning Pro tier mid-thread led to upgrades. Wants to make it the default closer.',
+      expectedOutcome:
+        'After approval, every conversation closes with a Pro-tier mention regardless of context — would lift conversion ~3% per the sample.',
+      conversationId: null,
+      decidedByUserId: ALICE_USER_ID,
+      decidedAt: hoursAgo(72),
+      decidedNote:
+        'Rejected — sample size too small and brand voice is consultative, not pushy. Revisit only with a controlled A/B.',
+      appliedHistoryId: null,
+      createdAt: hoursAgo(74),
+    })
+    .onConflictDoNothing()
+
+  await ins(changeProposals)
+    .values({
+      id: PROP_AUTO_DEREK,
+      organizationId: MERIDIAN_ORG_ID,
+      resourceModule: 'contacts',
+      resourceType: 'contact',
+      resourceId: 'ctt0derek0',
+      payload: {
+        kind: 'field_set',
+        fields: {
+          segments: { from: ['new-signup'], to: ['new-signup', 'self-serve-onboarded'] },
+          'attributes.last_login_at': { from: null, to: '2026-04-26T09:14:00Z' },
+        },
+      },
+      status: 'auto_written',
+      confidence: 0.99,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
+      proposedByKind: 'agent',
+      rationale: 'Derek completed self-serve onboarding tour and logged in for the first time — auto-tag.',
+      expectedOutcome:
+        'Once tagged, Derek shows up in the self-serve cohort dashboards and skips the high-touch onboarding nudges scheduled for cold signups.',
+      conversationId: null,
+      decidedByUserId: null,
+      decidedAt: hoursAgo(20),
+      decidedNote: null,
+      appliedHistoryId: HIST_AUTO_CONTACT_DEREK,
+      createdAt: hoursAgo(20),
+    })
+    .onConflictDoNothing()
+
+  await ins(changeProposals)
+    .values({
+      id: PROP_AUTO_AGENT_MEM,
+      organizationId: MERIDIAN_ORG_ID,
+      resourceModule: 'agents',
+      resourceType: 'agent_memory',
+      resourceId: MERIGPT_AGENT_ID,
+      payload: {
+        kind: 'markdown_patch',
+        mode: 'append',
+        field: 'workingMemory',
+        body: '\n- 2026-04-25: Stale-triage swept 8 conversations; 3 escalated to staff queue.',
+      },
+      status: 'auto_written',
+      confidence: 0.81,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
+      proposedByKind: 'agent',
+      rationale: 'Captured during a heartbeat sweep — useful for the agent to remember recent triage activity.',
+      expectedOutcome: 'Future wakes will see this lesson in working memory.',
+      conversationId: null,
+      decidedByUserId: null,
+      decidedAt: hoursAgo(40),
+      decidedNote: null,
+      appliedHistoryId: HIST_AUTO_AGENT_MEM,
+      createdAt: hoursAgo(40),
+    })
+    .onConflictDoNothing()
+
+  await ins(changeProposals)
+    .values({
+      id: PROP_REJECTED_PRICEDROP,
+      organizationId: MERIDIAN_ORG_ID,
+      resourceModule: 'agents',
+      resourceType: 'learned_skill',
+      resourceId: 'price-drop-bait',
+      payload: {
+        kind: 'markdown_patch',
+        mode: 'replace',
+        field: 'body',
+        body:
+          '# Price-drop bait offer\n\n' +
+          'When a customer hesitates on Pro tier, immediately offer a 30% discount for the next 24h.',
+      },
+      status: 'rejected',
+      confidence: 0.36,
+      proposedById: `agent:${MERIGPT_AGENT_ID}`,
+      proposedByKind: 'agent',
+      rationale: 'Two prospects converted after seeing a discount mid-conversation. Codify as a default play.',
+      expectedOutcome: 'Hesitant prospects see a 30% discount immediately, lifting close rate.',
+      conversationId: null,
+      decidedByUserId: ALICE_USER_ID,
+      decidedAt: hoursAgo(96),
+      decidedNote:
+        'Rejected — discount authority requires an explicit policy entry, not a learned skill. Open a finance review first.',
+      appliedHistoryId: null,
+      createdAt: hoursAgo(98),
     })
     .onConflictDoNothing()
 

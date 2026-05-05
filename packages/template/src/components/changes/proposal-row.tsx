@@ -1,13 +1,14 @@
-import { getHeadlineParts, type HeadlineParts } from '@modules/changes/lib/humanize'
+import { getHeadlineParts } from '@modules/changes/lib/humanize'
 import type { ChangeProposalInboxItem } from '@modules/changes/schema'
 import { MessageThread } from '@modules/messaging/components/message-thread'
 import { useMessages } from '@modules/messaging/hooks/use-messages'
 import { useNotes } from '@modules/messaging/hooks/use-notes'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Check, ChevronRight, MessageSquare, X } from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
-import { Principal, type PrincipalDirectory, usePrincipalDirectory } from '@/components/principal'
+import { Principal, usePrincipalDirectory } from '@/components/principal'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { useCurrentUserId } from '@/hooks/use-current-user'
@@ -15,43 +16,8 @@ import { changesClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { DiffView } from './diff-view'
 import { DriveSuggestionView } from './drive-suggestion-view'
-
-/**
- * Renders the resource portion of the headline, swapping a static
- * "Module Type: id" label for a context-aware sentence based on
- * `getHeadlineParts`. Memory edits collapse to "<owner>'s Memory", contact
- * edits collapse to just the contact's name, drive docs render as
- * "Document: <basename>". Owner avatar is always shown for owned resources.
- *
- * Used inside the collapsed "technical details" disclosure — the SME-facing
- * top half is intentionally just rationale + outcome prose.
- */
-function HeadlineTarget({ parts, directory }: { parts: HeadlineParts; directory: PrincipalDirectory }) {
-  if (parts.kind === 'principal') {
-    return <Principal id={parts.principalToken} variant="inline" directory={directory} className="text-foreground" />
-  }
-  if (parts.kind === 'owned-resource') {
-    return (
-      <>
-        <Principal id={parts.ownerToken} variant="inline" directory={directory} className="text-foreground" />
-        <span className="text-muted-foreground">{"'s"}</span>
-        <span className="font-semibold">{parts.ownerLabel}</span>
-        {parts.resourceName && (
-          <>
-            <span className="text-muted-foreground">:</span>
-            <span className="font-mono text-foreground/90 text-sm">{parts.resourceName}</span>
-          </>
-        )}
-      </>
-    )
-  }
-  return (
-    <>
-      <span className="font-semibold">{parts.kindLabel}:</span>
-      <span className="font-mono text-foreground/90 text-sm">{parts.resourceName}</span>
-    </>
-  )
-}
+import { HeadlineTarget } from './headline-target'
+import { ProsePanel } from './prose-panel'
 
 interface Props {
   proposal: ChangeProposalInboxItem
@@ -68,57 +34,55 @@ function confidenceTone(pct: number): string {
   return CONFIDENCE_TIERS.find((t) => pct >= t.min)?.cls ?? CONFIDENCE_TIERS[CONFIDENCE_TIERS.length - 1]?.cls
 }
 
-/**
- * Two-up prose panel for the proposer's "Problem" + "After approval" copy.
- * The whole `/changes` page is built around these two prose blocks — every
- * engineer-facing detail (resource type, diff, conversation, confidence)
- * sits behind a disclosure. SMEs read what's wrong and what fixes it; if
- * they want the technical guts, they expand.
- */
-function ProsePanel({ label, tone, children }: { label: string; tone: 'amber' | 'success'; children: ReactNode }) {
-  return (
-    <div
-      className={cn(
-        'rounded-md border px-4 py-3',
-        tone === 'amber' && 'border-amber-500/30 bg-amber-50/60 dark:bg-amber-950/25',
-        tone === 'success' && 'border-success/30 bg-success/5',
-      )}
-    >
-      <div
-        className={cn(
-          'mb-1.5 font-semibold text-[10px] uppercase tracking-wide',
-          tone === 'amber' && 'text-amber-800 dark:text-amber-300',
-          tone === 'success' && 'text-success',
-        )}
-      >
-        {label}
-      </div>
-      <p className="whitespace-pre-line text-foreground text-sm leading-relaxed">{children}</p>
-    </div>
-  )
-}
-
 export function ProposalRow({ proposal, onDecided }: Props) {
   const [loading, setLoading] = useState<'approved' | 'rejected' | null>(null)
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const currentUserId = useCurrentUserId()
+
+  const headlineParts = useMemo(() => getHeadlineParts(proposal), [proposal])
+  const resourceLabel =
+    headlineParts.kind === 'principal'
+      ? 'resource'
+      : headlineParts.kind === 'owned-resource'
+        ? headlineParts.ownerLabel.toLowerCase()
+        : headlineParts.kindLabel.toLowerCase()
+
+  const goToHistory = () => {
+    navigate({ to: '/changes', search: { tab: 'history' } })
+  }
 
   const decide = async (decision: 'approved' | 'rejected', note?: string) => {
+    if (!currentUserId) return
     setLoading(decision)
     setError(null)
     try {
       const res = await changesClient.proposals[':id'].decide.$post({
         param: { id: proposal.id },
-        json: { decision, decidedByUserId: 'staff:current', note },
+        json: { decision, decidedByUserId: currentUserId, note },
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({ error: 'Unknown error' }))) as { error?: string }
         throw new Error(body.error ?? 'Decision failed')
       }
+      if (decision === 'approved') {
+        toast.success('Change applied', {
+          description: `${resourceLabel} updated`,
+          action: { label: 'View in history', onClick: goToHistory },
+        })
+      } else {
+        toast('Change rejected', {
+          description: 'Logged to history',
+          action: { label: 'View in history', onClick: goToHistory },
+        })
+      }
       onDecided?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed')
+      const message = err instanceof Error ? err.message : 'Failed'
+      toast.error(message)
+      setError(message)
     } finally {
       setLoading(null)
       setShowRejectForm(false)
@@ -135,7 +99,6 @@ export function ProposalRow({ proposal, onDecided }: Props) {
   }
 
   const directory = usePrincipalDirectory()
-  const headlineParts = useMemo(() => getHeadlineParts(proposal), [proposal])
   const confidencePct = proposal.confidence !== null ? Math.round(proposal.confidence * 100) : null
 
   return (
@@ -169,7 +132,7 @@ export function ProposalRow({ proposal, onDecided }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            disabled={loading !== null}
+            disabled={loading !== null || !currentUserId}
             onClick={handleReject}
             className="gap-1.5"
           >
@@ -179,7 +142,7 @@ export function ProposalRow({ proposal, onDecided }: Props) {
           <Button
             type="button"
             size="sm"
-            disabled={loading !== null}
+            disabled={loading !== null || !currentUserId}
             onClick={() => decide('approved')}
             className="gap-1.5"
           >
