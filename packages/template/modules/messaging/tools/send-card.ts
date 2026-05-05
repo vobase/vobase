@@ -1,3 +1,4 @@
+import { sendOutbound, throwIfFailed } from '@modules/channels/service/outbound'
 import { type Static, Type } from '@sinclair/typebox'
 import { Value } from '@sinclair/typebox/value'
 import type { AgentTool, ToolContext, ToolResult } from '@vobase/core'
@@ -132,6 +133,15 @@ export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
       toolCallId: ctx.toolCallId,
       card: args,
     })
+
+    const result = await sendOutbound({
+      organizationId: ctx.organizationId,
+      conversationId: ctx.conversationId,
+      persisted: { id: msg.id },
+      toolName: 'send_card',
+      payload: args,
+    })
+    throwIfFailed(result, 'send_card')
 
     return { ok: true, content: { messageId: msg.id } }
   },

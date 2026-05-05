@@ -1,14 +1,17 @@
 /**
  * Agent-facing surfaces for the channels umbrella.
  *
- * Aggregates per-adapter `agentsMd` contributors. The umbrella never inlines
- * its own behavior fragments — each adapter owns the prose for the channel-
- * specific semantics it surfaces (echoes, native threading, etc.).
+ * Aggregates per-adapter `agentsMd` contributors and `platformHints`. The
+ * umbrella never inlines its own behavior fragments — each adapter owns the
+ * prose for the channel-specific semantics it surfaces (echoes, native
+ * threading, platform formatting/cadence, etc.).
  */
-import type { IndexContributor } from '@vobase/core'
+import type { HarnessPlatformHint, IndexContributor } from '@vobase/core'
 
-import { whatsappAgentsMdContributors } from './adapters/whatsapp/agent'
+import { webPlatformHint } from './adapters/web/agent'
+import { whatsappAgentsMdContributors, whatsappPlatformHint } from './adapters/whatsapp/agent'
 
 export const channelsAgent = {
   agentsMd: [...whatsappAgentsMdContributors] as IndexContributor[],
-} satisfies { agentsMd?: IndexContributor[] }
+  platformHints: [webPlatformHint, whatsappPlatformHint] as HarnessPlatformHint[],
+} satisfies { agentsMd?: IndexContributor[]; platformHints?: HarnessPlatformHint[] }

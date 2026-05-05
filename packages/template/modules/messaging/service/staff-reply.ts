@@ -15,6 +15,7 @@
  * this path because staff replies have no `channelExternalId`.
  */
 
+import { sendOutbound, throwIfFailed } from '@modules/channels/service/outbound'
 import { filesServiceFor } from '@modules/drive/service/files'
 import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { find as findStaff } from '@modules/team/service/staff'
@@ -98,5 +99,13 @@ export async function sendStaffReply(input: SendStaffReplyInput): Promise<{ mess
     body,
     attachments: attachmentRefs.length > 0 ? attachmentRefs : undefined,
   })
+  const result = await sendOutbound({
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    persisted: { id: message.id },
+    toolName: 'staff_reply',
+    payload: { text: body },
+  })
+  throwIfFailed(result, 'staff_reply')
   return { messageId: message.id, message }
 }

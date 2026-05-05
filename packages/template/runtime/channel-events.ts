@@ -59,21 +59,3 @@ export const ChannelInboundEventSchema = z.object({
 })
 
 export type ChannelInboundEvent = z.infer<typeof ChannelInboundEventSchema>
-
-// ─── Outbound ───────────────────────────────────────────────────────────────
-
-export const ChannelOutboundEventSchema = z.object({
-  organizationId: z.string(),
-  conversationId: z.string(),
-  /** Resolved contact ID for address lookup. */
-  contactId: z.string(),
-  /** Wake that produced this outbound dispatch. Carried for audit_wake_map. */
-  wakeId: z.string(),
-  channelType: z.enum(['web', 'whatsapp']),
-  /** Tool that triggered the send. */
-  toolName: z.enum(OUTBOUND_TOOL_NAMES),
-  /** Serialised tool result payload — shape is tool-specific. */
-  payload: z.unknown(),
-})
-
-export type ChannelOutboundEvent = z.infer<typeof ChannelOutboundEventSchema>

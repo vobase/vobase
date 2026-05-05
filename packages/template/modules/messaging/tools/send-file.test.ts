@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { installOutboundService, type SendOutboundInput } from '@modules/channels/service/outbound'
+import { setFilesRuntime } from '@modules/drive/service/files'
+import {
+  __resetConversationsServiceForTests,
+  type ConversationsService,
+  installConversationsService,
+} from '@modules/messaging/service/conversations'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import type { ToolContext } from '@vobase/core'
 import { setJournalDb } from '@vobase/core'
 
+import type { AppStorage, BucketHandle } from '~/runtime/storage'
+import type { Conversation } from '../schema'
 import { sendFileTool } from './send-file'
 
 type Row = Record<string, unknown>
@@ -38,11 +47,110 @@ function makeDb() {
 
 const noopJournalDb = { insert: (_: unknown) => ({ values: (_v: unknown) => Promise.resolve() }) }
 
+/**
+ * Drive db stub: `filesServiceFor(orgId).get(id)` issues a select-from-where
+ * over `drive_files`; we intercept and return a single fake `DriveFile` row.
+ */
+function makeDriveDb() {
+  const fakeFile = {
+    id: 'file-abc',
+    organizationId: 'org-1',
+    name: 'x.png',
+    originalName: 'x.png',
+    mimeType: 'image/png',
+    storageKey: 'k1',
+    scope: 'organization' as const,
+    scopeId: 'org-1',
+  }
+  const rows = [fakeFile]
+  return {
+    select: (_cols?: unknown) => ({
+      from: (_t: unknown) => ({
+        where: (_c: unknown) => ({
+          limit: async (_n: number) => rows,
+        }),
+      }),
+    }),
+  }
+}
+
+function makeStorage(): AppStorage {
+  const bucket: BucketHandle = {
+    upload: async () => undefined,
+    download: async (_key: string) => new Uint8Array([0x66, 0x61, 0x6b, 0x65]), // "fake"
+    delete: async () => undefined,
+    exists: async () => true,
+  }
+  return {
+    raw: {} as AppStorage['raw'],
+    bucket: () => bucket,
+  }
+}
+
+let outboundCalls: SendOutboundInput[] = []
+
+const fakeConv: Conversation = {
+  id: 'conv-1',
+  organizationId: 'org-1',
+  contactId: 'ctc-1',
+  channelInstanceId: 'ci-1',
+  status: 'active',
+  assignee: 'agt-1',
+  threadKey: 'default',
+  emailSubject: null,
+  snoozedUntil: null,
+  snoozedReason: null,
+  snoozedBy: null,
+  snoozedAt: null,
+  snoozedJobId: null,
+  lastMessageAt: null,
+  resolvedAt: null,
+  resolvedReason: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+
+function makeConversationsServiceStub(): ConversationsService {
+  // biome-ignore lint/suspicious/useAwait: trivial async stub
+  const notImplemented = async () => {
+    throw new Error('not implemented in stub')
+  }
+  return {
+    create: notImplemented as ConversationsService['create'],
+    resumeOrCreate: notImplemented as ConversationsService['resumeOrCreate'],
+    get: (async () => fakeConv) as ConversationsService['get'],
+    listActivity: notImplemented as ConversationsService['listActivity'],
+    createInboundMessage: notImplemented as ConversationsService['createInboundMessage'],
+    snooze: notImplemented as ConversationsService['snooze'],
+    unsnooze: notImplemented as ConversationsService['unsnooze'],
+    wakeSnoozed: notImplemented as ConversationsService['wakeSnoozed'],
+    resolve: notImplemented as ConversationsService['resolve'],
+    reopen: notImplemented as ConversationsService['reopen'],
+    reset: notImplemented as ConversationsService['reset'],
+    reassign: notImplemented as ConversationsService['reassign'],
+    list: notImplemented as ConversationsService['list'],
+    listMessagingByContact: notImplemented as ConversationsService['listMessagingByContact'],
+    sendText: notImplemented as ConversationsService['sendText'],
+    sendCard: notImplemented as ConversationsService['sendCard'],
+    sendImage: notImplemented as ConversationsService['sendImage'],
+  }
+}
+
 beforeEach(() => {
   messageStore = []
   eventStore = []
+  outboundCalls = []
   installMessagesService(createMessagesService({ db: makeDb() }))
   setJournalDb(noopJournalDb)
+  setFilesRuntime(makeDriveDb(), null, makeStorage(), null, null)
+  __resetConversationsServiceForTests()
+  installConversationsService(makeConversationsServiceStub())
+  installOutboundService({
+    sendOutbound: (input) => {
+      outboundCalls.push(input)
+      return Promise.resolve({ success: true })
+    },
+  })
 })
 
 function makeCtx(): ToolContext {
@@ -80,6 +188,10 @@ describe('sendFileTool', () => {
     if (result.ok) expect(result.content.messageId).toBe('msg-file-1')
     expect(messageStore).toHaveLength(1)
     expect(eventStore).toHaveLength(1)
+    expect(outboundCalls).toHaveLength(1)
+    expect(outboundCalls[0]?.toolName).toBe('send_file')
+    expect(outboundCalls[0]?.organizationId).toBe('org-1')
+    expect(outboundCalls[0]?.conversationId).toBe('conv-1')
   })
 
   it('accepts optional caption', async () => {

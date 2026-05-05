@@ -144,7 +144,7 @@ describe('buildFrozenPrompt session-context + platform-hints', () => {
 
   it('renders sessionContext fields identically across known/unknown channels so the section is structurally stable', async () => {
     const bash = await buildBash()
-    const base = { ...fullCtx, channelKind: 'email', channelLabel: null } satisfies SessionContext
+    const base = { ...fullCtx, channelKind: 'web', channelLabel: null } satisfies SessionContext
     const { system } = await buildFrozenPrompt({
       bash,
       agentDefinition,
@@ -152,11 +152,11 @@ describe('buildFrozenPrompt session-context + platform-hints', () => {
       contactId: 'c_test',
       channelInstanceId: 'ci_test',
       sessionContext: base,
-      platformHint: resolvePlatformHint('email'),
+      platformHint: resolvePlatformHint('web'),
     })
-    expect(system).toContain('Channel: email')
-    expect(system).not.toContain('Channel: email (')
-    expect(system).toContain('structured paragraphs, no markdown')
+    expect(system).toContain('Channel: web')
+    expect(system).not.toContain('Channel: web (')
+    expect(system).toContain('markdown is rendered')
   })
 })
 
@@ -254,8 +254,8 @@ describe('resolvePlatformHint', () => {
     expect(resolvePlatformHint('carrier-pigeon')).toBeUndefined()
   })
 
-  it('returns a typed hint for each known channel kind', () => {
-    for (const kind of ['web', 'whatsapp', 'email', 'sms', 'voice']) {
+  it('returns a typed hint for each registered channel adapter', () => {
+    for (const kind of ['web', 'whatsapp']) {
       const hint = resolvePlatformHint(kind)
       expect(hint).toBeDefined()
       expect(hint?.kind).toBe(kind)

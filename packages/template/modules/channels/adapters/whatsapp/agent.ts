@@ -9,7 +9,7 @@
  * `whatsappAgentsMdContributors` is the canonical export aggregated by the
  * channels umbrella's `agent.ts` (pattern mirrors `messaging/agent.ts`).
  */
-import { defineIndexContributor, type IndexContributor } from '@vobase/core'
+import { defineIndexContributor, type HarnessPlatformHint, type IndexContributor } from '@vobase/core'
 
 const AGENTS_MD_FILE = 'AGENTS.md'
 
@@ -41,3 +41,14 @@ export const whatsappAgentsMdContributors: readonly IndexContributor[] = [
     render: () => whatsappAgentsMd,
   }),
 ]
+
+export const whatsappPlatformHint: HarnessPlatformHint = {
+  kind: 'whatsapp',
+  hint: [
+    '- Medium: WhatsApp customer chat.',
+    '- Formatting: plain text only — markdown asterisks/backticks render literally. Use line breaks for structure.',
+    '- Cadence: outside the 24-hour session window you can only send pre-approved templates; inside it you can reply freely.',
+    '- Attachments: image, document, audio, and video are supported via `send_file`.',
+    '- Interactive: `send_card` renders buttons/list pickers; prefer it over asking the customer to type choices.',
+  ].join('\n'),
+}

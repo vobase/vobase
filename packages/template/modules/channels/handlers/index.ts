@@ -13,8 +13,9 @@
  * we apply it inline on `/instances/*` only via a lazy proxy that pulls the
  * middleware from channels state (installed during `init` from `ctx.auth`).
  *
- * Outbound dispatch is in-process via `service/outbound.dispatchOutbound()` —
- * no HTTP surface, since the only caller is the wake worker.
+ * Outbound dispatch is in-process via `service/outbound.sendOutbound()`,
+ * called by tools (`reply`, `send_card`, `send_file`) and `sendStaffReply`
+ * after they persist their message rows. No HTTP surface.
  */
 
 import { Hono, type MiddlewareHandler } from 'hono'

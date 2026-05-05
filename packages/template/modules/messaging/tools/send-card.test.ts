@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { installOutboundService, type SendOutboundInput } from '@modules/channels/service/outbound'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import type { ToolContext } from '@vobase/core'
 import { setJournalDb } from '@vobase/core'
@@ -38,11 +39,20 @@ function makeDb() {
 
 const noopJournalDb = { insert: (_: unknown) => ({ values: (_v: unknown) => Promise.resolve() }) }
 
+let outboundCalls: SendOutboundInput[] = []
+
 beforeEach(() => {
   messageStore = []
   eventStore = []
+  outboundCalls = []
   installMessagesService(createMessagesService({ db: makeDb() }))
   setJournalDb(noopJournalDb)
+  installOutboundService({
+    sendOutbound: (input) => {
+      outboundCalls.push(input)
+      return Promise.resolve({ success: true })
+    },
+  })
 })
 
 function makeCtx(): ToolContext {
@@ -92,6 +102,10 @@ describe('sendCardTool', () => {
     expect(messageStore).toHaveLength(1)
     expect(eventStore).toHaveLength(1)
     expect(messageStore[0]?.kind).toBe('card')
+    expect(outboundCalls).toHaveLength(1)
+    expect(outboundCalls[0]?.toolName).toBe('send_card')
+    expect(outboundCalls[0]?.organizationId).toBe('org-1')
+    expect(outboundCalls[0]?.conversationId).toBe('conv-1')
   })
 
   it('approval gate: tool declares requiresApproval=true (approvalMutator blocks in approval.test.ts)', () => {

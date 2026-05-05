@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { installOutboundService, type SendOutboundInput } from '@modules/channels/service/outbound'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import type { ToolContext } from '@vobase/core'
 import { setJournalDb } from '@vobase/core'
@@ -38,11 +39,23 @@ function makeDb() {
 
 const noopJournalDb = { insert: (_: unknown) => ({ values: (_v: unknown) => Promise.resolve() }) }
 
+let outboundCalls: SendOutboundInput[] = []
+let outboundResponder: (input: SendOutboundInput) => Promise<{ success: boolean; code?: string; error?: string }> =
+  () => Promise.resolve({ success: true })
+
 beforeEach(() => {
   messageStore = []
   eventStore = []
+  outboundCalls = []
+  outboundResponder = () => Promise.resolve({ success: true })
   installMessagesService(createMessagesService({ db: makeDb() }))
   setJournalDb(noopJournalDb)
+  installOutboundService({
+    sendOutbound: (input) => {
+      outboundCalls.push(input)
+      return outboundResponder(input)
+    },
+  })
 })
 
 function makeCtx(): ToolContext {
@@ -81,10 +94,25 @@ describe('replyTool', () => {
     expect(messageStore).toHaveLength(1)
     expect(eventStore).toHaveLength(1)
     expect(messageStore[0]?.kind).toBe('text')
+    expect(outboundCalls).toHaveLength(1)
+    expect(outboundCalls[0]?.toolName).toBe('reply')
+    expect(outboundCalls[0]?.organizationId).toBe('org-1')
+    expect(outboundCalls[0]?.conversationId).toBe('conv-1')
   })
 
   it('accepts optional replyToMessageId', async () => {
     const result = await replyTool.execute({ text: 'hi', replyToMessageId: 'msg-prev' }, makeCtx())
     expect(result.ok).toBe(true)
+  })
+
+  it('surfaces window_expired as a tool failure with template-fallback hint', async () => {
+    outboundResponder = () => Promise.resolve({ success: false, code: 'window_expired' })
+    const result = await replyTool.execute({ text: 'hello' }, makeCtx())
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      const msg = (result.error ?? '').toLowerCase()
+      expect(msg).toContain('window')
+      expect(msg).toContain('template')
+    }
   })
 })

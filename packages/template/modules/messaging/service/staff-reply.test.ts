@@ -3,6 +3,7 @@
  * Verifies message + journal co-commit in one transaction.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
+import { installOutboundService, type SendOutboundInput } from '@modules/channels/service/outbound'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 import { setJournalDb } from '@vobase/core'
@@ -101,11 +102,20 @@ function makeStaffServiceStub(overrides: Partial<StaffService> = {}): StaffServi
 }
 
 describe('sendStaffReply', () => {
+  let outboundCalls: SendOutboundInput[] = []
+
   beforeEach(() => {
+    outboundCalls = []
     installMessagesService(createMessagesService({ db: makeTransactionDb(fakeMessage) }))
     setJournalDb(makeJournalDb())
     __resetStaffServiceForTests()
     installStaffService(makeStaffServiceStub())
+    installOutboundService({
+      sendOutbound: (input) => {
+        outboundCalls.push(input)
+        return Promise.resolve({ success: true })
+      },
+    })
   })
 
   it('returns messageId matching inserted message', async () => {
@@ -117,6 +127,10 @@ describe('sendStaffReply', () => {
     })
     expect(result.messageId).toBe('msg-sr-1')
     expect(result.message.id).toBe('msg-sr-1')
+    expect(outboundCalls).toHaveLength(1)
+    expect(outboundCalls[0]?.toolName).toBe('staff_reply')
+    expect(outboundCalls[0]?.organizationId).toBe(ORG_ID)
+    expect(outboundCalls[0]?.conversationId).toBe(CONV_ID)
   })
 
   it('inserts message with role=staff and kind=text', async () => {

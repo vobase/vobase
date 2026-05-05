@@ -17,6 +17,7 @@ import { runWhatsappSetupJob, WHATSAPP_SETUP_JOB, type WhatsappSetupJobData } fr
 import { channelsAgent } from './agent'
 import handlers from './handlers'
 import { createChannelInstancesService, installChannelInstancesService } from './service/instances'
+import { createOutboundService, installOutboundService } from './service/outbound'
 import { register as registerAdapter } from './service/registry'
 import { createSignupNoncesService, installSignupNoncesService } from './service/signup-nonces'
 import { createChannelsState, installChannelsState, type JobQueue } from './service/state'
@@ -45,6 +46,7 @@ const channels: ModuleDef = {
     installChannelInstancesService(createChannelInstancesService({ db: ctx.db }))
     installWebInstancesService(createWebInstancesService({ db: ctx.db }))
     installSignupNoncesService(createSignupNoncesService({ db: ctx.db }))
+    installOutboundService(createOutboundService())
 
     registerAdapter(WEB_CHANNEL_NAME, createWebAdapter, WEB_CAPABILITIES)
     registerAdapter(WHATSAPP_CHANNEL_NAME, createWhatsAppAdapterFromConfig, WHATSAPP_CAPABILITIES)

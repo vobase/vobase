@@ -1,3 +1,4 @@
+import { sendOutbound, throwIfFailed } from '@modules/channels/service/outbound'
 import { type Static, Type } from '@sinclair/typebox'
 import { defineAgentTool } from '@vobase/core'
 
@@ -30,6 +31,14 @@ export const replyTool = defineAgentTool({
       text: args.text,
       replyToMessageId: args.replyToMessageId,
     })
+    const result = await sendOutbound({
+      organizationId: ctx.organizationId,
+      conversationId: ctx.conversationId,
+      persisted: { id: msg.id },
+      toolName: 'reply',
+      payload: { text: args.text, replyToMessageId: args.replyToMessageId },
+    })
+    throwIfFailed(result, 'reply')
     return { messageId: msg.id }
   },
 })

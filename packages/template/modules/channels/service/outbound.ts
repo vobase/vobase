@@ -1,152 +1,174 @@
 /**
- * Generic outbound dispatcher.
+ * Outbound dispatch seam.
  *
- * The wake worker emits `ChannelOutboundEvent`s; this dispatcher persists the
- * agent message via `messaging.service.messages` (one-write-path), then
- * resolves the channel adapter via the registry and calls `adapter.send()` to
- * push it onto the wire. Adapters whose `send()` is just realtime push (web)
- * still go through the same path so the per-channel wiring stays uniform.
+ * Tools (and `sendStaffReply`) persist their message row first, then call
+ * `sendOutbound` to push it onto the wire via the channel adapter. This file
+ * does NOT persist — the one-write-path lives in `messaging/service/messages`.
+ *
+ * The default implementation resolves the channel adapter via the registry,
+ * enforces the 24h messaging window for windowed channels, and calls
+ * `adapter.send()`. The web adapter's `send()` is a no-op so it goes through
+ * the same seam.
+ *
+ * Tests install a no-op implementation via `installOutboundService` so unit
+ * tests don't need contacts/conversations/instance fixtures.
  */
 
 import { getInstance } from '@modules/channels/service/instances'
 import { get as getContact } from '@modules/contacts/service/contacts'
-import type { Message } from '@modules/messaging/schema'
 import { get as getConversation } from '@modules/messaging/service/conversations'
-import {
-  appendCardMessage,
-  appendMediaMessage,
-  appendStaffTextMessage,
-  appendTextMessage,
-} from '@modules/messaging/service/messages'
 import { checkWindow } from '@modules/messaging/service/sessions'
-import type { OutboundMessage, SendResult } from '@vobase/core'
-import { nanoid } from 'nanoid'
+import type { OutboundMedia, OutboundMessage, SendResult } from '@vobase/core'
 
-import type { ChannelOutboundEvent } from '~/runtime/channel-events'
+import type { OutboundToolName } from '~/runtime/channel-events'
 import { get as registryGet } from './registry'
 
-export interface DispatchResult {
-  messageId: string
-  send: SendResult
+export interface SendOutboundInput {
+  /**
+   * Tenant scope of the caller. Asserted against every row resolved here
+   * (conversation, contact, channel instance) so a wake on org-A cannot
+   * reach org-B's wire by passing a foreign conversationId — managed-mode
+   * adapters sign with per-org vault keys, so a cross-tenant reference would
+   * cross the tenant trust boundary.
+   */
+  organizationId: string
+  conversationId: string
+  /** Already-persisted message row id — passed for log/correlation only. */
+  persisted: { id: string }
+  toolName: OutboundToolName
+  payload: unknown
 }
 
-function toolCtx(wakeId: string) {
-  return { wakeId, toolCallId: `wake-${nanoid(8)}`, turnIndex: 0 }
+export interface OutboundService {
+  sendOutbound(input: SendOutboundInput): Promise<SendResult>
 }
 
-function persistMessage(event: ChannelOutboundEvent): Promise<Message> {
-  const ctx = toolCtx(event.wakeId)
-  const agentId = `wake:${event.wakeId}`
-
-  if (event.toolName === 'reply') {
-    const payload = event.payload as { text: string; replyToMessageId?: string }
-    return appendTextMessage({
-      conversationId: event.conversationId,
-      organizationId: event.organizationId,
-      agentId,
-      wakeId: ctx.wakeId,
-      turnIndex: ctx.turnIndex,
-      toolCallId: ctx.toolCallId,
-      text: payload.text,
-      replyToMessageId: payload.replyToMessageId,
-    })
-  }
-
-  if (event.toolName === 'send_card') {
-    return appendCardMessage({
-      conversationId: event.conversationId,
-      organizationId: event.organizationId,
-      agentId,
-      wakeId: ctx.wakeId,
-      turnIndex: ctx.turnIndex,
-      toolCallId: ctx.toolCallId,
-      card: event.payload,
-    })
-  }
-
-  if (event.toolName === 'send_file') {
-    const payload = event.payload as { driveFileId: string; caption?: string }
-    return appendMediaMessage({
-      conversationId: event.conversationId,
-      organizationId: event.organizationId,
-      agentId,
-      wakeId: ctx.wakeId,
-      turnIndex: ctx.turnIndex,
-      toolCallId: ctx.toolCallId,
-      driveFileId: payload.driveFileId,
-      caption: payload.caption,
-    })
-  }
-
-  if (event.toolName === 'staff_reply') {
-    const payload = event.payload as { text: string; staffUserId?: string }
-    return appendStaffTextMessage({
-      conversationId: event.conversationId,
-      organizationId: event.organizationId,
-      staffUserId: payload.staffUserId ?? `wake:${event.wakeId}`,
-      body: payload.text,
-    })
-  }
-
-  throw new Error(`channels/outbound: unknown toolName "${event.toolName}"`)
-}
-
-function buildOutboundMessage(event: ChannelOutboundEvent, recipient: string, persisted: Message): OutboundMessage {
-  if (event.toolName === 'reply' || event.toolName === 'staff_reply') {
-    const payload = event.payload as { text: string }
+function buildOutboundMessage(input: SendOutboundInput, recipient: string): OutboundMessage {
+  if (input.toolName === 'reply' || input.toolName === 'staff_reply') {
+    const payload = input.payload as { text: string }
     return { to: recipient, text: payload.text }
   }
-  if (event.toolName === 'send_card') {
-    const card = event.payload as { title?: string; subtitle?: string }
+  if (input.toolName === 'send_card') {
+    const card = input.payload as { title?: string; subtitle?: string }
     const text = [card.title, card.subtitle].filter(Boolean).join('\n') || '[card]'
     return { to: recipient, text }
   }
-  if (event.toolName === 'send_file') {
-    const payload = event.payload as { driveFileId: string; caption?: string }
-    return { to: recipient, text: payload.caption ?? `[file:${payload.driveFileId}]` }
+  if (input.toolName === 'send_file') {
+    const payload = input.payload as { media: OutboundMedia }
+    return { to: recipient, media: [payload.media] }
   }
-  return { to: recipient, text: `[${event.toolName}]:${persisted.id}` }
+  return { to: recipient, text: `[${input.toolName}]:${input.persisted.id}` }
 }
 
-export async function dispatchOutbound(event: ChannelOutboundEvent): Promise<DispatchResult> {
-  // 1. Persist (one-write-path).
-  const persisted = await persistMessage(event)
+function defaultContactIdentifierField(channel: string): 'phone' | 'email' | 'identifier' {
+  if (channel === 'whatsapp') return 'phone'
+  if (channel === 'email') return 'email'
+  return 'identifier'
+}
 
-  // 2. Load the channel instance via the conversation's channelInstanceId.
-  //    We resolve the recipient address from the contact + channel.
-  const contact = await getContact(event.contactId)
-  const recipient = contact.phone ?? contact.email ?? contact.id
-
-  // 3. Look up the channel instance for this conversation and resolve adapter.
-  //    The wake worker carries channelType but not channelInstanceId — we walk
-  //    through the conversation row to find the bound instance.
-  const conv = await getConversation(event.conversationId)
-  const instance = await getInstance(conv.channelInstanceId)
-  if (!instance) {
-    throw new Error(`channels/outbound: instance ${conv.channelInstanceId} not found`)
+/**
+ * Throw if a `SendResult` indicates failure so the harness journal records
+ * the tool call as failed and the agent can react. `window_expired` gets a
+ * dedicated message that nudges the agent toward a pre-approved template.
+ */
+export function throwIfFailed(result: SendResult, toolName: string): void {
+  if (result.success) return
+  if (result.code === 'window_expired') {
+    throw new Error(
+      `${toolName}: 24h messaging window expired — fall back to a pre-approved template via send_card or alert staff.`,
+    )
   }
+  const detail = [result.code, result.error].filter(Boolean).join(': ') || 'send failed'
+  throw new Error(`${toolName}: ${detail}`)
+}
 
-  const adapter = registryGet(instance.channel, instance.config, instance.id)
-  if (!adapter) {
-    throw new Error(`channels/outbound: no adapter registered for "${instance.channel}"`)
-  }
+export function createOutboundService(): OutboundService {
+  async function sendOutbound(input: SendOutboundInput): Promise<SendResult> {
+    // Resolve the channel instance via the conversation row, then build the
+    // recipient address from the contact's preferred channel handle. Every
+    // resolved row's `organizationId` is asserted against the caller's scope
+    // so cross-tenant references throw before reaching the wire.
+    const conv = await getConversation(input.conversationId)
+    if (conv.organizationId !== input.organizationId) {
+      throw new Error('channels/outbound: cross-tenant conversation reference rejected')
+    }
+    const contact = await getContact(conv.contactId)
+    if (contact.organizationId !== input.organizationId) {
+      throw new Error('channels/outbound: contact org mismatch')
+    }
+    const instance = await getInstance(conv.channelInstanceId)
+    if (!instance) {
+      throw new Error(`channels/outbound: instance ${conv.channelInstanceId} not found`)
+    }
+    if (instance.organizationId !== input.organizationId) {
+      throw new Error('channels/outbound: channel instance org mismatch')
+    }
 
-  // 4. Enforce 24h messaging window for windowed channels (e.g. WhatsApp).
-  //    Message row already persisted for audit; return window_expired result
-  //    without calling the wire so the agent can fall back to a template.
-  if (adapter.capabilities.messagingWindow) {
-    const win = await checkWindow(event.conversationId)
-    if (!win.open) {
-      return {
-        messageId: persisted.id,
-        send: { success: false, code: 'window_expired' } as SendResult,
+    const adapter = registryGet(instance.channel, instance.config, instance.id)
+    if (!adapter) {
+      throw new Error(`channels/outbound: no adapter registered for "${instance.channel}"`)
+    }
+
+    // Channel-aware recipient resolution. Adapters declare which contact
+    // field carries their wire address; defaults cover phone/email/identifier
+    // for unmapped channels. Never silently fall back to `contact.id` (a
+    // nanoid) for a channel that puts bytes on a wire — `whatsapp`/`email`
+    // would 400 with a useless error. The `web` adapter's `send()` is a
+    // no-op, so the recipient string isn't used there; we still keep the
+    // contract consistent and let `contact.id` stand in when no `phone`/
+    // `email`/`identifier` column exists (the contacts schema tracks
+    // identity via `phone`/`email` only — no `identifier` column).
+    const field = adapter.contactIdentifierField ?? defaultContactIdentifierField(instance.channel)
+    let recipient: string
+    if (field === 'phone' || field === 'email') {
+      const value = contact[field]
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error(`channels/outbound: contact ${contact.id} has no ${field} for ${instance.channel} channel`)
+      }
+      recipient = value
+    } else {
+      // 'identifier' — no dedicated contacts column; the web channel's send()
+      // is a no-op so the value is never put on a wire. Fall back to
+      // contact.id rather than throw — keeps the contract uniform across
+      // adapters that don't need a wire address.
+      recipient = contact.id
+    }
+
+    // Enforce 24h messaging window for windowed channels (e.g. WhatsApp).
+    // Message row already persisted for audit; return window_expired result
+    // without calling the wire so the agent can fall back to a template.
+    if (adapter.capabilities.messagingWindow) {
+      const win = await checkWindow(input.conversationId)
+      if (!win.open) {
+        return { success: false, code: 'window_expired' }
       }
     }
+
+    const outbound = buildOutboundMessage(input, recipient)
+    return adapter.send(outbound)
   }
 
-  // 5. Send via adapter; the contract guarantees SendResult, no throw.
-  const outbound = buildOutboundMessage(event, recipient, persisted)
-  const send = await adapter.send(outbound)
+  return { sendOutbound }
+}
 
-  return { messageId: persisted.id, send }
+let _currentOutboundService: OutboundService | null = null
+
+export function installOutboundService(svc: OutboundService): void {
+  _currentOutboundService = svc
+}
+
+export function __resetOutboundServiceForTests(): void {
+  _currentOutboundService = null
+}
+
+function currentOutbound(): OutboundService {
+  if (!_currentOutboundService) {
+    throw new Error('channels/outbound: service not installed — call installOutboundService()')
+  }
+  return _currentOutboundService
+}
+
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function sendOutbound(input: SendOutboundInput): Promise<SendResult> {
+  return currentOutbound().sendOutbound(input)
 }
