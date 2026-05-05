@@ -91,7 +91,10 @@ export function Composer({ conversationId }: ComposerProps) {
 
   return (
     <div className="relative shrink-0 px-3 pb-3">
-      <PromptInput onSubmit={isReply ? handleReplySubmit : handleNoteSubmit}>
+      <PromptInput
+        onSubmit={isReply ? handleReplySubmit : handleNoteSubmit}
+        className={cn(!isReply && '[&>div]:border-amber-500/30 [&>div]:bg-amber-50/70 dark:[&>div]:bg-amber-950/25')}
+      >
         <div data-align="block-start" className="flex items-center gap-1 self-start px-2 pt-2">
           <button type="button" className={tabClass(isReply)} onClick={() => setMode('reply')}>
             Reply
