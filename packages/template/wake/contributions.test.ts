@@ -113,8 +113,8 @@ describe('collectAgentContributions over the real template module list', () => {
         },
       },
       staffIds: [],
-      // biome-ignore lint/suspicious/useAwait: stub
       authLookup: {
+        // biome-ignore lint/suspicious/useAwait: AuthLookup contract requires async signature
         async getAuthDisplay() {
           return null
         },

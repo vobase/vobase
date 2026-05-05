@@ -126,6 +126,7 @@ export function createThreadsService(deps: ThreadsServiceDeps): ThreadsService {
       notify({ table: 'operator_threads', id: input.threadId, action: 'update' })
     },
 
+    // biome-ignore lint/suspicious/useAwait: ThreadsService contract requires async signature
     async listForCreator({ organizationId, createdBy, limit = 50 }) {
       return db
         .select({
@@ -141,6 +142,7 @@ export function createThreadsService(deps: ThreadsServiceDeps): ThreadsService {
         .limit(limit)
     },
 
+    // biome-ignore lint/suspicious/useAwait: ThreadsService contract requires async signature
     async listMessages(threadId, opts) {
       return db
         .select({

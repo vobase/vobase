@@ -21,6 +21,7 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import { z } from 'zod'
 
 /** Lazy admin gate — pulls from channels state installed in `module.ts.init`. */
+// biome-ignore lint/suspicious/useAwait: Hono MiddlewareHandler contract requires async signature
 const lazyRequireAdmin: MiddlewareHandler = async (c, next) => {
   const mw = getRequireAdmin()
   if (!mw) return c.json({ error: 'auth not initialised' }, 503)

@@ -63,6 +63,7 @@ function buildApp(userId: string) {
   if (!dbHandle) throw new Error('db not connected')
   const requireAdmin = createRequireRole(dbHandle.db, ['owner', 'admin'])
   const app = new Hono()
+  // biome-ignore lint/suspicious/useAwait: Hono middleware contract requires async signature
   app.use('*', async (c, next) => {
     c.set(
       'session' as never,

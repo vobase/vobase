@@ -10,7 +10,6 @@
  * the top-level `select/insert/update` callable shape is shared.
  */
 
-// biome-ignore lint/complexity/noBannedTypes: matches the established cross-module Function-shape pattern
 type AnyFn = Function
 
 /**

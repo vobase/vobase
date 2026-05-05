@@ -125,6 +125,7 @@ export function createCaptionPort(opts?: { fetch?: typeof globalThis.fetch }): C
   }
 
   return {
+    // biome-ignore lint/suspicious/useAwait: CaptionPort contract requires async signature
     async captionImage(url, hint) {
       const prompt = hint ? `${IMAGE_PROMPT} Additional context: ${hint}` : IMAGE_PROMPT
       return callOpenAIVision(url, prompt)
@@ -135,6 +136,7 @@ export function createCaptionPort(opts?: { fetch?: typeof globalThis.fetch }): C
       // human-authored caption or skip media-aware routing for this asset.
       return CAPTION_PENDING
     },
+    // biome-ignore lint/suspicious/useAwait: CaptionPort contract requires async signature
     async extractText(url, mime) {
       // PDFs and other non-image docs need a separate /v1/files upload
       // path that this port doesn't wire — return pending so callers can

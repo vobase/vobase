@@ -104,15 +104,15 @@ function currentSessions(): SessionsService {
   return _currentSessionsService
 }
 
-export async function seedOnInbound(conversationId: string, channelInstanceId: string, now?: Date): Promise<void> {
+export function seedOnInbound(conversationId: string, channelInstanceId: string, now?: Date): Promise<void> {
   return currentSessions().seedOnInbound(conversationId, channelInstanceId, now)
 }
 
-export async function checkWindow(conversationId: string): Promise<{ open: boolean; expiresAt: Date | null }> {
+export function checkWindow(conversationId: string): Promise<{ open: boolean; expiresAt: Date | null }> {
   return currentSessions().checkWindow(conversationId)
 }
 
-export async function closeWindow(conversationId: string): Promise<void> {
+export function closeWindow(conversationId: string): Promise<void> {
   return currentSessions().closeWindow(conversationId)
 }
 

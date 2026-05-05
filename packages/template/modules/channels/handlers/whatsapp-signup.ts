@@ -227,6 +227,7 @@ const app = new Hono<OrganizationEnv>()
   })
   .post(
     '/finish/:instanceId',
+    // biome-ignore lint/suspicious/useAwait: Hono middleware contract requires async signature
     async (c, next) => {
       // Re-enqueueing the WhatsApp setup job rotates the webhook subscription;
       // staff-level members shouldn't be able to bounce the integration. `/start`

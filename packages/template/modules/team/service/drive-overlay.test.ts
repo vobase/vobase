@@ -18,10 +18,12 @@ function makeEntry(agentId: string, agentName: string, memory = '', updatedAt: D
 
 function stubService(entries: StaffMemoryEntry[]): StaffMemoryService {
   return {
+    // biome-ignore lint/suspicious/useAwait: StaffMemoryService contract requires async signature
     async read() {
       return ''
     },
     async upsert() {},
+    // biome-ignore lint/suspicious/useAwait: StaffMemoryService contract requires async signature
     async listByStaff() {
       return entries
     },
@@ -162,10 +164,12 @@ describe('staffCrossAgentMemoryOverlay', () => {
     // The service is called with the ctx.organizationId, so if we install a service
     // that only returns data for ORG_A, org B requests get nothing.
     const svc: StaffMemoryService = {
+      // biome-ignore lint/suspicious/useAwait: StaffMemoryService contract requires async signature
       async read() {
         return ''
       },
       async upsert() {},
+      // biome-ignore lint/suspicious/useAwait: StaffMemoryService contract requires async signature
       async listByStaff({ organizationId }) {
         if (organizationId === ORG_A) return [makeEntry(AGENT_1.id, AGENT_1.name, 'A secret')]
         return []

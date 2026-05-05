@@ -116,6 +116,7 @@ export function __resetManagedRotationCacheForTests(): void {
   rotationCache.clear()
 }
 
+// biome-ignore lint/suspicious/useAwait: signature kept Promise-returning so callers don't need to branch on cache hit vs miss
 async function loadRotation(organizationId: string): Promise<VaultRotation> {
   const now = Date.now()
   const entry = rotationCache.get(organizationId)

@@ -27,6 +27,7 @@ import instances from './instances'
 import webhook from './webhook'
 import whatsappSignup from './whatsapp-signup'
 
+// biome-ignore lint/suspicious/useAwait: Hono MiddlewareHandler contract requires async signature
 const lazyRequireSession: MiddlewareHandler = async (c, next) => {
   const mw = getRequireSession()
   if (!mw) return c.json({ error: 'auth not initialised' }, 503)

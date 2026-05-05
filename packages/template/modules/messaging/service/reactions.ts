@@ -90,10 +90,10 @@ function currentReactions(): ReactionsService {
   return _currentReactionsService
 }
 
-export async function upsertReaction(input: UpsertReactionInput): Promise<void> {
+export function upsertReaction(input: UpsertReactionInput): Promise<void> {
   return currentReactions().upsertReaction(input)
 }
 
-export async function removeReaction(input: RemoveReactionInput): Promise<void> {
+export function removeReaction(input: RemoveReactionInput): Promise<void> {
   return currentReactions().removeReaction(input)
 }

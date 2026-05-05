@@ -64,8 +64,8 @@ const AGENT_DEFINITION: AgentDefinition = {
 }
 
 function makeStubAuthLookup(): AuthLookup {
-  // biome-ignore lint/suspicious/useAwait: AuthLookup contract is async
   return {
+    // biome-ignore lint/suspicious/useAwait: AuthLookup contract requires async signature
     async getAuthDisplay() {
       return null
     },
@@ -127,6 +127,7 @@ function conversationCtx(overrides: Partial<WakeContext> = {}): WakeContext {
     conversationId: CONV_ID,
     drive: makeStubDrive(),
     staffIds: [],
+    budgetHeaderStaffIds: [],
     authLookup: makeStubAuthLookup(),
     agentDefinition: AGENT_DEFINITION,
     tools: [],
@@ -145,6 +146,7 @@ function standaloneCtx(overrides: Partial<WakeContext> = {}): WakeContext {
     conversationId: 'standalone-conv',
     drive: makeStubDrive(),
     staffIds: [],
+    budgetHeaderStaffIds: [],
     authLookup: makeStubAuthLookup(),
     agentDefinition: AGENT_DEFINITION,
     tools: [],
@@ -282,12 +284,12 @@ describe('AGENTS.md composition through agentsMaterializerFactory', () => {
 
   it('Tool guidance section reflects ctx.tools (lane-filtered) when tools have prompts', async () => {
     const tools: AgentTool[] = [
-      // biome-ignore lint/suspicious/useAwait: AgentTool execute contract requires async signature
       {
         name: 'reply',
         description: 'reply',
         inputSchema: { type: 'object' as const },
         prompt: 'Use reply.',
+        // biome-ignore lint/suspicious/useAwait: AgentTool execute contract requires async signature
         async execute() {
           return { ok: true, content: '' }
         },
@@ -302,11 +304,11 @@ describe('AGENTS.md composition through agentsMaterializerFactory', () => {
 
   it('omits Tool guidance section when no tool carries a prompt', async () => {
     const tools: AgentTool[] = [
-      // biome-ignore lint/suspicious/useAwait: AgentTool execute contract requires async signature
       {
         name: 'reply',
         description: 'reply',
         inputSchema: { type: 'object' as const },
+        // biome-ignore lint/suspicious/useAwait: AgentTool execute contract requires async signature
         async execute() {
           return { ok: true, content: '' }
         },

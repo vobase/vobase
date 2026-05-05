@@ -9,7 +9,14 @@ type DriveSectionProps = Omit<DriveProviderProps, 'children'> & {
   className?: string
 }
 
-export function DriveSection({ scope, rootLabel, initialPath, renderPreview, orientation, className }: DriveSectionProps) {
+export function DriveSection({
+  scope,
+  rootLabel,
+  initialPath,
+  renderPreview,
+  orientation,
+  className,
+}: DriveSectionProps) {
   return (
     <InfoCard className={cn('h-[60vh] min-h-[420px]', className)}>
       <DriveProvider scope={scope} rootLabel={rootLabel} initialPath={initialPath} renderPreview={renderPreview}>

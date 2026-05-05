@@ -107,6 +107,7 @@ export interface MergeContactsResult {
  *
  * @throws {Error} Always — not yet implemented. Tests assert this throw.
  */
+// biome-ignore lint/suspicious/useAwait: placeholder until merge implementation lands; signature reserved for future async work
 export async function mergeContacts(_input: MergeContactsInputType): Promise<MergeContactsResult> {
   throw new Error('not implemented')
 }

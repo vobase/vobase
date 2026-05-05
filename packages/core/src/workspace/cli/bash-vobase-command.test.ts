@@ -49,6 +49,7 @@ function buildSandbox(
   })
 }
 
+// biome-ignore lint/suspicious/useAwait: helper kept Promise-returning to mirror Bash sandbox API
 async function run(sandbox: Bash, line: string) {
   return sandbox.exec(line)
 }

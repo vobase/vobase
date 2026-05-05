@@ -47,6 +47,7 @@ describe('schedules cron-tick', () => {
     const fired: HeartbeatTrigger[] = []
     const result = await tickSchedules({
       now: () => new Date('2026-04-26T12:00:30Z'),
+      // biome-ignore lint/suspicious/useAwait: emitter contract requires async signature
       emitHeartbeat: async (t) => {
         fired.push(t)
       },
@@ -75,6 +76,7 @@ describe('schedules cron-tick', () => {
     const fired: HeartbeatTrigger[] = []
     const r1 = await tickSchedules({
       now: () => new Date('2026-04-26T12:01:00Z'),
+      // biome-ignore lint/suspicious/useAwait: emitter contract requires async signature
       emitHeartbeat: async (t) => {
         fired.push(t)
       },
@@ -96,6 +98,7 @@ describe('schedules cron-tick', () => {
     let goodFires = 0
     const result = await tickSchedules({
       now: () => new Date('2026-04-26T13:00:00Z'),
+      // biome-ignore lint/suspicious/useAwait: emitter contract requires async signature
       emitHeartbeat: async (t) => {
         if (t.cron === '* * * * *' && (t as HeartbeatTrigger).scheduleId.includes('z-never-matches')) {
           // unreachable; placeholder to ensure shape compiles

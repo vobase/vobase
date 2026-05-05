@@ -41,6 +41,7 @@ function agentScope(agentId: string) {
 
 beforeEach(() => {
   installAgentDefinitionsService({
+    // biome-ignore lint/suspicious/useAwait: AgentDefinitionsService contract requires async signature
     getById: async (id) => {
       if (id === AGENT_A) return makeAgent(AGENT_A, ORG_A, ['read', 'write']) as never
       if (id === AGENT_B) return makeAgent(AGENT_B, ORG_B) as never
@@ -54,6 +55,7 @@ beforeEach(() => {
   })
 
   installAgentSkillsService({
+    // biome-ignore lint/suspicious/useAwait: AgentSkillsService contract requires async signature
     listSkillsForAgent: async ({ agentId }) => {
       if (agentId === AGENT_A) return [makeSkill('read', AGENT_A, '# Read skill'), makeSkill('extra', null, '# Extra')]
       return []
@@ -80,6 +82,7 @@ describe('agentSkillsOverlay.list', () => {
 
   it('returns empty array at root when agent has no skills', async () => {
     installAgentDefinitionsService({
+      // biome-ignore lint/suspicious/useAwait: AgentDefinitionsService contract requires async signature
       getById: async (id) => {
         if (id === AGENT_B) return makeAgent(AGENT_B, ORG_B, []) as never
         throw new Error(`agent not found: ${id}`)

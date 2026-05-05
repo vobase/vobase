@@ -292,7 +292,7 @@ async function prefetchAttachmentsForConversation(
   return readDriveFilesByIds(organizationId, ids)
 }
 
-export async function getAttachmentSnapshot(
+export function getAttachmentSnapshot(
   organizationId: string,
   conversationId: string,
 ): Promise<Map<string, DriveFileProjection>> {

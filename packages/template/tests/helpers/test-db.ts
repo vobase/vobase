@@ -57,6 +57,7 @@ export function connectTestDb(): TestDbHandle {
  * AND from each test file's beforeAll. Uses flock(1) as a cross-process mutex
  * to serialise resets — every caller gets a fresh seed, no shared state.
  */
+// biome-ignore lint/suspicious/useAwait: helper signature kept Promise-returning so callers don't need to branch on sync vs async reset
 export async function resetAndSeedDb(): Promise<void> {
   const cwd = `${import.meta.dir}/../..`
 

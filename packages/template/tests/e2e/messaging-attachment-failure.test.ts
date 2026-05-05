@@ -29,6 +29,7 @@ beforeAll(async () => {
       const inner = realStorage.bucket(name)
       if (name !== 'drive') return inner
       return {
+        // biome-ignore lint/suspicious/useAwait: BucketHandle.upload contract requires async signature
         upload: async () => {
           throw new Error('simulated storage outage')
         },

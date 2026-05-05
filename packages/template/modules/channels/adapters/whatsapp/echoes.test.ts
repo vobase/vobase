@@ -28,6 +28,7 @@ let db: TestDbHandle
 
 const sentJobs: Array<{ name: string; data: unknown }> = []
 const stubJobs: JobQueue = {
+  // biome-ignore lint/suspicious/useAwait: JobQueue contract requires async signature
   send: async (name: string, data: unknown) => {
     sentJobs.push({ name, data })
     return 'stub-job-id'
@@ -88,7 +89,6 @@ beforeAll(async () => {
         inboundMode: 'push',
         contactIdentifierField: 'phone',
         capabilities: WHATSAPP_CAPABILITIES,
-        // biome-ignore lint/suspicious/useAwait: contract requires async signature
         send: async () => ({ success: true }),
       }) as never,
     WHATSAPP_CAPABILITIES,

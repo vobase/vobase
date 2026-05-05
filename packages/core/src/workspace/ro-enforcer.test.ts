@@ -188,6 +188,7 @@ describe('ScopedFs.withCliContext', () => {
     })
     const fs = new ScopedFs(inner, config)
     await expect(
+      // biome-ignore lint/suspicious/useAwait: withCliContext callback contract requires async signature
       fs.withCliContext('memory set', async () => {
         throw new Error('verb failed')
       }),

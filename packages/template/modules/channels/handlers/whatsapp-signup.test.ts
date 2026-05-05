@@ -50,6 +50,7 @@ function buildApp(ctx: FakeContext) {
   // up on `session.session.activeOrganizationId`. The route itself checks
   // `!sessionId` after requireOrganization runs, so leaving sessionId empty
   // is the way to drive the "no session id" 401 path.
+  // biome-ignore lint/suspicious/useAwait: Hono middleware contract requires async signature
   app.use('*', async (c, next) => {
     c.set(
       'session' as never,
@@ -81,6 +82,7 @@ interface MockMetaFetchOpts {
 }
 
 function installMockMetaFetch(opts: MockMetaFetchOpts): void {
+  // biome-ignore lint/suspicious/useAwait: fetch contract requires async signature
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     if (url.includes('/oauth/access_token')) {
@@ -187,6 +189,7 @@ async function startNonce(app: Hono): Promise<string> {
   return ((await res.json()) as { nonce: string }).nonce
 }
 
+// biome-ignore lint/suspicious/useAwait: helper signature kept Promise-returning to mirror app.request shape
 async function postExchange(
   app: Hono,
   body: Record<string, unknown>,
