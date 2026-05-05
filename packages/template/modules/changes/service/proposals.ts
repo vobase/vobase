@@ -430,10 +430,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     const limit = opts.limit ?? 100
     const wantedStatuses = opts.status && opts.status !== 'all' ? [opts.status] : DECIDED_STATUSES
 
-    const conds = [
-      eq(changeProposals.organizationId, organizationId),
-      inArray(changeProposals.status, wantedStatuses),
-    ]
+    const conds = [eq(changeProposals.organizationId, organizationId), inArray(changeProposals.status, wantedStatuses)]
     if (opts.resourceModule) conds.push(eq(changeProposals.resourceModule, opts.resourceModule))
 
     const rows = (await db
@@ -580,10 +577,7 @@ export function listInbox(organizationId: string, limit?: number): Promise<Chang
   return current().listInbox(organizationId, limit)
 }
 
-export function listDecided(
-  organizationId: string,
-  opts?: ListHistoryOptions,
-): Promise<ChangeProposalHistoryItem[]> {
+export function listDecided(organizationId: string, opts?: ListHistoryOptions): Promise<ChangeProposalHistoryItem[]> {
   return current().listDecided(organizationId, opts)
 }
 

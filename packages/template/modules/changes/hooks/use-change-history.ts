@@ -28,7 +28,12 @@ async function fetchHistory(opts: UseChangeHistoryOptions): Promise<ChangePropos
 
 export function useChangeHistory(opts: UseChangeHistoryOptions = {}) {
   return useQuery({
-    queryKey: [...CHANGE_HISTORY_QUERY_KEY, opts.status ?? 'all', opts.resourceModule ?? '', opts.limit ?? 100] as const,
+    queryKey: [
+      ...CHANGE_HISTORY_QUERY_KEY,
+      opts.status ?? 'all',
+      opts.resourceModule ?? '',
+      opts.limit ?? 100,
+    ] as const,
     queryFn: () => fetchHistory(opts),
     staleTime: 30_000,
   })

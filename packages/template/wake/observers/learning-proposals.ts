@@ -88,7 +88,10 @@ export function createLearningProposalObserver(
         })
       } catch (err) {
         if (err instanceof Error && /already has a pending proposal/.test(err.message)) {
-          logger.info({ agentId, kind: signal.kind, ref: signal.ref }, 'learning-proposals: duplicate pending — skipped')
+          logger.info(
+            { agentId, kind: signal.kind, ref: signal.ref },
+            'learning-proposals: duplicate pending — skipped',
+          )
           continue
         }
         logger.error({ err, agentId, kind: signal.kind }, 'learning-proposals: insertProposal failed')

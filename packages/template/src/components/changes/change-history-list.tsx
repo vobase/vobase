@@ -1,4 +1,4 @@
-import { useChangeHistory, type UseChangeHistoryOptions } from '@modules/changes/hooks/use-change-history'
+import { type UseChangeHistoryOptions, useChangeHistory } from '@modules/changes/hooks/use-change-history'
 import { History } from 'lucide-react'
 import { useMemo, useState } from 'react'
 

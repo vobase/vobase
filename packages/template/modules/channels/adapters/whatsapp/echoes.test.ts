@@ -8,8 +8,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { ChannelInstance } from '@modules/channels/schema'
-import { createContactsService, installContactsService } from '@modules/contacts/service/contacts'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { createContactsService, installContactsService } from '@modules/contacts/service/contacts'
 import { messages } from '@modules/messaging/schema'
 import { createConversationsService, installConversationsService } from '@modules/messaging/service/conversations'
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
