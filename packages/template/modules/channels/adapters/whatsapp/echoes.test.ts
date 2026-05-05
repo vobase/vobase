@@ -20,7 +20,9 @@ import { eq } from 'drizzle-orm'
 
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
 import { dispatchInbound } from '../../service/inbound'
+import { __resetForTests as __resetRegistryForTests, register as registerAdapter } from '../../service/registry'
 import { createChannelsState, installChannelsState, type JobQueue } from '../../service/state'
+import { WHATSAPP_CAPABILITIES, WHATSAPP_CHANNEL_NAME } from './factory'
 
 let db: TestDbHandle
 
@@ -74,9 +76,27 @@ beforeAll(async () => {
   installSessionsService(createSessionsService({ db: db.db }))
   installReactionsService(createReactionsService({ db: db.db }))
   installChannelsState(createChannelsState({ jobs: stubJobs }))
+  // Register a minimal stub — the dispatcher only reads `contactIdentifierField`
+  // and `capabilities.messagingWindow` here; the real adapter would demand
+  // Meta creds we don't want to thread through this test.
+  __resetRegistryForTests()
+  registerAdapter(
+    WHATSAPP_CHANNEL_NAME,
+    () =>
+      ({
+        name: WHATSAPP_CHANNEL_NAME,
+        inboundMode: 'push',
+        contactIdentifierField: 'phone',
+        capabilities: WHATSAPP_CAPABILITIES,
+        // biome-ignore lint/suspicious/useAwait: contract requires async signature
+        send: async () => ({ success: true }),
+      }) as never,
+    WHATSAPP_CAPABILITIES,
+  )
 }, 60_000)
 
 afterAll(async () => {
+  __resetRegistryForTests()
   if (db) await db.teardown()
 })
 

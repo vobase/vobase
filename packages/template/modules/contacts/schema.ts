@@ -1,10 +1,19 @@
 /**
  * contacts module schema.
  *
- * Three tables:
+ * Four tables:
  *   - `contacts` — organization-scoped identity + profile (human) + memory (agent) + attributes
  *   - `contact_attribute_definitions` — org-scoped schema for the `attributes` JSONB
+ *   - `contact_external_keys` — per-channel inbound dedup keys → contact_id
  *   - `staff_channel_bindings` — (user_id, channel_instance_id) → external_identifier
+ *
+ * **Identity vs. external keys.** `contacts.phone` and `contacts.email` carry
+ * the contact's canonical wire identity in bare form (E.164 with leading `+`,
+ * lowercased RFC email). `contact_external_keys` carries the per-channel
+ * inbound dedup key — for phone-keyed channels the value mirrors `phone`, for
+ * non-phone-keyed channels (web sessions, etc) it stands alone. Outbound
+ * dispatch reads identity off `contacts`; inbound dispatch resolves the
+ * contact via `contact_external_keys`. See `service/contacts.ts::upsertByExternalKey`.
  *
  * NOTE: `staff_channel_bindings.channel_instance_id` has a CROSS-SCHEMA FK to
  * `messaging.channel_instances(id)`. That's why push order is `contacts → messaging` —
@@ -70,6 +79,14 @@ export interface StaffBinding {
   userId: string
   channelInstanceId: string
   externalIdentifier: string
+  createdAt: Date
+}
+
+export interface ContactExternalKey {
+  organizationId: string
+  channel: string
+  externalKey: string
+  contactId: string
   createdAt: Date
 }
 
@@ -139,6 +156,33 @@ export const staffChannelBindings = contactsPgSchema.table(
   ],
 )
 
+/**
+ * Per-channel inbound dedup keys. Inbound dispatch resolves the contact by
+ * `(organizationId, channel, externalKey)`; outbound dispatch reads identity
+ * (phone/email) directly off `contacts`. For phone-keyed channels the
+ * `externalKey` mirrors `contacts.phone`; for non-phone channels (web
+ * session, future SDKs) it stands alone with `contacts.phone = NULL`.
+ *
+ * The PK `(organizationId, channel, externalKey)` lets the same identifier
+ * appear under different channels without collision (e.g. `+6512345678` on
+ * both `whatsapp` and a future `sms` channel — both rows reference the same
+ * `contactId` via cross-channel merge).
+ */
+export const contactExternalKeys = contactsPgSchema.table(
+  'contact_external_keys',
+  {
+    organizationId: text('organization_id').notNull(),
+    channel: text('channel').notNull(),
+    externalKey: text('external_key').notNull(),
+    contactId: text('contact_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.channel, t.externalKey] }),
+    index('idx_contact_external_keys_contact').on(t.contactId),
+  ],
+)
+
 // R1 — compile-time assertion that Drizzle's inferred row shape extends the
 // hand-written domain type. Drift surfaces here in `tsc`, not in Phase 2 bugs.
 type _ContactAssert =
@@ -150,9 +194,12 @@ type _AttrDefAssert =
   InferSelectModel<typeof contactAttributeDefinitions> extends Omit<ContactAttributeDefinition, 'type' | 'options'>
     ? true
     : never
+type _ExternalKeyAssert = InferSelectModel<typeof contactExternalKeys> extends ContactExternalKey ? true : never
 const _contactOk: _ContactAssert = true
 const _staffOk: _StaffAssert = true
 const _attrDefOk: _AttrDefAssert = true
+const _externalKeyOk: _ExternalKeyAssert = true
 void _contactOk
 void _staffOk
 void _attrDefOk
+void _externalKeyOk

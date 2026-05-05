@@ -5,7 +5,7 @@ import type { AgentDefinition } from '@modules/agents/schema'
 import { setCliRegistry } from '@modules/agents/service/cli-registry'
 import { renderContactMemory, renderContactProfile } from '@modules/contacts/agent'
 import type { Contact, StaffBinding } from '@modules/contacts/schema'
-import type { ContactsService, UpsertByExternalInput } from '@modules/contacts/service/contacts'
+import type { ContactsService, UpsertByExternalKeyInput } from '@modules/contacts/service/contacts'
 import { BUSINESS_MD_FALLBACK, driveMaterializerFactory, driveRoHints } from '@modules/drive/agent'
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
@@ -204,7 +204,7 @@ function makeContactsStub(): ContactsService {
       return null
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
-    async upsertByExternal(_: UpsertByExternalInput) {
+    async upsertByExternalKey(_: UpsertByExternalKeyInput) {
       throw new Error('not-implemented-in-phase-1')
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature

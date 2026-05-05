@@ -264,9 +264,16 @@ export async function fetchSandboxAvailability(input: {
     schemaVersion?: string
   }
   if (typeof data.sandboxPoolAvailable !== 'number') {
-    // Unauthenticated branch returns just `{ ok: true }` — should never hit
-    // since we sign, but treat as zero rather than NaN to fail the UI gate.
-    return { sandboxPoolAvailable: 0, schemaVersion: data.schemaVersion ?? '' }
+    // Platform's `/health` strips data fields (returns bare `{ok: true}`) when
+    // tenant HMAC fails to verify. We surface that as an explicit error so the
+    // dialog shows "auth failed" instead of masquerading as pool exhaustion.
+    // Common causes: tenant row missing on the platform, tenant.status !==
+    // 'active', or HMAC secret drift between tenant vault and platform DB.
+    throw new PlatformHandshakeError(
+      'platform rejected tenant HMAC signature on /health (tenant unknown, inactive, or secret drift)',
+      res.status,
+      'platform_unauthenticated',
+    )
   }
   return {
     sandboxPoolAvailable: data.sandboxPoolAvailable,

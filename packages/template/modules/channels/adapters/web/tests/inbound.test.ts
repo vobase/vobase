@@ -14,7 +14,7 @@ import {
   __resetContactsServiceForTests,
   type ContactsService,
   installContactsService,
-  type UpsertByExternalInput,
+  type UpsertByExternalKeyInput,
 } from '@modules/contacts/service/contacts'
 import type { Conversation, Message } from '@modules/messaging/schema'
 import {
@@ -59,7 +59,7 @@ const fakeContact: Contact = {
   id: 'contact-1',
   organizationId: 'org-1',
   displayName: 'Web User',
-  phone: 'web:session-abc',
+  phone: null,
   email: null,
   profile: '',
   memory: '',
@@ -101,8 +101,8 @@ function makeContactsServiceStub(): ContactsService {
     create: notImplemented as ContactsService['create'],
     update: notImplemented as ContactsService['update'],
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
-    upsertByExternal: async (_input: UpsertByExternalInput): Promise<Contact> => {
-      calls.push({ method: 'upsertByExternal', data: null })
+    upsertByExternalKey: async (_input: UpsertByExternalKeyInput): Promise<Contact> => {
+      calls.push({ method: 'upsertByExternalKey', data: null })
       return fakeContact
     },
     resolveStaffByExternal: notImplemented as ContactsService['resolveStaffByExternal'],

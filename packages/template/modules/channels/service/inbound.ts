@@ -12,7 +12,8 @@
  */
 
 import type { ChannelInstance } from '@modules/channels/schema'
-import { upsertByExternal } from '@modules/contacts/service/contacts'
+import { upsertByExternalKey } from '@modules/contacts/service/contacts'
+import { normalizeEmail, normalizePhoneE164 } from '@modules/contacts/service/identity-normalize'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { extractEchoMetadata } from '@modules/messaging/service/echo-metadata'
 import { updateDeliveryStatus } from '@modules/messaging/service/messages'
@@ -96,10 +97,23 @@ export async function dispatchInbound(
 
     if (event.type !== 'message_received') continue
 
-    const externalKey = `${instance.channel}:${event.from}`
-    const contact = await upsertByExternal({
+    const adapter = registryGet(instance.channel, instance.config, instance.id)
+    if (!adapter) {
+      throw new Error(`channels/inbound: no adapter registered for "${instance.channel}"`)
+    }
+
+    // See `contacts/schema.ts` for the identity-vs-external-key split.
+    const identifierField = adapter.contactIdentifierField
+    const phoneCanonical = identifierField === 'phone' ? normalizePhoneE164(event.from) : null
+    const emailCanonical = identifierField === 'email' ? normalizeEmail(event.from) : null
+    const externalKey = phoneCanonical ?? emailCanonical ?? event.from
+
+    const contact = await upsertByExternalKey({
       organizationId: instance.organizationId,
-      phone: externalKey,
+      channel: instance.channel,
+      externalKey,
+      phone: phoneCanonical ?? undefined,
+      email: emailCanonical ?? undefined,
       displayName: event.profileName || undefined,
     })
 
@@ -116,8 +130,7 @@ export async function dispatchInbound(
         sizeBytes: m.sizeBytes ?? m.data.length,
       }))
 
-    const adapter = registryGet(instance.channel, instance.config, instance.id)
-    const threadKey = adapter?.resolveThreadKey?.(event) ?? 'default'
+    const threadKey = adapter.resolveThreadKey?.(event) ?? 'default'
 
     // Safe projection — never pass raw adapter metadata (may contain PII/provider fields).
     const metadata = extractEchoMetadata(event.metadata)
@@ -143,7 +156,7 @@ export async function dispatchInbound(
     })
 
     // Seed the 24h messaging window on customer inbound only (echoes never open it).
-    if (!isEcho && adapter?.capabilities.messagingWindow && result.message.role === 'customer') {
+    if (!isEcho && adapter.capabilities.messagingWindow && result.message.role === 'customer') {
       await seedOnInbound(result.conversation.id, instance.id)
     }
 

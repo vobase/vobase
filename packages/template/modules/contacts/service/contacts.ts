@@ -1,18 +1,24 @@
 /**
- * REAL Phase 1 — get, upsertByExternal, resolveStaffByExternal.
+ * REAL Phase 1 — get, upsertByExternalKey, resolveStaffByExternal.
  * All other methods throw not-implemented-in-phase-1.
  */
 
-import { contacts, staffChannelBindings } from '@modules/contacts/schema'
-import { and, eq, or } from 'drizzle-orm'
+import { contactExternalKeys, contacts, staffChannelBindings } from '@modules/contacts/schema'
+import { and, eq } from 'drizzle-orm'
 
 import type { RealtimeService } from '~/runtime'
 import type { Contact, StaffBinding } from '../schema'
 
-export interface UpsertByExternalInput {
+export interface UpsertByExternalKeyInput {
   organizationId: string
-  phone?: string
-  email?: string
+  /** Channel name as registered in `channels/service/registry.ts` (e.g. `whatsapp`, `web`). */
+  channel: string
+  /** Bare per-channel inbound dedup key (E.164 phone for WA, session id for web). */
+  externalKey: string
+  /** E.164 phone (with leading `+`) when the channel carries a phone identity. */
+  phone?: string | null
+  /** Lowercased RFC email when the channel carries an email identity. */
+  email?: string | null
   displayName?: string
 }
 
@@ -45,7 +51,7 @@ export interface ContactsService {
   getByEmail(organizationId: string, email: string): Promise<Contact | null>
   create(input: CreateContactInput): Promise<Contact>
   update(id: string, patch: UpdateContactInput): Promise<Contact>
-  upsertByExternal(input: UpsertByExternalInput): Promise<Contact>
+  upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact>
   resolveStaffByExternal(channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding | null>
   readMemory(id: string): Promise<string>
   upsertMemorySection(id: string, heading: string, body: string): Promise<void>
@@ -92,34 +98,81 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     return (rows[0] as Contact) ?? null
   }
 
-  async function upsertByExternal(input: UpsertByExternalInput): Promise<Contact> {
-    const conditions = []
-    if (input.phone) conditions.push(eq(contacts.phone, input.phone))
-    if (input.email) conditions.push(eq(contacts.email, input.email))
+  async function findContactByExternalKey(input: {
+    organizationId: string
+    channel: string
+    externalKey: string
+  }): Promise<Contact | null> {
+    const rows = (await db
+      .select()
+      .from(contacts)
+      .innerJoin(contactExternalKeys, eq(contactExternalKeys.contactId, contacts.id))
+      .where(
+        and(
+          eq(contactExternalKeys.organizationId, input.organizationId),
+          eq(contactExternalKeys.channel, input.channel),
+          eq(contactExternalKeys.externalKey, input.externalKey),
+        ),
+      )
+      .limit(1)) as Array<{ contacts: Contact }>
+    return rows[0]?.contacts ?? null
+  }
 
-    if (conditions.length > 0) {
-      const existing = await db
-        .select()
+  async function upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact> {
+    const existing = await findContactByExternalKey(input)
+    if (existing) return existing
+
+    // Cross-channel merge — same person reachable on multiple channels
+    // collapses to one contact when they share phone or email. Phone wins
+    // over email (more reliable identity for a contact-driven channel).
+    let contactId: string | null = null
+    if (input.phone) {
+      const rows = (await db
+        .select({ id: contacts.id })
         .from(contacts)
-        .where(and(eq(contacts.organizationId, input.organizationId), or(...conditions)))
-        .limit(1)
-
-      if (existing[0]) return existing[0] as Contact
+        .where(and(eq(contacts.organizationId, input.organizationId), eq(contacts.phone, input.phone)))
+        .limit(1)) as Array<{ id: string }>
+      contactId = rows[0]?.id ?? null
+    }
+    if (!contactId && input.email) {
+      const rows = (await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(and(eq(contacts.organizationId, input.organizationId), eq(contacts.email, input.email)))
+        .limit(1)) as Array<{ id: string }>
+      contactId = rows[0]?.id ?? null
     }
 
-    const rows = await db
-      .insert(contacts)
+    if (!contactId) {
+      const inserted = (await db
+        .insert(contacts)
+        .values({
+          organizationId: input.organizationId,
+          phone: input.phone ?? null,
+          email: input.email ?? null,
+          displayName: input.displayName ?? null,
+        })
+        .returning({ id: contacts.id })) as Array<{ id: string }>
+      contactId = inserted[0]?.id ?? null
+      if (!contactId) throw new Error('contacts/upsertByExternalKey: insert returned no rows')
+    }
+
+    // Idempotent key insert. If a concurrent inbound for the same
+    // `(org, channel, externalKey)` already created the row, the conflict is
+    // a no-op and we re-fetch to follow the winner — otherwise our orphan
+    // contact would be returned and the next inbound would resolve to a
+    // different row for the same person.
+    await db
+      .insert(contactExternalKeys)
       .values({
         organizationId: input.organizationId,
-        phone: input.phone ?? null,
-        email: input.email ?? null,
-        displayName: input.displayName ?? null,
+        channel: input.channel,
+        externalKey: input.externalKey,
+        contactId,
       })
-      .returning()
+      .onConflictDoNothing()
 
-    const row = rows[0]
-    if (!row) throw new Error('contacts/upsertByExternal: insert returned no rows')
-    return row as Contact
+    return (await findContactByExternalKey(input)) ?? get(contactId)
   }
 
   async function resolveStaffByExternal(
@@ -234,7 +287,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     getByEmail,
     create,
     update,
-    upsertByExternal,
+    upsertByExternalKey,
     resolveStaffByExternal,
     readMemory,
     upsertMemorySection,
@@ -282,8 +335,8 @@ export function create(input: CreateContactInput): Promise<Contact> {
 export function update(id: string, patch: UpdateContactInput): Promise<Contact> {
   return current().update(id, patch)
 }
-export function upsertByExternal(input: UpsertByExternalInput): Promise<Contact> {
-  return current().upsertByExternal(input)
+export function upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact> {
+  return current().upsertByExternalKey(input)
 }
 export function resolveStaffByExternal(
   channelInstanceId: string,

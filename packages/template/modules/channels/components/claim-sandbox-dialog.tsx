@@ -104,7 +104,14 @@ export function ClaimSandboxDialog({ open, onOpenChange, onClaimed }: ClaimSandb
 
   const available = availability.data?.sandboxPoolAvailable ?? 0
   const configured = availability.data?.configured ?? false
-  const canClaim = configured && (available > 0 || availability.isLoading)
+  // Availability is a HINT, not a gate. The platform's `allocateManagedChannel`
+  // is idempotent on `(tenantSlug, environment, channelInstanceId)` and self-
+  // heals orphan claims (cascade-deletes satellites + re-allocates the same
+  // pool row) when this tenant already holds a claim from a prior state.
+  // Gating the button on `available > 0` would make those self-heal paths
+  // unreachable — `/health` reports 0 even when the calling tenant could
+  // succeed via idempotent re-claim or orphan takeover.
+  const canClaim = configured
 
   return (
     <Dialog

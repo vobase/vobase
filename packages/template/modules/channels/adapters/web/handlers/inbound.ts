@@ -1,7 +1,7 @@
 import { verifyHmacWebhook } from '@auth/middleware'
 import { getInstance as getChannelInstance } from '@modules/channels/service/instances'
 import { requireJobs } from '@modules/channels/service/state'
-import { upsertByExternal } from '@modules/contacts/service/contacts'
+import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { Context } from 'hono'
 
@@ -31,9 +31,13 @@ interface InboundInput {
 }
 
 async function dispatchInbound(c: Context, input: InboundInput): Promise<Response> {
-  const contact = await upsertByExternal({
+  // Web sessions are anonymous — no phone/email identity. The session id is
+  // the dedup key only; `contacts.phone`/`email` stay null until a profile
+  // form fills them in.
+  const contact = await upsertByExternalKey({
     organizationId: input.organizationId,
-    phone: `web:${input.from}`,
+    channel: 'web',
+    externalKey: input.from,
     displayName: input.displayName,
   })
 
