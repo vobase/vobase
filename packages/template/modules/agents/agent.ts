@@ -22,6 +22,7 @@ import { defineIndexContributor, generateAgentsMd, isVerbVisible } from '@vobase
 
 import { buildWakeAgentsMdScratch } from '~/wake/agents-md-scratch'
 import type { WakeMaterializerFactory } from '~/wake/context'
+import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
 import { getCliRegistry } from './service/cli-registry'
 
 /**
@@ -34,6 +35,18 @@ export const HELPDESK_AGENTS_MD_HEADER = `You operate inside a virtual workspace
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
 const AGENTS_MD_FILE = 'AGENTS.md'
+
+/**
+ * Capture-trigger keyword list — phrases the agent should treat as durable
+ * mid-wake self-lessons worth echoing into `/agents/<your-id>/MEMORY.md`.
+ * Exported so structural tests can assert each keyword reaches the rendered
+ * `agents.memory-capture-triggers` contributor body word-bounded.
+ *
+ * Three-scope memory model: this list governs the AGENT scope only. Contact
+ * facts and per-`(agent, staff)` preferences route to their own scopes — see
+ * the `agents.memory-conventions` contributor for the full table.
+ */
+export const MEMORY_CAPTURE_TRIGGERS = ['always', 'never', 'from now on', 'remember that', 'next time'] as const
 
 /**
  * AGENTS.md RO-error hint for `/agents/<id>/AGENTS.md` itself. The
@@ -58,11 +71,68 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Self-state',
         '',
-        '- `/agents/<id>/MEMORY.md` — your working memory. Latest contents are inlined in the `## Active lessons` section above; treat that as canonical for this wake. Persist new lessons by appending to this path.',
+        '- `/agents/<id>/MEMORY.md` — your working memory. Latest contents are inlined in the `## Active lessons` section above; treat that as canonical for this wake.',
         '- `/agents/<id>/skills/*.md` — how-to playbooks. Metadata is in the `## Skills` section; `cat` the file for the full body. Add new skills via the learning-flow observer, not direct writes.',
         '- `/tmp/` — scratch space (writable; cleared between wakes). Use for intermediate files, tool pipelines, debugging output.',
         '',
-        '**Update your own memory:** `echo "- new lesson" >> /agents/<your-id>/MEMORY.md`, or `cat >> /agents/<your-id>/MEMORY.md <<EOF\\n\\n## $(date +%Y-%m-%d)\\n- <lesson>\\nEOF` for a dated section.',
+        'See the `## When to capture` and `## Memory scopes` sections below for capture rules and the three-scope routing table.',
+      ].join('\n'),
+  }),
+  defineIndexContributor({
+    file: AGENTS_MD_FILE,
+    priority: 25,
+    name: 'agents.memory-capture-triggers',
+    render: () =>
+      [
+        '## When to capture',
+        '',
+        'Staff signals (`internal_note_added`, supervisor coaching, etc.) are captured automatically by the self-learn loop — they appear in your MEMORY.md as `## Staff signal —` sections without you needing to do anything. Do NOT echo them with `echo >>`; you would just double-write the same coaching.',
+        '',
+        'Your capture job is for the cases the auto-loop does not cover:',
+        '',
+        `1. **Customer-volunteered facts** (company, role, deadline, use case) → \`/contacts/<id>/MEMORY.md\` BEFORE replying. The auto-loop runs at \`agent_end\`; if you are capturing in turn-1 and replying in turn-2, the fact is at risk if the wake aborts.`,
+        '2. **Mid-wake self-lessons** — durable rules you derive in-turn. Phrases that mark a durable rule include: ' +
+          MEMORY_CAPTURE_TRIGGERS.map((kw) => `\`${kw}\``).join(', ') +
+          `. Append these to \`/agents/<your-id>/MEMORY.md\`. The distill observer writes \`## Recent Interaction\` summary blocks post-\`agent_end\`, but those are summaries, not durable rules.`,
+        '3. **Per-`(agent, staff)` working preferences** ("Maria handles refunds via card, not bank") → `/staff/<staffId>/MEMORY.md`. No auto-writer covers this scope.',
+      ].join('\n'),
+  }),
+  defineIndexContributor({
+    file: AGENTS_MD_FILE,
+    priority: 26,
+    name: 'agents.memory-conventions',
+    render: () =>
+      [
+        '## Memory scopes',
+        '',
+        'Three scopes, three files. Pick by the question "whose knowledge is this?".',
+        '',
+        '| Scope | Path | When to write | Convention |',
+        '| --- | --- | --- | --- |',
+        '| agent | `/agents/<your-id>/MEMORY.md` | self-knowledge — "always do X", "from now on Y" | append dated `## YYYY-MM-DD` section, ≤12 lines |',
+        '| contact | `/contacts/<id>/MEMORY.md` + `propose_contact_attribute` (when available) | per-customer fact mentioned by name | append bullet AND propose attribute update; high confidence auto-applies, low confidence pends for staff review |',
+        // Three-scope symmetric coverage. Staff guidance lives here (not in
+        // team.staff-roster) because team-roster is the file index, not the
+        // mutation playbook. See Architect F2.
+        '| staff | `/staff/<staffId>/MEMORY.md` | per-`(agent, staff)` fact ("Maria handles refunds via card") | append bullet under `## About <name>`, ≤12 lines |',
+        '',
+        '**Mutation patterns** (all three scopes):',
+        '- Append a bullet: `echo "- <fact>" >> <path>`.',
+        '- Append a dated heredoc:',
+        '  ```',
+        '  cat >> <path> <<EOF',
+        '',
+        '  ## 2026-05-05',
+        '  - <fact>',
+        '  EOF',
+        '  ```',
+        '- Delete a stale section: `sed -i "/<old marker>/,/<old end>/d" <path>`.',
+        '',
+        '**Pruning:** drop bullets older than 30 days OR superseded by newer guidance; keep ≤12 lines per `##` section. Applies symmetrically to all three scopes.',
+        '',
+        '**Soft cap:** the `<!-- memory-budget ... cap=8000 over=true|false -->` header at the top of each MEMORY.md is a visibility hint — when `over=true`, prune before the next wake. Writes are not rejected.',
+        '',
+        '_See the follow-up `memory-contact-attribute-confidence` plan for the `propose_contact_attribute` tool wiring._',
       ].join('\n'),
   }),
 ]
@@ -104,7 +174,17 @@ export const agentsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
     {
       path: `/agents/${agentId}/MEMORY.md`,
       phase: 'frozen',
-      materialize: () => agentDefinition.workingMemory || EMPTY_MEMORY_MD,
+      materialize: () => {
+        const stored = stripBudgetHeader(agentDefinition.workingMemory ?? '')
+        const body = stored.length > 0 ? stored : EMPTY_MEMORY_MD
+        const header = renderMemoryWithBudget({
+          scope: 'agent',
+          id: agentId,
+          body,
+          softCapChars: DEFAULT_MEMORY_SOFT_CAP_CHARS,
+        })
+        return `${header}${body}`
+      },
     },
   ]
 }

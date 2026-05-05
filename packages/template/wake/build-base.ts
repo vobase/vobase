@@ -39,6 +39,30 @@ import type { TriggerSpec } from './trigger'
  */
 export const IDLE_RESUMPTION_THRESHOLD_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Hard cap on staff IDs surfaced in the per-wake memory budget header. Org
+ * may have many more staff (workspace materializes them all); this only
+ * bounds budget-header visibility to keep the side-load token cost bounded.
+ */
+export const STAFF_BUDGET_HEADER_CAP = 5
+
+/**
+ * Cap `staffIds` for the per-wake memory budget header. Returns the input
+ * unchanged when at-or-below the cap; otherwise returns the first
+ * `STAFF_BUDGET_HEADER_CAP` ids and emits a structured warn so operators can
+ * spot orgs that routinely overflow. Staff outside the cap still get
+ * workspace materialization (writable `/staff/<id>/MEMORY.md`); they just
+ * don't appear in the budget-header surface.
+ */
+export function capStaffIdsForBudgetHeader(allStaffIds: readonly string[], logger: HarnessLogger): readonly string[] {
+  if (allStaffIds.length <= STAFF_BUDGET_HEADER_CAP) return allStaffIds
+  logger.warn(
+    { event: 'memory_budget_staff_capped', total: allStaffIds.length, cap: STAFF_BUDGET_HEADER_CAP },
+    'staff count exceeds memory budget header cap; only first N surfaced in budget',
+  )
+  return allStaffIds.slice(0, STAFF_BUDGET_HEADER_CAP)
+}
+
 /** Common per-wake handles passed into both flavours. */
 export interface BaseWakeDeps {
   db: ScopedDb

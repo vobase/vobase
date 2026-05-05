@@ -15,9 +15,13 @@
 
 import { detectStaffSignals } from '@modules/agents/service/staff-signals'
 import { insertProposal } from '@modules/changes/service/proposals'
+import { listNotes } from '@modules/messaging/service/notes'
 import type { ChangePayload, HarnessLogger } from '@vobase/core'
 
 import type { AgentEvent } from '../events'
+
+/** Cap on the inline note body surfaced in the rendered staff-signal block. */
+const NOTE_PREVIEW_MAX_CHARS = 800
 
 export interface LearningProposalObserverOpts {
   organizationId: string
@@ -57,9 +61,28 @@ export function createLearningProposalObserver(
       // a teachable moment for working memory; skip.
       if (signal.kind === 'reassignment_note') continue
 
+      // Resolve the note body for `supervisor` and `internal_note` signals — the
+      // wake event itself only carries `noteId`, so without this lookup the
+      // rendered block would show a useless `Note: —` stub. We bound the preview
+      // at NOTE_PREVIEW_MAX_CHARS so working_memory growth stays predictable.
+      let notePreview = signal.notePreview
+      if (
+        notePreview === undefined &&
+        conversationId &&
+        (signal.kind === 'supervisor' || signal.kind === 'internal_note')
+      ) {
+        try {
+          const notes = await listNotes(conversationId)
+          const found = notes.find((n) => n.id === signal.ref)
+          if (found) notePreview = found.body.slice(0, NOTE_PREVIEW_MAX_CHARS)
+        } catch (err) {
+          logger.warn({ err, kind: signal.kind, ref: signal.ref }, 'learning-proposals: note lookup failed')
+        }
+      }
+
       // Blank-but-present notePreview produces useless `Note: —` stubs; an undefined
       // notePreview is fine — the agent reads the body via `cat` at runtime.
-      if (signal.notePreview !== undefined && signal.notePreview.trim() === '') {
+      if (notePreview !== undefined && notePreview.trim() === '') {
         logger.info({ agentId, kind: signal.kind, ref: signal.ref }, 'learning-proposals: empty note — skipped')
         continue
       }
@@ -69,7 +92,7 @@ export function createLearningProposalObserver(
         `## Staff signal — ${signal.kind} @ ${signal.ts}`,
         `- Author: ${signal.actorUserId ?? 'unknown'}`,
         `- Ref: ${signal.ref}`,
-        `- Note: ${signal.notePreview ?? '—'}`,
+        `- Note: ${notePreview ?? '—'}`,
       ].join('\n')
 
       const payload: ChangePayload = {

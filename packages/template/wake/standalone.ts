@@ -27,6 +27,7 @@ import {
   buildIndexFileMaterializer,
   buildJournalAdapter,
   buildSseListener,
+  capStaffIdsForBudgetHeader,
   composeHooks,
   resolveStaffIdsForOrg,
 } from './build-base'
@@ -91,6 +92,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
 
   const drive = filesServiceFor(data.organizationId)
   const staffIds = await resolveStaffIdsForOrg(data.organizationId)
+  const budgetHeaderStaffIds = capStaffIdsForBudgetHeader(staffIds, deps.logger)
   const authLookup = buildAuthLookup(deps.db)
 
   const roConfig = buildStandaloneReadOnlyConfig({ agentId, staffIds, roHints: contributions.roHints })
@@ -110,6 +112,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     conversationId,
     drive,
     staffIds,
+    budgetHeaderStaffIds,
     authLookup,
     agentDefinition,
     tools: laneTools,

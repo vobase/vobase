@@ -247,6 +247,84 @@ describe('buildFrozenPrompt regions', () => {
   })
 })
 
+describe('buildFrozenPrompt memory-bearing systemHash stability', () => {
+  // Independent FS per call — fresh InMemoryFs + Bash + identical pre-population.
+  // Verifies the determinism guard end-to-end through the real buildFrozenPrompt
+  // pipeline (Step 8 of memory-hygiene-revised.md).
+  async function runWithMemoryFixtures(): Promise<{ system: string; systemHash: string }> {
+    const fs = new InMemoryFs()
+    const bash = new Bash({ fs })
+    const agentBudget = '<!-- memory-budget scope=agent id=a_test chars=42 (utf16) cap=8000 over=false -->\n'
+    const contactBudget = '<!-- memory-budget scope=contact id=c_test chars=20 (utf16) cap=8000 over=false -->\n'
+    const staffBudget = '<!-- memory-budget scope=staff id=u_a chars=15 (utf16) cap=8000 over=false -->\n'
+    const agentsMd = [
+      '## AGENTS.md',
+      '',
+      'Reference echoes of materializer outputs so the test can verify all three',
+      'scope-budget headers reach the rendered system prompt:',
+      '',
+      contactBudget.trimEnd(),
+      staffBudget.trimEnd(),
+    ].join('\n')
+    const agentMemoryBody = `${agentBudget}# Memory\n\n- always lead with price\n`
+    await bash.fs.mkdir('/agents/a_test', { recursive: true })
+    await bash.fs.writeFile('/agents/a_test/AGENTS.md', agentsMd)
+    await bash.fs.writeFile('/agents/a_test/MEMORY.md', agentMemoryBody)
+    const agentDefinition = {
+      id: 'a_test',
+      organizationId: 'org_test',
+      name: 'Test Agent',
+      slug: 'test-agent',
+      model: 'gpt-4o',
+      instructions: 'Be helpful.',
+      workingMemory: '',
+      scorerConfig: {},
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date('2026-01-01T00:00:00Z'),
+    } as never
+    const { system, systemHash } = await buildFrozenPrompt({
+      bash,
+      agentDefinition,
+      organizationId: 'org_test',
+      contactId: 'c_test',
+      channelInstanceId: 'ci_test',
+      sessionContext: {
+        channelKind: 'whatsapp',
+        channelLabel: 'Support WA',
+        contactDisplayName: 'Alice',
+        contactIdentifier: '+6598765432',
+        staffAssigneeDisplayName: null,
+        conversationStatus: 'active',
+        customerSince: new Date('2025-11-03T00:00:00Z'),
+      },
+      platformHint: resolvePlatformHint('whatsapp'),
+    })
+    return { system, systemHash }
+  }
+
+  it('systemHash is stable across two cold buildFrozenPrompt calls when memory bodies are materialized for all three scopes', async () => {
+    const a = await runWithMemoryFixtures()
+    const b = await runWithMemoryFixtures()
+    expect(a.systemHash).toBe(b.systemHash)
+  })
+
+  it('all three scope-budget headers reach the rendered system prompt', async () => {
+    const { system } = await runWithMemoryFixtures()
+    expect(system).toContain('<!-- memory-budget scope=agent')
+    expect(system).toContain('<!-- memory-budget scope=contact')
+    expect(system).toContain('<!-- memory-budget scope=staff')
+  })
+
+  it('agent scope-budget header precedes the AGENTS.md region (memory-md region renders first)', async () => {
+    const { system } = await runWithMemoryFixtures()
+    const agentIdx = system.indexOf('<!-- memory-budget scope=agent')
+    const agentsMdIdx = system.indexOf('## AGENTS.md')
+    expect(agentIdx).toBeGreaterThanOrEqual(0)
+    expect(agentsMdIdx).toBeGreaterThanOrEqual(0)
+    expect(agentIdx).toBeLessThan(agentsMdIdx)
+  })
+})
+
 describe('resolvePlatformHint', () => {
   it('returns undefined for unknown / null kinds', () => {
     expect(resolvePlatformHint(null)).toBeUndefined()

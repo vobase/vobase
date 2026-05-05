@@ -16,6 +16,11 @@ mock.module('@modules/changes/service/proposals', () => ({
   },
 }))
 
+const listNotesReturn: Array<{ id: string; body: string }> = []
+mock.module('@modules/messaging/service/notes', () => ({
+  listNotes: () => Promise.resolve(listNotesReturn.slice()),
+}))
+
 import { createLearningProposalObserver } from './learning-proposals'
 
 interface FakeLogger {
@@ -46,10 +51,12 @@ function baseFields() {
 
 beforeEach(() => {
   insertCalls.length = 0
+  listNotesReturn.length = 0
 })
 
 afterEach(() => {
   insertCalls.length = 0
+  listNotesReturn.length = 0
 })
 
 describe('createLearningProposalObserver', () => {
@@ -264,5 +271,112 @@ describe('createLearningProposalObserver', () => {
     for (const ev of events) await observer(ev)
 
     expect(insertCalls).toHaveLength(0)
+  })
+
+  it('renders supervisor staff-signal block with the looked-up note body (no `Note: —` stub)', async () => {
+    listNotesReturn.push({
+      id: 'note-7',
+      body: 'Always attach the SOC2 doc when GK Corp asks about Enterprise pricing.',
+    })
+
+    const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
+    const observer = createLearningProposalObserver({
+      organizationId: 'org-1',
+      agentId: 'agt-1',
+      conversationId: 'conv-1',
+      logger,
+    })
+
+    const events: AgentEvent[] = [
+      {
+        type: 'agent_start',
+        ...baseFields(),
+        agentId: 'agt-1',
+        trigger: 'supervisor',
+        triggerPayload: {
+          trigger: 'supervisor',
+          conversationId: 'conv-1',
+          noteId: 'note-7',
+          authorUserId: 'user-staff-1',
+        },
+        systemHash: 'h',
+      },
+      { type: 'agent_end', ...baseFields(), reason: 'complete' },
+    ]
+    for (const ev of events) await observer(ev)
+
+    expect(insertCalls).toHaveLength(1)
+    const body = (insertCalls[0]?.payload as { body: string }).body
+    expect(body).toContain('Note: Always attach the SOC2 doc when GK Corp asks about Enterprise pricing.')
+    expect(body).not.toMatch(/Note: —\s*$/)
+  })
+
+  it('caps looked-up note body at NOTE_PREVIEW_MAX_CHARS to bound working_memory growth', async () => {
+    const longBody = 'x'.repeat(5000)
+    listNotesReturn.push({ id: 'note-long', body: longBody })
+
+    const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
+    const observer = createLearningProposalObserver({
+      organizationId: 'org-1',
+      agentId: 'agt-1',
+      conversationId: 'conv-1',
+      logger,
+    })
+
+    const events: AgentEvent[] = [
+      {
+        type: 'agent_start',
+        ...baseFields(),
+        agentId: 'agt-1',
+        trigger: 'supervisor',
+        triggerPayload: {
+          trigger: 'supervisor',
+          conversationId: 'conv-1',
+          noteId: 'note-long',
+          authorUserId: 'user-staff-1',
+        },
+        systemHash: 'h',
+      },
+      { type: 'agent_end', ...baseFields(), reason: 'complete' },
+    ]
+    for (const ev of events) await observer(ev)
+
+    const body = (insertCalls[0]?.payload as { body: string }).body
+    const m = body.match(/Note: (x+)/)
+    expect(m).toBeTruthy()
+    expect(m?.[1].length).toBe(800)
+  })
+
+  it('falls back to `Note: —` when the looked-up note id is missing (degraded but not crashing)', async () => {
+    listNotesReturn.push({ id: 'OTHER', body: 'unrelated' })
+
+    const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
+    const observer = createLearningProposalObserver({
+      organizationId: 'org-1',
+      agentId: 'agt-1',
+      conversationId: 'conv-1',
+      logger,
+    })
+
+    const events: AgentEvent[] = [
+      {
+        type: 'agent_start',
+        ...baseFields(),
+        agentId: 'agt-1',
+        trigger: 'supervisor',
+        triggerPayload: {
+          trigger: 'supervisor',
+          conversationId: 'conv-1',
+          noteId: 'note-missing',
+          authorUserId: 'user-staff-1',
+        },
+        systemHash: 'h',
+      },
+      { type: 'agent_end', ...baseFields(), reason: 'complete' },
+    ]
+    for (const ev of events) await observer(ev)
+
+    const body = (insertCalls[0]?.payload as { body: string }).body
+    expect(body).toMatch(/Note: —\s*$/)
   })
 })

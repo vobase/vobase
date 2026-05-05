@@ -25,6 +25,7 @@ import type { IndexContributor, RoHintFn, WorkspaceMaterializer } from '@vobase/
 import { defineIndexContributor } from '@vobase/core'
 
 import type { WakeMaterializerFactory } from '~/wake/context'
+import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
 
 export type { StaffProfileLookup }
 
@@ -87,7 +88,8 @@ export async function renderStaffMemory(key: {
   agentId: string
   staffId: string
 }): Promise<string> {
-  const content = await readStaffMemory(key)
+  const raw = await readStaffMemory(key)
+  const content = stripBudgetHeader(raw)
   if (content.trim().length > 0) return content
   return '---\n---\n\n# Memory\n\n_empty_\n'
 }
@@ -96,19 +98,41 @@ export async function renderStaffMemory(key: {
  * Team materializer factory — emits `/staff/<id>/profile.md` (RO identity)
  * and `/staff/<id>/MEMORY.md` (per-(agent, staff) memory) for every staff
  * id resolved by the wake builder.
+ *
+ * The MEMORY.md output is body-materialized for every `ctx.staffIds` entry
+ * (full workspace surface, unchanged). Budget headers are prepended ONLY for
+ * the subset in `ctx.budgetHeaderStaffIds` (capped upstream in
+ * `wake/build-base.ts::capStaffIdsForBudgetHeader`) so per-wake header cost
+ * stays bounded as the staff roster grows.
  */
 export const teamMaterializerFactory: WakeMaterializerFactory = (ctx) => {
   const mats: WorkspaceMaterializer[] = []
+  const budgetSet = new Set(ctx.budgetHeaderStaffIds)
   for (const staffId of ctx.staffIds) {
     mats.push({
       path: `/staff/${staffId}/profile.md`,
       phase: 'frozen',
       materialize: () => renderStaffProfile(staffId, ctx.authLookup),
     })
+    const includeBudgetHeader = budgetSet.has(staffId)
     mats.push({
       path: `/staff/${staffId}/MEMORY.md`,
       phase: 'frozen',
-      materialize: () => renderStaffMemory({ organizationId: ctx.organizationId, agentId: ctx.agentId, staffId }),
+      materialize: async () => {
+        const body = await renderStaffMemory({
+          organizationId: ctx.organizationId,
+          agentId: ctx.agentId,
+          staffId,
+        })
+        if (!includeBudgetHeader) return body
+        const header = renderMemoryWithBudget({
+          scope: 'staff',
+          id: staffId,
+          body,
+          softCapChars: DEFAULT_MEMORY_SOFT_CAP_CHARS,
+        })
+        return `${header}${body}`
+      },
     })
   }
   return mats

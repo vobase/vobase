@@ -13,6 +13,7 @@ import type { Contact } from '@modules/contacts/schema'
 import { type AgentTool, defineIndexContributor, type IndexContributor, type RoHintFn } from '@vobase/core'
 
 import type { WakeMaterializerFactory } from '~/wake/context'
+import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
 import { get as getContact, readMemory as readContactMemory } from './service/contacts'
 import type { ContactsIndexReader, ContactsReader } from './service/types'
 import { proposeOutreachTool } from './tools/propose-outreach'
@@ -63,7 +64,8 @@ export async function renderContactProfile(port: ContactsReader, contactId: stri
 
 export async function renderContactMemory(port: ContactsReader, contactId: string): Promise<string> {
   try {
-    const body = await port.readMemory(contactId)
+    const raw = await port.readMemory(contactId)
+    const body = stripBudgetHeader(raw ?? '')
     return body && body.trim().length > 0 ? body : EMPTY_MEMORY_MD
   } catch {
     return EMPTY_MEMORY_MD
@@ -82,7 +84,16 @@ export const contactsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
     {
       path: `/contacts/${contactId}/MEMORY.md`,
       phase: 'frozen',
-      materialize: () => renderContactMemory(contactsReader, contactId),
+      materialize: async () => {
+        const body = await renderContactMemory(contactsReader, contactId)
+        const header = renderMemoryWithBudget({
+          scope: 'contact',
+          id: contactId,
+          body,
+          softCapChars: DEFAULT_MEMORY_SOFT_CAP_CHARS,
+        })
+        return `${header}${body}`
+      },
     },
   ]
 }

@@ -22,6 +22,14 @@ export interface WakeContext {
   conversationId: string
   drive: FilesService
   staffIds: readonly string[]
+  /**
+   * Capped subset of `staffIds` surfaced in the per-wake memory-budget header.
+   * Body materialization for `/staff/<id>/MEMORY.md` and `profile.md` still
+   * iterates the full `staffIds`; this slice only bounds the budget-header
+   * loop in `teamMaterializerFactory` so side-load tokens stay bounded for
+   * orgs with many staff. Length ≤ `STAFF_BUDGET_HEADER_CAP`.
+   */
+  budgetHeaderStaffIds: readonly string[]
   authLookup: AuthLookup
   agentDefinition: AgentDefinition
   /** Lane-filtered tool catalogue available to this wake. */

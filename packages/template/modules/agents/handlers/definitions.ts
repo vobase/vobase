@@ -121,6 +121,7 @@ function renderPreviewAgentsMd(input: {
     conversationId: input.lane === 'conversation' ? 'preview-conversation' : `preview-${input.triggerKind}`,
     drive: {} as FilesService,
     staffIds: [],
+    budgetHeaderStaffIds: [],
     authLookup: { getAuthDisplay: async () => null } as AuthLookup,
     agentDefinition: input.agentDefinition,
     tools: previewTools,

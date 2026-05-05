@@ -29,6 +29,7 @@ import type { IFileSystem } from 'just-bash'
 
 import type { RealtimeService } from '~/runtime'
 import type { AgentEvent } from '../events'
+import { stripBudgetHeader } from '../memory-budget'
 
 export interface WorkspaceSyncOpts {
   fs: IFileSystem
@@ -60,7 +61,10 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
       const dirty = diff.added.length > 0 || diff.changed.length > 0
       if (!dirty) continue
       try {
-        const content = await fs.readFile(`/staff/${staffId}/MEMORY.md`)
+        const raw = await fs.readFile(`/staff/${staffId}/MEMORY.md`)
+        // Strip the materializer's render-time budget header so storage stays
+        // presentation-clean. The header is re-stamped on the next render.
+        const content = stripBudgetHeader(raw)
         await upsertStaffMemory({ organizationId, agentId, staffId }, content)
       } catch (err) {
         logger.warn({ err, staffId }, 'workspace-sync: failed to flush staff MEMORY.md')
@@ -72,7 +76,8 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
     if (agentMemoryDirty) {
       const agentMemoryPath = `/agents/${agentId}/MEMORY.md`
       try {
-        const content = await fs.readFile(agentMemoryPath)
+        const raw = await fs.readFile(agentMemoryPath)
+        const content = stripBudgetHeader(raw)
         await drive.writePath({ scope: 'agent', agentId }, '/MEMORY.md', content)
         logger.info({ agentId, bytes: content.length }, 'workspace-sync: persisted agent MEMORY.md')
         try {
@@ -93,7 +98,8 @@ export function createWorkspaceSyncListener(opts: WorkspaceSyncOpts): (event: Ag
 
     if (contactMemoryDirty) {
       try {
-        const content = await fs.readFile(contactMemoryPath)
+        const raw = await fs.readFile(contactMemoryPath)
+        const content = stripBudgetHeader(raw)
         await drive.writePath({ scope: 'contact', contactId }, '/MEMORY.md', content)
         logger.info({ contactId, bytes: content.length }, 'workspace-sync: persisted contact MEMORY.md')
         try {

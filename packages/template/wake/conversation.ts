@@ -32,6 +32,7 @@ import {
   buildIndexFileMaterializer,
   buildJournalAdapter,
   buildSseListener,
+  capStaffIdsForBudgetHeader,
   composeHooks,
   IDLE_RESUMPTION_THRESHOLD_MS,
   resolveStaffIdsForOrg,
@@ -90,6 +91,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
 
   const drive = filesServiceFor(data.organizationId)
   const staffIds = await resolveStaffIdsForOrg(data.organizationId)
+  const budgetHeaderStaffIds = capStaffIdsForBudgetHeader(staffIds, deps.logger)
   const authLookup = buildAuthLookup(deps.db)
 
   const roConfig = buildDefaultReadOnlyConfig({
@@ -162,6 +164,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     conversationId,
     drive,
     staffIds,
+    budgetHeaderStaffIds,
     authLookup,
     agentDefinition,
     tools: laneTools,

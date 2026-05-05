@@ -292,6 +292,7 @@ async function buildWorkspace(files: DriveFile[] = []) {
     conversationId: CONV_ID,
     drive,
     staffIds: [],
+    budgetHeaderStaffIds: [],
     authLookup: { getAuthDisplay: async () => null } as AuthLookup,
     agentDefinition: AGENT_DEFINITION,
     tools: [],
