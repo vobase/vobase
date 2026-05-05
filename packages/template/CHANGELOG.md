@@ -1,5 +1,126 @@
 # @vobase/template
 
+## 3.5.0
+
+### Minor Changes
+
+- [`927b0ea`](https://github.com/vobase/vobase/commit/927b0eaf87d705554f78b1956e77e204f10972fe) Thanks [@mdluo](https://github.com/mdluo)! - # Fix: managed-mode WhatsApp end-to-end wire delivery
+
+  Customer messages reaching the agent via the platform-managed WhatsApp sandbox produced agent replies that landed in the inbox UI but never reached the customer's WhatsApp. Diagnosis surfaced two independent bugs at the egress boundary plus three smaller papercuts around sandbox claim ergonomics.
+
+  ## What changed
+
+  ### Identity vs. external keys (`@modules/contacts`)
+
+  Inbound contact resolution stamped a canonical `${channel}:` prefix onto `contacts.phone` (so `whatsapp:6512345678` instead of `+6512345678`) to keep external keys non-colliding across channels. Outbound dispatch then handed that prefixed value verbatim to `adapter.send({ to })`, and Meta's Graph API silently rejected the malformed recipient — agent reply persisted, wire never fired.
+
+  The fix splits identity from per-channel dedup keys.
+
+  - **New table** `contacts.contact_external_keys (org_id, channel, external_key, contact_id)` with PK on the triple, index on `contact_id`. Inbound dispatch resolves the contact via this table.
+  - **`contacts.phone` and `contacts.email` are now bare canonical identity** (E.164 with leading `+`, lowercased RFC email) — no channel prefix. Outbound reads them directly with no stripping.
+  - **New normalizers** `normalizePhoneE164` (strip non-digits, prepend `+`, length-bound 7–15) and `normalizeEmail` (trim + lowercase) in `modules/contacts/service/identity-normalize.ts`. Light-touch, no `libphonenumber-js` dep — forks that need region-aware validation can compose their own.
+  - **`upsertByExternal` → `upsertByExternalKey`** with shape `{ organizationId, channel, externalKey, phone?, email?, displayName? }`. Lookup chain: existing key row (single `INNER JOIN`) → existing contact by `phone` or `email` for cross-channel merge → fresh contact + key row. Idempotent key insert with re-fetch handles concurrent inbound races.
+  - **Inbound dispatch** reads `adapter.contactIdentifierField` to decide whether `event.from` is a phone (normalize → store as `phone` AND key), email, or opaque session token (key only, no phone/email). Adapter resolution now throws on unknown channel instead of silently treating raw `event.from` as the dedup key.
+
+  `packages/template/modules/contacts/seed.ts` is unchanged — the seed contacts already used bare `+E.164` phones; the prefix scheme was an inbound-only convention.
+
+  ### Tenant signing for managed-mode outbound (deferred to platform fix)
+
+  The tenant-side outbound signing was correct end-to-end. The platform's `verifyTenantSignature` middleware was using tenant-level HMAC for verification while the platform's own forwarded webhooks used per-channel claim secrets — causing every outbound graph proxy call to 401 with `Invalid signature (v2)`. That asymmetry is fixed in `vobase-platform` (separate commit); no further tenant change required.
+
+  ### Sandbox-claim ergonomics
+
+  - `claim-sandbox-dialog.tsx` no longer gates the "Claim sandbox" button on `availability > 0`. The platform's `allocateManagedChannel` is idempotent on `(tenantSlug, environment, channelInstanceId)` and self-heals orphan claims; gating the click would make those self-heal paths unreachable for any tenant whose `/health` reports zero free slots due to a stale claim row.
+  - `handshake.ts::fetchSandboxAvailability` now throws `PlatformHandshakeError('platform_unauthenticated')` when the platform's `/health` strips data fields due to HMAC verification failure, instead of returning `{ sandboxPoolAvailable: 0 }` and masquerading as pool exhaustion. The dialog now shows the actual auth-failure reason.
+  - `channel-row-menu.tsx` web variant now wraps the dropdown trigger in a `flex items-center justify-end` container to match the WhatsApp variant — fixes misaligned menu buttons in the channels table.
+
+  ### Tests
+
+  - New `identity-normalize.test.ts` covers length bounds + null/empty rejection.
+  - `echoes.test.ts` and `webhook-routing.test.ts` register a stub WhatsApp adapter via the registry now that inbound dispatch hard-errors on missing adapter.
+  - `wake/workspace/create.test.ts` and `web/tests/inbound.test.ts` updated for the renamed method.
+
+  ## Migration
+
+  Schema changes mean `bun run db:reset` is required after pulling this. There's no in-place migration — projects forked from the template before this should: pull the new `contacts/schema.ts` + `contacts/service/`, run `db:reset`, and re-pull `channels/service/inbound.ts` + `channels/adapters/web/handlers/inbound.ts` to use the new service shape.
+
+  ## Deferred
+
+  - E.164 region-aware normalization (Brazil 12↔13-digit, etc.) — channel adapters with region quirks should compose their own normalizer over `normalizePhoneE164`.
+  - Cross-channel merge race window — relies on the existing `(orgId, phone)` unique index surfacing as a hard error if two concurrent inbounds race to create the same contact. Closing the window cleanly would need a wrapping transaction with `SELECT ... FOR UPDATE`; out of scope for a scaffold.
+  - Contact form normalizer divergence — `contact-form-dialog.tsx` still trims raw input; aligning with `normalizePhoneE164` would close a future-state where a form-entered phone could mismatch an inbound-resolved phone for the same person.
+
+### Patch Changes
+
+- [#71](https://github.com/vobase/vobase/pull/71) [`27490cf`](https://github.com/vobase/vobase/commit/27490cfa091248033ef194e57efb3aa4a4734eca) Thanks [@TheSoggy](https://github.com/TheSoggy)! - # Drop epoch-stamped skip cache from test-db helper
+
+  `tests/helpers/test-db.ts` cached `bun run db:reset` results via a 5-second `RUN_EPOCH` sentinel — files whose `beforeAll` landed within the same epoch as a successful reset would skip resetting. Sound for deduplicating parallel-worker setup, but unsound for tests that mutate seed rows: any DELETE/UPDATE in one file polluted the seeded DB for every later file inside the same epoch window. Manifested as order-dependent FK violations (`messaging.conversations.contact_id → contacts.contacts(id)`) and an anonymous `(unnamed)` mid-suite `db:push failed` whose 5-second duration matched the epoch bucket.
+
+  Drop the cache. Every test file's `beforeAll` now reseeds unconditionally under the existing flock. No DB-lifecycle issues — `bun run db:reset` works fine even when other test processes hold open `postgres` connections (verified empirically with sequential subprocess invocations).
+
+  **Suite impact**: 0 failures (was 4); 67-71s runtime (was ~8s, but with 4 polluted-state failures). Stable across 3 consecutive runs. If suite latency becomes a concern, the next iteration is in-process `TRUNCATE ... CASCADE` + reseed using the existing module `seed(db)` exports — same correctness, sub-second per file.
+
+  Resolves [#69](https://github.com/vobase/vobase/issues/69).
+
+- [`8cdbb57`](https://github.com/vobase/vobase/commit/8cdbb57daf4dac65391cae6dfea7656f681175c6) Thanks [@mdluo](https://github.com/mdluo)! - # WhatsApp card rendering, agent handoff UX, and supervisor coaching fixes
+
+  Six related fixes uncovered while debugging local-chat conversations on the
+  managed-WhatsApp sandbox.
+
+  **WhatsApp `send_card` now renders all child elements.** Outbound dispatch
+  previously squashed cards to `title + subtitle`, dropping every `fields`,
+  `text`, `link`, `image`, `divider`, and `link-button` child. The new
+  `cardToOutbound` helper walks card children in order and emits a real
+  `metadata.interactive` payload — `type=button` for ≤3 reply buttons,
+  `type=list` for 4–10. Non-WhatsApp channels fall back to plain text. Footer
+  is intentionally not auto-promoted from a trailing text child (the schema has
+  no footer signal and any heuristic misclassifies normal prose).
+
+  **Web inbox card buttons are read-only for staff.** The web `MessageCard`
+  now threads a `readOnly` prop down to `CardActions`; the staff inbox passes
+  it (`message-thread.tsx`), so buttons render disabled and never POST a
+  card-reply. The first reply button's `primary` style maps to `default` on
+  web — leading-button emphasis is a WA/Teams renderer convention that read as
+  a bug in the inbox.
+
+  **Agent → human reassignment requires a customer-facing acknowledgment.**
+  Adds `messages.hasRecentAgentReply(conversationId, withinSeconds)` and gates
+  `conv reassign --to=user:<id>` on it: the verb refuses with
+  `errorCode: 'no_customer_ack'` if the agent hasn't sent a `reply` /
+  `send_card` / `send_file` in the last 60 seconds. Verb description and
+  `prompt` rewritten as a 3-step handoff playbook so the agent is told
+  explicitly to acknowledge BEFORE flipping the assignee.
+
+  **Managed-WhatsApp adapter no longer races vault load.** The previous
+  `void loadRotation(...).catch(swallow)` warm-load could resolve after the
+  first outbound, throwing "vault not yet loaded" on the wire. The factory
+  now awaits the initial rotation load; `loadRotation` deduplicates concurrent
+  calls so subsequent adapter constructions for the same org pay an in-memory
+  hit. `ChannelAdapterFactory` now accepts `Promise<ChannelAdapter>`;
+  `registry.get()` is async; every caller (`outbound`, `inbound`,
+  `mention-notify`) awaits.
+
+  **Supervisor coaching wakes get a clearer playbook.** `wake/trigger.ts`
+  leads with `cat <conv>/internal-notes.md` so the model can't treat reading
+  the staff note as optional, then directs the agent to capture a durable
+  lesson in MEMORY.md. `wake/prompt.ts` reorders the system prompt so
+  `MEMORY.md` (renamed to "## Active lessons — apply these rules on every
+  reply") sits before AGENTS.md — durable rules ahead of static guidance.
+  `learning-proposals.ts` skips signals whose `notePreview` is present-but-blank
+  to avoid `Note: —` stubs.
+
+  **`agents.agent_threads*` renamed to `operator_threads*`** to disambiguate
+  from `harness.threads` (the conversation lane). Schema, seeds, services,
+  handlers, the standalone wake builder, and the operator-chat component all
+  updated atomically. No data migration — template scaffolding only.
+
+  Includes test coverage: `outbound-card.test.ts` (13 cases for WA interactive
+  shapes, fixture, fields/link-button, truncation, no-footer assertions);
+  `conv-reassign.test.ts` (4 cases covering happy path, block, staff bypass,
+  agent-target bypass); `messages.test.ts` extensions for `hasRecentAgentReply`;
+  `learning-proposals.test.ts` for the empty-note skip; thread test updates
+  for the rename.
+
 ## 3.4.0
 
 ### Minor Changes
