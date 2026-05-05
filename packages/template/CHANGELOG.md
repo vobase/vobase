@@ -1,5 +1,130 @@
 # @vobase/template
 
+## 3.4.0
+
+### Minor Changes
+
+- [`e3d4817`](https://github.com/vobase/vobase/commit/e3d48170834b8be36413c7dcd8bee3cc14f0411e) Thanks [@mdluo](https://github.com/mdluo)! - # Changes module: history audit log + self-learn observer
+
+  The changes module previously only surfaced **pending** proposals. Once a staff reviewer approved or rejected one, the row simply vanished — no audit log, no "applied to /policies/refunds.md" feedback, no way to answer "who decided this and when?". And the self-learn loop was incomplete: `detectStaffSignals` was implemented and tested but no observer ever invoked it, so a staff `@`-mention or reply triggered a supervisor wake without ever turning into a memory entry the next wake could see.
+
+  ## What changed
+
+  ### `/changes` — Pending | History tabs
+
+  A new `<Tabs>` shell on `/changes` with URL-state via `validateSearch({ tab: z.enum(['pending','history']).optional() })`. The Pending tab keeps the existing FilterChip + ProposalRow grid. History adds:
+
+  - Day-grouped sticky headers (TUE 5 MAY · MON 4 MAY · …)
+  - Status filter chips: All / Approved / Rejected / Auto-applied
+  - Compact `<HistoryRow>` per decision with status badge, proposer + decider principals, headline target, and an expandable Problem / Outcome / Diff / decision-note panel
+  - Live-updates via the existing realtime SSE invalidation; no polling
+
+  ### `GET /api/changes/history`
+
+  New route on the changes module, gated by `requireOrganization`. Query params: `resourceModule?`, `status?` (any `ChangeStatus | 'all'`), `limit?` (1–500, default 100). Backed by `listDecided(organizationId, opts)` on `ChangeProposalsService` — returns proposals where `status IN ('approved','rejected','auto_written','superseded')` ordered by `COALESCE(decided_at, created_at) DESC`, with the same conversation→contactId join as the inbox so rows can render a clickable contact pill.
+
+  ### Approve / reject feedback
+
+  `<ProposalRow>` now fires a sonner toast on success: **"Change applied · `<resource>` updated · View in history"** for approve, **"Change rejected · Logged to history · View in history"** for reject. The action button navigates to `/changes?tab=history`. Approve/reject buttons disable when no authenticated user is present so the audit trail can never contain a fabricated principal — the previously-shipped `'staff:current'` literal fallback is gone.
+
+  ### Self-learn loop closed
+
+  New `wake/observers/learning-proposals.ts` wired into both `wake/conversation.ts` and `wake/standalone.ts`. At `agent_end` it runs `detectStaffSignals` on the per-wake event buffer and, for each non-trivial signal (supervisor / approval-rejected / internal-note from a staff author — `reassignment_note` is intentionally skipped because the agent never saw it), files an `auto_written` proposal on `agents:agent_memory` with a structured markdown-append body capturing author + ref + note preview. Because `agent_memory` is registered with `requiresApproval: false`, the proposal materializes immediately and lands in History as audit — no staff click required, but every learning is reviewable after the fact.
+
+  The observer only buffers `agent_start` / `internal_note_added` / `agent_end` events (not `message_update` / `llm_call` / `tool_*` — hundreds per turn) and cleans its buffer on `agent_aborted` to prevent leaks on aborted wakes. Duplicate-pending conflicts are swallowed; everything else surfaces via `logger.error`.
+
+  ### Service correctness
+
+  `insertProposal`'s duplicate-pending check is now scoped to pending-status inserts only. Auto-writes (`requiresApproval: false`) used to fail when an unrelated `pending` row existed on the same target — they now insert cleanly because the partial unique index only covers pending rows anyway.
+
+  ### Smaller cleanups
+
+  - Centralized `CHANGE_STATUS_VALUES` const-tuple in `modules/changes/schema.ts` so handlers + hooks share one source of truth instead of inlining the union
+  - `or(...statuses.map(eq))` → `inArray(status, …)` in `listDecided`
+  - Extracted `<HeadlineTarget>` and `<ProsePanel>` into `src/components/changes/` — they were previously byte-identical between proposal-row and history-row
+  - `useChangeHistory` queryKey uses primitives + `staleTime: 30_000` instead of polling every 30s
+
+  ## Seed updates
+
+  `modules/changes/seed.ts` now seeds five decided proposals (`PROP_APPROVED_SLACK`, `PROP_REJECTED_AGGRESSIVE`, `PROP_AUTO_DEREK`, `PROP_AUTO_AGENT_MEM`, `PROP_REJECTED_PRICEDROP`) so the History tab is non-empty on a fresh `bun run db:reset` and exercises every status variant.
+
+### Patch Changes
+
+- [`7c8fe1d`](https://github.com/vobase/vobase/commit/7c8fe1d06cdf30930e2c9af6b14f3198517c8474) Thanks [@mdluo](https://github.com/mdluo)! - # Fix: outbound dispatch + media + tenant scope
+
+  Agent replies (`reply`, `send_card`, `send_file`) and staff replies were persisted to the inbox but never reached the wire — both owned and managed (platform-proxy) WhatsApp. The web channel masked the bug because its `send()` is a no-op (the realtime push from the row insert delivers to browsers, but no Graph API call is ever made for WhatsApp).
+
+  ## What changed
+
+  ### `sendOutbound` seam wired end-to-end
+
+  A new install-time service (`installOutboundService`, mirroring the `installMessagesService` pattern) is the single seam for outbound delivery. After persisting their message row, `reply.ts`, `send-card.ts`, `send-file.ts`, and `staff-reply.ts` now call `sendOutbound`, which resolves the channel adapter via the registry, enforces the 24h messaging window for windowed channels, and calls `adapter.send()`.
+
+  Adapter resolution is **instance-keyed** — `registryGet(channel, config, instance.id)` — which is what makes managed-mode WhatsApp actually deliver. The managed adapter is constructed bound to the instance's vault rotation so the platform proxy receives correctly-signed requests.
+
+  ### Cross-tenant assertion
+
+  `SendOutboundInput` now requires `organizationId`. Inside `sendOutbound`, every conversation/contact/instance lookup asserts `row.organizationId === input.organizationId` before proceeding. Closes a cross-tenant exfiltration primitive: a wake on `org-A` could previously pass a `conversationId` from `org-B` (e.g. via prompt injection in customer content) and reach `org-B`'s wire signed with `org-B`'s vault keys.
+
+  ### Channel-aware recipient
+
+  The previous `contact.phone ?? contact.email ?? contact.id` fallback could send a nanoid as the wire address. `sendOutbound` now reads `adapter.contactIdentifierField` and throws cleanly if the contact lacks the required handle for that channel — no more silent message-loss for contacts missing a phone number.
+
+  ### Real media support for `send_file`
+
+  `send_file` now resolves the drive row via `filesServiceFor(orgId).get(driveFileId)`, downloads bytes via `getDriveStorage().bucket('drive').download(storageKey)`, maps the mime type to `image | video | audio | document`, and ships a real `OutboundMessage.media[]` payload. The WhatsApp adapter's existing bytes-upload path (`sendMedia` → Graph `/PHONE_ID/media` → upload id) handles the rest.
+
+  A scope check rejects sending another contact's private file: the drive file must be `organization`-scoped, or `contact`-scoped to the conversation's contact, or `agent`-scoped to the current agent. Closes a within-tenant lateral-access path where prompt injection from contact-X could leak contact-Y's private upload from the same org.
+
+  Virtual files (no `storageKey`, e.g. `MEMORY.md` overlays) throw cleanly.
+
+  ### `SendResult` failures surface to the agent
+
+  A new `throwIfFailed(result, toolName)` helper bubbles `success: false` outcomes out of every tool. `code === 'window_expired'` throws with a template-fallback hint (`Messaging window expired — fall back to a pre-approved template`); other failures bubble `code` + `error`. Replaces the silent `await sendOutbound(...)` that swallowed Graph 5xx and window-expired short-circuits.
+
+  ### Declarative per-adapter platform hints
+
+  Each channel adapter now owns its prompt hint alongside `agent.ts`:
+
+  | Adapter                                       | Export                 |
+  | --------------------------------------------- | ---------------------- |
+  | `modules/channels/adapters/web/agent.ts`      | `webPlatformHint`      |
+  | `modules/channels/adapters/whatsapp/agent.ts` | `whatsappPlatformHint` |
+
+  The umbrella `modules/channels/agent.ts` aggregates `platformHints: HarnessPlatformHint[]`, and `wake/platform-hints.ts` is now a thin registry built from that list. Adding a new channel adapter only touches its own folder. Vestigial `email`/`sms`/`voice` entries removed since no adapters back them today — re-add them in their adapter folder when wired.
+
+  ## Tests
+
+  Test stubs for the four sender paths now use counted-spy fakes that assert `sendOutbound` was called with the right `(toolName, organizationId, conversationId)`. A regression test for `window_expired` confirms the failure-path bubbles a tool error mentioning the template fallback. A regression on the wire path can no longer pass.
+
+  ## Migration
+
+  No schema changes. No new dependencies. No new pg-boss jobs. The `installOutboundService` call lands in `modules/channels/module.ts::init` — projects scaffolded from this template before this fix should re-pull the channels module init or call `installOutboundService(createOutboundService())` themselves at boot.
+
+  `ChannelOutboundEventSchema` was removed from `runtime/channel-events.ts` (no remaining consumers); inbound schema and `OUTBOUND_TOOL_NAMES` retained.
+
+  ## Deferred
+
+  The following were intentionally scoped out and remain follow-ups:
+
+  - `send_card` → real WhatsApp interactive payload (buttons / list pickers); currently flattens to plain text.
+  - `messages.status` state machine (`queued → sent → failed`) + delivery retry queue.
+  - E.164 normalization on WhatsApp `to:` at the egress boundary.
+  - Managed-mode env-fallback regression-guard (a config row that loses `mode: 'managed'` currently falls back to env-var creds).
+  - `runThreatScan` is still a `return { ok: true }` stub on the `send_file` path.
+  - `staff_reply` attachments persist on the row but only the text body flows to the wire.
+  - `installOutboundService` cross-test bleed sweep (pre-existing pattern across all `install*` services).
+
+- [#67](https://github.com/vobase/vobase/pull/67) [`fb8f6bd`](https://github.com/vobase/vobase/commit/fb8f6bd3d5a724b124a187b70307cacdf14531c6) Thanks [@TheSoggy](https://github.com/TheSoggy)! - # Fix theme FOUC bootstrap and echoes test setup
+
+  Two unrelated, mechanical fixes from running the unmodified scaffold:
+
+  **`index.html` theme bootstrap reads stale storage key.** The pre-paint FOUC-prevention script in `index.html` reads `localStorage.getItem("template-v2-theme")`, but `theme-provider.tsx` (and its test) write/read `vobase-theme`. This causes the bootstrap script to never find a saved preference and always default to `system`, producing a real flash on hydration for users who'd selected `light` or `dark`. Aligns the bootstrap with the actual storage key.
+
+  **`modules/channels/adapters/whatsapp/echoes.test.ts` missing contacts service install.** The test's `beforeAll` installs `conversations`, `messages`, `sessions`, `reactions`, and `channels` services but never installs `contacts`. Because `dispatchInbound` → `contacts.upsertByExternal` reads the contacts singleton, every test in the file throws `contacts/contacts: service not installed`. Adds the install matching the canonical pattern in `tests/helpers/attachments-fixture.ts`.
+
+  After these fixes: 1 previously failing test goes green (theme FOUC), and the `smb_message_echoes` tests pass cleanly when the file is run in isolation. (The echoes tests still fail in the full-suite run due to a separate cross-test DB-state pollution issue — filing a separate report.)
+
 ## 3.3.0
 
 ### Minor Changes
