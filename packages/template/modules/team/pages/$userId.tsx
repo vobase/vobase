@@ -118,12 +118,12 @@ export function StaffDetailPage() {
     <PageLayout>
       <PageHeader title={staff?.displayName ?? userId} backTo={{ to: '/team', label: 'Team' }} icon={Users} />
 
-      <PageBody className="space-y-6">
+      <PageBody className="lg:flex lg:flex-col lg:overflow-hidden">
         {isLoading && <div className="text-muted-foreground text-sm">Loading…</div>}
         {error && <ErrorBanner>Failed to load staff profile</ErrorBanner>}
         {staff && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
-            <div className="space-y-6">
+          <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden">
+            <div className="space-y-6 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
               <InfoSection
                 title="Profile"
                 actions={
@@ -195,6 +195,7 @@ export function StaffDetailPage() {
               rootLabel={staff.displayName ? `${staff.displayName}'s files` : 'Staff files'}
               initialPath="/PROFILE.md"
               orientation="vertical"
+              className="lg:h-full lg:min-h-0"
             />
           </div>
         )}

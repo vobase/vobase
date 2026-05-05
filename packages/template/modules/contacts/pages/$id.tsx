@@ -110,12 +110,12 @@ export function ContactDetailPage() {
     <PageLayout>
       <PageHeader title={contact?.displayName ?? 'Contact'} backTo={{ to: '/contacts', label: 'Contacts' }} />
 
-      <PageBody className="space-y-6">
+      <PageBody className="lg:flex lg:flex-col lg:overflow-hidden">
         {isLoading && <div className="text-muted-foreground text-sm">Loading…</div>}
         {error && <ErrorBanner>Failed to load contact</ErrorBanner>}
         {contact && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
-            <div className="space-y-6">
+          <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden">
+            <div className="space-y-6 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
               <InfoSection
                 title="Contact"
                 actions={
@@ -207,6 +207,7 @@ export function ContactDetailPage() {
               rootLabel={contact.displayName ? `${contact.displayName}'s files` : 'Contact files'}
               initialPath="/PROFILE.md"
               orientation="vertical"
+              className="lg:h-full lg:min-h-0"
             />
           </div>
         )}

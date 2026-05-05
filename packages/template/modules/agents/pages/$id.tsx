@@ -83,57 +83,59 @@ function AgentDetailPage() {
         }
       />
 
-      <PageBody className="space-y-6">
-        <div className="space-y-3">
-          <InfoCard>
-            <InfoRow label="Name">
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-[280px]" />
-            </InfoRow>
-            <InfoRow label="Model">
-              <Select value={model} onValueChange={setModel}>
-                <SelectTrigger className="max-w-[280px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MODEL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                  {MODEL_OPTIONS.every((o) => o.value !== agent.model) && (
-                    <SelectItem value={agent.model}>{agent.model}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </InfoRow>
-            <InfoRow label="Enabled">
-              <Switch checked={enabled} onCheckedChange={setEnabled} />
-            </InfoRow>
-          </InfoCard>
-          <div className="flex items-center justify-end">
-            <Button
-              size="sm"
-              onClick={() => update.mutate({ name, model, enabled })}
-              disabled={!settingsDirty || update.isPending}
-            >
-              <Save />
-              {update.isPending ? 'Saving…' : 'Save'}
-            </Button>
+      <PageBody className="lg:flex lg:flex-col lg:overflow-hidden">
+        <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:overflow-hidden">
+          <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            <InfoCard>
+              <InfoRow label="Name">
+                <Input value={name} onChange={(e) => setName(e.target.value)} className="max-w-[280px]" />
+              </InfoRow>
+              <InfoRow label="Model">
+                <Select value={model} onValueChange={setModel}>
+                  <SelectTrigger className="max-w-[280px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MODEL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                    {MODEL_OPTIONS.every((o) => o.value !== agent.model) && (
+                      <SelectItem value={agent.model}>{agent.model}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </InfoRow>
+              <InfoRow label="Enabled">
+                <Switch checked={enabled} onCheckedChange={setEnabled} />
+              </InfoRow>
+            </InfoCard>
+            {settingsDirty && (
+              <div className="flex items-center justify-end">
+                <Button size="sm" onClick={() => update.mutate({ name, model, enabled })} disabled={update.isPending}>
+                  <Save />
+                  {update.isPending ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            )}
+            {update.isError && <p className="text-destructive text-xs">Failed to save changes.</p>}
           </div>
-          {update.isError && <p className="text-destructive text-xs">Failed to save changes.</p>}
-        </div>
 
-        <DriveSection
-          scope={{ scope: 'agent', agentId: agent.id }}
-          rootLabel={`${agent.name}'s files`}
-          initialPath="/AGENTS.md"
-          renderPreview={({ path, content }) => {
-            if (path === '/AGENTS.md') {
-              return <AgentsMdEditor agentId={agent.id} agentName={agent.name} initialInstructions={content} />
-            }
-            return null
-          }}
-        />
+          <DriveSection
+            scope={{ scope: 'agent', agentId: agent.id }}
+            rootLabel={`${agent.name}'s files`}
+            initialPath="/AGENTS.md"
+            orientation="vertical"
+            className="lg:h-full lg:min-h-0"
+            renderPreview={({ path, content }) => {
+              if (path === '/AGENTS.md') {
+                return <AgentsMdEditor agentId={agent.id} agentName={agent.name} initialInstructions={content} />
+              }
+              return null
+            }}
+          />
+        </div>
       </PageBody>
     </PageLayout>
   )

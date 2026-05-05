@@ -51,7 +51,7 @@ export function DriveBrowser({ orientation = 'horizontal' }: DriveBrowserProps) 
       <div
         className="grid h-full overflow-hidden"
         style={{
-          gridTemplateRows: showPreview ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
+          gridTemplateRows: showPreview ? 'minmax(0, 1fr) minmax(0, 2fr)' : 'minmax(0, 1fr)',
         }}
       >
         <section className="min-h-0 overflow-hidden border-border border-b">
