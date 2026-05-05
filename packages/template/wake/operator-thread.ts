@@ -11,7 +11,7 @@
  * `data.threadMessage` for the standalone brief side-load.
  */
 
-import { agentThreadMessages, agentThreads } from '@modules/agents/schema'
+import { operatorThreadMessages, operatorThreads } from '@modules/agents/schema'
 import { getById as getAgentDefinition } from '@modules/agents/service/agent-definitions'
 import type { AgentContributions, HarnessLogger } from '@vobase/core'
 import { createHarness } from '@vobase/core'
@@ -50,13 +50,13 @@ export function createOperatorThreadWakeHandler(
 
     const threadRow = await deps.db
       .select({
-        id: agentThreads.id,
-        organizationId: agentThreads.organizationId,
-        agentId: agentThreads.agentId,
-        status: agentThreads.status,
+        id: operatorThreads.id,
+        organizationId: operatorThreads.organizationId,
+        agentId: operatorThreads.agentId,
+        status: operatorThreads.status,
       })
-      .from(agentThreads)
-      .where(eq(agentThreads.id, data.threadId))
+      .from(operatorThreads)
+      .where(eq(operatorThreads.id, data.threadId))
       .limit(1)
       .then((rows) => rows[0])
     if (!threadRow) {
@@ -69,10 +69,10 @@ export function createOperatorThreadWakeHandler(
     }
 
     const latestMsgRow = await deps.db
-      .select({ content: agentThreadMessages.content })
-      .from(agentThreadMessages)
-      .where(eq(agentThreadMessages.threadId, data.threadId))
-      .orderBy(desc(agentThreadMessages.seq))
+      .select({ content: operatorThreadMessages.content })
+      .from(operatorThreadMessages)
+      .where(eq(operatorThreadMessages.threadId, data.threadId))
+      .orderBy(desc(operatorThreadMessages.seq))
       .limit(1)
       .then((rows) => rows[0])
     const threadMessage = latestMsgRow?.content ?? ''

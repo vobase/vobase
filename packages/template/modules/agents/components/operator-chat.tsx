@@ -1,11 +1,11 @@
 /**
- * Operator chat component — staff side of `agent_threads`. Renders the
+ * Operator chat component — staff side of `operator_threads`. Renders the
  * thread's message list (oldest → newest), a composer, and dispatches sends
  * through `agentsClient.threads['{id}'].messages.$post`. Used in two places:
  * the Workspace right rail and the full-page `/agents/threads/$threadId`
  * route.
  *
- * Realtime: invalidates the message-list query on `agent_thread_messages`
+ * Realtime: invalidates the message-list query on `operator_thread_messages`
  * pg_notify; the existing `use-realtime-invalidation` hook handles the
  * mapping from notify-table to query-key.
  */
@@ -49,7 +49,7 @@ export function OperatorChat({ threadId, organizationId, variant = 'full' }: Ope
   const [draft, setDraft] = useState('')
 
   const { data: messages = [], isLoading } = useQuery({
-    queryKey: ['agent_thread_messages', threadId],
+    queryKey: ['operator_thread_messages', threadId],
     queryFn: () => fetchMessages(threadId),
   })
 
@@ -57,7 +57,7 @@ export function OperatorChat({ threadId, organizationId, variant = 'full' }: Ope
     mutationFn: (content: string) => postMessage({ threadId, organizationId, content }),
     onSuccess: () => {
       setDraft('')
-      qc.invalidateQueries({ queryKey: ['agent_thread_messages', threadId] })
+      qc.invalidateQueries({ queryKey: ['operator_thread_messages', threadId] })
     },
   })
 

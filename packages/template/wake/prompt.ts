@@ -218,8 +218,8 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
     },
     { source: 'session-context', text: ['## Session context', '', sessionContextBlock].join('\n') },
     { source: 'platform-hint', text: ['## Platform hints', '', platformHintBlock].join('\n') },
+    { source: 'memory-md', text: ['## Active lessons — apply these rules on every reply', '', memoryMd].join('\n') },
     { source: 'agents-md', text: ['## AGENTS.md', '', agentsMd].join('\n') },
-    { source: 'memory-md', text: ['## MEMORY.md (frozen snapshot at wake start)', '', memoryMd].join('\n') },
     { source: 'business-md', text: ['## BUSINESS.md', '', businessMd].join('\n') },
     {
       source: 'skills-list',

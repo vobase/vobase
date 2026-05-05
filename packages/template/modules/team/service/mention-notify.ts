@@ -93,7 +93,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     if (!channel) return false
     const binding = await findBinding(userId, channel.id)
     if (!binding) return false
-    const adapter = createWhatsAppAdapterFromConfig(channel.config ?? {}, channel.id)
+    const adapter = await createWhatsAppAdapterFromConfig(channel.config ?? {}, channel.id)
     const res = await adapter.send({ to: binding.externalIdentifier, text })
     return res.success
   }

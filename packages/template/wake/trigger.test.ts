@@ -65,10 +65,16 @@ describe('renderSupervisor (assignee branch)', () => {
         currentAgentId: 'agt0mer0v1',
       },
     )
-    expect(text).toContain('coaching/feedback')
     expect(text).toContain('NOT a request to send another customer reply')
     expect(text).toMatch(/MEMORY\.md/)
     expect(text).toMatch(/`add_note`.*`mentions`/)
+    // Read directive must appear before the lesson-capture directive
+    const catIdx = text.indexOf('cat /contacts/')
+    const memoryIdx = text.indexOf('MEMORY.md')
+    expect(catIdx).toBeGreaterThan(-1)
+    expect(catIdx).toBeLessThan(memoryIdx)
+    // Must not contain the old meta-pointer that gave the model an excuse to defer
+    expect(text).not.toContain('Follow your supervisor-coaching playbook from your instructions')
   })
 
   it('keeps the existing peer-wake guard for non-assignee agents', () => {
@@ -129,9 +135,13 @@ describe('renderSupervisor (assignee branch)', () => {
         supervisorKind: 'ask_staff_answer',
       },
     )
-    expect(text).toContain('Staff is answering the question you posted')
     expect(text).toContain('send the customer-facing reply now')
     expect(text).not.toContain('NOT a request to send another customer reply')
+    // Read directive must appear before the customer-facing action directive
+    const catIdx = text.indexOf('cat /contacts/')
+    const replyIdx = text.indexOf('send the customer-facing reply now')
+    expect(catIdx).toBeGreaterThan(-1)
+    expect(catIdx).toBeLessThan(replyIdx)
   })
 
   it('falls back to coaching branch when assignee has no supervisorKind set', () => {

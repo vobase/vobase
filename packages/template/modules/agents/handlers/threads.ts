@@ -8,7 +8,7 @@
  *   POST /api/agents/threads/:id/messages       → append a user message + enqueue operator wake
  *
  * The send path writes via `threads.appendMessage` (the sole write path for
- * `agent_thread_messages`) and then enqueues `OPERATOR_THREAD_TO_WAKE_JOB`
+ * `operator_thread_messages`) and then enqueues `OPERATOR_THREAD_TO_WAKE_JOB`
  * so the operator wake handler picks it up.
  */
 

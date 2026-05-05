@@ -8,7 +8,10 @@
 
 import type { ChannelAdapter, ChannelCapabilities } from '@vobase/core'
 
-export type ChannelAdapterFactory = (config: Record<string, unknown>, instanceId: string) => ChannelAdapter
+export type ChannelAdapterFactory = (
+  config: Record<string, unknown>,
+  instanceId: string,
+) => ChannelAdapter | Promise<ChannelAdapter>
 
 interface Entry {
   factory: ChannelAdapterFactory
@@ -21,8 +24,15 @@ export function register(name: string, factory: ChannelAdapterFactory, capabilit
   registry.set(name, { factory, capabilities })
 }
 
-export function get(name: string, config: Record<string, unknown>, instanceId: string): ChannelAdapter | null {
-  return registry.get(name)?.factory(config, instanceId) ?? null
+// biome-ignore lint/suspicious/useAwait: returns the factory's Promise<ChannelAdapter> | ChannelAdapter via async wrapper
+export async function get(
+  name: string,
+  config: Record<string, unknown>,
+  instanceId: string,
+): Promise<ChannelAdapter | null> {
+  const entry = registry.get(name)
+  if (!entry) return null
+  return entry.factory(config, instanceId)
 }
 
 export function list(): Array<{ name: string; capabilities: ChannelCapabilities }> {

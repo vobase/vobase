@@ -81,7 +81,7 @@ type Inserter = (t: unknown) => InsertOp
 export async function seed(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const agentsSchema = await import('@modules/agents/schema')
-  const { agentDefinitions, agentScores, agentStaffMemory, agentThreadMessages, agentThreads, learnedSkills } =
+  const { agentDefinitions, agentScores, agentStaffMemory, operatorThreadMessages, operatorThreads, learnedSkills } =
     agentsSchema
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { agentSchedules } = await import('@modules/schedules/schema')
@@ -334,7 +334,7 @@ export async function seed(db: unknown): Promise<void> {
   }
 
   // ── 6. Operator threads — Alice + Carol working with MeriGPT ────────
-  await ins(agentThreads)
+  await ins(operatorThreads)
     .values({
       id: 'thd0brfgi1',
       organizationId: MERIDIAN_ORG_ID,
@@ -391,7 +391,7 @@ export async function seed(db: unknown): Promise<void> {
       createdAt: hours(2),
     },
   ]) {
-    await ins(agentThreadMessages)
+    await ins(operatorThreadMessages)
       .values({
         id: msg.id,
         threadId: 'thd0brfgi1',
@@ -404,7 +404,7 @@ export async function seed(db: unknown): Promise<void> {
       .onConflictDoNothing()
   }
 
-  await ins(agentThreads)
+  await ins(operatorThreads)
     .values({
       id: 'thd0refnd1',
       organizationId: MERIDIAN_ORG_ID,
@@ -437,7 +437,7 @@ export async function seed(db: unknown): Promise<void> {
       createdAt: days(3),
     },
   ]) {
-    await ins(agentThreadMessages)
+    await ins(operatorThreadMessages)
       .values({
         id: msg.id,
         threadId: 'thd0refnd1',
@@ -451,7 +451,7 @@ export async function seed(db: unknown): Promise<void> {
   }
 
   // ── 7. Smoke-target thread — empty, dedicated to live-LLM smoke runs.
-  await ins(agentThreads)
+  await ins(operatorThreads)
     .values({
       id: 'thd0smoke01',
       organizationId: MERIDIAN_ORG_ID,

@@ -8,6 +8,7 @@
  * pass `--conversationId=<id>` as input.
  */
 
+import { hasRecentAgentReply } from '@modules/messaging/service/messages'
 import { list as listStaff } from '@modules/team/service/staff'
 import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
@@ -24,11 +25,14 @@ const AssigneeSchema = z
 export const convReassignVerb = defineCliVerb({
   name: 'conv reassign',
   description:
-    'Hand the conversation off to a different assignee. user:<id> escalates to a human; the agent stops replying until reassigned back.',
+    'Hand the conversation off to a different assignee. user:<id> escalates to a human; the agent stops replying until reassigned back. The customer continues to wait on whatever they last asked, so a human-handoff WITHOUT a customer-facing acknowledgment first is a UX bug.',
   usage: 'vobase conv reassign --to=<user:<id>|agent:<id>|unassigned> [--reason="..."] [--conversationId=<id>]',
   audience: 'contact',
-  prompt:
-    'Use for explicit human-handoff requests, legal/compliance, or large refunds. Do NOT invent userIds — run `vobase team list` first to look up real ones.',
+  prompt: `HANDOFF PLAYBOOK — call these tools in this order, never skip step 1:
+  1. send_card or reply  — tell the customer you're handing off, who you're routing to, and roughly what to expect ("Alice handles SOC2 docs, she'll be in touch shortly"). Customer-facing acknowledgment is mandatory.
+  2. add_note            — leave context for the assignee with \`mentions\` populated (the @-mention drives their notification).
+  3. vobase conv reassign --to=user:<id> [--reason="..."] — actually flip the assignee.
+Use the verb for explicit human-handoff requests, legal/compliance, or large refunds. Run \`vobase team list\` first to look up real userIds — never invent them.`,
   input: z.object({
     to: AssigneeSchema,
     reason: z.string().optional(),
@@ -69,6 +73,21 @@ export const convReassignVerb = defineCliVerb({
         }
       }
       assignee = `user:${hit.userId}`
+    }
+
+    // Customer-ack precondition: agent → human handoffs require a customer-facing
+    // reply within this wake. The 60-second window is generous enough to cover any
+    // realistic wake duration without needing to thread wakeId through.
+    if (assignee.startsWith('user:') && ctx.principal.kind === 'agent') {
+      const acked = await hasRecentAgentReply(conversationId, 60)
+      if (!acked) {
+        return {
+          ok: false as const,
+          error:
+            "Refusing to reassign: the customer hasn't been told they're being handed off. Call `reply` or `send_card` FIRST to acknowledge the handoff (mention who you're routing to and what to expect), THEN re-run this verb. See the handoff playbook in the verb prompt.",
+          errorCode: 'no_customer_ack',
+        }
+      }
     }
 
     const actor = ctx.principal.kind === 'agent' ? `agent:${ctx.principal.id}` : `user:${ctx.principal.id}`

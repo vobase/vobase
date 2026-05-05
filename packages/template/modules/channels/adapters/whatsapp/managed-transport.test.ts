@@ -6,11 +6,28 @@
  *   - The payload signed is `${METHOD}${path}` (matches platform contract).
  *   - `verifyInboundManagedWebhook` accepts current key, accepts previous
  *     during grace, rejects downgrade past current.
+ *   - Race condition: outbound dispatch does NOT throw "vault not yet loaded"
+ *     when the warm-load is still inflight at first sign time (factory.ts).
  */
 
-import { describe, expect, test } from 'bun:test'
+// Must appear before the factory import so Bun's module mock is in place when
+// factory.ts first imports @modules/integrations/service/registry.
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { signHmac } from '@vobase/core'
 
+const VAULT_ROTATION = {
+  current: { routineSecret: 'vault-routine', rotationKey: 'vault-rotation', keyVersion: 1 },
+  previous: null,
+}
+
+let vaultReadDelay = 0
+mock.module('@modules/integrations/service/registry', () => ({
+  getVaultFor: (_orgId: string) => ({
+    readSecret: (_key: string) => new Promise((resolve) => setTimeout(() => resolve(VAULT_ROTATION), vaultReadDelay)),
+  }),
+}))
+
+import { __resetManagedRotationCacheForTests, createWhatsAppAdapterFromConfig } from './factory'
 import {
   createManagedTransport,
   __test_sha256Hex as sha256Hex,
@@ -314,6 +331,54 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
       }),
     )
     expect(ok).toBe(true)
+  })
+})
+
+describe('createWhatsAppAdapterFromConfig — managed mode race condition', () => {
+  beforeEach(() => {
+    __resetManagedRotationCacheForTests()
+    process.env.VITE_PLATFORM_TENANT_SLUG = 'test-tenant'
+  })
+
+  afterEach(() => {
+    delete process.env.VITE_PLATFORM_TENANT_SLUG
+    __resetManagedRotationCacheForTests()
+    vaultReadDelay = 0
+  })
+
+  test('outbound signRequest does not throw "vault not yet loaded" when vault load is slow', async () => {
+    // Simulate a slow vault round-trip (50ms). The old fire-and-forget warm-load
+    // would resolve AFTER the adapter was returned, so an immediate signRequest
+    // call would see expiresAt===0 and throw. With the fix, createManagedAdapter
+    // awaits the load before returning, so signRequest always has a valid entry.
+    vaultReadDelay = 50
+
+    const adapter = await createWhatsAppAdapterFromConfig(
+      {
+        mode: 'managed',
+        platformChannelId: 'pc-race-test',
+        platformBaseUrl: 'https://platform.voltade.app',
+        organizationId: 'org-race-test',
+      },
+      'inst-race',
+    )
+
+    // Immediately call send() — which internally calls signRequest() — without
+    // waiting any additional time. The error must NOT be the sentinel
+    // "vault not yet loaded" message; a network error (no real server) is fine.
+    let caughtError: unknown = null
+    try {
+      await adapter.send({ to: '+6591234567', text: 'hello' })
+    } catch (err) {
+      caughtError = err
+    }
+
+    // The vault was loaded, so signRequest succeeded and we got past signing.
+    // Any caught error must be a downstream network/proxy failure, not our
+    // sentinel which would indicate the race condition was still present.
+    if (caughtError instanceof Error) {
+      expect(caughtError.message).not.toContain('vault not yet loaded')
+    }
   })
 })
 

@@ -74,10 +74,12 @@ function CardChildNode({
   child,
   messageId,
   conversationId,
+  readOnly,
 }: {
   child: CardChild
   messageId: string
   conversationId: string
+  readOnly?: boolean
 }) {
   switch (child.type) {
     case 'text':
@@ -110,7 +112,14 @@ function CardChildNode({
       return <CardFields items={child.children ?? []} />
 
     case 'actions':
-      return <CardActions messageId={messageId} conversationId={conversationId} buttons={child.children ?? []} />
+      return (
+        <CardActions
+          messageId={messageId}
+          conversationId={conversationId}
+          buttons={child.children ?? []}
+          readOnly={readOnly}
+        />
+      )
 
     case 'link':
       return (
@@ -129,7 +138,7 @@ function CardChildNode({
   }
 }
 
-function renderCard(card: CardElement, message: Message) {
+function renderCard(card: CardElement, message: Message, readOnly?: boolean) {
   return (
     <div className="min-w-[220px] max-w-full space-y-2 rounded-lg border border-border bg-card p-3">
       {card.title && <p className="font-semibold text-foreground text-sm">{card.title}</p>}
@@ -140,13 +149,27 @@ function renderCard(card: CardElement, message: Message) {
           child={child}
           messageId={message.id}
           conversationId={message.conversationId}
+          readOnly={readOnly}
         />
       ))}
     </div>
   )
 }
 
-export function MessageCard({ message, parentMessage }: { message: Message; parentMessage?: Message }) {
+export function MessageCard({
+  message,
+  parentMessage,
+  readOnly = false,
+}: {
+  message: Message
+  parentMessage?: Message
+  /**
+   * When true, card action buttons render as disabled and never post a
+   * card-reply. The staff inbox passes this; the customer widget leaves it
+   * default false.
+   */
+  readOnly?: boolean
+}) {
   const bubbleBase = cn('max-w-full break-words rounded-lg px-3 py-2 text-sm')
 
   if (message.kind === 'text') {
@@ -165,7 +188,7 @@ export function MessageCard({ message, parentMessage }: { message: Message; pare
 
   if (message.kind === 'card') {
     const content = message.content as CardContent
-    if (content.card) return renderCard(content.card, message)
+    if (content.card) return renderCard(content.card, message, readOnly)
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
         <pre className="max-h-32 overflow-auto text-muted-foreground text-xs">

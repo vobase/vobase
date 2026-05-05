@@ -20,7 +20,7 @@ const app = new Hono()
     const { channel, instanceId } = c.req.param()
     const instance = await getInstance(instanceId)
     if (!instance || instance.channel !== channel) return c.json({ error: 'not_found' }, 404)
-    const adapter = registryGet(channel, instance.config, instance.id)
+    const adapter = await registryGet(channel, instance.config, instance.id)
     if (!adapter?.handleWebhookChallenge) return c.json({ error: 'unsupported' }, 400)
     const res = adapter.handleWebhookChallenge(c.req.raw)
     return res ?? c.json({ error: 'challenge_failed' }, 403)
@@ -30,7 +30,7 @@ const app = new Hono()
     const instance = await getInstance(instanceId)
     if (!instance || instance.channel !== channel) return c.json({ error: 'not_found' }, 404)
 
-    const adapter = registryGet(channel, instance.config, instance.id)
+    const adapter = await registryGet(channel, instance.config, instance.id)
     if (!adapter) return c.json({ error: 'no_adapter' }, 400)
 
     if (adapter.verifyWebhook) {

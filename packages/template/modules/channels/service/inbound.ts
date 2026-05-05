@@ -97,7 +97,7 @@ export async function dispatchInbound(
 
     if (event.type !== 'message_received') continue
 
-    const adapter = registryGet(instance.channel, instance.config, instance.id)
+    const adapter = await registryGet(instance.channel, instance.config, instance.id)
     if (!adapter) {
       throw new Error(`channels/inbound: no adapter registered for "${instance.channel}"`)
     }

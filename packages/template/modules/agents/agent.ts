@@ -58,9 +58,8 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Self-state',
         '',
-        '- `/agents/<id>/AGENTS.md` — this file (frozen, regenerated each wake).',
-        '- `/agents/<id>/MEMORY.md` — your working memory. Direct-writable like any markdown file (`cat`, `echo >>`, `sed`, heredocs). Persists across wakes automatically.',
-        '- `/agents/<id>/skills/*.md` — how-to playbooks (read-only). Add new skills via the learning-flow observer, not direct writes.',
+        '- `/agents/<id>/MEMORY.md` — your working memory. Latest contents are inlined in the `## Active lessons` section above; treat that as canonical for this wake. Persist new lessons by appending to this path.',
+        '- `/agents/<id>/skills/*.md` — how-to playbooks. Metadata is in the `## Skills` section; `cat` the file for the full body. Add new skills via the learning-flow observer, not direct writes.',
         '- `/tmp/` — scratch space (writable; cleared between wakes). Use for intermediate files, tool pipelines, debugging output.',
         '',
         '**Update your own memory:** `echo "- new lesson" >> /agents/<your-id>/MEMORY.md`, or `cat >> /agents/<your-id>/MEMORY.md <<EOF\\n\\n## $(date +%Y-%m-%d)\\n- <lesson>\\nEOF` for a dated section.',

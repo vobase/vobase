@@ -15,8 +15,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   __resetThreadsServiceForTests()
-  await db.execute(sql`TRUNCATE agents.agent_thread_messages CASCADE`)
-  await db.execute(sql`TRUNCATE agents.agent_threads CASCADE`)
+  await db.execute(sql`TRUNCATE agents.operator_thread_messages CASCADE`)
+  await db.execute(sql`TRUNCATE agents.operator_threads CASCADE`)
   installThreadsService(createThreadsService({ db: db as unknown as Parameters<typeof createThreadsService>[0]['db'] }))
 })
 
@@ -43,11 +43,11 @@ describe('threadsService', () => {
       firstMessage: { role: 'user', content: 'kick off triage' },
     })
     const rows = await db.execute(
-      sql`SELECT id, status, title, last_turn_at FROM agents.agent_threads WHERE id = ${threadId}`,
+      sql`SELECT id, status, title, last_turn_at FROM agents.operator_threads WHERE id = ${threadId}`,
     )
     expect(rows.length).toBe(1)
     const messages = await db.execute(
-      sql`SELECT seq, role, content FROM agents.agent_thread_messages WHERE thread_id = ${threadId}`,
+      sql`SELECT seq, role, content FROM agents.operator_thread_messages WHERE thread_id = ${threadId}`,
     )
     expect(messages.length).toBe(1)
     expect(messages[0]?.seq).toBe(1)
@@ -61,7 +61,7 @@ describe('threadsService', () => {
     const b = await threads.appendMessage({ threadId, role: 'assistant', content: 'second' })
     expect(a.seq).toBe(1)
     expect(b.seq).toBe(2)
-    const head = await db.execute(sql`SELECT last_turn_at FROM agents.agent_threads WHERE id = ${threadId}`)
+    const head = await db.execute(sql`SELECT last_turn_at FROM agents.operator_threads WHERE id = ${threadId}`)
     expect(head[0]?.last_turn_at).not.toBeNull()
   })
 
@@ -69,7 +69,7 @@ describe('threadsService', () => {
     const agentId = await ensureAgent()
     const { threadId } = await threads.createThread({ organizationId: 'org-1', agentId, createdBy: 'u' })
     await threads.closeThread({ threadId })
-    const rows = await db.execute(sql`SELECT status FROM agents.agent_threads WHERE id = ${threadId}`)
+    const rows = await db.execute(sql`SELECT status FROM agents.operator_threads WHERE id = ${threadId}`)
     expect(rows[0]?.status).toBe('closed')
   })
 
@@ -98,9 +98,9 @@ describe('threadsService', () => {
     await threads.appendMessage({ threadId, role: 'user', content: 'x' })
     await threads.closeThread({ threadId })
     expect(events).toEqual([
-      { table: 'agent_threads', action: 'insert' },
-      { table: 'agent_thread_messages', action: 'insert' },
-      { table: 'agent_threads', action: 'update' },
+      { table: 'operator_threads', action: 'insert' },
+      { table: 'operator_thread_messages', action: 'insert' },
+      { table: 'operator_threads', action: 'update' },
     ])
   })
 })

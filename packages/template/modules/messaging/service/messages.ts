@@ -12,7 +12,7 @@
 
 import { messages } from '@modules/messaging/schema'
 import { journalAppend as append, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
-import { and, asc, desc, eq, gt, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 
 import type { OutboundToolName } from '~/runtime/channel-events'
 import type { Message } from '../schema'
@@ -203,6 +203,13 @@ export interface MessagesService {
   appendCardReplyMessage(input: AppendCardReplyInput): Promise<Message>
   list(conversationId: string, opts?: { limit?: number; since?: Date }): Promise<Message[]>
   updateDeliveryStatus(input: UpdateDeliveryStatusInput): Promise<void>
+  /**
+   * True if any agent-authored customer-facing message (`role='agent'` AND
+   * `kind` in {'text','card','image'}) exists for this conversation within the
+   * last `withinSeconds` seconds. Used by `conv reassign` to enforce a
+   * customer-facing acknowledgment before agent → human handoff.
+   */
+  hasRecentAgentReply(conversationId: string, withinSeconds: number): Promise<boolean>
 }
 
 export interface MessagesServiceDeps {
@@ -392,8 +399,26 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
         .update(messages)
         .set({ status: nextStatus, metadata: sql`${JSON.stringify(updatedMeta)}::jsonb` })
         .where(eq(messages.channelExternalId, input.channelExternalId))
-        .returning()
     })
+  }
+
+  async function hasRecentAgentReply(conversationId: string, withinSeconds: number): Promise<boolean> {
+    const cutoff = new Date(Date.now() - withinSeconds * 1000)
+    const listDb = db as unknown as ListableDb
+    const rows = await listDb
+      .select()
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.role, 'agent'),
+          gt(messages.createdAt, cutoff),
+          inArray(messages.kind, ['text', 'card', 'image']),
+        ),
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(1)
+    return rows.length > 0
   }
 
   return {
@@ -404,6 +429,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     appendCardReplyMessage,
     list,
     updateDeliveryStatus,
+    hasRecentAgentReply,
   }
 }
 
@@ -449,6 +475,12 @@ export async function list(conversationId: string, opts?: { limit?: number; sinc
   return currentMessages().list(conversationId, opts)
 }
 
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function updateDeliveryStatus(input: UpdateDeliveryStatusInput): Promise<void> {
   return currentMessages().updateDeliveryStatus(input)
+}
+
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function hasRecentAgentReply(conversationId: string, withinSeconds: number): Promise<boolean> {
+  return currentMessages().hasRecentAgentReply(conversationId, withinSeconds)
 }

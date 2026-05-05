@@ -131,6 +131,111 @@ describe('createLearningProposalObserver', () => {
     expect((second.payload as { body: string }).body).toContain('internal_note')
   })
 
+  it('skips approval_rejected signal with empty note string', async () => {
+    const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
+    const observer = createLearningProposalObserver({
+      organizationId: 'org-1',
+      agentId: 'agt-1',
+      conversationId: 'conv-1',
+      logger,
+    })
+
+    // approval_rejected with note: '' → detectStaffSignals sets notePreview: ''
+    // The observer's empty-note guard should catch this and skip the proposal.
+    const events: AgentEvent[] = [
+      {
+        type: 'agent_start',
+        ...baseFields(),
+        agentId: 'agt-1',
+        trigger: 'approval_resumed',
+        triggerPayload: {
+          trigger: 'approval_resumed',
+          conversationId: 'conv-1',
+          approvalId: 'appr-1',
+          decision: 'rejected',
+          note: '',
+        },
+        systemHash: 'h',
+      },
+      { type: 'agent_end', ...baseFields(), reason: 'complete' },
+    ]
+    for (const ev of events) await observer(ev)
+
+    expect(insertCalls).toHaveLength(0)
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'approval_rejected' }),
+      'learning-proposals: empty note — skipped',
+    )
+  })
+
+  it('skips approval_rejected signal with whitespace-only note string', async () => {
+    const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
+    const observer = createLearningProposalObserver({
+      organizationId: 'org-1',
+      agentId: 'agt-1',
+      conversationId: 'conv-1',
+      logger,
+    })
+
+    const events: AgentEvent[] = [
+      {
+        type: 'agent_start',
+        ...baseFields(),
+        agentId: 'agt-1',
+        trigger: 'approval_resumed',
+        triggerPayload: {
+          trigger: 'approval_resumed',
+          conversationId: 'conv-1',
+          approvalId: 'appr-2',
+          decision: 'rejected',
+          note: '   ',
+        },
+        systemHash: 'h',
+      },
+      { type: 'agent_end', ...baseFields(), reason: 'complete' },
+    ]
+    for (const ev of events) await observer(ev)
+
+    expect(insertCalls).toHaveLength(0)
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'approval_rejected' }),
+      'learning-proposals: empty note — skipped',
+    )
+  })
+
+  it('still inserts proposal for approval_rejected with a non-empty note', async () => {
+    const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
+    const observer = createLearningProposalObserver({
+      organizationId: 'org-1',
+      agentId: 'agt-1',
+      conversationId: 'conv-1',
+      logger,
+    })
+
+    const events: AgentEvent[] = [
+      {
+        type: 'agent_start',
+        ...baseFields(),
+        agentId: 'agt-1',
+        trigger: 'approval_resumed',
+        triggerPayload: {
+          trigger: 'approval_resumed',
+          conversationId: 'conv-1',
+          approvalId: 'appr-3',
+          decision: 'rejected',
+          note: 'Do not send promotional links',
+        },
+        systemHash: 'h',
+      },
+      { type: 'agent_end', ...baseFields(), reason: 'complete' },
+    ]
+    for (const ev of events) await observer(ev)
+
+    expect(insertCalls).toHaveLength(1)
+    const payload = insertCalls[0]?.payload as { body: string }
+    expect(payload.body).toContain('Do not send promotional links')
+  })
+
   it('skips reassignment_note signals', async () => {
     const logger = makeLogger() as unknown as Parameters<typeof createLearningProposalObserver>[0]['logger']
     const observer = createLearningProposalObserver({

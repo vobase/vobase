@@ -97,16 +97,12 @@ function renderSupervisor(trigger: WakeTrigger, refs: RenderRefs): string {
   // `wake/build-config/conversation.ts` for this kind so the agent can
   // relay the answer.
   if (refs.supervisorKind === 'ask_staff_answer') {
-    return `${base} Staff is answering the question you posted in your previous internal note. If their answer gives you what you need, send the customer-facing reply now (reply / send_card / send_file / book_slot as appropriate). If you still have follow-up questions, call \`add_note\` with \`mentions\` populated instead of guessing. Capture any durable lesson in MEMORY.md before ending the turn.`
+    return `${base} First, run \`cat ${convoFolder(refs)}/internal-notes.md\` to read the staff answer. Then send the customer-facing reply now (reply / send_card / send_file / book_slot as appropriate). Only if you still have follow-up questions after reading, call \`add_note\` with \`mentions\` populated instead of guessing.`
   }
   // Assignee-wake, coaching branch (default): customer-facing tools are
-  // stripped at the harness layer (`audience: 'customer'` filter). Two
-  // affordances surface here even though the playbook lives in the agent's
-  // instructions, because the manual-test failure mode is silent no-op:
-  //   - capture durable lessons in MEMORY.md (agent's own or contact's)
-  //   - if the coaching note is ambiguous, call `add_note` with `mentions`
-  //     instead of guessing.
-  return `${base} The note is coaching/feedback from staff, NOT a request to send another customer reply — customer-facing tools are stripped on this wake. Capture any durable lesson in your MEMORY.md (or the contact's MEMORY.md if it is contact-specific). If the note is ambiguous, call \`add_note\` with \`mentions\` populated rather than guessing. Follow your supervisor-coaching playbook from your instructions.`
+  // stripped at the harness layer (`audience: 'customer'` filter). The read
+  // directive is sentence 1 so the model cannot treat it as optional.
+  return `${base} Customer-facing tools are stripped on this wake — this is staff coaching, NOT a request to send another customer reply. First, run \`cat ${convoFolder(refs)}/internal-notes.md\` to read the note. Then capture any durable lesson in /agents/<your-id>/MEMORY.md (or the contact's MEMORY.md if it is contact-specific) by appending with \`echo\`. Only if the note is genuinely ambiguous after reading, call \`add_note\` with \`mentions\` populated to ask for clarification.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {

@@ -63,10 +63,11 @@ export function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig 
   )
 }
 
-export function createWhatsAppAdapterFromConfig(
+// biome-ignore lint/suspicious/useAwait: managed branch awaits internally; sync branch keeps contract uniform
+export async function createWhatsAppAdapterFromConfig(
   rawConfig: Record<string, unknown>,
   _instanceId: string,
-): ChannelAdapter {
+): Promise<ChannelAdapter> {
   if (isManagedConfig(rawConfig)) {
     return createManagedAdapter(rawConfig)
   }
@@ -144,17 +145,17 @@ async function loadRotation(organizationId: string): Promise<VaultRotation> {
   return inflight
 }
 
-function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
+async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapter> {
   const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG
   if (!tenantId) {
     throw new Error('whatsapp adapter (managed): VITE_PLATFORM_TENANT_SLUG env var is required')
   }
 
-  // Warm the cache eagerly so the first outbound dispatch doesn't pay the
-  // vault round-trip. Failures surface on the next sign attempt.
-  void loadRotation(config.organizationId).catch(() => {
-    /* swallowed — re-thrown synchronously via the thunk below if cache miss */
-  })
+  // Await the initial vault load so that the first outbound dispatch never
+  // races the cold load. `loadRotation` deduplicates concurrent calls via the
+  // inflight cache entry, so subsequent adapter constructions for the same org
+  // within the TTL window pay only an in-memory cache hit.
+  await loadRotation(config.organizationId)
 
   function readCachedRotation(): VaultRotation {
     const entry = rotationCache.get(config.organizationId)
@@ -170,10 +171,9 @@ function createManagedAdapter(config: ManagedConfig): ChannelAdapter {
     tenantId,
     current: () => readCachedRotation().current,
     previous: () => readCachedRotation().previous,
-    // Inbound webhooks can race the eager warm-load above. Awaiting the
-    // load (which dedups via the inflight cache entry) before the verifier
-    // resolves the sync thunks lets the first inbound succeed without a
-    // 500. Outbound calls keep the strict synchronous contract.
+    // Inbound webhooks can race a TTL expiry. Awaiting the load (which dedups
+    // via the inflight cache entry) before the verifier resolves the sync
+    // thunks ensures the first inbound after a cache miss succeeds.
     ensureReady: async () => {
       await loadRotation(config.organizationId)
     },

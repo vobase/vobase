@@ -57,6 +57,13 @@ export function createLearningProposalObserver(
       // a teachable moment for working memory; skip.
       if (signal.kind === 'reassignment_note') continue
 
+      // Blank-but-present notePreview produces useless `Note: —` stubs; an undefined
+      // notePreview is fine — the agent reads the body via `cat` at runtime.
+      if (signal.notePreview !== undefined && signal.notePreview.trim() === '') {
+        logger.info({ agentId, kind: signal.kind, ref: signal.ref }, 'learning-proposals: empty note — skipped')
+        continue
+      }
+
       const body = [
         '',
         `## Staff signal — ${signal.kind} @ ${signal.ts}`,

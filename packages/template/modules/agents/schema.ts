@@ -2,7 +2,7 @@
  * agents module schema.
  *
  * Tables: `agent_definitions`, `agent_staff_memory`, `learned_skills`, `agent_scores`,
- * plus operator-thread tables. Harness persistence tables (conversation_events,
+ * plus `operator_threads` / `operator_thread_messages`. Harness persistence tables (conversation_events,
  * active_wakes, threads, messages, tenant_cost_daily, audit_wake_map) live in
  * `@vobase/core` under pgSchema `harness`. Cross-schema FK
  * (`harness.threads.agent_id → agents.agent_definitions`) is enforced post-push
@@ -96,8 +96,8 @@ export const agentDefinitions = agentsPgSchema.table(
  * pi-agent runtime threads); these are the durable UI artefact rendered in
  * the workspace right rail.
  */
-export const agentThreads = agentsPgSchema.table(
-  'agent_threads',
+export const operatorThreads = agentsPgSchema.table(
+  'operator_threads',
   {
     id: nanoidPrimaryKey(),
     organizationId: text('organization_id').notNull(),
@@ -115,24 +115,24 @@ export const agentThreads = agentsPgSchema.table(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    index('idx_agent_threads_creator').on(t.organizationId, t.createdBy, t.lastTurnAt),
-    index('idx_agent_threads_agent').on(t.agentId, t.lastTurnAt),
-    check('agent_threads_status_check', sql`status IN ('open', 'closed', 'archived')`),
+    index('idx_operator_threads_creator').on(t.organizationId, t.createdBy, t.lastTurnAt),
+    index('idx_operator_threads_agent').on(t.agentId, t.lastTurnAt),
+    check('operator_threads_status_check', sql`status IN ('open', 'closed', 'archived')`),
   ],
 )
 
 /**
- * Append-only message log for agent_threads. `role` mirrors pi's message
+ * Append-only message log for operator_threads. `role` mirrors pi's message
  * envelope (`user` | `assistant` | `system` | `tool`); `payload` carries the
  * raw pi-message JSON for one-write-path replay.
  */
-export const agentThreadMessages = agentsPgSchema.table(
-  'agent_thread_messages',
+export const operatorThreadMessages = agentsPgSchema.table(
+  'operator_thread_messages',
   {
     id: nanoidPrimaryKey(),
     threadId: text('thread_id')
       .notNull()
-      .references(() => agentThreads.id, { onDelete: 'cascade' }),
+      .references(() => operatorThreads.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     role: text('role').notNull(),
     content: text('content').notNull().default(''),
@@ -140,9 +140,9 @@ export const agentThreadMessages = agentsPgSchema.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('uq_agent_thread_messages_seq').on(t.threadId, t.seq),
-    index('idx_agent_thread_messages_thread').on(t.threadId, t.createdAt),
-    check('agent_thread_messages_role_check', sql`role IN ('user', 'assistant', 'system', 'tool')`),
+    uniqueIndex('uq_operator_thread_messages_seq').on(t.threadId, t.seq),
+    index('idx_operator_thread_messages_thread').on(t.threadId, t.createdAt),
+    check('operator_thread_messages_role_check', sql`role IN ('user', 'assistant', 'system', 'tool')`),
   ],
 )
 

@@ -1,6 +1,6 @@
 /**
  * Standalone-lane wake-config assembly. Standalone wakes are NOT conversation-bound —
- * they fire from `agent_threads` (staff posting in the right-rail chat) or
+ * they fire from `operator_threads` (staff posting in the right-rail chat) or
  * from cron heartbeats (scheduled review-and-plan flows). Both produce a wake
  * over the org's full virtual filesystem with a different RO frame, a
  * different side-load (no transcript, no contact block), and different tool
@@ -174,11 +174,11 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
   const sseListener = buildSseListener({ logPrefix: capability.logPrefix, realtime: null })
 
   // Operator-thread bridge: mirror the agent's terminal text reply into
-  // `agent_thread_messages` so the staff-facing operator chat UI displays it.
+  // `operator_thread_messages` so the staff-facing operator chat UI displays it.
   // Without this the harness journal (`harness.messages`) carries the reply
-  // but the right-rail / full-page chat reads only `agent_thread_messages`
+  // but the right-rail / full-page chat reads only `operator_thread_messages`
   // and the thread looks dead. Heartbeat wakes are intentionally excluded:
-  // they have no `agent_threads` row to write into.
+  // they have no `operator_threads` row to write into.
   //
   // Filter on `role === 'assistant'` + non-empty `content` so tool-call-only
   // turns (which the harness also emits as `message_end`) don't surface in

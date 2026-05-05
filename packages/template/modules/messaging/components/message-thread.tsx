@@ -200,7 +200,7 @@ function MessageRow({ msg, messages, directory, currentUserId, assignee }: Messa
       ) : msg.kind === 'text' ? (
         <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
       ) : (
-        <MessageCard message={msg} parentMessage={parent} />
+        <MessageCard message={msg} parentMessage={parent} readOnly />
       )}
     </Bubble>
   )

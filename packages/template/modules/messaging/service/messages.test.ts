@@ -1,5 +1,6 @@
 /**
- * messages.ts unit tests — verifies appendCardReplyMessage atomic write path.
+ * messages.ts unit tests — verifies appendCardReplyMessage atomic write path
+ * and hasRecentAgentReply predicate.
  * Stubs the DB to avoid a real Postgres connection.
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
@@ -7,7 +8,7 @@ import * as core from '@vobase/core'
 
 import type { Message } from '../schema'
 import * as mod from './messages'
-import { appendCardReplyMessage, createMessagesService, installMessagesService } from './messages'
+import { appendCardReplyMessage, createMessagesService, hasRecentAgentReply, installMessagesService } from './messages'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -166,5 +167,86 @@ describe('appendCardReplyMessage', () => {
     await expect(
       appendCardReplyMessage({ parentMessageId: 'missing-id', buttonId: 'b', buttonValue: 'v' }),
     ).rejects.toThrow('not found')
+  })
+})
+
+// ─── hasRecentAgentReply ──────────────────────────────────────────────────────
+
+function makeRecentAgentReplyDb(rows: unknown[]) {
+  return {
+    select: () => makeSelectDb(rows),
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+      const fakeTx = {
+        insert: makeTxInsert({}),
+        select: () => makeSelectDb(rows),
+      }
+      return fn(fakeTx)
+    },
+  }
+}
+
+function makeAgentTextRow(secondsAgo: number): Message {
+  return {
+    id: `msg-${secondsAgo}s`,
+    conversationId: 'conv-1',
+    organizationId: 'org-1',
+    role: 'agent',
+    kind: 'text',
+    content: { text: 'hello' },
+    parentMessageId: null,
+    channelExternalId: null,
+    status: null,
+    attachments: [],
+    metadata: {},
+    createdAt: new Date(Date.now() - secondsAgo * 1000),
+  }
+}
+
+describe('hasRecentAgentReply', () => {
+  it('returns false when there are no messages', async () => {
+    installMessagesService(createMessagesService({ db: makeRecentAgentReplyDb([]) }))
+    core.setJournalDb(makeJournalDb())
+    const result = await hasRecentAgentReply('conv-1', 60)
+    expect(result).toBe(false)
+  })
+
+  it('returns false when the DB returns no matching rows (e.g. only customer messages in window)', async () => {
+    // The WHERE clause (role='agent' AND kind IN ...) is enforced by Postgres;
+    // the stub simulates the DB returning zero rows after that filter.
+    installMessagesService(createMessagesService({ db: makeRecentAgentReplyDb([]) }))
+    core.setJournalDb(makeJournalDb())
+    const result = await hasRecentAgentReply('conv-1', 60)
+    expect(result).toBe(false)
+  })
+
+  it('returns true when a recent agent text message exists', async () => {
+    const msg = makeAgentTextRow(5) // 5 seconds ago, within 60s window
+    installMessagesService(createMessagesService({ db: makeRecentAgentReplyDb([msg]) }))
+    core.setJournalDb(makeJournalDb())
+    const result = await hasRecentAgentReply('conv-1', 60)
+    expect(result).toBe(true)
+  })
+
+  it('returns true when a recent agent card message exists', async () => {
+    const msg: Message = { ...makeAgentTextRow(5), kind: 'card', content: { card: {} } }
+    installMessagesService(createMessagesService({ db: makeRecentAgentReplyDb([msg]) }))
+    core.setJournalDb(makeJournalDb())
+    const result = await hasRecentAgentReply('conv-1', 60)
+    expect(result).toBe(true)
+  })
+
+  it('returns false when the agent text message is older than the window (simulated by DB returning no rows)', async () => {
+    // The gt(messages.createdAt, cutoff) predicate is evaluated by Postgres;
+    // the stub simulates that filter having excluded the old message.
+    const oldMsg = makeAgentTextRow(90) // 90s ago — outside the 60s window
+    // Stub returns zero rows, as real Postgres would after applying the cutoff.
+    const db = makeRecentAgentReplyDb([])
+    // Confirm the message itself exists but the stub represents DB-level filtering:
+    expect(oldMsg.createdAt.getTime()).toBeLessThan(Date.now() - 60 * 1000)
+    installMessagesService(createMessagesService({ db }))
+    core.setJournalDb(makeJournalDb())
+    const result = await hasRecentAgentReply('conv-1', 60)
+    expect(result).toBe(false)
   })
 })

@@ -281,7 +281,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const wakeLogger = createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] })
   jobHandlers.set(AGENTS_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
 
-  // Operator-thread wakes: staff posts a message in `agent_threads`, the
+  // Operator-thread wakes: staff posts a message in `operator_threads`, the
   // chat surface enqueues this job, and the consumer drives a standalone-lane
   // wake via `standaloneWakeConfig`.
   jobHandlers.set(

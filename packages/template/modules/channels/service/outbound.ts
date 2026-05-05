@@ -18,6 +18,7 @@ import { getInstance } from '@modules/channels/service/instances'
 import { get as getContact } from '@modules/contacts/service/contacts'
 import { get as getConversation } from '@modules/messaging/service/conversations'
 import { checkWindow } from '@modules/messaging/service/sessions'
+import type { CardElement } from '@modules/messaging/tools/send-card'
 import type { OutboundMedia, OutboundMessage, SendResult } from '@vobase/core'
 
 import type { OutboundToolName } from '~/runtime/channel-events'
@@ -43,15 +44,132 @@ export interface OutboundService {
   sendOutbound(input: SendOutboundInput): Promise<SendResult>
 }
 
-function buildOutboundMessage(input: SendOutboundInput, recipient: string): OutboundMessage {
+// ─── WhatsApp interactive constraints ────────────────────────────────────────
+
+/** Max chars in a WhatsApp interactive header text. */
+export const WA_HEADER_MAX = 60
+/** Max chars in a WhatsApp interactive body text. */
+export const WA_BODY_MAX = 1024
+/** Max chars in a WhatsApp button reply title (type=button). */
+export const WA_BUTTON_TITLE_MAX = 20
+/** Max chars in a WhatsApp list row title. */
+export const WA_ROW_TITLE_MAX = 24
+/** Max reply buttons before switching to list interactive. */
+export const WA_BUTTON_MAX = 3
+/** Max rows in a WhatsApp list interactive (hard limit). */
+export const WA_LIST_ROW_MAX = 10
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s
+  return `${s.slice(0, max - 1)}…`
+}
+
+/**
+ * Convert a `CardElement` to an `OutboundMessage` for the registered channel
+ * adapter. WhatsApp emits `metadata.interactive` (button ≤3, list 4-10);
+ * other channels fall back to plain text. Footer is intentionally not
+ * auto-promoted — the schema has no footer signal and heuristics misclassify
+ * normal prose as footer on WhatsApp.
+ */
+export function cardToOutbound(card: CardElement, recipient: string, channelKind: string): OutboundMessage {
+  const bodyParts: string[] = []
+  const buttons: Array<{ id: string; label: string }> = []
+
+  for (const child of card.children) {
+    switch (child.type) {
+      case 'text':
+        bodyParts.push(child.content)
+        break
+      case 'fields':
+        bodyParts.push(child.children.map((f) => `*${f.label}*: ${f.value}`).join('\n'))
+        break
+      case 'link':
+        bodyParts.push(`${child.label}: ${child.url}`)
+        break
+      case 'image':
+        bodyParts.push(`[Image${child.alt ? `: ${child.alt}` : ''}] ${child.url}`)
+        break
+      case 'divider':
+        bodyParts.push('—')
+        break
+      case 'actions':
+        if (buttons.length > 0) break
+        for (const action of child.children) {
+          if (action.type === 'button') {
+            buttons.push({ id: action.id, label: action.label })
+          } else if (action.type === 'link-button') {
+            // WA interactive can't mix reply buttons with a CTA url; surface as labelled URL.
+            bodyParts.push(`${action.label}: ${action.url}`)
+          }
+        }
+        break
+      default:
+        child satisfies never
+    }
+  }
+
+  if (channelKind !== 'whatsapp' || buttons.length === 0) {
+    const parts = [card.title, ...bodyParts, ...buttons.map((b) => `[${b.label}]`)].filter(Boolean)
+    return { to: recipient, text: parts.join('\n\n') || '[card]' }
+  }
+
+  const header = card.title ? { type: 'text' as const, text: truncate(card.title, WA_HEADER_MAX) } : undefined
+
+  // Body is required on WA interactive — fall back to title or single space when only buttons were sent.
+  const rawBody = bodyParts.length > 0 ? bodyParts.join('\n\n') : (card.title ?? ' ')
+  const body = { text: truncate(rawBody, WA_BODY_MAX) }
+
+  let effectiveButtons = buttons
+  if (buttons.length > WA_LIST_ROW_MAX) {
+    console.warn(
+      `channels/outbound: card has ${buttons.length} buttons — WhatsApp list max is ${WA_LIST_ROW_MAX}. Truncating.`,
+    )
+    effectiveButtons = buttons.slice(0, WA_LIST_ROW_MAX)
+  }
+
+  if (effectiveButtons.length <= WA_BUTTON_MAX) {
+    // type=button interactive (≤3 reply buttons).
+    const interactive = {
+      type: 'button' as const,
+      ...(header && { header }),
+      body,
+      action: {
+        buttons: effectiveButtons.map((b) => ({
+          type: 'reply' as const,
+          reply: { id: b.id, title: truncate(b.label, WA_BUTTON_TITLE_MAX) },
+        })),
+      },
+    }
+    return { to: recipient, metadata: { interactive } }
+  }
+
+  // type=list interactive (4-10 rows).
+  const interactive = {
+    type: 'list' as const,
+    ...(header && { header }),
+    body,
+    action: {
+      button: 'Choose an option',
+      sections: [
+        {
+          rows: effectiveButtons.map((b) => ({
+            id: b.id,
+            title: truncate(b.label, WA_ROW_TITLE_MAX),
+          })),
+        },
+      ],
+    },
+  }
+  return { to: recipient, metadata: { interactive } }
+}
+
+function buildOutboundMessage(input: SendOutboundInput, recipient: string, channelKind: string): OutboundMessage {
   if (input.toolName === 'reply' || input.toolName === 'staff_reply') {
     const payload = input.payload as { text: string }
     return { to: recipient, text: payload.text }
   }
   if (input.toolName === 'send_card') {
-    const card = input.payload as { title?: string; subtitle?: string }
-    const text = [card.title, card.subtitle].filter(Boolean).join('\n') || '[card]'
-    return { to: recipient, text }
+    return cardToOutbound(input.payload as CardElement, recipient, channelKind)
   }
   if (input.toolName === 'send_file') {
     const payload = input.payload as { media: OutboundMedia }
@@ -104,7 +222,7 @@ export function createOutboundService(): OutboundService {
       throw new Error('channels/outbound: channel instance org mismatch')
     }
 
-    const adapter = registryGet(instance.channel, instance.config, instance.id)
+    const adapter = await registryGet(instance.channel, instance.config, instance.id)
     if (!adapter) {
       throw new Error(`channels/outbound: no adapter registered for "${instance.channel}"`)
     }
@@ -144,7 +262,7 @@ export function createOutboundService(): OutboundService {
       }
     }
 
-    const outbound = buildOutboundMessage(input, recipient)
+    const outbound = buildOutboundMessage(input, recipient, instance.channel)
     return adapter.send(outbound)
   }
 

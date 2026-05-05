@@ -46,7 +46,7 @@ const errors: LintError[] = []
 const JOURNAL_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(messages|conversationEvents)\b/
 const JOURNAL_WRITE_ALLOWED = ['modules/messaging/service/']
 
-const THREADS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(agentThreads|agentThreadMessages)\b/
+const THREADS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(operatorThreads|operatorThreadMessages)\b/
 const THREADS_WRITE_ALLOWED = ['modules/agents/service/threads.ts']
 
 const _CHANGES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*(changeProposals|changeHistory)\b/
