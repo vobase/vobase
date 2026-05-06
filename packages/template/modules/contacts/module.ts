@@ -20,6 +20,7 @@ const contacts: ModuleDef = {
       resourceModule: CONTACT_RESOURCE.module,
       resourceType: CONTACT_RESOURCE.type,
       requiresApproval: false,
+      requiresApprovalForFields: new Set(['displayName', 'email']),
       materialize: contactChangeMaterializer,
     })
     ctx.cli.registerAll(contactsVerbs)

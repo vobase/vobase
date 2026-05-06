@@ -129,6 +129,33 @@ function renderCaptionReady(trigger: WakeTrigger, refs: RenderRefs): string {
   return `Caption ready for file ${trigger.fileId}. Re-read ${convoFolder(refs)}/messages.md for the updated context.`
 }
 
+function renderChangeDecided(trigger: WakeTrigger, _refs: RenderRefs): string {
+  if (trigger.trigger !== 'change_decided') return ''
+  const summary = trigger.summary?.trim() ? trigger.summary.trim() : 'a change you proposed'
+  if (trigger.decision === 'approved') {
+    return [
+      `Staff just APPROVED ${summary}`,
+      '',
+      'You MUST send a fresh customer-facing reply on this wake using the `reply` tool (or `send_card` if a card is more appropriate). Even if you previously told the customer the change was "logged for review" or "pending", a confirmation message is required now that the change is actually applied — staff are watching this conversation for closure. Do not end the wake without sending one.',
+      '',
+      'Keep the reply brief (one or two sentences). Do NOT re-list the fields the customer asked about; they remember. Example phrasing: "All set — your update is live now. Let me know if there\'s anything else."',
+      '',
+      'Do NOT send another `add_note` and do NOT re-attempt any write — the change is already in the database. Reply, then end the wake.',
+    ].join('\n')
+  }
+  // Rejected branch.
+  const noteLine = trigger.decidedNote?.trim()
+    ? `Staff note (verbatim, for your understanding only — do NOT quote it to the customer unless they ask): "${trigger.decidedNote.trim()}"`
+    : 'No staff note was attached.'
+  return [
+    `Staff just DECLINED ${summary}`,
+    '',
+    noteLine,
+    '',
+    'Acknowledge politely to the customer that the change could not be made on this channel. Suggest a constructive next step IF the staff note hints at one (e.g. "ask IT to email the request from your corporate mailbox"); otherwise just say our team will follow up. Keep it under two sentences. Do NOT re-attempt the write — the proposal is decided.',
+  ].join('\n')
+}
+
 // ─── Registry ──────────────────────────────────────────────────────────────
 
 const REGISTRY: Record<WakeTriggerKind, TriggerSpec> = {
@@ -140,6 +167,7 @@ const REGISTRY: Record<WakeTriggerKind, TriggerSpec> = {
   operator_thread: { lane: 'standalone', logPrefix: 'wake:solo', render: renderOperatorThread },
   heartbeat: { lane: 'standalone', logPrefix: 'wake:solo', render: renderHeartbeat },
   caption_ready: { lane: 'conversation', logPrefix: 'wake:conv', render: renderCaptionReady },
+  change_decided: { lane: 'conversation', logPrefix: 'wake:conv', render: renderChangeDecided },
 }
 
 export function resolveTriggerSpec(triggerKind: WakeTriggerKind): TriggerSpec {

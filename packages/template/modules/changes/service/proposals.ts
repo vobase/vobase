@@ -16,6 +16,7 @@ import {
   changeHistory,
   changeProposals,
 } from '../schema'
+import { summarizeLifecycleEvent } from './lifecycle-summary'
 
 /** History-listing filter — `status: 'all'` or undefined includes every decided variant. */
 export interface ListHistoryOptions {
@@ -46,6 +47,15 @@ export interface MaterializerRegistration {
   resourceType: string
   /** When false, `insertProposal` writes status='auto_written' and fires the materializer in the same tx. */
   requiresApproval: boolean
+  /**
+   * Optional per-field approval gate, evaluated only on `field_set` payloads
+   * when `requiresApproval === false`. If any top-level key in the payload's
+   * `fields` map matches an entry in this set, the proposal is forced to
+   * `pending` regardless of the resource-level default. Top-level scalar match
+   * only — `attributes.*` keys are not considered (the gate set is for
+   * scalar columns; per-attribute gating is a tracked follow-up).
+   */
+  requiresApprovalForFields?: ReadonlySet<string>
   materialize: Materializer
 }
 
@@ -166,6 +176,23 @@ function normalizePrincipalToken(id: string, kind: ChangedByKind): string {
   return `${kind === 'agent' ? 'agent' : 'staff'}:${id}`
 }
 
+/**
+ * Per-field approval gate evaluation. Only `field_set` payloads can be
+ * gated; markdown patches and JSON patches bypass this check entirely. Top-
+ * level scalar keys only — `attributes.*` keys are never considered, even if
+ * they appear in the gate set, so a deployment can keep the gate set focused
+ * on the most consequential row scalars (`displayName`, `email`, …).
+ */
+function isFieldGated(payload: ChangePayload, gate: ReadonlySet<string> | undefined): boolean {
+  if (!gate || gate.size === 0) return false
+  if (payload.kind !== 'field_set') return false
+  for (const key of Object.keys(payload.fields)) {
+    if (key.startsWith('attributes.')) continue
+    if (gate.has(key)) return true
+  }
+  return false
+}
+
 /** Narrow a payload to `markdown_patch` or throw — shared by markdown-only materializers. */
 export function assertMarkdownPatch(payload: ChangePayload): Extract<ChangePayload, { kind: 'markdown_patch' }> {
   if (payload.kind !== 'markdown_patch') {
@@ -176,9 +203,40 @@ export function assertMarkdownPatch(payload: ChangePayload): Extract<ChangePaylo
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
+/**
+ * Bridge to the change_decided wake job. Producer for the
+ * `changes:decided-to-wake` queue. Owned by the wake module — `module.ts`
+ * wires this in at boot using `ctx.jobs.send`. See
+ * `wake/change-decided.ts::createChangeDecidedWakeHandler` for the consumer.
+ *
+ * Only enqueues for real conversations (not synthetic standalone ids); the
+ * caller filters before invoking. Fail-soft: an enqueue error is logged but
+ * never blocks the staff decision response.
+ */
+export interface ChangeDecidedScheduler {
+  enqueueChangeDecided(opts: {
+    organizationId: string
+    conversationId: string
+    proposalId: string
+    decision: 'approved' | 'rejected'
+    resourceModule: string
+    resourceType: string
+    resourceId: string
+    summary: string | null
+    decidedNote: string | null
+    decidedBy: string
+  }): Promise<void>
+}
+
 export interface ChangeProposalsServiceDeps {
   db: unknown
   realtime?: RealtimeService | null
+  /**
+   * Optional. When omitted, change-decisions are persisted but no follow-up
+   * wake fires (tests can skip plumbing pg-boss; production wires this in
+   * via `modules/changes/module.ts::init`).
+   */
+  decidedScheduler?: ChangeDecidedScheduler | null
 }
 
 export interface ChangeProposalsService {
@@ -198,6 +256,41 @@ export interface ChangeProposalsService {
 export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): ChangeProposalsService {
   const db = deps.db as DrizzleHandle
   let realtime: RealtimeService | null = deps.realtime ?? null
+  const decidedScheduler: ChangeDecidedScheduler | null = deps.decidedScheduler ?? null
+
+  /** Synthetic conversation ids (operator-..., heartbeat-...) belong to the
+   *  standalone lane and have no customer to acknowledge — skip the wake. */
+  function isCustomerConversationId(id: string | null): id is string {
+    if (!id) return false
+    if (id.startsWith('operator-') || id.startsWith('heartbeat-')) return false
+    return true
+  }
+
+  async function fireChangeDecidedWake(
+    proposal: ChangeProposalRow,
+    decision: 'approved' | 'rejected',
+    decidedByUserId: string,
+    decidedNote: string | null,
+  ): Promise<void> {
+    if (!decidedScheduler) return
+    if (!isCustomerConversationId(proposal.conversationId)) return
+    try {
+      await decidedScheduler.enqueueChangeDecided({
+        organizationId: proposal.organizationId,
+        conversationId: proposal.conversationId,
+        proposalId: proposal.id,
+        decision,
+        resourceModule: proposal.resourceModule,
+        resourceType: proposal.resourceType,
+        resourceId: proposal.resourceId,
+        summary: proposal.rationale,
+        decidedNote,
+        decidedBy: decidedByUserId,
+      })
+    } catch (err) {
+      console.error('[changes/proposals] enqueueChangeDecided failed (proposal still decided):', err)
+    }
+  }
 
   function fireNotify(
     p: Pick<ChangeProposalRow, 'id' | 'resourceModule' | 'resourceType' | 'resourceId' | 'conversationId'>,
@@ -261,7 +354,11 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
 
   async function insertProposal(input: InsertProposalInput): Promise<{ id: string; status: ChangeStatus }> {
     const reg = getRegistration(input.resourceModule, input.resourceType)
-    const status: ChangeStatus = reg.requiresApproval ? 'pending' : 'auto_written'
+    // Resource-level gate first; if the resource auto-applies, the per-field
+    // gate (only checked for `field_set` payloads) can still escalate to
+    // `pending` when a sensitive scalar like `displayName` is touched.
+    const fieldGated = isFieldGated(input.payload, reg.requiresApprovalForFields)
+    const status: ChangeStatus = reg.requiresApproval || fieldGated ? 'pending' : 'auto_written'
     // Pending rows compete for the partial unique index; auto-writes materialize
     // immediately and never collide, so the duplicate check only applies to pending.
     if (status === 'pending') {
@@ -275,8 +372,15 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     const id = nanoid(10)
     const proposal = buildProposalRow(input, id, status)
 
-    if (reg.requiresApproval) {
-      await db.insert(changeProposals).values(proposal).returning()
+    if (status === 'pending') {
+      await db.transaction(async (tx) => {
+        await tx.insert(changeProposals).values(proposal).returning()
+        await emitLifecycleIfConversation(tx, proposal, {
+          type: 'change.proposed',
+          rationale: input.rationale ?? null,
+          proposedBy: normalizePrincipalToken(input.changedBy, input.changedByKind),
+        })
+      })
       fireNotify(proposal, 'created')
       return { id, status }
     }
@@ -298,6 +402,11 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
         appliedProposalId: id,
       })
       await tx.update(changeProposals).set({ appliedHistoryId: historyId }).where(eq(changeProposals.id, id))
+      await emitLifecycleIfConversation(tx, proposal, {
+        type: 'change.auto_applied',
+        rationale: input.rationale ?? null,
+        proposedBy: normalizePrincipalToken(input.changedBy, input.changedByKind),
+      })
     })
 
     fireNotify(proposal, 'auto_written')
@@ -323,8 +432,14 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     })
 
     if (decision === 'rejected') {
-      await applyRejection(id, result, decidedByUserId, note ?? 'staff_rejected')
+      const reason = note ?? 'staff_rejected'
+      await applyRejection(id, result, decidedByUserId, reason)
       fireNotify(result, 'rejected')
+      // Only surface staff-authored notes to the customer-facing wake. The
+      // synthetic `staff_rejected` reason is just the absence of a note;
+      // suppress so the agent doesn't quote it.
+      const surfaceNote = note?.trim() ? note.trim() : null
+      await fireChangeDecidedWake(result, 'rejected', decidedByUserId, surfaceNote)
       return { id, status: 'rejected', appliedHistoryId: null }
     }
 
@@ -332,6 +447,9 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     if (!scan.ok) {
       await applyRejection(id, result, decidedByUserId, 'threat_scan')
       fireNotify(result, 'rejected')
+      // Threat-scan rejections never carry a staff note; the wake renderer
+      // will fall back to a generic "we couldn't apply that" reply.
+      await fireChangeDecidedWake(result, 'rejected', decidedByUserId, null)
       return { id, status: 'rejected', appliedHistoryId: null }
     }
 
@@ -361,15 +479,17 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
           appliedHistoryId: hid,
         })
         .where(eq(changeProposals.id, id))
-      await emitJournalIfConversation(tx, result, {
-        type: 'change_approved',
-        proposalId: id,
-        writeId: materialized.resultId,
+      await emitLifecycleIfConversation(tx, result, {
+        type: 'change.approved',
+        rationale: result.rationale,
+        decidedBy: decidedByUserId,
+        decidedNote: note ?? null,
       })
       return hid
     })
 
     fireNotify(result, 'approved')
+    await fireChangeDecidedWake(result, 'approved', decidedByUserId, note?.trim() ? note.trim() : null)
     return { id, status: 'approved', appliedHistoryId: historyId }
   }
 
@@ -389,7 +509,12 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
           decidedNote: reason,
         })
         .where(eq(changeProposals.id, id))
-      await emitJournalIfConversation(tx, proposal, { type: 'change_rejected', proposalId: id, reason })
+      await emitLifecycleIfConversation(tx, proposal, {
+        type: 'change.rejected',
+        rationale: proposal.rationale,
+        decidedBy: decidedByUserId,
+        decidedNote: reason,
+      })
     })
   }
 
@@ -505,40 +630,74 @@ async function writeHistoryRow(handle: DrizzleHandle, input: RecordChangeInput):
   return id
 }
 
-type DecideJournalEvent =
-  | { type: 'change_approved'; proposalId: string; writeId: string }
-  | { type: 'change_rejected'; proposalId: string; reason: string }
+/**
+ * Dotted-name lifecycle events that land in `harness.conversation_events` and
+ * surface to the inbox timeline (see `TIMELINE_ACTIVITY_TYPES` in
+ * `modules/messaging/service/conversations.ts`). Producer = this file.
+ *
+ * Payload mirrors the proposal row's identifying fields plus the SME-friendly
+ * `rationale` so the timeline renderer can show a one-liner without a second
+ * fetch.
+ */
+/**
+ * Per-call-site specifics for {@link emitLifecycleIfConversation}. The shared
+ * fields (`proposalId`, `kind`, `resource*`, `summary`) are derived from the
+ * `proposal` row so call sites stay terse and can't drift out of sync with
+ * the row's identity.
+ */
+type LifecycleVariant =
+  | { type: 'change.proposed'; rationale: string | null; proposedBy: string }
+  | { type: 'change.auto_applied'; rationale: string | null; proposedBy: string }
+  | { type: 'change.approved'; rationale: string | null; decidedBy: string; decidedNote: string | null }
+  | { type: 'change.rejected'; rationale: string | null; decidedBy: string; decidedNote: string | null }
 
-async function emitJournalIfConversation(
+async function emitLifecycleIfConversation(
   handle: DrizzleHandle,
   proposal: ChangeProposalRow,
-  event: DecideJournalEvent,
+  variant: LifecycleVariant,
 ): Promise<void> {
   if (!proposal.conversationId) return
-  const turnIndex = await getLatestTurnIndex(proposal.conversationId, handle)
-  const base = {
-    ts: new Date(),
-    wakeId: `change_decision:${event.proposalId}`,
-    conversationId: proposal.conversationId,
-    organizationId: proposal.organizationId,
-    turnIndex,
-  }
-
-  const journalEvent =
-    event.type === 'change_approved'
-      ? { ...base, type: 'change_approved' as const, proposalId: event.proposalId, writeId: event.writeId }
-      : { ...base, type: 'change_rejected' as const, proposalId: event.proposalId, reason: event.reason }
-
-  await appendJournalEvent(
-    {
+  // Best-effort: the journal write is a side effect for the inbox timeline,
+  // not a correctness-critical step. If the journal service isn't installed
+  // (unit tests that bypass `runtime/bootstrap.ts`) we swallow rather than
+  // roll back the change-proposal transaction.
+  try {
+    const turnIndex = await getLatestTurnIndex(proposal.conversationId, handle)
+    const wakeId = `change_lifecycle:${proposal.id}`
+    const event = {
+      ts: new Date(),
+      wakeId,
       conversationId: proposal.conversationId,
       organizationId: proposal.organizationId,
-      wakeId: base.wakeId,
       turnIndex,
-      event: journalEvent as unknown as AgentEvent,
-    },
-    handle,
-  )
+      proposalId: proposal.id,
+      kind: proposal.payload.kind,
+      resourceModule: proposal.resourceModule,
+      resourceType: proposal.resourceType,
+      resourceId: proposal.resourceId,
+      summary: summarizeLifecycleEvent({
+        payload: proposal.payload,
+        resourceModule: proposal.resourceModule,
+        resourceType: proposal.resourceType,
+      }),
+      ...variant,
+    }
+    await appendJournalEvent(
+      {
+        conversationId: proposal.conversationId,
+        organizationId: proposal.organizationId,
+        wakeId,
+        turnIndex,
+        event: event as unknown as AgentEvent,
+      },
+      handle,
+    )
+  } catch (err) {
+    console.warn(
+      '[changes/proposals] lifecycle journal write skipped (journal service not installed?):',
+      err instanceof Error ? err.message : err,
+    )
+  }
 }
 
 // ─── Module-scoped install + port-shim free functions ────────────────────────

@@ -2,28 +2,102 @@
  * Regression net for the motivating "GK Corp" memory bug — verifies the
  * `agent_end → tracker.flush → FilesService.writePath / upsertStaffMemory`
  * chain fires exactly once per scope when an agent appends to a MEMORY.md
- * file mid-wake.
+ * file mid-wake. Also covers the profile.md → field_set proposal path added
+ * for the profile-frontmatter ADR.
  *
- * No real DB, no real Drizzle. All collaborators are typed `satisfies` the
- * real shapes from `@modules/drive/service/files` / `@modules/agents/service/staff-memory`
+ * No real DB, no real Drizzle. Collaborators are typed `satisfies` the real
+ * shapes from `@modules/drive/service/files` / `@modules/agents/service/staff-memory`
  * so a future signature change will fail `bun run typecheck` even if this
  * test never runs in CI.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+
+const insertedProposals: Array<Record<string, unknown>> = []
+
+mock.module('@modules/changes/service/proposals', () => ({
+  insertProposal: (input: Record<string, unknown>) => {
+    insertedProposals.push(input)
+    return Promise.resolve({ id: 'p_fake', status: 'auto_written' })
+  },
+}))
+
 import {
   __resetStaffMemoryServiceForTests,
   installStaffMemoryService,
   type StaffMemoryService,
 } from '@modules/agents/service/staff-memory'
+import type { Contact } from '@modules/contacts/schema'
+import {
+  __resetContactsServiceForTests,
+  type ContactsService,
+  installContactsService,
+} from '@modules/contacts/service/contacts'
 import type { FilesService } from '@modules/drive/service/files'
+import type { StaffProfile } from '@modules/team/schema'
+import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 import type { DirtyDiff, DirtyTracker, HarnessLogger } from '@vobase/core'
 import { InMemoryFs } from 'just-bash'
 
-type ScopedDiff = Awaited<ReturnType<DirtyTracker['flush']>>
-
 import type { AgentEvent } from '../events'
+import { renderContactFrontmatter, renderStaffFrontmatter } from '../profile-frontmatter'
 import { createWorkspaceSyncListener } from './workspace-sync'
+
+let stubContact: Contact | null = null
+let stubStaffProfile: StaffProfile | null = null
+
+function makeContactsStub(): ContactsService {
+  const notImpl = (): never => {
+    throw new Error('not implemented')
+  }
+  return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async get() {
+      if (!stubContact) throw new Error('contact not found')
+      return stubContact
+    },
+    list: notImpl,
+    findById: notImpl,
+    upsertByExternalKey: notImpl,
+    update: notImpl,
+    setAttributes: notImpl,
+    appendNote: notImpl,
+    readMemory: notImpl,
+    writeMemory: notImpl,
+    upsertMemorySection: notImpl,
+    readProfile: notImpl,
+    writeProfile: notImpl,
+    getByPhone: notImpl,
+    getByEmail: notImpl,
+    setRealtime: notImpl,
+  } as unknown as ContactsService
+}
+
+function makeTeamStaffStub(): StaffService {
+  const notImpl = (): never => {
+    throw new Error('not implemented')
+  }
+  return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async find() {
+      return stubStaffProfile
+    },
+    list: notImpl,
+    get: notImpl,
+    upsert: notImpl,
+    update: notImpl,
+    remove: notImpl,
+    setAttributes: notImpl,
+    touchLastSeen: notImpl,
+    readMemory: notImpl,
+    writeMemory: notImpl,
+    upsertMemorySection: notImpl,
+    readProfile: notImpl,
+    writeProfile: notImpl,
+  } as unknown as StaffService
+}
+
+type ScopedDiff = Awaited<ReturnType<DirtyTracker['flush']>>
 
 const ORG = 'org_test'
 const AGENT = 'a_test'
@@ -32,6 +106,18 @@ const STAFF = 'u_alice'
 
 function emptyDiff(): DirtyDiff {
   return { added: [], changed: [], deleted: [] }
+}
+
+function emptyScoped(): ScopedDiff {
+  return {
+    agentMemory: emptyDiff(),
+    contactMemory: emptyDiff(),
+    contactProfile: emptyDiff(),
+    contactDrive: emptyDiff(),
+    staffMemory: new Map(),
+    staffProfile: new Map(),
+    tmp: emptyDiff(),
+  }
 }
 
 function makeLogger(): HarnessLogger {
@@ -96,7 +182,7 @@ function makeStaffMemoryFake(): StaffMemoryFake {
   return { upserts, service }
 }
 
-function makeTracker(scoped: ScopedDiff): DirtyTracker {
+function makeTracker(scoped: ScopedDiff = emptyScoped()): DirtyTracker {
   return {
     // biome-ignore lint/suspicious/useAwait: matches real DirtyTracker.flush signature
     async flush() {
@@ -104,6 +190,20 @@ function makeTracker(scoped: ScopedDiff): DirtyTracker {
     },
   } as unknown as DirtyTracker
 }
+
+beforeEach(() => {
+  insertedProposals.length = 0
+  installContactsService(makeContactsStub())
+  installStaffService(makeTeamStaffStub())
+})
+
+afterEach(() => {
+  insertedProposals.length = 0
+  stubContact = null
+  stubStaffProfile = null
+  __resetContactsServiceForTests()
+  __resetStaffServiceForTests()
+})
 
 describe('createWorkspaceSyncListener — agent scope', () => {
   let staff: StaffMemoryFake
@@ -123,11 +223,8 @@ describe('createWorkspaceSyncListener — agent scope', () => {
     const listener = createWorkspaceSyncListener({
       fs,
       tracker: makeTracker({
+        ...emptyScoped(),
         agentMemory: { added: [`/agents/${AGENT}/MEMORY.md`], changed: [], deleted: [] },
-        contactMemory: emptyDiff(),
-        contactDrive: emptyDiff(),
-        staffMemory: new Map(),
-        tmp: emptyDiff(),
       }),
       organizationId: ORG,
       agentId: AGENT,
@@ -161,11 +258,8 @@ describe('createWorkspaceSyncListener — contact scope', () => {
     const listener = createWorkspaceSyncListener({
       fs,
       tracker: makeTracker({
-        agentMemory: emptyDiff(),
+        ...emptyScoped(),
         contactMemory: { added: [`/contacts/${CONTACT}/MEMORY.md`], changed: [], deleted: [] },
-        contactDrive: emptyDiff(),
-        staffMemory: new Map(),
-        tmp: emptyDiff(),
       }),
       organizationId: ORG,
       agentId: AGENT,
@@ -197,11 +291,8 @@ describe('createWorkspaceSyncListener — staff scope', () => {
     await fs.writeFile(`/staff/${STAFF}/MEMORY.md`, '# Memory\n\n- handles refunds via card\n')
     const files = makeFilesServiceFake()
     const tracker = makeTracker({
-      agentMemory: emptyDiff(),
-      contactMemory: emptyDiff(),
-      contactDrive: emptyDiff(),
+      ...emptyScoped(),
       staffMemory: new Map([[STAFF, { added: [`/staff/${STAFF}/MEMORY.md`], changed: [], deleted: [] }]]),
-      tmp: emptyDiff(),
     })
     const listener = createWorkspaceSyncListener({
       fs,
@@ -226,11 +317,8 @@ describe('createWorkspaceSyncListener — staff scope', () => {
     await fs.writeFile(`/agents/${AGENT}/MEMORY.md`, 'x')
     const files = makeFilesServiceFake()
     const tracker = makeTracker({
+      ...emptyScoped(),
       agentMemory: { added: [`/agents/${AGENT}/MEMORY.md`], changed: [], deleted: [] },
-      contactMemory: emptyDiff(),
-      contactDrive: emptyDiff(),
-      staffMemory: new Map(),
-      tmp: emptyDiff(),
     })
     const listener = createWorkspaceSyncListener({
       fs,
@@ -251,5 +339,168 @@ describe('createWorkspaceSyncListener — staff scope', () => {
     } as AgentEvent)
     expect(files.writes).toHaveLength(0)
     expect(staff.upserts).toHaveLength(0)
+  })
+})
+
+// ─── Profile.md → field_set proposals ────────────────────────────────────────
+
+function baselineContact() {
+  return {
+    id: CONTACT,
+    organizationId: ORG,
+    displayName: 'Marcus',
+    phone: '+6591234567',
+    email: 'marcus@northwind.sg',
+    profile: '',
+    memory: '',
+    attributes: { industry: 'tech' },
+    segments: [],
+    marketingOptOut: false,
+    marketingOptOutAt: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  }
+}
+
+function baselineStaff() {
+  return {
+    userId: STAFF,
+    organizationId: ORG,
+    displayName: 'Alice',
+    title: 'CSM',
+    sectors: [],
+    expertise: [],
+    languages: [],
+    capacity: 10,
+    availability: 'active' as const,
+    attributes: {},
+    profile: '',
+    memory: '',
+    lastSeenAt: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  }
+}
+
+async function runWithProfileEdit(opts: {
+  workspacePath: string
+  workspaceBody: string
+}): Promise<{ files: FakeFilesService; logger: HarnessLogger }> {
+  const fs = new InMemoryFs()
+  const dir = opts.workspacePath.split('/').slice(0, -1).join('/')
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(opts.workspacePath, opts.workspaceBody)
+  const files = makeFilesServiceFake()
+  const logger = makeLogger()
+
+  const dirty: DirtyDiff = { added: [], changed: [opts.workspacePath], deleted: [] }
+  const scoped = emptyScoped()
+  const staffMatch = opts.workspacePath.match(/^\/staff\/([^/]+)\/profile\.md$/)
+  if (staffMatch) {
+    scoped.staffProfile.set(staffMatch[1], dirty)
+  } else {
+    scoped.contactProfile = dirty
+  }
+
+  const listener = createWorkspaceSyncListener({
+    fs,
+    tracker: makeTracker(scoped),
+    organizationId: ORG,
+    agentId: AGENT,
+    contactId: CONTACT,
+    drive: files.service as unknown as FilesService,
+    logger,
+  })
+  await listener(makeAgentEnd())
+  return { files, logger }
+}
+
+describe('createWorkspaceSyncListener — contact profile.md', () => {
+  it('emits one field_set proposal when one frontmatter scalar changes', async () => {
+    stubContact = baselineContact()
+    const baselineMd = renderContactFrontmatter(baselineContact() as never)
+    // Tweak phone in the workspace copy.
+    const edited = baselineMd.replace('+6591234567', '+6598888888')
+    await runWithProfileEdit({ workspacePath: `/contacts/${CONTACT}/profile.md`, workspaceBody: edited })
+
+    expect(insertedProposals).toHaveLength(1)
+    const call = insertedProposals[0] as Record<string, unknown>
+    expect(call.resourceModule).toBe('contacts')
+    expect(call.resourceType).toBe('contact')
+    expect(call.resourceId).toBe(CONTACT)
+    const payload = call.payload as { kind: string; fields: Record<string, { from: unknown; to: unknown }> }
+    expect(payload.kind).toBe('field_set')
+    expect(payload.fields).toEqual({ phone: { from: '+6591234567', to: '+6598888888' } })
+  })
+
+  it('emits zero proposals when only the key order is reshuffled', async () => {
+    stubContact = baselineContact()
+    const rendered = renderContactFrontmatter(baselineContact() as never)
+    // Re-render is byte-stable; this also exercises the parser baseline path.
+    await runWithProfileEdit({ workspacePath: `/contacts/${CONTACT}/profile.md`, workspaceBody: rendered })
+    expect(insertedProposals).toHaveLength(0)
+  })
+
+  it('emits zero proposals + warns when the workspace body is malformed YAML', async () => {
+    stubContact = baselineContact()
+    const { logger } = await runWithProfileEdit({
+      workspacePath: `/contacts/${CONTACT}/profile.md`,
+      workspaceBody: '---\n: : :\n---\n# heading\n',
+    })
+    expect(insertedProposals).toHaveLength(0)
+    expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it('drops unknown frontmatter keys before insertProposal and warns', async () => {
+    stubContact = baselineContact()
+    // displayName change (recognised) + bogus key (must be dropped).
+    const body = '---\ndisplayName: "Marcus T."\nphone: "+6591234567"\nbogusKey: "x"\n---\n# Marcus T.\n'
+    const { logger } = await runWithProfileEdit({
+      workspacePath: `/contacts/${CONTACT}/profile.md`,
+      workspaceBody: body,
+    })
+    expect(insertedProposals).toHaveLength(1)
+    const fields = (insertedProposals[0]?.payload as { fields: Record<string, unknown> }).fields
+    expect(Object.keys(fields)).toContain('displayName')
+    expect(Object.keys(fields)).not.toContain('bogusKey')
+    expect(logger.warn).toHaveBeenCalled()
+  })
+
+  it('emits one proposal when a single attributes.* key changes', async () => {
+    stubContact = baselineContact()
+    const baselineMd = renderContactFrontmatter(baselineContact() as never)
+    const edited = baselineMd.replace('industry: "tech"', 'industry: "logistics"')
+    await runWithProfileEdit({ workspacePath: `/contacts/${CONTACT}/profile.md`, workspaceBody: edited })
+    expect(insertedProposals).toHaveLength(1)
+    const fields = (insertedProposals[0]?.payload as { fields: Record<string, unknown> }).fields
+    expect(fields).toEqual({ 'attributes.industry': { from: 'tech', to: 'logistics' } })
+  })
+})
+
+describe('createWorkspaceSyncListener — staff profile.md', () => {
+  it('emits one field_set proposal targeting (team, staff) when a scalar changes', async () => {
+    stubStaffProfile = baselineStaff()
+    const baselineMd = renderStaffFrontmatter(baselineStaff() as never)
+    const edited = baselineMd.replace('title: "CSM"', 'title: "Senior CSM"')
+    await runWithProfileEdit({ workspacePath: `/staff/${STAFF}/profile.md`, workspaceBody: edited })
+
+    expect(insertedProposals).toHaveLength(1)
+    const call = insertedProposals[0] as Record<string, unknown>
+    expect(call.resourceModule).toBe('team')
+    expect(call.resourceType).toBe('staff')
+    expect(call.resourceId).toBe(STAFF)
+    const fields = (call.payload as { fields: Record<string, unknown> }).fields
+    expect(fields).toEqual({ title: { from: 'CSM', to: 'Senior CSM' } })
+  })
+
+  it('emits zero proposals when staff profile is missing in the row store', async () => {
+    stubStaffProfile = null
+    const body = '---\ntitle: "Senior CSM"\n---\n# Alice (u_alice)\n'
+    const { logger } = await runWithProfileEdit({
+      workspacePath: `/staff/${STAFF}/profile.md`,
+      workspaceBody: body,
+    })
+    expect(insertedProposals).toHaveLength(0)
+    expect(logger.warn).toHaveBeenCalled()
   })
 })

@@ -102,7 +102,7 @@ export function ProposalRow({ proposal, onDecided }: Props) {
   const confidencePct = proposal.confidence !== null ? Math.round(proposal.confidence * 100) : null
 
   return (
-    <li className="rounded-lg bg-card shadow-sm transition-shadow hover:shadow-md">
+    <div className="rounded-lg bg-card shadow-sm transition-shadow hover:shadow-md">
       <div className="space-y-4 p-5">
         {/* Subtle proposer line — engineer-y target/resource lives behind the
             disclosure below; SMEs only need to know "Sentinel proposed
@@ -230,7 +230,7 @@ export function ProposalRow({ proposal, onDecided }: Props) {
           </div>
         </details>
       </div>
-    </li>
+    </div>
   )
 }
 

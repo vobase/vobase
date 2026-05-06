@@ -52,6 +52,29 @@ export type WakeTrigger =
    * branch. See `wake/trigger.ts` for the renderer.
    */
   | { trigger: 'caption_ready'; conversationId: string; fileId: string }
+  /**
+   * Staff approved or rejected a change-proposal that was created during this
+   * conversation. The wake fires so the agent can acknowledge the decision
+   * to the customer (confirmation when approved; polite "sorry, we declined"
+   * with optional next-step suggestion when rejected). Producer:
+   * `modules/changes/service/proposals.ts::decideChangeProposal` post-commit.
+   * See `wake/trigger.ts` for the renderer.
+   */
+  | {
+      trigger: 'change_decided'
+      conversationId: string
+      proposalId: string
+      decision: 'approved' | 'rejected'
+      resourceModule: string
+      resourceType: string
+      resourceId: string
+      /** SME-friendly summary, copied verbatim from the proposal's `rationale`. */
+      summary: string | null
+      /** Staff-authored note. null for system rejections (`staff_rejected`, `threat_scan`). */
+      decidedNote: string | null
+      /** Staff user-id (`usr0...`) who made the decision. */
+      decidedBy: string
+    }
 
 export type WakeTriggerKind = WakeTrigger['trigger']
 
@@ -111,6 +134,18 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     trigger: z.literal('caption_ready'),
     conversationId: z.string(),
     fileId: z.string(),
+  }),
+  z.object({
+    trigger: z.literal('change_decided'),
+    conversationId: z.string(),
+    proposalId: z.string(),
+    decision: z.enum(['approved', 'rejected']),
+    resourceModule: z.string(),
+    resourceType: z.string(),
+    resourceId: z.string(),
+    summary: z.string().nullable(),
+    decidedNote: z.string().nullable(),
+    decidedBy: z.string(),
   }),
 ])
 

@@ -44,6 +44,7 @@ import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
 import { createLearningProposalObserver } from './observers/learning-proposals'
 import { createMemoryDistillListener } from './observers/memory-distill'
+import { createSensitiveWriteWarner } from './observers/sensitive-write-warner'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
 import { resolvePlatformHint } from './platform-hints'
 import { buildFrozenPrompt } from './prompt'
@@ -222,6 +223,9 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     contactId: data.contactId,
     drive,
     logger: deps.logger,
+    agentName: agentDefinition.name,
+    authLookup,
+    conversationId,
   })
 
   const emitEventHandle: LlmEmitter = {}
@@ -238,6 +242,15 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     organizationId: data.organizationId,
     agentId,
     conversationId,
+    logger: deps.logger,
+    agentName: agentDefinition.name,
+    authLookup,
+  })
+
+  const sensitiveWriteWarner = createSensitiveWriteWarner({
+    fs: workspace.innerFs,
+    contactId: data.contactId,
+    staffIds,
     logger: deps.logger,
   })
 
@@ -294,6 +307,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
         memoryDistillListener as OnEventListener<WakeTrigger>,
         learningProposalListener as OnEventListener<WakeTrigger>,
       ],
+      coreToolResults: [sensitiveWriteWarner],
       toolFilter: supervisorKind === 'coaching' ? (t) => t.audience !== 'customer' : undefined,
     }),
     materializers: wakeMaterializers,

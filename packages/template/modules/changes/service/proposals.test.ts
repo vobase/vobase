@@ -230,6 +230,135 @@ describe('insertProposal status derivation', () => {
   })
 })
 
+describe('insertProposal per-field gate (requiresApprovalForFields)', () => {
+  it('forces status="pending" when a field_set proposal touches a gated key, even with requiresApproval=false', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      requiresApproval: false,
+      requiresApprovalForFields: new Set(['displayName']),
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: { kind: 'field_set', fields: { displayName: { from: 'Old', to: 'New' } } },
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+    })
+
+    expect(result.status).toBe('pending')
+    // Pending path must NOT run the materializer or write history.
+    expect(materializerCalls).toEqual([])
+  })
+
+  it('auto-applies a field_set proposal touching only ungated keys', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      requiresApproval: false,
+      requiresApprovalForFields: new Set(['displayName']),
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: { kind: 'field_set', fields: { phone: { from: '+1', to: '+2' } } },
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+    })
+
+    expect(result.status).toBe('auto_written')
+    expect(materializerCalls.length).toBe(1)
+  })
+
+  it('does NOT gate on attributes.* keys even if the gate set contains them', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      requiresApproval: false,
+      // `attributes.priority` should be ignored — the gate is for top-level
+      // scalars only. Per-attribute gating is a tracked follow-up.
+      requiresApprovalForFields: new Set(['attributes.priority']),
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: { kind: 'field_set', fields: { 'attributes.priority': { from: 'low', to: 'high' } } },
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+    })
+
+    expect(result.status).toBe('auto_written')
+    expect(materializerCalls.length).toBe(1)
+  })
+
+  it('bypasses the gate entirely for non-field_set payloads (markdown_patch)', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      requiresApproval: false,
+      requiresApprovalForFields: new Set(['displayName']),
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: { kind: 'markdown_patch', mode: 'append', field: 'memory', body: 'note' },
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+    })
+
+    expect(result.status).toBe('auto_written')
+    expect(materializerCalls.length).toBe(1)
+  })
+
+  it('treats an empty / undefined gate set as no-op (resource-level decides)', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      requiresApproval: false,
+      // requiresApprovalForFields omitted → behaviour byte-identical to today
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: { kind: 'field_set', fields: { displayName: { from: 'Old', to: 'New' } } },
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+    })
+
+    expect(result.status).toBe('auto_written')
+  })
+})
+
 describe('InsertProposalInput type-level guard', () => {
   it('does not accept caller-supplied `status` field (compile-time enforcement)', () => {
     // The service input shape `InsertProposalInput` has no `status` key.

@@ -2,18 +2,22 @@
  * Agent-facing surfaces for the contacts module. No static tools/listeners/
  * commands — only materializers, which are wake-time (contactId in path).
  *
- * `/contacts/<id>/profile.md` (RO identity card) and `/contacts/<id>/MEMORY.md`
- * (agent-writable memory blob, backed by `contacts.contacts.memory`).
+ * `/contacts/<id>/profile.md` (frontmatter is the agent's structured-edit
+ * surface for scalar columns + `attributes.*`; body below the second `---`
+ * is auto-rendered) and `/contacts/<id>/MEMORY.md` (agent-writable memory
+ * blob, backed by `contacts.contacts.memory`).
  *
  * Reads go through `ContactsService` so virtual-field semantics stay in one
- * place.
+ * place. Frontmatter writes are observed by `wake/observers/workspace-sync`
+ * and translated into `field_set` change-proposals.
  */
 
 import type { Contact } from '@modules/contacts/schema'
-import { type AgentTool, defineIndexContributor, type IndexContributor, type RoHintFn } from '@vobase/core'
+import { type AgentTool, defineIndexContributor, type IndexContributor } from '@vobase/core'
 
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
+import { renderContactFrontmatter } from '~/wake/profile-frontmatter'
 import { get as getContact, readMemory as readContactMemory } from './service/contacts'
 import type { ContactsIndexReader, ContactsReader } from './service/types'
 import { proposeOutreachTool } from './tools/propose-outreach'
@@ -22,20 +26,6 @@ import { updateContactTool } from './tools/update-contact'
 export type { ContactsIndexReader, ContactsReader }
 
 const contactsReader: ContactsReader = { get: getContact, readMemory: readContactMemory }
-
-/**
- * RO-error hint for `/contacts/<id>/profile.md`. The contact profile is
- * derived from the contacts row; agents propose changes via `update_contact`
- * (gated by the changes pipeline) instead of overwriting the file.
- */
-export const contactsRoHints: RoHintFn[] = [
-  (path) => {
-    if (path.startsWith('/contacts/') && path.endsWith('/profile.md')) {
-      return `bash: ${path}: Read-only filesystem.\n  Contact profile is derived from the contact record. Edit fields in the Contacts UI or via the contacts service; do not write to this file.`
-    }
-    return null
-  },
-]
 
 export const contactsTools: AgentTool[] = [updateContactTool, proposeOutreachTool]
 
@@ -51,12 +41,8 @@ export async function renderContactProfile(port: ContactsReader, contactId: stri
   try {
     const c = await port.get(contactId)
     const identity = c.displayName ?? c.phone ?? c.email ?? c.id
-    const lines: string[] = [`# ${identity} (${c.id})`, '']
-    if (c.displayName) lines.push(`Display Name: ${c.displayName}`)
-    if (c.phone) lines.push(`Phone: ${c.phone}`)
-    if (c.email) lines.push(`Email: ${c.email}`)
-    lines.push('')
-    return lines.join('\n')
+    const frontmatter = renderContactFrontmatter(c)
+    return `${frontmatter}# ${identity} (${c.id})\n`
   } catch {
     return contactProfileFallback(contactId)
   }
@@ -111,11 +97,18 @@ export const contactsAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Contact context',
         '',
-        '- `/contacts/<id>/profile.md` — contact identity (read-only; first line carries the identity).',
-        '- `/contacts/<id>/MEMORY.md` — per-contact working memory. Direct-writable like any markdown file (`cat`, `echo >>`, `sed`, heredocs). Persists across wakes — use for per-customer learnings that should survive into future conversations.',
+        "- `/contacts/<id>/profile.md` — contact identity. The YAML frontmatter at the top is editable: top-level scalars (`displayName`, `email`, `phone`, `segments`, `marketingOptOut`) and nested `attributes.*` keys flow through the change-proposal pipeline as `field_set` proposals. The body below the second `---` is auto-rendered from the row — don't edit it.",
+        '- `/contacts/<id>/MEMORY.md` — per-contact working memory (prose narrative). Direct-writable like any markdown file (`cat`, `echo >>`, `sed`, heredocs). Persists across wakes — use for per-customer learnings that should survive into future conversations.',
         '- `/contacts/<id>/drive/` — per-contact upload space (writable).',
         '',
-        '**Update contact memory:** `echo "- new note" >> /contacts/<id>/MEMORY.md`, or use a heredoc for a dated section. Same pattern as your own MEMORY.md, scoped to this contact.',
+        '**Update structured fields:** edit the frontmatter atop `profile.md` (e.g. `attributes.industry: "logistics"`). **Update prose memory:** `echo "- new note" >> /contacts/<id>/MEMORY.md`.',
+        '',
+        '**When the customer asks for a profile change** (email, phone, displayName, segments, attributes), the workflow is mandatory and must happen IN THIS WAKE — do not punt to "I\'ll log it for staff" without doing the work:',
+        '1. `cat /contacts/<id>/profile.md` to see which keys are present in the frontmatter.',
+        '2. Edit with `sed`/`echo`/here-doc — see the **Bash sandbox** section in the static instructions for the exact insert-or-replace patterns. A new contact often has only `displayName` + `marketingOptOut`, so a plain "replace existing key" sed for `email` will silently match nothing — use the insert pattern.',
+        '3. `cat` the file again to confirm your edit landed.',
+        '4. Read the `stderr` of your edit. Gated fields (`displayName`, `email`) emit a `vobase notice:` line saying the change is queued for staff approval. Non-gated fields apply immediately.',
+        '5. Reply to the customer based on step 4: "logged for our team to review" for gated fields with the notice; "all set" for non-gated fields. Never invent a "logged" reply without a verified edit and an actual stderr notice in your tool result.',
       ].join('\n'),
   }),
 ]
@@ -167,5 +160,4 @@ export const contactsAgent = {
   tools: contactsTools,
   agentsMd: [...contactsAgentsMdContributors],
   materializers: [contactsMaterializerFactory],
-  roHints: [...contactsRoHints],
 }

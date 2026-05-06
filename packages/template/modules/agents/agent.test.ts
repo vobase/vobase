@@ -175,12 +175,14 @@ describe('agents.memory-conventions contributor', () => {
     expect(c.priority).toBe(26)
   })
 
-  it('renders exactly one `## ` heading and stays within pinned body-length bounds', () => {
+  it('renders exactly two `## ` headings and stays within pinned body-length bounds', () => {
     const c = findContributor('agents.memory-conventions')
     const render = renderContributor(c)
-    expect(render.match(/^## /gm)?.length).toBe(1)
+    // Two headings: `## Memory scopes` (mutation playbook) and
+    // `## Structured fields vs prose memory` (frontmatter capture triggers).
+    expect(render.match(/^## /gm)?.length).toBe(2)
     expect(render.length).toBeGreaterThanOrEqual(1075)
-    expect(render.length).toBeLessThanOrEqual(1790)
+    expect(render.length).toBeLessThanOrEqual(2900)
   })
 
   it('renders all three scope rows exactly once', () => {
@@ -196,6 +198,16 @@ describe('agents.memory-conventions contributor', () => {
     const render = renderContributor(c)
     expect(render).toContain('propose_contact_attribute')
     expect(render).toContain('memory-contact-attribute-confidence')
+  })
+
+  it('teaches the profile.md frontmatter vs MEMORY.md prose split', () => {
+    const c = findContributor('agents.memory-conventions')
+    const render = renderContributor(c)
+    expect(render).toMatch(/profile\.md.*frontmatter/)
+    expect(render).toMatch(/auto-rendered/)
+    expect(render).toMatch(/Customer-volunteered facts/)
+    expect(render).toMatch(/Staff-volunteered facts/)
+    expect(render).toMatch(/High-confidence inferences/)
   })
 })
 

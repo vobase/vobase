@@ -1,12 +1,17 @@
 import type { ActivityEvent } from '@modules/messaging/hooks/use-activity'
+import { Link } from '@tanstack/react-router'
 import {
   BellIcon,
   BellOffIcon,
   CheckCircle2Icon,
+  CheckIcon,
+  ClockIcon,
+  PencilLineIcon,
   RotateCcwIcon,
   StickyNote,
   UserCogIcon,
   UserIcon,
+  XIcon,
   ZapIcon,
 } from 'lucide-react'
 import type React from 'react'
@@ -18,6 +23,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-e
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
 import { MessageCard } from '@/components/message-card'
 import { Principal as PrincipalNode } from '@/components/principal'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { cn } from '@/lib/utils'
 import type { InternalNote, Message } from '../schema'
@@ -419,6 +425,36 @@ function ActivityRow({ ev, directory }: { ev: ActivityEvent; directory: Principa
       return <ActivityLine icon={<BellIcon className="size-3.5" />}>Unsnoozed</ActivityLine>
     case 'conversation.snooze_expired':
       return <ActivityLine icon={<BellIcon className="size-3.5" />}>Snooze expired</ActivityLine>
+    case 'change.proposed':
+      return (
+        <ChangeActivityLine
+          icon={<ClockIcon className="size-3.5 text-amber-600" />}
+          payload={p}
+          fallbackText="Change proposed"
+        />
+      )
+    case 'change.auto_applied':
+      return (
+        <ChangeActivityLine icon={<PencilLineIcon className="size-3.5" />} payload={p} fallbackText="Change applied" />
+      )
+    case 'change.approved':
+      return (
+        <ChangeActivityLine
+          icon={<CheckIcon className="size-3.5 text-emerald-600" />}
+          payload={p}
+          fallbackText="Change approved"
+          prefix="Approved"
+        />
+      )
+    case 'change.rejected':
+      return (
+        <ChangeActivityLine
+          icon={<XIcon className="size-3.5 text-rose-600" />}
+          payload={p}
+          fallbackText="Change declined"
+          prefix="Declined"
+        />
+      )
     default:
       return <ActivityLine icon={<ZapIcon className="size-3.5" />}>{ev.type}</ActivityLine>
   }
@@ -430,6 +466,83 @@ function ActivityLine({ icon, children }: { icon: React.ReactNode; children: Rea
       <div className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
         {icon}
         <span className="inline-flex items-center gap-1">{children}</span>
+      </div>
+    </div>
+  )
+}
+
+const SYSTEM_REJECTION_REASONS = new Set(['staff_rejected', 'threat_scan'])
+
+/**
+ * Inline timeline row for `change.*` lifecycle events. Renders the short
+ * `summary` so the row stays scannable; the longer `rationale` and
+ * staff-authored `decidedNote` live in a hover card. The whole line links
+ * to `/changes?id=<proposalId>` so staff can jump to the proposal record
+ * for the diff + approve/reject UI.
+ */
+function ChangeActivityLine({
+  icon,
+  payload,
+  fallbackText,
+  prefix,
+}: {
+  icon: React.ReactNode
+  payload: Record<string, unknown>
+  fallbackText: string
+  prefix?: 'Approved' | 'Declined'
+}) {
+  const summary = typeof payload.summary === 'string' && payload.summary.trim() ? payload.summary : null
+  const rationale = typeof payload.rationale === 'string' && payload.rationale.trim() ? payload.rationale : null
+  const proposalId = typeof payload.proposalId === 'string' && payload.proposalId.length > 0 ? payload.proposalId : null
+  const decidedNoteRaw =
+    typeof payload.decidedNote === 'string' && payload.decidedNote.trim() ? payload.decidedNote : null
+  // System-emitted rejection reasons (`staff_rejected`, `threat_scan`) are
+  // tokens, not staff-authored prose — suppress so the hover card stays clean.
+  const decidedNote = decidedNoteRaw && !SYSTEM_REJECTION_REASONS.has(decidedNoteRaw) ? decidedNoteRaw : null
+
+  const headline = summary ?? rationale ?? fallbackText
+  const labelled = prefix ? `${prefix} ${headline}` : headline
+  const hasHoverDetail = (rationale && rationale !== headline) || decidedNote
+
+  const linkBody = (
+    <span className="inline-flex items-center gap-1">
+      {icon}
+      <span className={cn('truncate', hasHoverDetail && 'border-muted-foreground/30 border-b border-dashed')}>
+        {labelled}
+      </span>
+    </span>
+  )
+
+  const linked = proposalId ? (
+    <Link
+      to="/changes"
+      search={{ id: proposalId }}
+      className="inline-flex items-center hover:text-foreground hover:underline"
+    >
+      {linkBody}
+    </Link>
+  ) : (
+    linkBody
+  )
+
+  return (
+    <div className="flex justify-center px-2">
+      <div className="inline-flex max-w-[36rem] items-center gap-1.5 text-muted-foreground text-xs">
+        {hasHoverDetail ? (
+          <HoverCard openDelay={150} closeDelay={75}>
+            <HoverCardTrigger asChild>{linked}</HoverCardTrigger>
+            <HoverCardContent side="top" align="center" className="w-80 space-y-2 text-xs leading-relaxed">
+              {rationale && rationale !== headline ? <p className="text-foreground">{rationale}</p> : null}
+              {decidedNote ? (
+                <p className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Decision note:</span> {decidedNote}
+                </p>
+              ) : null}
+            </HoverCardContent>
+          </HoverCard>
+        ) : (
+          linked
+        )}
       </div>
     </div>
   )

@@ -43,8 +43,10 @@ describe('collectAgentContributions over the real template module list', () => {
 
   it('returns roHints from every module that ships them', () => {
     const result = collectAgentContributions<unknown, unknown, WakeContext>(ALL_MODULES)
-    // 4 modules ship hints — agents/contacts/drive/messaging. team does not.
-    expect(result.roHints.length).toBeGreaterThanOrEqual(4)
+    // 3 modules ship hints — agents/drive/messaging. contacts dropped its hint
+    // when profile.md became editable (frontmatter routes through change
+    // proposals); team never had a hint.
+    expect(result.roHints.length).toBeGreaterThanOrEqual(3)
     // Each hint accepts a path and returns string|null.
     for (const fn of result.roHints) {
       const out = fn('/some/path.md')

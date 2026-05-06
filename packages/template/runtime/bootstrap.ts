@@ -40,6 +40,7 @@ import { streamSSE } from 'hono/streaming'
 import { nanoid } from 'nanoid'
 import type { Sql } from 'postgres'
 
+import { CHANGES_DECIDED_TO_WAKE_JOB, createChangeDecidedWakeHandler } from '~/wake/change-decided'
 import { createHeartbeatEmitter } from '~/wake/heartbeat'
 import { AGENTS_WAKE_JOB, createWakeHandler } from '~/wake/inbound'
 import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
@@ -295,6 +296,17 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   jobHandlers.set(
     MESSAGING_SUPERVISOR_TO_WAKE_JOB,
     createSupervisorWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
+  )
+
+  // Change-decided wakes: staff approved/rejected a proposal that was created
+  // during a customer conversation. The follow-up wake fires on the
+  // conversation's current agent assignee so it can send a polite
+  // acknowledgment (confirmation when approved; "couldn't apply, here's the
+  // right path" when rejected). Synthetic standalone-lane conversation ids
+  // are filtered upstream — the producer skips them.
+  jobHandlers.set(
+    CHANGES_DECIDED_TO_WAKE_JOB,
+    createChangeDecidedWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
   )
 
   // Heartbeat wakes: schedules cron-tick fires `HeartbeatTrigger`s into the

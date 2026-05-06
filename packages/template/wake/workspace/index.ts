@@ -71,11 +71,7 @@ export function buildStandaloneReadOnlyConfig(ids: {
   roHints?: readonly RoHintFn[]
 }): ReadOnlyConfig {
   const staffIds = ids.staffIds ?? []
-  const readOnlyExact: string[] = [
-    `/agents/${ids.agentId}/AGENTS.md`,
-    '/INDEX.md',
-    ...staffIds.map((s) => `/staff/${s}/profile.md`),
-  ]
+  const readOnlyExact: string[] = [`/agents/${ids.agentId}/AGENTS.md`, '/INDEX.md']
   return buildReadOnlyConfig({
     // Trailing-slash trick: a `writablePrefix` of `<path>/` matches both the
     // exact `<path>` (via `prefix.slice(0,-1)`) and any `<path>/...` descendant.
@@ -84,7 +80,10 @@ export function buildStandaloneReadOnlyConfig(ids: {
     // `checkWriteAllowed` AND the dirty-tracker's `isWritablePath` understand —
     // `writableGlobs` is enforcer-only and would silently drop the dirt diff.
     writablePrefixes: [`/agents/${ids.agentId}/skills/`, `/agents/${ids.agentId}/MEMORY.md/`, '/tmp/'],
-    memoryPaths: staffIds.map((s) => `/staff/${s}/MEMORY.md`),
+    // Single-file writable allowances: per-staff MEMORY.md plus per-staff
+    // profile.md (frontmatter is the agent's structured-edit surface; body is
+    // re-rendered each wake by the materializer).
+    memoryPaths: [...staffIds.map((s) => `/staff/${s}/MEMORY.md`), ...staffIds.map((s) => `/staff/${s}/profile.md`)],
     readOnlyExact,
     roMessageOverride: ids.roHints ? chainRoHints(ids.roHints) : undefined,
   })
@@ -101,10 +100,8 @@ export function buildDefaultReadOnlyConfig(ids: {
   const staffIds = ids.staffIds ?? []
   const readOnlyExact: string[] = [
     `/agents/${ids.agentId}/AGENTS.md`,
-    `/contacts/${ids.contactId}/profile.md`,
     `/contacts/${ids.contactId}/${ids.channelInstanceId}/messages.md`,
     `/contacts/${ids.contactId}/${ids.channelInstanceId}/internal-notes.md`,
-    ...staffIds.map((s) => `/staff/${s}/profile.md`),
   ]
   return buildReadOnlyConfig({
     // See `buildStandaloneReadOnlyConfig` for the trailing-slash trick rationale.
@@ -114,7 +111,15 @@ export function buildDefaultReadOnlyConfig(ids: {
       `/contacts/${ids.contactId}/MEMORY.md/`,
       '/tmp/',
     ],
-    memoryPaths: staffIds.map((s) => `/staff/${s}/MEMORY.md`),
+    // Single-file writable allowances: contact MEMORY (was here already
+    // implicitly via writablePrefix trailing-slash trick) plus contact
+    // profile.md and per-staff (MEMORY.md + profile.md). Frontmatter on
+    // profile.md is the structured-edit surface; the body is re-rendered.
+    memoryPaths: [
+      `/contacts/${ids.contactId}/profile.md`,
+      ...staffIds.map((s) => `/staff/${s}/MEMORY.md`),
+      ...staffIds.map((s) => `/staff/${s}/profile.md`),
+    ],
     readOnlyExact,
     roMessageOverride: ids.roHints ? chainRoHints(ids.roHints) : undefined,
   })

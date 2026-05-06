@@ -37,6 +37,7 @@ import type { WakeTrigger } from './events'
 import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
 import { createLearningProposalObserver } from './observers/learning-proposals'
+import { createSensitiveWriteWarner } from './observers/sensitive-write-warner'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
 import { buildFrozenPrompt } from './prompt'
 import { resolveTriggerSpec } from './trigger'
@@ -160,12 +161,23 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     contactId: '',
     drive,
     logger: deps.logger,
+    agentName: agentDefinition.name,
+    authLookup,
   })
 
   const learningProposalListener = createLearningProposalObserver({
     organizationId: data.organizationId,
     agentId,
     conversationId: null,
+    logger: deps.logger,
+    agentName: agentDefinition.name,
+    authLookup,
+  })
+
+  const sensitiveWriteWarner = createSensitiveWriteWarner({
+    fs: workspace.innerFs,
+    contactId: null,
+    staffIds,
     logger: deps.logger,
   })
 
@@ -250,6 +262,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
         learningProposalListener as OnEventListener<WakeTrigger>,
         ...(operatorThreadBridgeListener ? [operatorThreadBridgeListener] : []),
       ],
+      coreToolResults: [sensitiveWriteWarner],
     }),
     materializers: wakeMaterializers,
     sideLoadContributors: [standaloneBriefSideLoad, ...contributions.sideLoad],

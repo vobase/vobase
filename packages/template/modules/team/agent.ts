@@ -21,32 +21,16 @@
 import { readStaffMemory } from '@modules/agents/service/staff-memory'
 import { staff } from '@modules/team/service'
 import type { StaffProfileLookup } from '@modules/team/service/types'
-import type { IndexContributor, RoHintFn, WorkspaceMaterializer } from '@vobase/core'
+import type { IndexContributor, WorkspaceMaterializer } from '@vobase/core'
 import { defineIndexContributor } from '@vobase/core'
 
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
+import { renderStaffFrontmatter } from '~/wake/profile-frontmatter'
 
 export type { StaffProfileLookup }
 
 const AGENTS_MD_FILE = 'AGENTS.md'
-
-// Cross-cutting prose only — describes the staff FILES the agent reads.
-// Per-verb guidance (when to use `team list` vs `team get`) lives next to
-// each verb's `defineCliVerb` and renders under `## Commands` in AGENTS.md.
-/**
- * RO-error hint for `/staff/<staffId>/profile.md`. The staff profile is
- * derived from the auth user + staff_profiles record; agents edit fields in
- * the Team UI rather than overwriting the rendered file.
- */
-export const teamRoHints: RoHintFn[] = [
-  (path) => {
-    if (path.startsWith('/staff/') && path.endsWith('/profile.md')) {
-      return `bash: ${path}: Read-only filesystem.\n  Staff profile is derived from the staff record (display name, role, expertise, timezone). Edit fields in the Team UI; do not write to this file.`
-    }
-    return null
-  },
-]
 
 export const teamAgentsMdContributors: readonly IndexContributor[] = [
   defineIndexContributor({
@@ -57,7 +41,7 @@ export const teamAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Staff',
         '',
-        '- `/staff/<id>/profile.md` — staff identity (read-only; first line carries the identity).',
+        "- `/staff/<id>/profile.md` — staff identity. The YAML frontmatter at the top is editable: `displayName`, `title`, `availability`, `capacity`, `expertise`, `sectors`, `languages`, plus `attributes.*`. Edits queue for staff approval (resource-level gate). The body below the second `---` is auto-rendered — don't edit it.",
         '- `/staff/<id>/MEMORY.md` — per-(agent, staff) memory you maintain about that staff member. Direct-writable.',
       ].join('\n'),
   }),
@@ -69,18 +53,8 @@ export async function renderStaffProfile(staffId: string, authLookup: StaffProfi
     authLookup.getAuthDisplay(staffId).catch(() => null),
   ])
   const displayName = profile?.displayName ?? auth?.name ?? auth?.email ?? staffId
-  const lines: string[] = [`# ${displayName} (${staffId})`, '']
-  if (auth?.email) lines.push(`Email: ${auth.email}`)
-  if (profile?.title) lines.push(`Title: ${profile.title}`)
-  if (profile?.availability) lines.push(`Availability: ${profile.availability}`)
-  if (profile && profile.expertise.length > 0) lines.push(`Expertise: ${profile.expertise.join(', ')}`)
-  if (profile && profile.sectors.length > 0) lines.push(`Sectors: ${profile.sectors.join(', ')}`)
-  if (profile && profile.languages.length > 0) lines.push(`Languages: ${profile.languages.join(', ')}`)
-  if (profile?.profile && profile.profile.trim().length > 0) {
-    lines.push('', '## Profile', '', profile.profile.trimEnd())
-  }
-  lines.push('')
-  return lines.join('\n')
+  const frontmatter = profile ? renderStaffFrontmatter(profile) : '---\n---\n\n'
+  return `${frontmatter}# ${displayName} (${staffId})\n`
 }
 
 export async function renderStaffMemory(key: {
@@ -141,7 +115,6 @@ export const teamMaterializerFactory: WakeMaterializerFactory = (ctx) => {
 export const teamAgent = {
   agentsMd: [...teamAgentsMdContributors],
   materializers: [teamMaterializerFactory],
-  roHints: [...teamRoHints],
 }
 
 /** Convenience for tests: predictable stub when only profile data is passed inline. */

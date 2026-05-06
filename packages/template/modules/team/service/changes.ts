@@ -1,0 +1,141 @@
+/**
+ * Staff change materializer — `field_set` proposals against
+ * `team.staff_profiles`. Mirrors the contacts materializer; allowed scalars
+ * are the staff row's own columns. The `email` column lives in `auth.user`
+ * and is intentionally NOT a write target in v1 — the registration's
+ * `requiresApprovalForFields` set still names it for forward-compatibility,
+ * but `applyFieldSet` rejects unknown keys, so an inadvertent `email` write
+ * surfaces as a validation error rather than silently going to the wrong
+ * table.
+ *
+ * Like contacts: writes happen on the proposal/decide tx handle, not the
+ * service singleton — `materialize()` receives `(proposal, tx)` and reads /
+ * writes through `tx`.
+ */
+
+import type { MaterializeResult, Materializer, TxLike } from '@modules/changes/service/proposals'
+import type { ChangePayload } from '@vobase/core'
+import { conflict, validation } from '@vobase/core'
+import { eq } from 'drizzle-orm'
+
+import type { Availability, StaffProfile } from '../schema'
+import { staffProfiles } from '../schema'
+
+/** Stable (resourceModule, resourceType) pair shared by registration + audit calls. */
+export const STAFF_RESOURCE = { module: 'team', type: 'staff' } as const
+
+/** Top-level scalar keys this materializer accepts in `field_set` proposals. */
+export const STAFF_SCALAR_FIELDS: ReadonlySet<string> = new Set([
+  'displayName',
+  'title',
+  'availability',
+  'capacity',
+  'expertise',
+  'sectors',
+  'languages',
+])
+const SCALAR_FIELDS = STAFF_SCALAR_FIELDS as ReadonlySet<keyof StaffProfile>
+
+const VALID_AVAILABILITY: ReadonlySet<Availability> = new Set(['active', 'busy', 'off', 'inactive'])
+
+export const staffChangeMaterializer: Materializer = async (proposal, tx) => {
+  const before = await loadStaff(tx, proposal.resourceId)
+  const after = applyPayload(before, proposal.payload)
+  await writeStaff(tx, proposal.resourceId, after)
+  return {
+    resultId: proposal.resourceId,
+    before,
+    after,
+  } satisfies MaterializeResult
+}
+
+async function loadStaff(tx: TxLike, userId: string): Promise<StaffProfile> {
+  const rows = (await tx
+    .select()
+    .from(staffProfiles)
+    .where(eq(staffProfiles.userId, userId))
+    .limit(1)) as unknown as StaffProfile[]
+  const row = rows[0]
+  if (!row) throw conflict(`team/changes: staff profile not found: ${userId}`)
+  return row
+}
+
+async function writeStaff(tx: TxLike, userId: string, next: StaffProfile): Promise<void> {
+  const set: Record<string, unknown> = {
+    displayName: next.displayName,
+    title: next.title,
+    availability: next.availability,
+    capacity: next.capacity,
+    expertise: next.expertise,
+    sectors: next.sectors,
+    languages: next.languages,
+    attributes: next.attributes,
+  }
+  await tx.update(staffProfiles).set(set).where(eq(staffProfiles.userId, userId))
+}
+
+function applyPayload(before: StaffProfile, payload: ChangePayload): StaffProfile {
+  if (payload.kind === 'field_set') return applyFieldSet(before, payload)
+  throw validation(
+    { kind: payload.kind },
+    `team/changes: only 'field_set' payloads are supported for resourceType=staff (got '${payload.kind}')`,
+  )
+}
+
+function applyFieldSet(before: StaffProfile, payload: Extract<ChangePayload, { kind: 'field_set' }>): StaffProfile {
+  const next: StaffProfile = {
+    ...before,
+    attributes: { ...before.attributes },
+  }
+  for (const [key, change] of Object.entries(payload.fields)) {
+    if (key.startsWith('attributes.')) {
+      const attrKey = key.slice('attributes.'.length)
+      if (!attrKey) {
+        throw validation({ key }, `team/changes: field_set 'attributes.' requires a key after the dot`)
+      }
+      next.attributes[attrKey] = change.to as StaffProfile['attributes'][string]
+      continue
+    }
+    if (!SCALAR_FIELDS.has(key as keyof StaffProfile)) {
+      throw validation(
+        { key },
+        `team/changes: field_set unsupported field '${key}' (allowed: ${[...SCALAR_FIELDS].join(', ')}, attributes.*)`,
+      )
+    }
+    if (key === 'capacity') {
+      if (typeof change.to !== 'number' || !Number.isFinite(change.to)) {
+        throw validation({ key, type: typeof change.to }, `team/changes: 'capacity' must be a finite number`)
+      }
+      next.capacity = change.to
+      continue
+    }
+    if (key === 'availability') {
+      if (typeof change.to !== 'string' || !VALID_AVAILABILITY.has(change.to as Availability)) {
+        throw validation(
+          { key, value: change.to },
+          `team/changes: 'availability' must be one of ${[...VALID_AVAILABILITY].join(', ')}`,
+        )
+      }
+      next.availability = change.to as Availability
+      continue
+    }
+    if (key === 'expertise' || key === 'sectors' || key === 'languages') {
+      if (!Array.isArray(change.to)) {
+        throw validation({ key, type: typeof change.to }, `team/changes: '${key}' must be an array of strings`)
+      }
+      const arr = change.to as unknown[]
+      if (arr.some((v) => typeof v !== 'string')) {
+        throw validation({ key }, `team/changes: '${key}' must be an array of strings`)
+      }
+      next[key] = arr as string[]
+      continue
+    }
+    // displayName / title — strings or null.
+    const value = change.to
+    if (value !== null && typeof value !== 'string') {
+      throw validation({ key, type: typeof value }, `team/changes: field_set '${key}' must be a string or null`)
+    }
+    ;(next as unknown as Record<string, unknown>)[key] = value
+  }
+  return next
+}

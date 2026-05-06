@@ -16,9 +16,11 @@
 import { detectStaffSignals } from '@modules/agents/service/staff-signals'
 import { insertProposal } from '@modules/changes/service/proposals'
 import { listNotes } from '@modules/messaging/service/notes'
+import type { StaffProfileLookup } from '@modules/team/service/types'
 import type { ChangePayload, HarnessLogger } from '@vobase/core'
 
 import type { AgentEvent } from '../events'
+import { buildStaffSignalCopy } from './proposal-copy'
 
 /** Cap on the inline note body surfaced in the rendered staff-signal block. */
 const NOTE_PREVIEW_MAX_CHARS = 800
@@ -28,12 +30,16 @@ export interface LearningProposalObserverOpts {
   agentId: string
   conversationId?: string | null
   logger: HarnessLogger
+  /** Friendly agent name surfaced in proposal copy. Defaults to "The agent". */
+  agentName?: string
+  /** Auth lookup for resolving the staff actor's display name. Optional — falls back to "A teammate". */
+  authLookup?: StaffProfileLookup
 }
 
 export function createLearningProposalObserver(
   opts: LearningProposalObserverOpts,
 ): (event: AgentEvent) => Promise<void> {
-  const { organizationId, agentId, conversationId, logger } = opts
+  const { organizationId, agentId, conversationId, logger, agentName, authLookup } = opts
   const buffers = new Map<string, AgentEvent[]>()
 
   return async (event: AgentEvent): Promise<void> => {
@@ -102,6 +108,24 @@ export function createLearningProposalObserver(
         body,
       }
 
+      // Resolve the staff author for the proposal copy. Best-effort — falls
+      // back to "A teammate" when the lookup fails or is not provided.
+      let actorName: string | undefined
+      if (signal.actorUserId && authLookup) {
+        try {
+          const auth = await authLookup.getAuthDisplay(signal.actorUserId)
+          actorName = auth?.name ?? auth?.email ?? undefined
+        } catch {
+          // ignore — copy builder defaults to "A teammate"
+        }
+      }
+      const copy = buildStaffSignalCopy({
+        agentName,
+        signalKind: signal.kind,
+        actorName,
+        notePreview,
+      })
+
       try {
         await insertProposal({
           organizationId,
@@ -112,8 +136,8 @@ export function createLearningProposalObserver(
           changedBy: `agent:${agentId}`,
           changedByKind: 'agent',
           confidence: 0.6,
-          rationale: `Captured staff signal: ${signal.kind}`,
-          expectedOutcome: 'Future wakes will see this lesson in working memory.',
+          rationale: copy.rationale,
+          expectedOutcome: copy.expectedOutcome,
           conversationId: conversationId ?? null,
         })
       } catch (err) {

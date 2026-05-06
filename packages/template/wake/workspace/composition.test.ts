@@ -15,7 +15,7 @@ import type { AuthLookup } from '@auth/lookup'
 import { agentsAgentsMdContributors, agentsMaterializerFactory, agentsRoHints } from '@modules/agents/agent'
 import type { AgentDefinition } from '@modules/agents/schema'
 import { setCliRegistry } from '@modules/agents/service/cli-registry'
-import { contactsAgentsMdContributors, contactsMaterializerFactory, contactsRoHints } from '@modules/contacts/agent'
+import { contactsAgentsMdContributors, contactsMaterializerFactory } from '@modules/contacts/agent'
 import { driveAgentsMdContributors, driveMaterializerFactory, driveRoHints } from '@modules/drive/agent'
 import type { FilesService } from '@modules/drive/service/files'
 import { messagingAgentsMdContributors, messagingMaterializerFactory, messagingRoHints } from '@modules/messaging/agent'
@@ -263,7 +263,7 @@ describe('AGENTS.md composition through agentsMaterializerFactory', () => {
     const driveIdx = body.indexOf('## Organization knowledge (drive)')
     const contactsIdx = body.indexOf('## Contact context')
     const messagingIdx = body.indexOf('## Conversation surface')
-    const teamIdx = body.indexOf('## Staff')
+    const teamIdx = body.indexOf('## Staff\n')
     const instructionsIdx = body.indexOf('## Instructions')
     expect(titleIdx).toBe(0)
     expect(selfIdx).toBeGreaterThan(titleIdx)
@@ -356,14 +356,14 @@ describe('roHints chained across modules', () => {
   })
 
   it('falls through when earlier modules do not own the path', () => {
-    const chain = chainRoHints([...driveRoHints, ...messagingRoHints, ...contactsRoHints])
+    const chain = chainRoHints([...driveRoHints, ...messagingRoHints])
     const out = chain('/contacts/c1/ci1/messages.md')
     expect(out).toContain('Read-only filesystem')
     expect(out).toContain('Use the `reply` tool')
   })
 
   it('returns null when no module claims the path (harness uses generic RO error)', () => {
-    const chain = chainRoHints([...driveRoHints, ...messagingRoHints, ...contactsRoHints, ...agentsRoHints])
+    const chain = chainRoHints([...driveRoHints, ...messagingRoHints, ...agentsRoHints])
     expect(chain('/some/random/place.md')).toBeNull()
   })
 

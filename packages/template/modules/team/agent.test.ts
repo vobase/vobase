@@ -78,28 +78,29 @@ describe('renderStaffProfile', () => {
     __resetStaffServiceForTests()
   })
 
-  it('first line is `# <Display Name> (<staffId>)` when displayName is set', async () => {
+  it('renders frontmatter then identity heading when displayName is set', async () => {
     installStaffService(makeStaffStub({ displayName: 'Alice Example', title: 'Support Lead' }))
     const lookup = makeStaticProfileLookup({ [STAFF_ID]: { name: 'Alice Example', email: 'alice@example.com' } })
     const md = await renderStaffProfile(STAFF_ID, lookup)
-    expect(md.split('\n')[0]).toBe(`# Alice Example (${STAFF_ID})`)
-    expect(md).toContain('Title: Support Lead')
-    expect(md).toContain('alice@example.com')
+    expect(md.split('\n')[0]).toBe('---')
+    expect(md).toContain('displayName: "Alice Example"')
+    expect(md).toContain('title: "Support Lead"')
+    expect(md).toContain(`# Alice Example (${STAFF_ID})`)
   })
 
   it('falls back to auth.name → email → staffId when staff_profiles is absent', async () => {
     installStaffService(makeStaffStub(null))
     const emailOnlyLookup = makeStaticProfileLookup({ [STAFF_ID]: { name: null, email: 'bob@example.com' } })
     const md1 = await renderStaffProfile(STAFF_ID, emailOnlyLookup)
-    expect(md1.split('\n')[0]).toBe(`# bob@example.com (${STAFF_ID})`)
+    expect(md1).toContain(`# bob@example.com (${STAFF_ID})`)
 
     const nameLookup = makeStaticProfileLookup({ [STAFF_ID]: { name: 'Bob', email: null } })
     const md2 = await renderStaffProfile(STAFF_ID, nameLookup)
-    expect(md2.split('\n')[0]).toBe(`# Bob (${STAFF_ID})`)
+    expect(md2).toContain(`# Bob (${STAFF_ID})`)
 
     const emptyLookup = makeStaticProfileLookup({})
     const md3 = await renderStaffProfile(STAFF_ID, emptyLookup)
-    expect(md3.split('\n')[0]).toBe(`# ${STAFF_ID} (${STAFF_ID})`)
+    expect(md3).toContain(`# ${STAFF_ID} (${STAFF_ID})`)
   })
 })
 

@@ -2,7 +2,7 @@ import { useChangeProposalsInbox } from '@modules/changes/hooks/use-change-inbox
 import { useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Inbox } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { z } from 'zod'
 
 import { ChangeHistoryList } from '@/components/changes/change-history-list'
@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
 
 const searchSchema = z.object({
   tab: z.enum(['pending', 'history']).optional(),
+  /** Highlight + scroll to this proposal id when present (e.g. opened from a timeline `change.*` link). */
+  id: z.string().min(1).optional(),
 })
 
 export const Route = createFileRoute('/_app/changes')({
@@ -27,6 +29,7 @@ function ChangesPage() {
   const navigate = Route.useNavigate()
   const search = Route.useSearch()
   const tab = search.tab ?? 'pending'
+  const highlightId = search.id
 
   const setTab = (next: 'pending' | 'history') => {
     navigate({ search: (prev) => ({ ...prev, tab: next === 'pending' ? undefined : next }) })
@@ -34,6 +37,39 @@ function ChangesPage() {
 
   const { data, isLoading, error } = useChangeProposalsInbox()
   const [filter, setFilter] = useState<string>('all')
+
+  // One-shot auto-switch to History when the linked proposal isn't in the
+  // pending inbox (it must already be decided). Latched on `highlightId` so
+  // realtime refetches of `data` don't keep bouncing the tab after staff
+  // manually flip it.
+  const tabSwitchedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!highlightId || !data || search.tab) return
+    if (tabSwitchedFor.current === highlightId) return
+    if (!data.some((p) => p.id === highlightId)) {
+      tabSwitchedFor.current = highlightId
+      navigate({ search: (prev) => ({ ...prev, tab: 'history' }) })
+    }
+  }, [highlightId, data, search.tab, navigate])
+
+  // Scroll + highlight the matching row once it mounts. Latched on the
+  // (highlightId, tab) pair so the ring fires once per navigation, not on
+  // every realtime data refetch.
+  const ringFiredFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!highlightId) return
+    const key = `${highlightId}:${tab}`
+    if (ringFiredFor.current === key) return
+    const el = document.querySelector(`[data-proposal-id="${highlightId}"]`)
+    if (!(el instanceof HTMLElement)) return
+    ringFiredFor.current = key
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('ring-2', 'ring-primary/60', 'ring-offset-2', 'ring-offset-background', 'transition-shadow')
+    const t = window.setTimeout(() => {
+      el.classList.remove('ring-2', 'ring-primary/60', 'ring-offset-2', 'ring-offset-background')
+    }, 2400)
+    return () => window.clearTimeout(t)
+  }, [highlightId, tab])
 
   const moduleCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -117,11 +153,12 @@ function ChangesPage() {
               {data && visible.length > 0 && (
                 <ul className="space-y-4">
                   {visible.map((proposal) => (
-                    <ProposalRow
-                      key={proposal.id}
-                      proposal={proposal}
-                      onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
-                    />
+                    <li key={proposal.id} data-proposal-id={proposal.id} className="rounded-lg">
+                      <ProposalRow
+                        proposal={proposal}
+                        onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
+                      />
+                    </li>
                   ))}
                 </ul>
               )}

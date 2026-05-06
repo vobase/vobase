@@ -165,6 +165,15 @@ export const TIMELINE_ACTIVITY_TYPES = [
   'conversation.snoozed',
   'conversation.unsnoozed',
   'conversation.snooze_expired',
+  // Change-proposal lifecycle events. Emitted by `modules/changes/service/proposals.ts`
+  // when the affected proposal is conversation-scoped (i.e. `conversationId` set
+  // — the workspace-sync observer threads this through from the wake context).
+  // Renders in the inbox timeline as a one-line activity row with click-through
+  // to the full proposal in the inbox.
+  'change.proposed',
+  'change.auto_applied',
+  'change.approved',
+  'change.rejected',
 ] as const
 
 export interface ConversationsService {

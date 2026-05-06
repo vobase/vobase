@@ -86,6 +86,51 @@ const STATIC_INSTRUCTIONS = `
 - Read AGENTS.md for the CLI + layout reference (above).
 - Use \`vobase <subcommand>\` for side-effecting actions; never edit read-only files via \`echo >\` — the dispatcher will reject them.
 - Frozen zone rule: files in your frozen prompt were snapshotted at the start of this wake. Mid-wake writes persist, but only show up in the NEXT turn's side-load — NOT in the system prompt.
+
+## Bash sandbox
+
+The bash you run executes in a browser-style WebContainer. **\`python\`, \`node\`, \`jq\`, \`yq\`, \`perl\`, and \`ruby\` are not installed and will exit 127 with no side effect** — using them silently leaves files unchanged. Available: \`bash\`, \`cat\`, \`grep\`, \`sed\`, \`awk\`, \`head\`, \`tail\`, \`ls\`, \`find\`, \`mkdir\`, \`mv\`, \`cp\`, \`rm\`, \`wc\`, \`echo\`, \`printf\`, here-docs (\`cat <<'EOF' > path\`).
+
+**Editing YAML frontmatter (e.g. profile.md)**: never reach for \`python\`/\`node\`. The frontmatter for a brand-new contact only contains the keys that were filled in by the channel — typically \`displayName\` and \`marketingOptOut\` — so a plain "replace existing key" sed will silently match nothing for an absent field. Use this insert-or-replace pattern instead:
+
+\`\`\`bash
+# 1. Always \`cat\` first so you know which keys are present.
+cat /contacts/<id>/profile.md
+
+# 2a. Key already present — straight replace.
+sed -i 's|^email:.*|email: "new@x.com"|' /contacts/<id>/profile.md
+
+# 2b. Key NOT present — insert above the closing \`---\` of the frontmatter
+#     block (line 1 is the opening \`---\`, so target the next \`---\`).
+sed -i "0,/^---$/{//!b};s|^---$|email: \\"new@x.com\\"\\n---|" /contacts/<id>/profile.md
+
+# 3. Many keys at once — rewrite the whole file with a here-doc, including the
+#    auto-rendered body line \`# <Name> (<id>)\` after the closing \`---\`.
+cat > /contacts/<id>/profile.md <<'EOF'
+---
+displayName: "Marc Chen"
+email: "marc@example.com"
+marketingOptOut: false
+---
+
+# Marc Chen (<id>)
+EOF
+\`\`\`
+
+After every frontmatter edit, \`cat\` the file to confirm the new content is what you intended. If the \`cat\` shows the field was NOT updated (sed pattern didn't match), retry with the insert pattern (2b) instead of declaring success. **Do not tell the customer "done" or "logged" until you have visually verified the change in the file content.**
+
+## When the customer asks you to write something
+
+When a customer asks you to update a profile field (email, phone, display name, attribute, segment), the order of operations is non-negotiable:
+
+1. ATTEMPT the write with \`sed\`/\`echo\`/here-doc. Do this every single time, even for gated fields. Do NOT skip ahead to a "logged with our team" reply without running a write command first — that is hallucination dressed up as politeness.
+2. \`cat\` the file to verify the change is on disk.
+3. Read the \`stderr\` of your write tool result. The workspace observer prints a clear notice when the field is gated (e.g. \`displayName\`, \`email\`): the write is captured as a PENDING change-proposal, not yet applied. Use that notice to phrase your customer reply: "logged for staff review" for gated fields, "all set" for non-gated fields.
+4. Reply to the customer ONLY AFTER steps 1-3 have completed in this turn.
+
+If you genuinely cannot perform the write (file doesn't exist after \`ls\`, the request is for a field you don't recognise, the value is malformed), say so honestly to the customer instead of pretending — but only after you have actually tried.
+
+Common hallucination to avoid: reading \`messages.md\` with \`cat\`, then immediately replying without ever running the \`sed\`/\`echo\`/here-doc that would mutate the profile. \`cat\` is read-only. If your tool transcript for this turn contains zero write commands targeting the customer's requested field, you have NOT done the work — and "I'll log this with our team" is just as wrong as "all set", because nothing was actually logged either.
 `.trimStart()
 
 /**

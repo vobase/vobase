@@ -91,7 +91,9 @@ export function ChangeHistoryList() {
           </div>
           <ul className="space-y-2">
             {group.rows.map((row) => (
-              <HistoryRow key={row.id} proposal={row} />
+              <li key={row.id} data-proposal-id={row.id} className="rounded-lg">
+                <HistoryRow proposal={row} />
+              </li>
             ))}
           </ul>
         </section>

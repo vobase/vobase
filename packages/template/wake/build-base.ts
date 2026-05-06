@@ -23,6 +23,7 @@ import type {
   HarnessHooks,
   HarnessLogger,
   OnEventListener,
+  OnToolResultListener,
   WorkspaceMaterializer,
 } from '@vobase/core'
 import { IndexFileBuilder, journalAppend } from '@vobase/core'
@@ -192,18 +193,25 @@ export function composeHooks<TCtx>(opts: {
   laneTools: readonly AgentTool[]
   contributions: AgentContributions<TCtx>
   coreListeners: readonly OnEventListener<WakeTrigger>[]
+  /**
+   * Lane-level `on_tool_result` listeners (e.g. the sensitive-write warner)
+   * that need wake-time data the modules' `contributions.listeners` can't
+   * see. Composed BEFORE the contributions' listeners so per-result merges
+   * stay deterministic.
+   */
+  coreToolResults?: readonly OnToolResultListener[]
   toolFilter?: (t: AgentTool) => boolean
 }): { tools: readonly AgentTool[]; hooks: HarnessHooks<WakeTrigger> } {
   const tools = (opts.toolFilter ? opts.laneTools.filter(opts.toolFilter) : opts.laneTools) as readonly AgentTool[]
+  const contributedToolResults = opts.contributions.listeners.on_tool_result ?? []
+  const allToolResults: readonly OnToolResultListener[] = [...(opts.coreToolResults ?? []), ...contributedToolResults]
   const hooks: HarnessHooks<WakeTrigger> = {
     on_event: [
       ...opts.coreListeners,
       ...((opts.contributions.listeners.on_event ?? []) as readonly OnEventListener<WakeTrigger>[]),
     ],
     ...(opts.contributions.listeners.on_tool_call ? { on_tool_call: opts.contributions.listeners.on_tool_call } : {}),
-    ...(opts.contributions.listeners.on_tool_result
-      ? { on_tool_result: opts.contributions.listeners.on_tool_result }
-      : {}),
+    ...(allToolResults.length > 0 ? { on_tool_result: allToolResults } : {}),
   }
   return { tools, hooks }
 }

@@ -437,13 +437,15 @@ describe('createWorkspace', () => {
     expect(r.stdout.trim()).toBe('note')
   })
 
-  it('contact profile.md first line is `# <name-or-id> (<contactId>)` (identity-in-contents)', async () => {
+  it('contact profile.md leads with frontmatter delimiters and includes the identity heading', async () => {
     const ws = await buildWorkspace([])
     const r = await runShell(ws, `cat /contacts/${CONTACT_ID}/profile.md`)
     expect(r.exitCode).toBe(0)
-    const firstLine = r.stdout.split('\n')[0]
-    // makeContactsStub() returns displayName 'Test Customer'.
-    expect(firstLine).toBe(`# Test Customer (${CONTACT_ID})`)
+    // Output now begins with the YAML frontmatter (`---\n...\n---\n`) and the
+    // identity heading lives below the closing delimiter (still inside contents,
+    // just no longer line 0). makeContactsStub() returns displayName 'Test Customer'.
+    expect(r.stdout.split('\n')[0]).toBe('---')
+    expect(r.stdout).toContain(`# Test Customer (${CONTACT_ID})`)
   })
 
   it('emits /contacts/<id>/<channelInstanceId>/messages.md and internal-notes.md in the virtual FS', async () => {

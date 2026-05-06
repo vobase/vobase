@@ -14,8 +14,18 @@ import { contacts as contactsTable } from '../schema'
 /** Stable (resourceModule, resourceType) pair shared by registration, CLI verb, and CRUD audit calls. */
 export const CONTACT_RESOURCE = { module: 'contacts', type: 'contact' } as const
 
-const MARKDOWN_FIELDS = new Set<keyof Contact>(['memory', 'profile'])
-const SCALAR_FIELDS = new Set<keyof Contact>(['displayName', 'email', 'phone', 'segments', 'marketingOptOut'])
+// profile.md is now the structured-edit surface (frontmatter → field_set).
+// Markdown patches target `'memory'` only.
+const MARKDOWN_FIELDS = new Set<keyof Contact>(['memory'])
+/** Top-level scalar keys this materializer accepts in `field_set` proposals. */
+export const CONTACT_SCALAR_FIELDS: ReadonlySet<string> = new Set([
+  'displayName',
+  'email',
+  'phone',
+  'segments',
+  'marketingOptOut',
+])
+const SCALAR_FIELDS = CONTACT_SCALAR_FIELDS as ReadonlySet<keyof Contact>
 
 export const contactChangeMaterializer: Materializer = async (proposal, tx) => {
   const before = await loadContact(tx, proposal.resourceId)
@@ -63,10 +73,10 @@ function applyMarkdownPatch(before: Contact, payload: Extract<ChangePayload, { k
   if (!MARKDOWN_FIELDS.has(payload.field as keyof Contact)) {
     throw validation(
       { field: payload.field },
-      `contacts/changes: markdown_patch field must be 'memory' or 'profile' (got '${payload.field}')`,
+      `contacts/changes: markdown_patch field must be 'memory' (got '${payload.field}')`,
     )
   }
-  const field = payload.field as 'memory' | 'profile'
+  const field = payload.field as 'memory'
   const current = before[field]
   const next = payload.mode === 'append' ? (current ? `${current}\n${payload.body}` : payload.body) : payload.body
   return { ...before, [field]: next }

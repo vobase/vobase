@@ -1,8 +1,10 @@
+import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 import { registerDriveOverlay } from '@modules/drive/service/overlays'
 
 import type { ModuleDef } from '~/runtime'
 import { teamAgent } from './agent'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
+import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
@@ -14,7 +16,7 @@ import * as web from './web'
 
 const team: ModuleDef = {
   name: 'team',
-  requires: ['contacts', 'settings', 'drive', 'agents'],
+  requires: ['contacts', 'settings', 'drive', 'agents', 'changes'],
   web: { routes: web.routes },
   jobs: [],
   agent: teamAgent,
@@ -25,6 +27,13 @@ const team: ModuleDef = {
     installMentionsService(createMentionsService({ db: ctx.db }))
     installMentionNotifyService(createMentionNotifyService({ db: ctx.db }))
     registerDriveOverlay(staffCrossAgentMemoryOverlay)
+    registerChangeMaterializer({
+      resourceModule: STAFF_RESOURCE.module,
+      resourceType: STAFF_RESOURCE.type,
+      requiresApproval: true,
+      requiresApprovalForFields: new Set(['displayName', 'email']),
+      materialize: staffChangeMaterializer,
+    })
     ctx.cli.registerAll([teamListVerb, teamGetVerb])
   },
 }
