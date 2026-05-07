@@ -50,6 +50,7 @@
     "@platejs/markdown": "^53.0.0",
     "@platejs/mention": "^53.0.0",
     "@platejs/suggestion": "^53.0.3",
+    "@platejs/table": "^53.0.0",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@react-email/components": "^1.0.12",
     "@sinclair/typebox": "^0.34.49",

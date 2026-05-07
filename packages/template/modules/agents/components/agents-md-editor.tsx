@@ -23,6 +23,7 @@ import {
   H3Plugin,
 } from '@platejs/basic-nodes/react'
 import { MarkdownPlugin } from '@platejs/markdown'
+import { TableCellHeaderPlugin, TableCellPlugin, TablePlugin, TableRowPlugin } from '@platejs/table/react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Bold,
@@ -74,6 +75,33 @@ const BlockquoteElement = (props: PlateElementProps) => (
   />
 )
 
+// GFM tables. Without these element components, the table plugin's nodes
+// (`table`/`tr`/`td`/`th`) deserialize but render as blank space because
+// Plate has no element registered for those types. The `Memory scopes` table
+// in the auto-generated preamble is the most visible casualty.
+const TableElement = (props: PlateElementProps) => (
+  <div className="my-3 overflow-x-auto">
+    <PlateElement
+      {...props}
+      as="table"
+      className="w-full border-collapse border border-border text-xs [&_td]:p-2 [&_th]:p-2"
+    />
+  </div>
+)
+const TableRowElement = (props: PlateElementProps) => (
+  <PlateElement {...props} as="tr" className="border-border border-b last:border-b-0" />
+)
+const TableCellElement = (props: PlateElementProps) => (
+  <PlateElement {...props} as="td" className="border-border border-r align-top last:border-r-0" />
+)
+const TableCellHeaderElement = (props: PlateElementProps) => (
+  <PlateElement
+    {...props}
+    as="th"
+    className="border-border border-r bg-muted text-left align-top font-semibold last:border-r-0"
+  />
+)
+
 // Do NOT add `remarkMdx` to the remark pipeline: it parses `<id>` / `<file>` /
 // `<2k` style tokens from the AGENTS.md as JSX components and silently
 // truncates the document at the first one, leaving every lane variant
@@ -85,6 +113,10 @@ const contentPlugins = [
   H2Plugin.withComponent(H2Element),
   H3Plugin.withComponent(H3Element),
   BlockquotePlugin.withComponent(BlockquoteElement),
+  TablePlugin.withComponent(TableElement),
+  TableRowPlugin.withComponent(TableRowElement),
+  TableCellPlugin.withComponent(TableCellElement),
+  TableCellHeaderPlugin.withComponent(TableCellHeaderElement),
   MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ]
 
