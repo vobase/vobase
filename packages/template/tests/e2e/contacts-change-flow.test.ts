@@ -3,15 +3,15 @@
  * lifecycle for the `(contacts, contact)` resource against a real Postgres.
  *
  * Two paths are covered:
- *   1. Auto-write (the production registration via `requiresApproval: false`):
+ *   1. Auto-write (resource sensitivity `'low'` + high confidence):
  *      `insertProposal` synchronously runs the materializer in-tx, writes the
  *      contact row, and emits a `change_history` entry with `appliedProposalId`
  *      linked back to the proposal.
- *   2. Approval-gated (a test-only re-registration with `requiresApproval: true`
- *      under a distinct resourceType): `insertProposal` writes a `pending` row
- *      that the inbox returns; `decideChangeProposal('approved', ...)` then
- *      runs the same materializer, writes history, and updates the proposal
- *      with `appliedHistoryId` pointing at the new history row.
+ *   2. Approval-gated (a test-only sibling registration with sensitivity
+ *      `'critical'` under a distinct resourceType): `insertProposal` writes a
+ *      `pending` row that the inbox returns; `decideChangeProposal('approved',
+ *      ...)` then runs the same materializer, writes history, and updates the
+ *      proposal with `appliedHistoryId` pointing at the new history row.
  *
  * The test interacts with the service through the installed singleton
  * (same path the CLI verb body uses), so it covers the CLI invocation contract
@@ -49,15 +49,19 @@ beforeAll(async () => {
   registerChangeMaterializer({
     resourceModule: 'contacts',
     resourceType: 'contact',
-    requiresApproval: false,
+    sensitivity: 'low',
+    promptHint: 'contact record (test fixture)',
     materialize: contactChangeMaterializer,
   })
   // Test-only sibling registration that exercises the approval-gated path
-  // without diverging from the production materializer behavior.
+  // without diverging from the production materializer behavior. Sensitivity
+  // 'critical' (auto bar 0.985) plus default confidence 1.0 still routes to
+  // pending in the assertions below by passing an explicit lower confidence.
   registerChangeMaterializer({
     resourceModule: 'contacts',
     resourceType: 'contact_pending',
-    requiresApproval: true,
+    sensitivity: 'critical',
+    promptHint: 'contact record (test fixture, always-pending)',
     materialize: contactChangeMaterializer,
   })
 
@@ -70,7 +74,7 @@ afterAll(async () => {
   if (dbh) await dbh.teardown()
 })
 
-describe('contacts change-flow (auto-write path: requiresApproval=false)', () => {
+describe('contacts change-flow (auto-write path: sensitivity="low")', () => {
   it('insertProposal materializes inline, writes history, links the records', async () => {
     const result = await insertProposal({
       organizationId: MERIDIAN_ORG_ID,
@@ -87,6 +91,7 @@ describe('contacts change-flow (auto-write path: requiresApproval=false)', () =>
     })
 
     expect(result.status).toBe('auto_written')
+    if (result.status === 'dropped') throw new Error('unreachable: high-confidence drop')
 
     const proposalRows = await dbh.db.select().from(changeProposals).where(eq(changeProposals.id, result.id))
     expect(proposalRows.length).toBe(1)
@@ -109,7 +114,7 @@ describe('contacts change-flow (auto-write path: requiresApproval=false)', () =>
   })
 })
 
-describe('contacts change-flow (approval-gated path: requiresApproval=true)', () => {
+describe('contacts change-flow (approval-gated path: sensitivity="critical")', () => {
   it('insertProposal → inbox → decide("approved") → linked history row', async () => {
     const proposed = await insertProposal({
       organizationId: MERIDIAN_ORG_ID,
@@ -124,9 +129,12 @@ describe('contacts change-flow (approval-gated path: requiresApproval=true)', ()
       },
       changedBy: 'tst0agent00',
       changedByKind: 'agent',
+      // Below the critical auto bar (~0.985) — forces pending so the decide path runs.
+      confidence: 0.7,
       rationale: 'approval-gated smoke',
     })
     expect(proposed.status).toBe('pending')
+    if (proposed.status === 'dropped') throw new Error('unreachable: confidence above floor')
 
     const inbox = await listInbox(MERIDIAN_ORG_ID)
     expect(inbox.some((r) => r.id === proposed.id)).toBe(true)
@@ -170,7 +178,10 @@ describe('contacts change-flow (approval-gated path: requiresApproval=true)', ()
       },
       changedBy: 'tst0agent00',
       changedByKind: 'agent',
+      // Below the critical auto bar — forces pending so decide('rejected') has work to do.
+      confidence: 0.7,
     })
+    if (proposed.status === 'dropped') throw new Error('unreachable: confidence above floor')
 
     const before = await dbh.db
       .select({ email: contactsTable.email })

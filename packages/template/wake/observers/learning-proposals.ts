@@ -4,9 +4,13 @@
  * On every wake we accumulate `AgentEvent`s and, at `agent_end`, run
  * `detectStaffSignals` to extract staff-side teaching moments. Each non-trivial
  * signal turns into an `agent_memory` change-proposal (markdown_patch / append).
- * Because `agent_memory` is registered with `requiresApproval: false`, the
- * proposal materializes immediately and surfaces in the History tab — no manual
- * approval required.
+ * Because `agent_memory` is registered with `sensitivity: 'low'` and we pass a
+ * high confidence, the proposal auto-writes immediately and surfaces in the
+ * History tab — no manual approval required.
+ *
+ * Slated for deletion in the slice-2 learning-loop refactor; here we mirror
+ * the legacy auto-apply behavior with a high-confidence stamp so slice 1 is
+ * behavior-preserving.
  *
  * Idempotency relies on the partial unique index on
  * `(org, resourceModule, resourceType, resourceId)` for status='pending'; a
@@ -127,7 +131,7 @@ export function createLearningProposalObserver(
       })
 
       try {
-        await insertProposal({
+        const result = await insertProposal({
           organizationId,
           resourceModule: 'agents',
           resourceType: 'agent_memory',
@@ -135,11 +139,17 @@ export function createLearningProposalObserver(
           payload,
           changedBy: `agent:${agentId}`,
           changedByKind: 'agent',
-          confidence: 0.6,
+          confidence: 0.95,
           rationale: copy.rationale,
           expectedOutcome: copy.expectedOutcome,
           conversationId: conversationId ?? null,
         })
+        if (result.status === 'dropped') {
+          logger.info(
+            { agentId, kind: signal.kind, ref: signal.ref, confidence: result.confidence },
+            'learning-proposals: trivial-confidence drop',
+          )
+        }
       } catch (err) {
         if (err instanceof Error && /already has a pending proposal/.test(err.message)) {
           logger.info(

@@ -30,8 +30,13 @@ const team: ModuleDef = {
     registerChangeMaterializer({
       resourceModule: STAFF_RESOURCE.module,
       resourceType: STAFF_RESOURCE.type,
-      requiresApproval: true,
-      requiresApprovalForFields: new Set(['displayName', 'email']),
+      sensitivity: 'high',
+      sensitivityForFields: {
+        displayName: 'high',
+        email: 'critical',
+      },
+      promptHint:
+        'staff profile — title, availability, capacity, expertise. Identity fields (displayName, email) always pending review.',
       materialize: staffChangeMaterializer,
     })
     ctx.cli.registerAll([teamListVerb, teamGetVerb])

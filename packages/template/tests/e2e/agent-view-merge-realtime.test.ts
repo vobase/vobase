@@ -64,7 +64,8 @@ beforeAll(async () => {
   registerChangeMaterializer({
     resourceModule: AGENT_SKILL_RESOURCE.module,
     resourceType: AGENT_SKILL_RESOURCE.type,
-    requiresApproval: true,
+    sensitivity: 'high',
+    promptHint: 'agent learned skill',
     materialize: agentSkillMaterializer,
   })
 })
@@ -99,9 +100,13 @@ describe('agent-view merge — realtime notify payloads', () => {
       payload: { kind: 'markdown_patch', mode: 'replace', field: 'body', body: '# Test skill' },
       changedBy: ALICE_USER_ID,
       changedByKind: 'user',
+      // Below the high-sensitivity auto bar (~0.91) — keeps the proposal pending
+      // so `decideChangeProposal('approved', ...)` has work to do.
+      confidence: 0.5,
       rationale: 'realtime e2e test',
       conversationId: null,
     })
+    if (proposal.status === 'dropped') throw new Error('unreachable: confidence above floor')
 
     // capture notifies emitted during decide (the proposal service notifies after commit)
     await decideChangeProposal(proposal.id, 'approved', ALICE_USER_ID)

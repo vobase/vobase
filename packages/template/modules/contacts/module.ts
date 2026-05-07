@@ -19,8 +19,13 @@ const contacts: ModuleDef = {
     registerChangeMaterializer({
       resourceModule: CONTACT_RESOURCE.module,
       resourceType: CONTACT_RESOURCE.type,
-      requiresApproval: false,
-      requiresApprovalForFields: new Set(['displayName', 'email']),
+      sensitivity: 'medium',
+      sensitivityForFields: {
+        displayName: 'high',
+        email: 'high',
+        phone: 'high',
+      },
+      promptHint: 'fields on the contact record — name, contact details, segments, marketing prefs',
       materialize: contactChangeMaterializer,
     })
     ctx.cli.registerAll(contactsVerbs)

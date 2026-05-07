@@ -43,13 +43,17 @@ const agents: ModuleDef = {
     registerChangeMaterializer({
       resourceModule: AGENT_SKILL_RESOURCE.module,
       resourceType: AGENT_SKILL_RESOURCE.type,
-      requiresApproval: true,
+      sensitivity: 'high',
+      promptHint:
+        'named, durable capability the agent can re-invoke (e.g. "refund-flow", "shipping-eta-lookup") — usually pending review',
       materialize: agentSkillMaterializer,
     })
     registerChangeMaterializer({
       resourceModule: AGENT_MEMORY_RESOURCE.module,
       resourceType: AGENT_MEMORY_RESOURCE.type,
-      requiresApproval: false,
+      sensitivity: 'low',
+      promptHint:
+        'agent self-knowledge — "always do X" / "never do Y" rules the agent should remember across all conversations',
       materialize: agentMemoryMaterializer,
     })
     void ctx.jobs.schedule?.(EXPIRE_APPROVALS_JOB, EXPIRE_APPROVALS_CRON, undefined, {

@@ -248,7 +248,7 @@ export async function seed(db: unknown): Promise<void> {
       proposedById: `agent:${MERIGPT_AGENT_ID}`,
       proposedByKind: 'agent',
       rationale:
-        'Captured cross-conversation patterns about VIP customers. agent_memory is normally requiresApproval=false, but seeding as pending for inbox visibility — staff can approve to demonstrate the auto-write path through the decide endpoint.',
+        'Captured cross-conversation patterns about VIP customers. agent_memory normally auto-applies at high confidence (sensitivity="low"), but seeding as pending for inbox visibility — staff can approve to demonstrate the auto-write path through the decide endpoint.',
       expectedOutcome:
         "Once applied, I'll remember the three VIP customers and their preferences across every wake — Priya gets Mandarin code replies by default, Liam gets the SGT priority window, Marcus gets the enterprise-plus context. Saves them re-explaining themselves and saves staff from re-tagging segments by hand.",
       conversationId: null,

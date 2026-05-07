@@ -3,10 +3,10 @@
  * `team.staff_profiles`. Mirrors the contacts materializer; allowed scalars
  * are the staff row's own columns. The `email` column lives in `auth.user`
  * and is intentionally NOT a write target in v1 — the registration's
- * `requiresApprovalForFields` set still names it for forward-compatibility,
- * but `applyFieldSet` rejects unknown keys, so an inadvertent `email` write
- * surfaces as a validation error rather than silently going to the wrong
- * table.
+ * `sensitivityForFields` map still names it (at `'critical'`) for forward-
+ * compatibility, but `applyFieldSet` rejects unknown keys, so an inadvertent
+ * `email` write surfaces as a validation error rather than silently going to
+ * the wrong table.
  *
  * Like contacts: writes happen on the proposal/decide tx handle, not the
  * service singleton — `materialize()` receives `(proposal, tx)` and reads /

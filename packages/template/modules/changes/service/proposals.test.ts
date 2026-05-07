@@ -1,5 +1,10 @@
 /**
- * Unit tests for the change-proposals registry + insert-status derivation.
+ * Unit tests for the change-proposals registry + sensitivity-driven routing.
+ *
+ * Routing covered here is `confidence × effectiveSensitivity → status`. The
+ * sensitivity math itself is unit-tested in `sensitivity.test.ts`; these
+ * tests assert the integration with `insertProposal` (registration shape,
+ * trivial-drop, materializer firing on auto-write).
  *
  * Decide-path coverage (status guard, threat scan, journal emission branches)
  * lives in the slice-B E2E test (`tests/e2e/contacts-change-flow.test.ts`)
@@ -14,6 +19,7 @@ import {
   __resetChangeRegistryForTests,
   type ChangeProposalsService,
   createChangeProposalsService,
+  listMaterializerRegistrations,
   type Materializer,
   registerChangeMaterializer,
 } from './proposals'
@@ -64,7 +70,6 @@ function createFakeDb(): {
         set(patch: Partial<Row>) {
           return {
             where(_predicate: unknown) {
-              // Apply patch to all rows in proposals (single-row tests only).
               for (const [k, v] of proposals.rows) proposals.rows.set(k, { ...v, ...patch })
               return Promise.resolve(undefined)
             },
@@ -159,7 +164,8 @@ describe('change-proposals registry', () => {
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: true,
+      sensitivity: 'high',
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
@@ -173,19 +179,97 @@ describe('change-proposals registry', () => {
       payload: payload(),
       changedBy: 'agent_a',
       changedByKind: 'agent',
+      confidence: 0.5,
     })
 
+    // confidence 0.5 vs sensitivity 'high' (auto bar 0.7 + 0.7×0.3 = 0.91) → pending.
     expect(result.status).toBe('pending')
     expect(materializerCalls).toEqual([])
+  })
+
+  it('listMaterializerRegistrations() returns every registered scope', () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      sensitivity: 'low',
+      promptHint: 'low-sensitivity widget',
+      materialize: materializerImpl,
+    })
+    registerChangeMaterializer({
+      resourceModule: 'gadgets',
+      resourceType: 'gadget',
+      sensitivity: 'critical',
+      promptHint: 'critical gadget',
+      materialize: materializerImpl,
+    })
+
+    const all = listMaterializerRegistrations()
+    const keys = all.map((r) => `${r.resourceModule}.${r.resourceType}`).sort()
+    expect(keys).toEqual(['gadgets.gadget', 'widgets.widget'])
   })
 })
 
-describe('insertProposal status derivation', () => {
-  it('derives status="pending" when requiresApproval=true and does not fire materializer', async () => {
+describe('insertProposal sensitivity routing', () => {
+  it('auto-applies when confidence ≥ resource auto-threshold', async () => {
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: true,
+      sensitivity: 'low',
+      promptHint: 'a widget',
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    // sensitivity 'low' → auto-threshold 0.7 + 0.2 × 0.3 = 0.76
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: payload(),
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+      confidence: 0.9,
+    })
+
+    expect(result.status).toBe('auto_written')
+    expect(materializerCalls.length).toBe(1)
+  })
+
+  it('routes to pending when confidence is in the middle band', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      sensitivity: 'medium',
+      promptHint: 'a widget',
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    // sensitivity 'medium' → auto-threshold 0.7 + 0.4 × 0.3 = 0.82
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: payload(),
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+      confidence: 0.7,
+    })
+
+    expect(result.status).toBe('pending')
+    expect(materializerCalls).toEqual([])
+  })
+
+  it('returns status="dropped" when confidence < T_REVIEW', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      sensitivity: 'low',
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
@@ -199,22 +283,29 @@ describe('insertProposal status derivation', () => {
       payload: payload(),
       changedBy: 'agent_a',
       changedByKind: 'agent',
+      confidence: 0.1,
     })
 
-    expect(result.status).toBe('pending')
+    expect(result.status).toBe('dropped')
+    if (result.status === 'dropped') {
+      expect(result.confidence).toBe(0.1)
+    }
     expect(materializerCalls).toEqual([])
   })
 
-  it('derives status="auto_written" when requiresApproval=false and fires materializer in same tx', async () => {
+  it('defaults missing confidence to 1.0 (never drops accidentally on manual paths)', async () => {
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: false,
+      sensitivity: 'critical',
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
     service = createChangeProposalsService({ db: fake.handle })
 
+    // sensitivity 'critical' → auto-threshold 0.7 + 0.95 × 0.3 = 0.985.
+    // confidence defaults to 1.0 → auto-written.
     const result = await service.insertProposal({
       organizationId: 'org_1',
       resourceModule: 'widgets',
@@ -226,22 +317,23 @@ describe('insertProposal status derivation', () => {
     })
 
     expect(result.status).toBe('auto_written')
-    expect(materializerCalls.length).toBe(1)
   })
 })
 
-describe('insertProposal per-field gate (requiresApprovalForFields)', () => {
-  it('forces status="pending" when a field_set proposal touches a gated key, even with requiresApproval=false', async () => {
+describe('insertProposal sensitivityForFields (per-scalar overrides)', () => {
+  it('escalates routing when a field_set proposal touches a high-sensitivity scalar', async () => {
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: false,
-      requiresApprovalForFields: new Set(['displayName']),
+      sensitivity: 'low',
+      sensitivityForFields: { displayName: 'critical' },
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
     service = createChangeProposalsService({ db: fake.handle })
 
+    // confidence 0.9 vs effective sensitivity 'critical' (auto bar 0.985) → pending.
     const result = await service.insertProposal({
       organizationId: 'org_1',
       resourceModule: 'widgets',
@@ -250,19 +342,20 @@ describe('insertProposal per-field gate (requiresApprovalForFields)', () => {
       payload: { kind: 'field_set', fields: { displayName: { from: 'Old', to: 'New' } } },
       changedBy: 'agent_a',
       changedByKind: 'agent',
+      confidence: 0.9,
     })
 
     expect(result.status).toBe('pending')
-    // Pending path must NOT run the materializer or write history.
     expect(materializerCalls).toEqual([])
   })
 
-  it('auto-applies a field_set proposal touching only ungated keys', async () => {
+  it('auto-applies a field_set proposal touching only un-escalated keys', async () => {
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: false,
-      requiresApprovalForFields: new Set(['displayName']),
+      sensitivity: 'low',
+      sensitivityForFields: { displayName: 'critical' },
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
@@ -276,20 +369,22 @@ describe('insertProposal per-field gate (requiresApprovalForFields)', () => {
       payload: { kind: 'field_set', fields: { phone: { from: '+1', to: '+2' } } },
       changedBy: 'agent_a',
       changedByKind: 'agent',
+      confidence: 0.9,
     })
 
     expect(result.status).toBe('auto_written')
     expect(materializerCalls.length).toBe(1)
   })
 
-  it('does NOT gate on attributes.* keys even if the gate set contains them', async () => {
+  it('does NOT consult scalar overrides for attributes.* paths (those use the resolver)', async () => {
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: false,
-      // `attributes.priority` should be ignored — the gate is for top-level
-      // scalars only. Per-attribute gating is a tracked follow-up.
-      requiresApprovalForFields: new Set(['attributes.priority']),
+      sensitivity: 'low',
+      // `attributes.priority` in the override map is silently ignored — the
+      // attribute resolver path is the only way to escalate per-attribute.
+      sensitivityForFields: { 'attributes.priority': 'critical' },
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
@@ -303,18 +398,54 @@ describe('insertProposal per-field gate (requiresApprovalForFields)', () => {
       payload: { kind: 'field_set', fields: { 'attributes.priority': { from: 'low', to: 'high' } } },
       changedBy: 'agent_a',
       changedByKind: 'agent',
+      confidence: 0.9,
     })
 
     expect(result.status).toBe('auto_written')
     expect(materializerCalls.length).toBe(1)
   })
 
-  it('bypasses the gate entirely for non-field_set payloads (markdown_patch)', async () => {
+  it('uses resolveAttributeSensitivities for attributes.<key> paths', async () => {
+    let resolverCalls = 0
     registerChangeMaterializer({
       resourceModule: 'widgets',
       resourceType: 'widget',
-      requiresApproval: false,
-      requiresApprovalForFields: new Set(['displayName']),
+      sensitivity: 'low',
+      promptHint: 'a widget',
+      // biome-ignore lint/suspicious/useAwait: contract requires async signature
+      resolveAttributeSensitivities: async (orgId, keys) => {
+        resolverCalls += 1
+        expect(orgId).toBe('org_1')
+        expect([...keys]).toEqual(['medical_condition'])
+        return ['critical']
+      },
+      materialize: materializerImpl,
+    })
+    const fake = createFakeDb()
+    service = createChangeProposalsService({ db: fake.handle })
+
+    const result = await service.insertProposal({
+      organizationId: 'org_1',
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      resourceId: 'w1',
+      payload: { kind: 'field_set', fields: { 'attributes.medical_condition': { from: null, to: 'asthma' } } },
+      changedBy: 'agent_a',
+      changedByKind: 'agent',
+      confidence: 0.9,
+    })
+
+    expect(resolverCalls).toBe(1)
+    expect(result.status).toBe('pending')
+  })
+
+  it('bypasses scalar overrides for non-field_set payloads (markdown_patch)', async () => {
+    registerChangeMaterializer({
+      resourceModule: 'widgets',
+      resourceType: 'widget',
+      sensitivity: 'low',
+      sensitivityForFields: { displayName: 'critical' },
+      promptHint: 'a widget',
       materialize: materializerImpl,
     })
     const fake = createFakeDb()
@@ -328,34 +459,11 @@ describe('insertProposal per-field gate (requiresApprovalForFields)', () => {
       payload: { kind: 'markdown_patch', mode: 'append', field: 'memory', body: 'note' },
       changedBy: 'agent_a',
       changedByKind: 'agent',
+      confidence: 0.9,
     })
 
     expect(result.status).toBe('auto_written')
     expect(materializerCalls.length).toBe(1)
-  })
-
-  it('treats an empty / undefined gate set as no-op (resource-level decides)', async () => {
-    registerChangeMaterializer({
-      resourceModule: 'widgets',
-      resourceType: 'widget',
-      requiresApproval: false,
-      // requiresApprovalForFields omitted → behaviour byte-identical to today
-      materialize: materializerImpl,
-    })
-    const fake = createFakeDb()
-    service = createChangeProposalsService({ db: fake.handle })
-
-    const result = await service.insertProposal({
-      organizationId: 'org_1',
-      resourceModule: 'widgets',
-      resourceType: 'widget',
-      resourceId: 'w1',
-      payload: { kind: 'field_set', fields: { displayName: { from: 'Old', to: 'New' } } },
-      changedBy: 'agent_a',
-      changedByKind: 'agent',
-    })
-
-    expect(result.status).toBe('auto_written')
   })
 })
 
@@ -420,8 +528,6 @@ describe('listDecided', () => {
     service = createChangeProposalsService({ db: fake.handle })
 
     const allRows = await service.listDecided('org_1')
-    // The fake `select.from.where` ignores predicates; assert listDecided returns
-    // an array of the in-memory rows (filtering happens in the SQL layer for real).
     expect(Array.isArray(allRows)).toBe(true)
 
     const approvedOnly = await service.listDecided('org_1', { status: 'approved' })

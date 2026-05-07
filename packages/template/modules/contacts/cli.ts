@@ -178,6 +178,13 @@ export const contactsProposeChangeVerb = defineCliVerb({
         // with `conversation_id = NULL` (correct — no conversation to attach).
         conversationId: ctx.wake?.conversationId ?? null,
       })
+      if (result.status === 'dropped') {
+        return {
+          ok: false as const,
+          error: `Proposal dropped — confidence ${result.confidence} is below the trivia floor.`,
+          errorCode: 'trivial_proposal',
+        }
+      }
       return { ok: true as const, data: result }
     } catch (err) {
       // Surface the per-resource pending guard as a typed errorCode so the

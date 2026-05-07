@@ -23,6 +23,7 @@ import {
   changeProposals,
 } from '../schema'
 import { summarizeLifecycleEvent } from './lifecycle-summary'
+import { effectiveSensitivity, routeStatus, type Sensitivity } from './sensitivity'
 
 /** History-listing filter — `status: 'all'` or undefined includes every decided variant. */
 export interface ListHistoryOptions {
@@ -51,17 +52,32 @@ export type Materializer = (proposal: ChangeProposalRow, tx: TxLike) => Promise<
 export interface MaterializerRegistration {
   resourceModule: string
   resourceType: string
-  /** When false, `insertProposal` writes status='auto_written' and fires the materializer in the same tx. */
-  requiresApproval: boolean
   /**
-   * Optional per-field approval gate, evaluated only on `field_set` payloads
-   * when `requiresApproval === false`. If any top-level key in the payload's
-   * `fields` map matches an entry in this set, the proposal is forced to
-   * `pending` regardless of the resource-level default. Top-level scalar match
-   * only — `attributes.*` keys are not considered (the gate set is for
-   * scalar columns; per-attribute gating is a tracked follow-up).
+   * Resource-level sensitivity. Combined with the agent's `confidence` to
+   * decide whether `insertProposal` writes `'auto_written'`, `'pending'`, or
+   * drops the proposal as trivial. See `./sensitivity.ts::routeStatus`.
    */
-  requiresApprovalForFields?: ReadonlySet<string>
+  sensitivity: Sensitivity
+  /**
+   * Optional per-scalar overrides for `field_set` payloads. Resolved against
+   * the top-level keys of `payload.fields`; `attributes.<key>` paths are
+   * resolved separately via `resolveAttributeSensitivities`. The most
+   * restrictive of (resource, scalar overrides, attribute lookups) wins.
+   */
+  sensitivityForFields?: Record<string, Sensitivity>
+  /**
+   * Short prose describing this resource for the cheap-model triage prompt
+   * (slice 2). Lives at the registration site so adding a learnable resource
+   * is a single edit.
+   */
+  promptHint: string
+  /**
+   * Optional per-tenant attribute resolver for `attributes.<key>` paths in
+   * `field_set` payloads. Today only contacts wires one (backed by
+   * `contact_attribute_definitions.sensitivity`); other modules omit it and
+   * fall back to the resource-level + scalar overrides.
+   */
+  resolveAttributeSensitivities?: (organizationId: string, keys: readonly string[]) => Promise<Sensitivity[]>
   materialize: Materializer
 }
 
@@ -69,6 +85,11 @@ const registry = new Map<string, MaterializerRegistration>()
 
 export function registerChangeMaterializer(reg: MaterializerRegistration): void {
   registry.set(registryKey(reg.resourceModule, reg.resourceType), reg)
+}
+
+/** Snapshot of registered scopes — read by the slice-2 triage prompt builder. */
+export function listMaterializerRegistrations(): MaterializerRegistration[] {
+  return [...registry.values()]
 }
 
 /** Test-only — clears the in-process registry between cases. */
@@ -126,9 +147,10 @@ export type TxLike = DrizzleHandle
 // ─── Inputs ──────────────────────────────────────────────────────────────────
 
 /**
- * Status is derived from the materializer registry's `requiresApproval` flag —
- * the input shape deliberately omits `status` so callers cannot bypass the
- * approval gate.
+ * Status is derived from `confidence` × resolved sensitivity at the
+ * registration site (see `./sensitivity.ts::routeStatus`). The input shape
+ * deliberately omits `status` so callers cannot bypass routing. A `'drop'`
+ * outcome surfaces as `TrivialProposalError` rather than a row insertion.
  */
 export interface InsertProposalInput {
   organizationId: string
@@ -183,21 +205,16 @@ function normalizePrincipalToken(id: string, kind: ChangedByKind): string {
 }
 
 /**
- * Per-field approval gate evaluation. Only `field_set` payloads can be
- * gated; markdown patches and JSON patches bypass this check entirely. Top-
- * level scalar keys only — `attributes.*` keys are never considered, even if
- * they appear in the gate set, so a deployment can keep the gate set focused
- * on the most consequential row scalars (`displayName`, `email`, …).
+ * Discriminated-union return shape for `insertProposal`. Trivial-confidence
+ * inputs surface as `{ status: 'dropped' }` rather than thrown errors so
+ * every caller is forced to handle the case at the type level — no silent
+ * exceptions, no try/catch boilerplate. Callers that want strict-throw
+ * semantics can wrap with `assertProposalLanded(...)` (not provided — there
+ * is no current consumer).
  */
-function isFieldGated(payload: ChangePayload, gate: ReadonlySet<string> | undefined): boolean {
-  if (!gate || gate.size === 0) return false
-  if (payload.kind !== 'field_set') return false
-  for (const key of Object.keys(payload.fields)) {
-    if (key.startsWith('attributes.')) continue
-    if (gate.has(key)) return true
-  }
-  return false
-}
+export type InsertProposalResult =
+  | { status: 'auto_written' | 'pending'; id: string }
+  | { status: 'dropped'; confidence: number }
 
 /** Narrow a payload to `markdown_patch` or throw — shared by markdown-only materializers. */
 export function assertMarkdownPatch(payload: ChangePayload): Extract<ChangePayload, { kind: 'markdown_patch' }> {
@@ -246,7 +263,7 @@ export interface ChangeProposalsServiceDeps {
 }
 
 export interface ChangeProposalsService {
-  insertProposal(input: InsertProposalInput): Promise<{ id: string; status: ChangeStatus }>
+  insertProposal(input: InsertProposalInput): Promise<InsertProposalResult>
   decideChangeProposal(
     id: string,
     decision: 'approved' | 'rejected',
@@ -361,13 +378,26 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     return rows[0] ?? null
   }
 
-  async function insertProposal(input: InsertProposalInput): Promise<{ id: string; status: ChangeStatus }> {
+  async function insertProposal(input: InsertProposalInput): Promise<InsertProposalResult> {
     const reg = getRegistration(input.resourceModule, input.resourceType)
-    // Resource-level gate first; if the resource auto-applies, the per-field
-    // gate (only checked for `field_set` payloads) can still escalate to
-    // `pending` when a sensitive scalar like `displayName` is touched.
-    const fieldGated = isFieldGated(input.payload, reg.requiresApprovalForFields)
-    const status: ChangeStatus = reg.requiresApproval || fieldGated ? 'pending' : 'auto_written'
+    // Sensitivity-driven routing. The agent supplies `confidence`; manual /
+    // CLI callers without a confidence default to `1.0` (always-auto-or-pending
+    // depending on resource sensitivity — never accidentally drop). The
+    // effective sensitivity may escalate beyond the resource default if the
+    // payload touches a flagged scalar or a tenant attribute marked sensitive.
+    const confidence = input.confidence ?? 1.0
+    const sLevel = await effectiveSensitivity({
+      resourceSensitivity: reg.sensitivity,
+      sensitivityForFields: reg.sensitivityForFields,
+      payload: input.payload,
+      organizationId: input.organizationId,
+      resolveAttributeSensitivities: reg.resolveAttributeSensitivities,
+    })
+    const route = routeStatus(confidence, sLevel)
+    if (route === 'drop') {
+      return { status: 'dropped', confidence }
+    }
+    const status: ChangeStatus = route === 'auto_written' ? 'auto_written' : 'pending'
     // Pending rows compete for the partial unique index; auto-writes materialize
     // immediately and never collide, so the duplicate check only applies to pending.
     if (status === 'pending') {
@@ -405,7 +435,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
       return { id, status }
     }
 
-    // requiresApproval=false — atomically insert + materialize + record history.
+    // route='auto_written' — atomically insert + materialize + record history.
     await db.transaction(async (tx) => {
       await tx.insert(changeProposals).values(proposal).returning()
       const result = await reg.materialize(proposal, tx)
@@ -739,7 +769,7 @@ function current(): ChangeProposalsService {
   return _service
 }
 
-export function insertProposal(input: InsertProposalInput): Promise<{ id: string; status: ChangeStatus }> {
+export function insertProposal(input: InsertProposalInput): Promise<InsertProposalResult> {
   return current().insertProposal(input)
 }
 

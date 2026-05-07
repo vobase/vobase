@@ -49,6 +49,13 @@ export const drivePropose = defineCliVerb({
       expectedOutcome: input.expectedOutcome,
       conversationId,
     })
+    if (result.status === 'dropped') {
+      return {
+        ok: false as const,
+        error: `Proposal dropped — confidence ${result.confidence} is below the trivia floor.`,
+        errorCode: 'trivial_proposal',
+      }
+    }
     return {
       ok: true as const,
       data: { id: result.id, status: result.status },

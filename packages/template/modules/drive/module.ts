@@ -32,7 +32,8 @@ const drive: ModuleDef = {
     registerChangeMaterializer({
       resourceModule: DRIVE_DOC_RESOURCE.module,
       resourceType: DRIVE_DOC_RESOURCE.type,
-      requiresApproval: true,
+      sensitivity: 'high',
+      promptHint: 'agent-authored drive document — knowledge-base entry, runbook, lesson the agent wrote up',
       materialize: driveDocMaterializer,
     })
     registerDriveOverlay(createContactBuiltinOverlay(ctx.db))
