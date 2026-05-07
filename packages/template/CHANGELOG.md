@@ -1,5 +1,164 @@
 # @vobase/template
 
+## 3.6.0
+
+### Minor Changes
+
+- [`354da30`](https://github.com/vobase/vobase/commit/354da30c3dfd9edb84d9ab3a8e04efb213c24d0e) Thanks [@mdluo](https://github.com/mdluo)! - # profile.md becomes the canonical editable view for contacts and staff
+
+  YAML frontmatter at the top of `/contacts/<id>/profile.md` and `/staff/<id>/profile.md` is now the agent's structured-edit surface. The workspace-sync observer parses dirty profile.md, computes a diff against the canonical row, and submits a `field_set` change-proposal. Approval routes through the existing change-proposal pipeline:
+
+  - **Contacts** auto-apply by default; `displayName` and `email` queue for staff approval via the new `requiresApprovalForFields` registry option.
+  - **Staff** join the change-proposal pipeline for the first time (`requiresApproval: true`); all staff edits queue.
+  - **Markdown patches** to `profile` are no longer accepted on contacts — `MARKDOWN_FIELDS` is `{'memory'}` only. profile.md body below the frontmatter is auto-rendered.
+
+  **New surface:**
+
+  - `wake/profile-frontmatter.ts` exports `renderContactFrontmatter`, `renderStaffFrontmatter`, `parseFrontmatter`, and `diffProfile`. Render output is byte-stable (sorted keys, double-quoted strings, omits null / empty fields). Parser uses Bun's YAML 1.2 default so date strings stay strings.
+  - `modules/team/service/changes.ts` (new) ships `staffChangeMaterializer` for the `(team, staff)` resource pair. Allowed scalars: `{displayName, title, availability, capacity, expertise, sectors, languages}` plus `attributes.*`. `email` lives in `auth.user` and is intentionally out-of-scope for v1 (rejected with a `validation` error if proposed).
+  - `runtime/tz.ts` exports `ORG_TIMEZONE = process.env.TZ ?? 'Asia/Singapore'` as the seam for org-wide `date`-attribute interpretation.
+
+  **Changed:**
+
+  - `modules/changes/service/proposals.ts`: `registerChangeMaterializer` gains `requiresApprovalForFields?: ReadonlySet<string>`. When a `field_set` proposal touches a gated top-level scalar key, the proposal is forced to `pending` regardless of the resource-level default. `attributes.*` keys are not gated.
+  - `modules/contacts/agent.ts` and `modules/team/agent.ts`: profile.md materializers emit frontmatter via the new renderer; the read-only hint for profile.md paths is removed; AGENTS.md contributors are reframed to describe the editable frontmatter surface.
+  - `modules/agents/agent.ts`: the `agents.memory-conventions` contributor gains a `## Structured fields vs prose memory` section covering the three capture-trigger categories (customer-volunteered facts, staff-volunteered facts in internal notes, high-confidence inferences) plus the explicit `frontmatter vs MEMORY.md` split rule.
+  - `wake/observers/workspace-sync.ts`: on `agent_end`, profile.md edits route through `insertProposal` with a `field_set` payload built from `diffProfile(baseline, current)`. Unknown keys are dropped before `insertProposal` and warned. Empty diffs (reordered keys, no value change) produce zero proposals.
+  - `wake/workspace/index.ts`: profile.md paths move from `readOnlyExact` to `memoryPaths` so they're writable and tracked by the dirty diff.
+
+  **Manual smoke (not CI-gated).** Reproduce the GK Corp scenario against the dev server:
+
+  ```bash
+  # 1. Send a customer message that volunteers structured facts.
+  curl -X POST http://localhost:3001/api/channels/web/inbound \
+    -H 'Content-Type: application/json' \
+    -d '{"contactId":"<id>","body":"I work at Northwind Logistics, 120 employees, renewal in September","externalKey":"web:demo"}'
+
+  # 2. Wait for agent_end; inspect the change_proposals row.
+  psql $DATABASE_URL -c "select id, status, payload from changes.change_proposals where resource_id='<id>' order by created_at desc limit 1;"
+
+  # 3. Confirm contacts.attributes was updated post-apply.
+  psql $DATABASE_URL -c "select attributes from contacts.contacts where id='<id>';"
+  ```
+
+  Expected: one `change_proposals` row with `kind: 'field_set'` containing the three new attribute keys, status `auto_written` (no gated keys touched), and `contacts.attributes` reflecting the merged values.
+
+  ## Lifecycle observability + agent acknowledgement
+
+  Built on top of the field_set work above so staff and the customer both get continuous feedback as a profile-edit moves through propose → decide → apply.
+
+  **New surface:**
+
+  - `wake/observers/sensitive-write-warner.ts` — `OnToolResultListener` that diffs `/contacts/<id>/profile.md` and `/staff/<id>/profile.md` after every `bash` tool call, lazily baselined per wake. When a gated frontmatter field (`displayName`, `email`) is touched it appends a `vobase notice:` block to the bash result's `stderr` — the _same_ tool result the model is about to read — so the next assistant message can phrase the customer reply as a request that's been queued for staff review rather than confirming a change that's still pending. Cheap short-circuit on `args.command` keeps the disk reads off the hot path when the bash call doesn't reference a profile path. Gated key sets live in `wake/observers/gated-fields.ts` so workspace-sync and the warner share one source of truth.
+  - `wake/change-decided.ts` — `CHANGES_DECIDED_TO_WAKE_JOB` (`changes:decided-to-wake`) bridge: the decide endpoint enqueues a wake on conversation-bound proposals only (filters synthetic `operator-`/`heartbeat-` ids), `pg-boss` singletonKey on `(conversation, proposal, decision)` dedups rapid clicks. The handler boots a conversation-lane wake with the new `change_decided` trigger.
+  - `wake/events.ts` adds the `change_decided` `WakeTrigger` variant with `{proposalId, decision, resourceModule, resourceType, resourceId, summary, decidedNote, decidedBy}`. `wake/trigger.ts` registers the renderer (`renderChangeDecided`): on approval it requires a fresh customer reply even if the agent previously said "logged for review"; on rejection it surfaces the staff note to the agent (verbatim, marked "for your understanding only — do NOT quote") and asks for a polite acknowledgement. Both branches forbid re-attempting the write.
+  - `modules/changes/service/lifecycle-summary.ts` — backend-safe `summarizeLifecycleEvent` produces a short, contextual one-liner suitable for inline timeline rendering ("Email change to marc@x.com", "Display name and email change", "3 contact fields updated", "Memory note appended"). 12 unit tests pin behaviour.
+  - `tests/helpers/changes-smoke.ts` — atomic helpers (`open`, `sendInbound`, `waitForReply`, `insertPending`, `decide`, `listJournal`, `listActivity`, `listTranscript`, `close`) for stepping through the propose/decide/wake pipeline interactively against a live dev server. Reuses `devLogin` + `makeAuthedFetch` from `tests/smoke/_helpers.ts`.
+
+  **Changed:**
+
+  - `modules/changes/service/proposals.ts`: emits 4 lifecycle events into `harness.conversation_events` for any conversation-bound proposal — `change.proposed`, `change.auto_applied`, `change.approved`, `change.rejected`. The journal write is best-effort (try/catch + warn so a missing journal service in unit tests doesn't roll back the proposal tx). Emit sites consolidated via a `LifecycleVariant` discriminated union; the helper derives `proposalId`, `kind`, `resource*`, and `summary` from the proposal row so call sites only specify what varies. The decide endpoint additionally enqueues `CHANGES_DECIDED_TO_WAKE_JOB` for conversation-bound proposals.
+  - `modules/changes/module.ts`: installs a `decidedScheduler` that bridges service-level decide calls to the new pg-boss job.
+  - `modules/messaging/service/conversations.ts`: `TIMELINE_ACTIVITY_TYPES` extended with the 4 new `change.*` types so they flow through the existing `/api/messaging/conversations/:id/activity` endpoint.
+  - `modules/messaging/components/message-thread.tsx`: new `<ChangeActivityLine>` renders the journal `summary` as the primary line (rationale + decidedNote move to a `HoverCard` so the timeline stays scannable). The whole row links to `/changes?id=<proposalId>` so staff can jump to the proposal record. Suppresses system-emitted rejection tokens (`staff_rejected`, `threat_scan`).
+  - `modules/changes/pages/index.tsx` + `src/components/changes/change-history-list.tsx` + `src/components/changes/proposal-row.tsx`: route search schema accepts `id`; the page auto-switches to History when the linked proposal isn't pending, scrolls the matching row into view, and adds a 2.4s ring highlight (latched via `useRef` per `(highlightId, tab)` so realtime refetches don't re-fire). `ProposalRow`'s root went from `<li>` to `<div>` and the call sites wrap with `<li data-proposal-id>` so the structure stays valid.
+  - `wake/observers/workspace-sync.ts`: `WorkspaceSyncOpts` gains `conversationId` and the proposal write threads it through to `insertProposal` (was hardcoded `null`, which silently dropped lifecycle events for agent-driven edits).
+  - `wake/build-base.ts` + `wake/conversation.ts` + `wake/standalone.ts`: `composeHooks` accepts an optional `coreToolResults: OnToolResultListener[]` array; both lane builders thread the new sensitive-write-warner through it.
+  - `wake/prompt.ts`: static instructions gain a `## Bash sandbox` section listing the WebContainer toolchain (no `python`/`node`/`jq`/`yq`/`perl`/`ruby`) plus `sed`/`echo`/here-doc patterns for frontmatter edits with explicit insert-or-replace examples (a new contact's frontmatter often only has `displayName`+`marketingOptOut`, so a "replace existing key" sed silently no-ops on absent fields). Plus a `## When the customer asks you to write something` order-of-operations rule (attempt the write → cat to verify → read stderr notice → reply based on what the notice actually said).
+  - `modules/contacts/agent.ts`: AGENTS.md fragment for `contacts.contact-context` gains a 5-step workflow ("when the customer asks for a profile change") that explicitly forbids "logged for review" replies without a verified upstream edit.
+  - `runtime/bootstrap.ts`: registers the new `CHANGES_DECIDED_TO_WAKE_JOB` handler.
+
+  **Manual smoke (lifecycle):**
+
+  ```bash
+  # Same dev-server prereqs as above.
+  bun -e '
+    import { open, sendInbound, waitForReply, insertPending, decide, listActivity, close } from "./packages/template/tests/helpers/changes-smoke"
+    const ctx = await open({ from: `smoke-${Date.now()}` })
+    const conv = await sendInbound(ctx, "Quick question about your team.")
+    await waitForReply(ctx, conv.conversationId, 0)
+    const pid = await insertPending(ctx, { contactId: conv.contactId, conversationId: conv.conversationId, field: "email", value: `marc.${Date.now()}@example.com`, rationale: "Customer asked to update email on file" })
+    await decide(ctx, pid, "approved")
+    await waitForReply(ctx, conv.conversationId, 1)
+    console.log(await listActivity(ctx, conv.conversationId))
+    await close(ctx)
+  '
+  ```
+
+  Expected: `change.approved` activity row carrying `summary: "Email change to …"` + `proposalId`; agent posts a brief customer-facing confirmation reply on the next wake.
+
+  ## propose_contact_update — first-class tool for customer-asked profile edits
+
+  Closes the agent-tool-discipline gap that surfaced during the lifecycle smoke: with bash-edited `profile.md` as the only path, `gpt-5.4` (and Sonnet, tested via single-line model swap) reliably skipped the bash sed for customer-asked profile updates and replied with a hallucinated "logged for review" — silently breaking the propose pipeline (no `change_proposals` row, no journal event, no staff inbox entry, no `sensitive-write-warner` notice). 5 consecutive baseline runs produced 0 proposals; 4 prompt iterations did not move the model.
+
+  **New surface:**
+
+  - `modules/contacts/tools/propose-contact-update.ts` — conversation-lane, customer-facing tool. `audience: 'customer'`, `lane: 'conversation'`. Resolves `contactId` from `ctx.conversationId` (the model can't pick the wrong contact). Input is `{patch, rationale}` where `patch` accepts `{displayName, email, phone, segments, marketingOptOut, attributes}`; `attributes` is a flat map flattened to `attributes.*` field_set keys server-side. Builds the `field_set` diff against the current row, reuses `buildFieldSetCopy` for `expectedOutcome`, and forwards the model's `rationale` verbatim to `insertProposal`. Returns `{proposalId, status, fieldsTouched, replyHint}` where `replyHint` is one of three deterministic strings keyed off `status`:
+    - `auto_written` → "Tell the customer the change is done (it applied immediately and is now on file)."
+    - `pending` → "Tell the customer it's logged for our team to review (a gated field was touched)."
+    - `no_op` → "No values would change — the patch you proposed already matches what's on file."
+      Idempotent on rapid double-call: a duplicate-pending conflict from `insertProposal` collapses to `{status: 'pending', proposalId: null}` rather than re-throwing, so the model still gets a deterministic answer.
+  - 7 unit tests in `modules/contacts/tools/propose-contact-update.test.ts`. Uses `mock.module('@modules/changes/service/proposals', …)` because `wake/observers/workspace-sync.test.ts` and `wake/observers/learning-proposals.test.ts` already mock that module process-wide; an `installChangeProposalsService` stub would silently lose to their `mock.module` replacement.
+
+  **Changed:**
+
+  - `modules/contacts/agent.ts`: registers `proposeContactUpdateTool` in `contactsTools` and rewrites the `contacts.contact-context` AGENTS.md fragment to lead with the tool. The 5-step bash workflow is replaced with a 3-step tool workflow ("call `propose_contact_update`; read the returned `status`; reply accordingly"). Bash-editing `profile.md` is demoted to operator/admin workflows; the fragment explicitly tells the agent that bash-as-customer-shortcut is silently ignored.
+
+  **Verified.** Re-running the same gpt-5.4 baseline smoke after the fix:
+
+  | Runs       | bash calls | proposals created | journal events        | reply matches reality          |
+  | ---------- | ---------: | ----------------: | --------------------- | ------------------------------ |
+  | Before fix |      0 / 5 |             0 / 5 | none                  | "logged for review" — false    |
+  | After fix  |      0 / 4 |         **4 / 4** | `change.proposed` × 4 | "logged for review" — **true** |
+
+  Plus a non-gated phone-update run that auto-wrote (`status=auto_written`, `contacts.phone` updated to the new value) and the agent replied with the corresponding "all set" copy.
+
+### Patch Changes
+
+- [`7776abf`](https://github.com/vobase/vobase/commit/7776abf49c838c6e1d86227917782a6a516075d4) Thanks [@mdluo](https://github.com/mdluo)! - # Tint composer background when in internal-note mode
+
+  The inbox composer uses a single `PromptInput` for both customer reply and internal-note modes, distinguished only by the active tab. Switching to **Note** changed the placeholder and submit label but left the input box visually identical to a customer reply, so it was easy to mistake one for the other at a glance.
+
+  Match the composer surface to the note message bubble (`bg-amber-50/70` light, `bg-amber-950/25` dark, `border-amber-500/30`) when `mode === 'note'`. Reply mode is unchanged. Same color tokens already used by `NoteRow` in `message-thread.tsx`, so the composer reads as a draft of the bubble it will produce.
+
+- [`9bc15cd`](https://github.com/vobase/vobase/commit/9bc15cd3443d8bf126601e5e58b86232cbabbfa9) Thanks [@mdluo](https://github.com/mdluo)! - # Full-height Drive on detail pages, agent page joins side-by-side layout
+
+  Three follow-ups to the contact/team detail-page rework:
+
+  - **Agent detail page now uses the same two-column layout.** Settings + Save on the left, vertical-orientation Drive on the right. Save button is contextual — only renders while the form is dirty.
+  - **Drive panel fills the column on `lg+`.** Detail pages flip `PageBody` to `flex flex-col` and the grid container to `flex-1` so the right column claims all remaining vertical space; `DriveSection` takes `lg:h-full` to override the default `h-[60vh]`. Below `lg` Drive keeps the original 60vh box. Left column gets its own internal scroll if its sections exceed the available height.
+  - **Vertical Drive prefers content over file list.** When `orientation="vertical"` and a file is selected, the grid splits the panel `1fr` for the file list and `2fr` for the preview/editor (was `1fr/1fr`), so AGENTS.md / PROFILE.md / etc. get the room they need without shrinking the file list to nothing.
+
+- [`9555875`](https://github.com/vobase/vobase/commit/95558755e1dbc30460fd2530b989333f43670f69) Thanks [@mdluo](https://github.com/mdluo)! - # Side-by-side detail pages with vertical Drive
+
+  The contact and team detail pages now use a two-column layout on `lg` and up: identity sections on the left, the entity's Drive on the right. The previous stacked layout pushed Drive below the fold whenever the attributes list grew.
+
+  **Two sections per entity, one role each.** Native fields (Email/Phone/Segments/Marketing on contacts; Title/Availability/Capacity/Sectors/Expertise/Languages on staff) sit in a read-only `InfoCard` with an Edit button that opens the existing form dialog. Custom attributes sit in their own `InfoCard` with inline-editable rows, dirty-tracking, and a contextual `Save (N)` button that only appears while a field is dirty.
+
+  **Add new attributes from the detail page.** A `+ Add attribute` row at the end of the attributes card opens the existing `AttributeFormDialog` to create a new definition, which appears on every contact/staff member via query invalidation — no detour to `/contacts/attributes` or `/team/attributes` for one-off fields.
+
+  **Drive can stack vertically.** `DriveBrowser` takes a new `orientation: 'horizontal' | 'vertical'` prop; `vertical` switches the desktop grid from columns to rows so the file list sits on top and the preview stacks below. Detail pages pass `vertical` so Drive fits in a single right-column box; the standalone `/drive` page keeps the original horizontal split.
+
+  Other cleanup: removed the staff `Profile` field from the dialog (already covered by `/PROFILE.md` inside Drive), dropped the unused module-level `attribute-table` wrappers and the shared `src/components/attributes/attribute-table.tsx`, and removed the "Settings" section heading on the agent detail page so its `InfoCard` matches the other detail pages' style.
+
+- [`466ff11`](https://github.com/vobase/vobase/commit/466ff1187e960443a753c717e46d543284a9ca92) Thanks [@mdluo](https://github.com/mdluo)! - # Memory hygiene: budget headers, capture triggers, scope conventions
+
+  Revamp how the agent harness instructs and budgets `MEMORY.md` across all three scopes (agent self / contact / staff).
+
+  **AGENTS.md additions** — three new sections compose into every wake's AGENTS.md:
+
+  - `agents.self-state` (priority 20, trimmed) — file locations only, no longer carries capture imperatives.
+  - `agents.memory-capture-triggers` (priority 25) — "## When to capture" with the auto-loop reframe (do NOT echo `internal_note_added` / supervisor coaching; the self-learn loop captures those automatically). Lists keywords (`always`, `never`, `from now on`, `remember that`, `next time`) for mid-wake self-lessons only.
+  - `agents.memory-conventions` (priority 26) — three-row scope table (agent / contact / staff) with paths, when-to-write, append + sed mutation patterns, and a 30-day prune rule.
+
+  **Per-wake budget header** — every materialized `MEMORY.md` gains a deterministic `<!-- memory-budget scope=... id=... chars=N (utf16) cap=8000 over=true|false -->` line as a soft visibility hint. Header is render-time only and `stripBudgetHeader` keeps storage clean (no header round-trip into the DB column on workspace-sync flush). Header surface is capped to the first 5 staff ids per wake (`STAFF_BUDGET_HEADER_CAP`); body materialization still iterates all `staffIds` so the workspace surface is unchanged.
+
+  **Self-learn loop fix** — `Note: —` empty-body bug in the `## Staff signal —` block that the `learning-proposals` observer appends. The supervisor wake's `agent_start` payload only carries `noteId`; the observer now looks up the body via `listNotes(conversationId)`, capped at 800 chars, so the captured rule actually surfaces in working memory.
+
+  **Determinism** — `wake/memory-budget.ts` is byte-pure (source-regex guard bans `Date`, `Math.random`, `process.env`, `os.hostname`, `__dirname`, etc.). Cross-wake `systemHash` stability test added to `wake/prompt.test.ts` covering all three scope headers reaching the rendered system prompt.
+
+  **Tests** — 79 passing across `wake/memory-budget.test.ts`, `wake/observers/workspace-sync.test.ts`, `wake/observers/learning-proposals.test.ts`, `modules/{agents,contacts,team}/agent.test.ts`, `wake/prompt.test.ts`, `wake/build-base.test.ts`. Live smoke verified the GK Corp regression bug (customer-volunteered facts now persist to `/contacts/<id>/MEMORY.md`).
+
 ## 3.5.0
 
 ### Minor Changes
