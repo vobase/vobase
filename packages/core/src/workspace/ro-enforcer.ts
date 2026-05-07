@@ -70,7 +70,7 @@ export interface BuildReadOnlyConfigOpts {
    */
   writablePrefixes: readonly string[]
   /**
-   * Exact RO paths (e.g. per-wake `/agents/<id>/AGENTS.md`, `/contacts/<id>/profile.md`).
+   * Exact RO paths (e.g. per-wake `/agents/<id>/AGENTS.md`, `/contacts/<id>/PROFILE.md`).
    * Template supplies these at wake start since they interpolate nanoids.
    */
   readOnlyExact?: readonly string[]

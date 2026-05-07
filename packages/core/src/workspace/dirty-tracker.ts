@@ -26,8 +26,6 @@ export interface ScopedDiff {
   contactDrive: DirtyDiff
   /** `/contacts/<id>/MEMORY.md` — persisted via ContactsService.upsertNotesSection. */
   contactMemory: DirtyDiff
-  /** `/contacts/<id>/profile.md` — frontmatter routed as `field_set` change-proposals. */
-  contactProfile: DirtyDiff
   /** `/agents/<id>/MEMORY.md` — persisted via AgentsPort working-memory update. */
   agentMemory: DirtyDiff
   /**
@@ -35,8 +33,6 @@ export interface ScopedDiff {
    * Keyed by staffId so the dispatcher can upsert per row.
    */
   staffMemory: Map<string, DirtyDiff>
-  /** `/staff/<staffId>/profile.md` — frontmatter routed as `field_set` change-proposals (keyed by staffId). */
-  staffProfile: Map<string, DirtyDiff>
   /** `/tmp/**` — ephemeral; caller decides whether to retain. */
   tmp: DirtyDiff
 }
@@ -47,24 +43,19 @@ function emptyDiff(): DirtyDiff {
 
 const CONTACT_DRIVE_RE = /^\/contacts\/[^/]+\/drive(?:\/|$)/
 const CONTACT_MEMORY_RE = /^\/contacts\/[^/]+\/MEMORY\.md$/
-const CONTACT_PROFILE_RE = /^\/contacts\/[^/]+\/profile\.md$/
 const AGENT_MEMORY_RE = /^\/agents\/[^/]+\/MEMORY\.md$/
 const STAFF_MEMORY_RE = /^\/staff\/([^/]+)\/MEMORY\.md$/
-const STAFF_PROFILE_RE = /^\/staff\/([^/]+)\/profile\.md$/
 
 type Classification =
-  | { kind: 'contactDrive' | 'contactMemory' | 'contactProfile' | 'agentMemory' | 'tmp' }
-  | { kind: 'staffMemory' | 'staffProfile'; staffId: string }
+  | { kind: 'contactDrive' | 'contactMemory' | 'agentMemory' | 'tmp' }
+  | { kind: 'staffMemory'; staffId: string }
 
 function classifyPath(path: string): Classification | null {
   if (CONTACT_DRIVE_RE.test(path)) return { kind: 'contactDrive' }
   if (CONTACT_MEMORY_RE.test(path)) return { kind: 'contactMemory' }
-  if (CONTACT_PROFILE_RE.test(path)) return { kind: 'contactProfile' }
   if (AGENT_MEMORY_RE.test(path)) return { kind: 'agentMemory' }
   const staffMemory = path.match(STAFF_MEMORY_RE)
   if (staffMemory) return { kind: 'staffMemory', staffId: staffMemory[1] }
-  const staffProfile = path.match(STAFF_PROFILE_RE)
-  if (staffProfile) return { kind: 'staffProfile', staffId: staffProfile[1] }
   if (path.startsWith('/tmp/') || path === '/tmp') return { kind: 'tmp' }
   return null
 }
@@ -96,10 +87,8 @@ export class DirtyTracker {
     const out: ScopedDiff = {
       contactDrive: emptyDiff(),
       contactMemory: emptyDiff(),
-      contactProfile: emptyDiff(),
       agentMemory: emptyDiff(),
       staffMemory: new Map<string, DirtyDiff>(),
-      staffProfile: new Map<string, DirtyDiff>(),
       tmp: emptyDiff(),
     }
     const getStaffBucket = (map: Map<string, DirtyDiff>, staffId: string): DirtyDiff => {
@@ -115,10 +104,6 @@ export class DirtyTracker {
       if (!c) return
       if (c.kind === 'staffMemory') {
         getStaffBucket(out.staffMemory, c.staffId)[lane].push(path)
-        return
-      }
-      if (c.kind === 'staffProfile') {
-        getStaffBucket(out.staffProfile, c.staffId)[lane].push(path)
         return
       }
       out[c.kind][lane].push(path)

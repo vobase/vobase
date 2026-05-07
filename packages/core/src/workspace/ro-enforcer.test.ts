@@ -12,7 +12,7 @@ import {
 
 const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/'] as const
 const MEMORY_PATHS = ['/agents/a_xyz/MEMORY.md', '/contacts/c_abc/MEMORY.md'] as const
-const RO_EXACT = ['/agents/a_xyz/AGENTS.md', '/contacts/c_abc/profile.md'] as const
+const RO_EXACT = ['/agents/a_xyz/AGENTS.md', '/contacts/c_abc/PROFILE.md'] as const
 const CONFIG = buildReadOnlyConfig({
   writablePrefixes: WRITABLE,
   readOnlyExact: RO_EXACT,
@@ -58,7 +58,7 @@ describe('checkWriteAllowed', () => {
   })
 
   it('rejects readOnlyExact paths', () => {
-    for (const p of ['/agents/a_xyz/AGENTS.md', '/contacts/c_abc/profile.md']) {
+    for (const p of ['/agents/a_xyz/AGENTS.md', '/contacts/c_abc/PROFILE.md']) {
       expect(checkWriteAllowed(p, CONFIG)).toContain('Read-only')
     }
   })

@@ -7,11 +7,8 @@ const WRITABLE = ['/contacts/c_abc/drive/', '/tmp/']
 const MEMORY_PATHS = [
   '/agents/a_xyz/MEMORY.md',
   '/contacts/c_abc/MEMORY.md',
-  '/contacts/c_abc/profile.md',
   '/staff/u_s1/MEMORY.md',
   '/staff/u_s2/MEMORY.md',
-  '/staff/u_s1/profile.md',
-  '/staff/u_s2/profile.md',
 ]
 
 describe('DirtyTracker', () => {
@@ -100,29 +97,29 @@ describe('DirtyTracker', () => {
     expect(scoped.staffMemory.size).toBe(2)
   })
 
-  it('classifies /contacts/<id>/profile.md into contactProfile', async () => {
+  it('does not enumerate PROFILE.md paths in the scoped diff (RO, no longer writable)', async () => {
     const fs = new InMemoryFs()
     const snap = await snapshotFs(fs)
     const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
 
-    await fs.writeFile('/contacts/c_abc/profile.md', '---\ndisplayName: "X"\n---\n')
-    const scoped = await tracker.flush(fs)
-    expect(scoped.contactProfile.added).toContain('/contacts/c_abc/profile.md')
-  })
-
-  it('classifies /staff/<id>/profile.md into staffProfile keyed by staffId', async () => {
-    const fs = new InMemoryFs()
-    const snap = await snapshotFs(fs)
-    const tracker = new DirtyTracker(snap, WRITABLE, MEMORY_PATHS)
-
-    await fs.writeFile('/staff/u_s1/profile.md', '---\ntitle: "CSM"\n---\n')
-    await fs.writeFile('/staff/u_s2/profile.md', '---\ntitle: "Lead"\n---\n')
+    // PROFILE.md paths are NOT in MEMORY_PATHS or WRITABLE — they should be
+    // ignored entirely since `isWritablePath` returns false for them.
+    await fs.writeFile('/contacts/c_abc/PROFILE.md', '---\ndisplayName: "X"\n---\n')
+    await fs.writeFile('/staff/u_s1/PROFILE.md', '---\ntitle: "CSM"\n---\n')
 
     const scoped = await tracker.flush(fs)
-    expect(scoped.staffProfile.get('u_s1')?.added).toContain('/staff/u_s1/profile.md')
-    expect(scoped.staffProfile.get('u_s2')?.added).toContain('/staff/u_s2/profile.md')
-    expect(scoped.staffProfile.size).toBe(2)
-    // staffMemory bucket must NOT receive profile.md edits.
-    expect(scoped.staffMemory.size).toBe(0)
+    const allDirty = [
+      ...scoped.contactDrive.added,
+      ...scoped.contactDrive.changed,
+      ...scoped.contactMemory.added,
+      ...scoped.contactMemory.changed,
+      ...scoped.agentMemory.added,
+      ...scoped.agentMemory.changed,
+      ...scoped.tmp.added,
+      ...scoped.tmp.changed,
+      ...[...scoped.staffMemory.values()].flatMap((d) => [...d.added, ...d.changed]),
+    ]
+    expect(allDirty).not.toContain('/contacts/c_abc/PROFILE.md')
+    expect(allDirty).not.toContain('/staff/u_s1/PROFILE.md')
   })
 })
