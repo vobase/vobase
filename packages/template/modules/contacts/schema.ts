@@ -23,6 +23,7 @@
  * after `drizzle-kit push` has created both schemas.
  */
 
+import type { Sensitivity } from '@modules/changes/service/sensitivity'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import type { InferSelectModel } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
@@ -62,6 +63,9 @@ export interface Contact {
 
 export type AttributeType = 'text' | 'number' | 'boolean' | 'date' | 'enum'
 
+/** Re-export of `Sensitivity` from `@modules/changes/service/sensitivity` so contacts callers stay scoped to their schema barrel. Aliased rather than redeclared to keep one source of truth — extending the levels happens in `sensitivity.ts`. */
+export type AttributeSensitivity = Sensitivity
+
 export interface ContactAttributeDefinition {
   id: string
   organizationId: string
@@ -70,6 +74,14 @@ export interface ContactAttributeDefinition {
   type: AttributeType
   options: string[]
   showInTable: boolean
+  /**
+   * Operator-set sensitivity for this attribute key. Consumed by
+   * `changes/service/sensitivity.ts::effectiveSensitivity` for any
+   * `field_set` payload that touches `attributes.<key>` — a `'critical'`
+   * attribute (e.g. `medicalCondition`) forces the whole proposal to
+   * pending review even when the resource default is `'medium'`.
+   */
+  sensitivity: AttributeSensitivity
   sortOrder: number
   createdAt: Date
   updatedAt: Date
@@ -127,6 +139,9 @@ export const contactAttributeDefinitions = contactsPgSchema.table(
     type: text('type').notNull().default('text'),
     options: text('options').array().notNull().default([]),
     showInTable: boolean('show_in_table').notNull().default(false),
+    sensitivity: text('sensitivity', { enum: ['low', 'medium', 'high', 'critical'] })
+      .notNull()
+      .default('medium'),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -138,6 +153,7 @@ export const contactAttributeDefinitions = contactsPgSchema.table(
     uniqueIndex('uq_contact_attr_def_org_key').on(t.organizationId, t.key),
     index('idx_contact_attr_def_org').on(t.organizationId),
     check('contact_attr_def_type_check', sql`type IN ('text','number','boolean','date','enum')`),
+    check('contact_attr_def_sensitivity_check', sql`sensitivity IN ('low','medium','high','critical')`),
   ],
 )
 

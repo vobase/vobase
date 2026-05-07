@@ -26,6 +26,7 @@ const contacts: ModuleDef = {
         phone: 'high',
       },
       promptHint: 'fields on the contact record — name, contact details, segments, marketing prefs',
+      resolveAttributeSensitivities,
       materialize: contactChangeMaterializer,
     })
     ctx.cli.registerAll(contactsVerbs)

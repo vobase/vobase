@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { AttributeType, ContactAttributeDefinition } from '../schema'
+import type { AttributeSensitivity, AttributeType, ContactAttributeDefinition } from '../schema'
 
 const TYPE_OPTIONS: { value: AttributeType; label: string }[] = [
   { value: 'text', label: 'Text' },
@@ -28,12 +28,20 @@ const TYPE_OPTIONS: { value: AttributeType; label: string }[] = [
   { value: 'enum', label: 'Choice list' },
 ]
 
+const SENSITIVITY_OPTIONS: { value: AttributeSensitivity; label: string; description: string }[] = [
+  { value: 'low', label: 'Low', description: 'Trivial info — agent can update freely.' },
+  { value: 'medium', label: 'Medium', description: 'Default. Updates auto-apply when the agent is confident.' },
+  { value: 'high', label: 'High', description: 'Updates usually wait for staff review.' },
+  { value: 'critical', label: 'Critical', description: 'Always wait for staff review (e.g. medical, ID numbers).' },
+]
+
 export interface AttributeFormValues {
   key: string
   label: string
   type: AttributeType
   options: string[]
   showInTable: boolean
+  sensitivity: AttributeSensitivity
 }
 
 interface Props {
@@ -58,6 +66,7 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
   const [type, setType] = useState<AttributeType>('text')
   const [options, setOptions] = useState('')
   const [showInTable, setShowInTable] = useState(false)
+  const [sensitivity, setSensitivity] = useState<AttributeSensitivity>('medium')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -67,6 +76,7 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
     setType(attribute?.type ?? 'text')
     setOptions(attribute?.options.join(', ') ?? '')
     setShowInTable(attribute?.showInTable ?? false)
+    setSensitivity(attribute?.sensitivity ?? 'medium')
     setError(null)
   }, [open, attribute])
 
@@ -100,6 +110,7 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
       type,
       options: parsedOptions,
       showInTable,
+      sensitivity,
     })
   }
 
@@ -164,6 +175,24 @@ export function AttributeFormDialog({ open, onOpenChange, attribute, onSave, isP
               <p className="text-muted-foreground text-xs">Separate choices with commas.</p>
             </div>
           )}
+          <div className="space-y-1.5">
+            <Label htmlFor="attr-sensitivity">Sensitivity</Label>
+            <Select value={sensitivity} onValueChange={(v) => setSensitivity(v as AttributeSensitivity)}>
+              <SelectTrigger id="attr-sensitivity">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SENSITIVITY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {SENSITIVITY_OPTIONS.find((o) => o.value === sensitivity)?.description}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <Checkbox
               id="attr-show"

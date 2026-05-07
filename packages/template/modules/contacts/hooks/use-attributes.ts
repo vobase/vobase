@@ -5,7 +5,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { contactsClient } from '@/lib/api-client'
-import type { AttributeType, AttributeValue, Contact, ContactAttributeDefinition } from '../schema'
+import type {
+  AttributeSensitivity,
+  AttributeType,
+  AttributeValue,
+  Contact,
+  ContactAttributeDefinition,
+} from '../schema'
 
 export const attrKeys = {
   defs: ['contacts', 'attribute-definitions'] as const,
@@ -28,6 +34,7 @@ export interface CreateDefBody {
   type: AttributeType
   options?: string[]
   showInTable?: boolean
+  sensitivity?: AttributeSensitivity
   sortOrder?: number
 }
 
@@ -53,6 +60,7 @@ export interface UpdateDefBody {
   type?: AttributeType
   options?: string[]
   showInTable?: boolean
+  sensitivity?: AttributeSensitivity
   sortOrder?: number
 }
 

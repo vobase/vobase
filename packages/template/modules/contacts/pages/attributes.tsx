@@ -66,6 +66,7 @@ export function AttributeDefinitionsPage() {
             type: values.type,
             options: values.options,
             showInTable: values.showInTable,
+            sensitivity: values.sensitivity,
           },
         })
         toast.success('Attribute updated')
@@ -76,6 +77,7 @@ export function AttributeDefinitionsPage() {
           type: values.type,
           options: values.options,
           showInTable: values.showInTable,
+          sensitivity: values.sensitivity,
         })
         toast.success('Attribute created')
       }

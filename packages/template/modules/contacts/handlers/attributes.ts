@@ -22,6 +22,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 
 const typeSchema = z.enum(['text', 'number', 'boolean', 'date', 'enum'])
+const sensitivitySchema = z.enum(['low', 'medium', 'high', 'critical'])
 
 const createDefBody = z.object({
   key: z
@@ -33,6 +34,7 @@ const createDefBody = z.object({
   type: typeSchema,
   options: z.array(z.string().min(1)).optional(),
   showInTable: z.boolean().optional(),
+  sensitivity: sensitivitySchema.optional(),
   sortOrder: z.number().int().optional(),
 })
 
@@ -41,6 +43,7 @@ const updateDefBody = z.object({
   type: typeSchema.optional(),
   options: z.array(z.string().min(1)).optional(),
   showInTable: z.boolean().optional(),
+  sensitivity: sensitivitySchema.optional(),
   sortOrder: z.number().int().optional(),
 })
 

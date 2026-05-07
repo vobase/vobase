@@ -166,6 +166,7 @@ export async function seed(db: unknown): Promise<void> {
     type: 'text' | 'number' | 'boolean' | 'date' | 'enum'
     options: string[]
     showInTable: boolean
+    sensitivity: 'low' | 'medium' | 'high' | 'critical'
     sortOrder: number
   }[] = [
     {
@@ -175,6 +176,7 @@ export async function seed(db: unknown): Promise<void> {
       type: 'text',
       options: [],
       showInTable: true,
+      sensitivity: 'low',
       sortOrder: 10,
     },
     {
@@ -184,6 +186,7 @@ export async function seed(db: unknown): Promise<void> {
       type: 'enum',
       options: ['free', 'pro', 'teams', 'enterprise'],
       showInTable: true,
+      sensitivity: 'medium',
       sortOrder: 20,
     },
     {
@@ -193,6 +196,7 @@ export async function seed(db: unknown): Promise<void> {
       type: 'number',
       options: [],
       showInTable: false,
+      sensitivity: 'high',
       sortOrder: 30,
     },
     {
@@ -202,9 +206,19 @@ export async function seed(db: unknown): Promise<void> {
       type: 'date',
       options: [],
       showInTable: false,
+      sensitivity: 'medium',
       sortOrder: 40,
     },
-    { id: 'cad0vip0000', key: 'vip', label: 'VIP', type: 'boolean', options: [], showInTable: true, sortOrder: 50 },
+    {
+      id: 'cad0vip0000',
+      key: 'vip',
+      label: 'VIP',
+      type: 'boolean',
+      options: [],
+      showInTable: true,
+      sensitivity: 'medium',
+      sortOrder: 50,
+    },
   ]
   for (const def of attrDefs) {
     await d
