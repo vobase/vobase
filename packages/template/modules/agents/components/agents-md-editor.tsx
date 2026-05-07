@@ -26,6 +26,8 @@ import { MarkdownPlugin } from '@platejs/markdown'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   Bold,
+  ChevronDown,
+  ChevronUp,
   Code,
   Heading1,
   Heading2,
@@ -95,13 +97,14 @@ function PreambleView({
   variantId: string
   onVariantChange: (id: string) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
   const editor = useMemo(() => {
     const ed = createSlateEditor({ plugins: contentPlugins })
     ed.children = ed.getApi(MarkdownPlugin).markdown.deserialize(preamble) as Value
     return ed
   }, [preamble])
   return (
-    <div className="border-border border-b bg-muted/40 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
+    <div className="border-border border-b bg-muted px-4 py-3 text-muted-foreground text-sm leading-relaxed">
       <div className="mb-2 flex items-center gap-2 font-medium text-[11px] uppercase tracking-wide">
         <Lock className="size-3" />
         <span>Auto-generated preamble — read-only</span>
@@ -118,7 +121,33 @@ function PreambleView({
           </SelectContent>
         </Select>
       </div>
-      <PlateStatic editor={editor} />
+      <div className="relative">
+        <div className={cn('overflow-hidden', !expanded && 'max-h-32')}>
+          <PlateStatic editor={editor} />
+        </div>
+        {!expanded && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-muted to-transparent" />
+        )}
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => setExpanded((v) => !v)}
+        className="mt-1 h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+      >
+        {expanded ? (
+          <>
+            <ChevronUp className="size-3" />
+            Show less
+          </>
+        ) : (
+          <>
+            <ChevronDown className="size-3" />
+            Show more
+          </>
+        )}
+      </Button>
     </div>
   )
 }

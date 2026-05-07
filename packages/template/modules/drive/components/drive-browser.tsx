@@ -10,8 +10,12 @@
  * scope + selected path.
  */
 
+import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
+
 import { MobileBackBar } from '@/components/layout/mobile-back-bar'
+import { GradientResizeHandle } from '@/components/ui/gradient-resize-handle'
 import { useIsMobile } from '@/hooks/use-viewport'
+import { browserStorage } from '@/lib/browser-storage'
 import { DriveFileList } from './drive-file-list'
 import { DrivePreview } from './drive-preview'
 import { useDriveContext } from './drive-provider'
@@ -23,10 +27,24 @@ interface DriveBrowserProps {
   orientation?: DriveBrowserOrientation
 }
 
+const VERTICAL_PANEL_IDS = ['list', 'preview']
+const HORIZONTAL_PANEL_IDS = ['list', 'preview']
+
 export function DriveBrowser({ orientation = 'horizontal' }: DriveBrowserProps) {
   const { selectedPath, setSelectedPath } = useDriveContext()
   const showPreview = selectedPath !== null
   const isMobile = useIsMobile()
+
+  const verticalLayout = useDefaultLayout({
+    id: 'vobase:drive-vertical',
+    storage: browserStorage,
+    panelIds: VERTICAL_PANEL_IDS,
+  })
+  const horizontalLayout = useDefaultLayout({
+    id: 'vobase:drive-horizontal',
+    storage: browserStorage,
+    panelIds: HORIZONTAL_PANEL_IDS,
+  })
 
   if (isMobile) {
     if (showPreview) {
@@ -47,40 +65,52 @@ export function DriveBrowser({ orientation = 'horizontal' }: DriveBrowserProps) 
   }
 
   if (orientation === 'vertical') {
-    return (
-      <div
-        className="grid h-full overflow-hidden"
-        style={{
-          gridTemplateRows: showPreview ? 'minmax(0, 1fr) minmax(0, 2fr)' : 'minmax(0, 1fr)',
-        }}
-      >
-        <section className="min-h-0 overflow-hidden border-border border-b">
+    if (!showPreview) {
+      return (
+        <div className="h-full overflow-hidden">
           <DriveFileList />
-        </section>
-        {showPreview && (
-          <aside className="min-h-0 overflow-hidden">
-            <DrivePreview />
-          </aside>
-        )}
-      </div>
+        </div>
+      )
+    }
+    return (
+      <Group
+        orientation="vertical"
+        className="h-full"
+        defaultLayout={verticalLayout.defaultLayout}
+        onLayoutChanged={verticalLayout.onLayoutChanged}
+      >
+        <Panel id="list" defaultSize="28%" minSize="15%" maxSize="60%" className="overflow-hidden">
+          <DriveFileList />
+        </Panel>
+        <GradientResizeHandle direction="row" />
+        <Panel id="preview" defaultSize="72%" minSize="30%" className="overflow-hidden">
+          <DrivePreview />
+        </Panel>
+      </Group>
     )
   }
 
-  return (
-    <div
-      className="grid h-full overflow-hidden"
-      style={{
-        gridTemplateColumns: showPreview ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
-      }}
-    >
-      <section className="min-h-0 overflow-hidden border-border border-r">
+  if (!showPreview) {
+    return (
+      <div className="h-full overflow-hidden">
         <DriveFileList />
-      </section>
-      {showPreview && (
-        <aside className="min-h-0 overflow-hidden">
-          <DrivePreview />
-        </aside>
-      )}
-    </div>
+      </div>
+    )
+  }
+  return (
+    <Group
+      orientation="horizontal"
+      className="h-full"
+      defaultLayout={horizontalLayout.defaultLayout}
+      onLayoutChanged={horizontalLayout.onLayoutChanged}
+    >
+      <Panel id="list" defaultSize="40%" minSize="20%" maxSize="70%" className="overflow-hidden">
+        <DriveFileList />
+      </Panel>
+      <GradientResizeHandle />
+      <Panel id="preview" defaultSize="60%" minSize="25%" className="overflow-hidden">
+        <DrivePreview />
+      </Panel>
+    </Group>
   )
 }
