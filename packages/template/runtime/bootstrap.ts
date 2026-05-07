@@ -259,10 +259,11 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
 
   app.route('/api/sse', createSseRoute(realtime))
 
-  // Serve built frontend (Vite outputs to dist/web). In dev the Vite dev
-  // server proxies /api here, so this block is a no-op when dist/web is
-  // absent — keeps `bun run dev:server` working pre-build.
-  const distDir = join(import.meta.dir, 'dist', 'web')
+  // Serve built frontend (Vite outputs to dist/web at the project root). In dev
+  // the Vite dev server proxies /api here, so this block is a no-op when
+  // dist/web is absent — keeps `bun run dev:server` working pre-build.
+  // bootstrap.ts lives in `runtime/`, so go up one to reach the project root.
+  const distDir = join(import.meta.dir, '..', 'dist', 'web')
   const indexFile = Bun.file(join(distDir, 'index.html'))
   if (await indexFile.exists()) {
     const indexHtml = await indexFile.text()
