@@ -8,9 +8,11 @@
  * import surface).
  *
  * Post-commit fan-out (Slice 1 of trigger-driven-capabilities): when a STAFF-
- * authored note is added, the service enqueues a supervisor wake for the
- * conversation assignee plus one peer wake per agent `@-mentioned` in the body.
- * Agent-authored notes never fan out (HARD ping-pong filter, Risk #1).
+ * authored note is added, the service enqueues one supervisor wake per agent
+ * explicitly `@-mentioned` in the body. Notes without an `@-mention` do not
+ * wake any agent — the agent's working memory should only update when staff
+ * pings the agent directly. Agent-authored notes never fan out (HARD
+ * ping-pong filter, Risk #1).
  */
 
 import { internalNotes } from '@modules/messaging/schema'
@@ -45,7 +47,7 @@ export interface SupervisorScheduler {
     noteId: string
     authorUserId: string
     organizationId: string
-    /** Set for peer wakes; undefined for the assignee self-wake. */
+    /** Id (without `agent:` prefix) of the mentioned agent that should wake. */
     mentionedAgentId?: string
     /** Snapshot of the conversation's agent-assignee id (without `agent:` prefix). */
     assigneeAgentId?: string
@@ -140,10 +142,11 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
 }
 
 /**
- * Best-effort fan-out: assignee self-wake + one peer wake per `@-mentioned`
- * agent that isn't already the assignee. Each `enqueueSupervisor` call is
- * wrapped in its own try/catch so a single bad enqueue cannot starve the
- * remaining wakes.
+ * Best-effort fan-out: one wake per `@-mentioned` agent. Plain notes with no
+ * `@-mention` do not wake anyone — the agent's working memory only updates when
+ * staff explicitly pings the agent. Each `enqueueSupervisor` call is wrapped
+ * in its own try/catch so a single bad enqueue cannot starve the remaining
+ * wakes.
  */
 async function runSupervisorFanOut(opts: {
   scheduler: SupervisorScheduler
@@ -170,6 +173,8 @@ async function runSupervisorFanOut(opts: {
     }),
   ])
 
+  if (mentionedAgentIds.length === 0) return
+
   const common = {
     conversationId: note.conversationId,
     noteId: note.id,
@@ -177,20 +182,7 @@ async function runSupervisorFanOut(opts: {
     organizationId: note.organizationId,
   }
 
-  if (assigneeAgentId) {
-    try {
-      await scheduler.enqueueSupervisor({
-        ...common,
-        mentionedAgentId: undefined,
-        assigneeAgentId,
-      })
-    } catch (err) {
-      console.error('[messaging/notes] supervisor self-wake enqueue failed:', err)
-    }
-  }
-
   for (const mentionedId of mentionedAgentIds) {
-    if (mentionedId === assigneeAgentId) continue // Self-mention suppression.
     try {
       await scheduler.enqueueSupervisor({
         ...common,
@@ -198,7 +190,7 @@ async function runSupervisorFanOut(opts: {
         assigneeAgentId: assigneeAgentId ?? undefined,
       })
     } catch (err) {
-      console.error('[messaging/notes] supervisor peer-wake enqueue failed:', err)
+      console.error('[messaging/notes] supervisor wake enqueue failed:', err)
     }
   }
 }

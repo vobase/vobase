@@ -7,14 +7,15 @@ export interface SendNoteInput {
   mentions?: string[]
 }
 
-export function useSendNote(conversationId: string) {
+export function useSendNote(conversationId: string, authorId: string | null) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: SendNoteInput | string) => {
+      if (!authorId) throw new Error('send note failed: no authenticated user')
       const { body, mentions } = typeof input === 'string' ? { body: input, mentions: undefined } : input
       const r = await messagingClient.conversations[':id'].notes.$post({
         param: { id: conversationId },
-        json: { body, authorType: 'staff', authorId: 'staff', mentions },
+        json: { body, authorType: 'staff', authorId, mentions },
       })
       if (!r.ok) throw new Error(`send note failed: ${r.status}`)
       return r.json()

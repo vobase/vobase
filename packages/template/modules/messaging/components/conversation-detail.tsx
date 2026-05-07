@@ -270,6 +270,7 @@ export function ConversationDetail() {
         activity={activity}
         currentUserId={currentUserId}
         assignee={activeConv?.assignee ?? null}
+        contactId={contactId}
       />
       {activeConvId && <Composer conversationId={activeConvId} />}
     </div>

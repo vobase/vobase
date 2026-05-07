@@ -2,14 +2,15 @@
  * Supervisor wake handler — processes `messaging:supervisor-to-wake` jobs
  * fired by `addNote` post-commit fan-out.
  *
- * Two payload variants share this handler:
- *   - **Assignee self-wake** — `mentionedAgentId` is undefined; the handler
- *     boots the conversation's current agent assignee with the supervisor
- *     trigger so it can react to the staff note.
- *   - **Peer wake** — `mentionedAgentId` is set; the handler boots the
- *     mentioned agent (using its OWN builder lane) with the supervisor
- *     trigger flagged as a mention. The conversation assignee may be a
- *     different agent or no agent at all.
+ * One payload shape: every supervisor wake targets an explicitly @-mentioned
+ * agent. The handler boots that agent with the supervisor trigger so it can
+ * react to the staff note. The conversation assignee may be a different
+ * agent, the mentioned agent itself (self-mention), or no agent at all
+ * (staff-owned thread).
+ *
+ * Legacy payloads (older queue rows where `mentionedAgentId` is undefined)
+ * fall back to `assigneeAgentId` / the live conversation assignee so a
+ * version skew during deploy doesn't drop in-flight jobs.
  *
  * Mirrors the structure of `wake/handler.ts` (conversation-lane inbound→wake) so
  * adding new triggers stays mechanical: parse payload → resolve agent →
@@ -41,7 +42,11 @@ export const SupervisorWakePayloadSchema = z.object({
   conversationId: z.string(),
   noteId: z.string(),
   authorUserId: z.string(),
-  /** Set for peer wakes; undefined for the assignee self-wake. */
+  /**
+   * Mentioned agent id (without `agent:` prefix). Producer always sets this;
+   * `optional()` retains compatibility with legacy queue rows from before the
+   * @-mention-only fan-out.
+   */
   mentionedAgentId: z.string().optional(),
   /** Snapshot of the conversation assignee at fan-out time (without `agent:` prefix). */
   assigneeAgentId: z.string().optional(),

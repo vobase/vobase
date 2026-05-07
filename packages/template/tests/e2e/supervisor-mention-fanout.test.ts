@@ -2,8 +2,8 @@
  * Supervisor mention fan-out — Slice 1 of trigger-driven-capabilities.
  *
  * Boots the messaging notes service against a real Postgres seed with a
- * captured `SupervisorScheduler` so each enqueue call (assignee self-wake +
- * peer wakes) is observable as a payload.
+ * captured `SupervisorScheduler` so each enqueue call (one per @-mentioned
+ * agent) is observable as a payload.
  *
  * Mirrors the install pattern from `tests/e2e/operator-wake.e2e.test.ts`:
  *   - `connectTestDb` + `resetAndSeedDb` for a clean schema.
@@ -11,13 +11,19 @@
  *     test focused on the fan-out shape (the supervisor handler itself is
  *     covered separately by `conversationWakeConfig` with `triggerOverride`).
  *
- * Acceptance scenarios — PRD US-203 (a)–(e):
- *   (a) `@Sentinel` in Meridian-assigned conv → 2 enqueues
+ * Fan-out rule: notes only wake agents that are explicitly @-mentioned. A
+ * note with no `@-mention` produces zero enqueues (and therefore zero
+ * memory-note appends downstream).
+ *
+ * Acceptance scenarios:
+ *   (a) `@Sentinel` in Meridian-assigned conv → 1 enqueue (Sentinel only)
  *   (b) self-mention `@Meridian` in Meridian-assigned conv → 1 enqueue
- *   (c) `@Sentinel @Atlas` in Meridian-assigned conv → 3 enqueues
- *   (d) `@Meridian` in Sentinel-assigned conv → 2 enqueues; Meridian boots
+ *       (mentionedAgentId === Meridian)
+ *   (c) `@Sentinel @Atlas` in Meridian-assigned conv → 2 enqueues
+ *   (d) `@Meridian` in Sentinel-assigned conv → 1 enqueue; Meridian boots
  *       via conversation-lane builder with `reply` + `send_card` available
  *   (e) Agent-authored note `"@Atlas thoughts?"` → 0 enqueues
+ *   (f) Plain staff note (no `@-mention`) → 0 enqueues
  *
  * Plus a frozen-snapshot byte-stability assertion for systemHash across two
  * consecutive supervisor wakes for the same (conversationId, mentionedAgentId)
@@ -238,7 +244,7 @@ async function waitForCaptures(min: number, timeoutMs = 2000): Promise<void> {
 }
 
 describe('supervisor mention fan-out', () => {
-  it('(a) @Sentinel in Meridian-assigned conv → assignee self-wake (Meridian) + Sentinel peer wake', async () => {
+  it('(a) @Sentinel in Meridian-assigned conv → only Sentinel wakes (no implicit assignee wake)', async () => {
     captured = []
 
     const note = await addNote({
@@ -249,16 +255,13 @@ describe('supervisor mention fan-out', () => {
       mentions: [`agent:${SENTINEL_AGENT_ID}`],
     })
 
-    await waitForCaptures(2)
-    expect(captured.length).toBe(2)
+    await waitForCaptures(1)
+    // Drain microtasks so an erroneous extra enqueue would surface.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(captured.length).toBe(1)
 
-    const selfWake = captured.find((c) => !c.mentionedAgentId)
-    expect(selfWake).toBeDefined()
-    expect(selfWake?.assigneeAgentId).toBe(MERIDIAN_AGENT_ID)
-    expect(selfWake?.singletonKey).toBe(buildSupervisorSingletonKey({ conversationId: priyaConvId, noteId: note.id }))
-
-    const peerWake = captured.find((c) => c.mentionedAgentId === SENTINEL_AGENT_ID)
-    expect(peerWake).toBeDefined()
+    const peerWake = captured[0]
+    expect(peerWake?.mentionedAgentId).toBe(SENTINEL_AGENT_ID)
     expect(peerWake?.assigneeAgentId).toBe(MERIDIAN_AGENT_ID)
     expect(peerWake?.singletonKey).toBe(
       buildSupervisorSingletonKey({
@@ -269,27 +272,32 @@ describe('supervisor mention fan-out', () => {
     )
   })
 
-  it('(b) self-mention @Meridian in Meridian-assigned conv → exactly ONE supervisor wake (assignee, no mentionedAgentId)', async () => {
+  it('(b) self-mention @MeriGPT in Meridian-assigned conv → ONE wake targeting MeriGPT as the @-mentioned agent', async () => {
     captured = []
 
     const note = await addNote({
       organizationId: MERIDIAN_ORG_ID,
       conversationId: priyaConvId,
       author: { kind: 'staff', id: STAFF_USER_ID },
-      body: '@Meridian please double-check',
+      body: '@MeriGPT please double-check',
       mentions: [`agent:${MERIDIAN_AGENT_ID}`],
     })
 
     await waitForCaptures(1)
+    await new Promise((resolve) => setTimeout(resolve, 50))
     expect(captured.length).toBe(1)
-    expect(captured[0]?.mentionedAgentId).toBeUndefined()
+    expect(captured[0]?.mentionedAgentId).toBe(MERIDIAN_AGENT_ID)
     expect(captured[0]?.assigneeAgentId).toBe(MERIDIAN_AGENT_ID)
     expect(captured[0]?.singletonKey).toBe(
-      buildSupervisorSingletonKey({ conversationId: priyaConvId, noteId: note.id }),
+      buildSupervisorSingletonKey({
+        conversationId: priyaConvId,
+        noteId: note.id,
+        mentionedAgentId: MERIDIAN_AGENT_ID,
+      }),
     )
   })
 
-  it('(c) @Sentinel @Atlas in Meridian-assigned conv → 3 enqueues with distinct singletonKeys', async () => {
+  it('(c) @Sentinel @Atlas in Meridian-assigned conv → 2 enqueues with distinct singletonKeys', async () => {
     captured = []
 
     const note = await addNote({
@@ -300,13 +308,13 @@ describe('supervisor mention fan-out', () => {
       mentions: [`agent:${SENTINEL_AGENT_ID}`, `agent:${ATLAS_AGENT_ID}`],
     })
 
-    await waitForCaptures(3)
-    expect(captured.length).toBe(3)
+    await waitForCaptures(2)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(captured.length).toBe(2)
 
     const singletonKeys = captured.map((c) => c.singletonKey)
     const uniqueKeys = new Set(singletonKeys)
-    expect(uniqueKeys.size).toBe(3)
-    expect(uniqueKeys.has(buildSupervisorSingletonKey({ conversationId: priyaConvId, noteId: note.id }))).toBe(true)
+    expect(uniqueKeys.size).toBe(2)
     expect(
       uniqueKeys.has(
         buildSupervisorSingletonKey({
@@ -327,7 +335,7 @@ describe('supervisor mention fan-out', () => {
     ).toBe(true)
   })
 
-  it('(d) Sentinel-assigned conv with @MeriGPT → MeriGPT peer wake; conversation-lane builder yields reply + send_card', async () => {
+  it('(d) Sentinel-assigned conv with @MeriGPT → only MeriGPT wakes; conversation-lane builder yields reply + send_card', async () => {
     captured = []
 
     // Reassign Priya conv to Sentinel, fire the peer-wake into MeriGPT.
@@ -341,11 +349,9 @@ describe('supervisor mention fan-out', () => {
         mentions: [`agent:${MERIDIAN_AGENT_ID}`],
       })
 
-      await waitForCaptures(2)
-      expect(captured.length).toBe(2)
-
-      const sentinelSelfWake = captured.find((c) => !c.mentionedAgentId)
-      expect(sentinelSelfWake?.assigneeAgentId).toBe(SENTINEL_AGENT_ID)
+      await waitForCaptures(1)
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(captured.length).toBe(1)
 
       const meridianPeerWake = captured.find((c) => c.mentionedAgentId === MERIDIAN_AGENT_ID)
       expect(meridianPeerWake).toBeDefined()
@@ -425,6 +431,25 @@ describe('supervisor mention fan-out', () => {
     expect(after.length).toBe(before.length + 1)
     expect(after[after.length - 1]?.authorType).toBe('agent')
     expect(after[after.length - 1]?.body).toBe('@Atlas thoughts?')
+  })
+
+  it('(f) plain staff note with no @-mention → ZERO enqueues (memory-note append is gated on @-mention)', async () => {
+    captured = []
+
+    const before = await listNotes(priyaConvId)
+    await addNote({
+      organizationId: MERIDIAN_ORG_ID,
+      conversationId: priyaConvId,
+      author: { kind: 'staff', id: STAFF_USER_ID },
+      body: 'just leaving a note for the team',
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(captured.length).toBe(0)
+
+    const after = await listNotes(priyaConvId)
+    expect(after.length).toBe(before.length + 1)
+    expect(after[after.length - 1]?.authorType).toBe('staff')
   })
 
   it('frozen-snapshot byte-stability — same supervisor trigger yields identical systemHash twice', async () => {

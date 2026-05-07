@@ -132,11 +132,15 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // (prompt-level guidance is unreliable; the model defies "don't reply"
   // ~30%+ of the time without the filter).
   const isSupervisorWake = trigger.trigger === 'supervisor'
-  // Peer wakes (woken agent IS the @-mentioned one) are consultations, not
-  // coaching of the assignee — they keep customer-facing tools so the peer
-  // can craft a suggested reply. Only the assignee self-wake gets the
-  // coaching filter.
-  const isPeerWake = isSupervisorWake && 'mentionedAgentId' in trigger && trigger.mentionedAgentId === agentId
+  // Supervisor wakes only fire when the agent is explicitly @-mentioned
+  // (`messaging/service/notes.ts::runSupervisorFanOut`). The remaining axis
+  // is whether the booted agent is the conversation assignee — assignees go
+  // through classify+coaching-strip (so `add_note` coaching doesn't trigger
+  // another customer reply), peers (any other mentioned agent) keep
+  // customer-facing tools because they're being asked to consult, not own
+  // the thread.
+  const supervisorAssigneeAgentId = conv.assignee.startsWith('agent:') ? conv.assignee.slice('agent:'.length) : null
+  const isPeerWake = isSupervisorWake && agentId !== supervisorAssigneeAgentId
   let supervisorKind: 'ask_staff_answer' | 'coaching' | undefined
   if (isSupervisorWake && !isPeerWake) {
     try {

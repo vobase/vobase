@@ -292,8 +292,8 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   )
 
   // Supervisor wakes: staff posts an internal note. `addNote` post-commit
-  // fan-out enqueues one assignee self-wake plus one peer wake per agent
-  // `@-mentioned` in the body. Agent-authored notes never fan out.
+  // fan-out enqueues one wake per agent `@-mentioned` in the body — notes
+  // without an `@-mention` wake nobody. Agent-authored notes never fan out.
   jobHandlers.set(
     MESSAGING_SUPERVISOR_TO_WAKE_JOB,
     createSupervisorWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),

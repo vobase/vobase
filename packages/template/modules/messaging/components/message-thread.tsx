@@ -58,6 +58,8 @@ interface MessageThreadProps {
   currentUserId?: string | null
   /** Conversation assignee (`agent:<id>` or `user:<id>`) — used to resolve agent-role messages to the right agent in multi-agent orgs. */
   assignee?: string | null
+  /** Conversation contact id — used to resolve `role==='customer'` messages to the actual contact name/avatar. */
+  contactId?: string | null
 }
 
 type TimelineItem =
@@ -71,6 +73,7 @@ export function MessageThread({
   activity = [],
   currentUserId = null,
   assignee = null,
+  contactId = null,
 }: MessageThreadProps) {
   const directory = usePrincipalDirectory()
   const items: TimelineItem[] = [
@@ -103,6 +106,7 @@ export function MessageThread({
                   directory={directory}
                   currentUserId={currentUserId}
                   assignee={assignee}
+                  contactId={contactId}
                 />
               )}
             </Fragment>
@@ -141,12 +145,15 @@ interface MessageRowProps {
   currentUserId: string | null
   /** Conversation assignee snapshot — used to identify which agent owns role==='agent' messages. */
   assignee: string | null
+  /** Conversation contact id — resolves `role==='customer'` messages to the actual contact. */
+  contactId: string | null
 }
 
 function messagePrincipal(
   msg: DisplayMessage,
   directory: PrincipalDirectory,
   assignee: string | null,
+  contactId: string | null,
 ): PrincipalRecord | null {
   // Messages don't carry a sender id today. For agent rows, prefer the
   // conversation's `agent:<id>` assignee — multi-agent orgs would otherwise
@@ -161,11 +168,12 @@ function messagePrincipal(
     return directory.agents[0] ?? null
   }
   if (msg.role === 'staff') return directory.staff[0] ?? null
+  if (msg.role === 'customer' && contactId) return directory.resolve(`contact:${contactId}`)
   return null
 }
 
-function MessageRow({ msg, messages, directory, currentUserId, assignee }: MessageRowProps) {
-  const principal = messagePrincipal(msg, directory, assignee)
+function MessageRow({ msg, messages, directory, currentUserId, assignee, contactId }: MessageRowProps) {
+  const principal = messagePrincipal(msg, directory, assignee, contactId)
   // "Mine" on right: the row was written by the currently-logged-in staff.
   // Messages don't track per-row senderId yet, so we treat any `role === 'staff'`
   // row as mine when a staff user is signed in.

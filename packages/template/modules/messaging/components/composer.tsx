@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { PromptInput, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input'
 import { usePrincipalDirectory } from '@/components/principal'
 import { InputGroupTextarea } from '@/components/ui/input-group'
+import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { cn } from '@/lib/utils'
 import { MentionPopover } from './mention-popover'
@@ -24,9 +25,10 @@ export function Composer({ conversationId }: ComposerProps) {
   const replyRef = useRef<HTMLTextAreaElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const directory = usePrincipalDirectory()
+  const currentUserId = useCurrentUserId()
 
   const staffReply = useStaffReply(conversationId)
-  const sendNote = useSendNote(conversationId)
+  const sendNote = useSendNote(conversationId, currentUserId)
 
   useEffect(() => {
     if (mode === 'reply') replyRef.current?.focus()
