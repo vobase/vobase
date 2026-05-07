@@ -20,6 +20,7 @@ import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeade
 import { renderContactFrontmatter } from '~/wake/profile-frontmatter'
 import { get as getContact, readMemory as readContactMemory } from './service/contacts'
 import type { ContactsIndexReader, ContactsReader } from './service/types'
+import { proposeContactUpdateTool } from './tools/propose-contact-update'
 import { proposeOutreachTool } from './tools/propose-outreach'
 import { updateContactTool } from './tools/update-contact'
 
@@ -27,9 +28,9 @@ export type { ContactsIndexReader, ContactsReader }
 
 const contactsReader: ContactsReader = { get: getContact, readMemory: readContactMemory }
 
-export const contactsTools: AgentTool[] = [updateContactTool, proposeOutreachTool]
+export const contactsTools: AgentTool[] = [updateContactTool, proposeContactUpdateTool, proposeOutreachTool]
 
-export { proposeOutreachTool, updateContactTool }
+export { proposeContactUpdateTool, proposeOutreachTool, updateContactTool }
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
@@ -101,14 +102,16 @@ export const contactsAgentsMdContributors: readonly IndexContributor[] = [
         '- `/contacts/<id>/MEMORY.md` — per-contact working memory (prose narrative). Direct-writable like any markdown file (`cat`, `echo >>`, `sed`, heredocs). Persists across wakes — use for per-customer learnings that should survive into future conversations.',
         '- `/contacts/<id>/drive/` — per-contact upload space (writable).',
         '',
-        '**Update structured fields:** edit the frontmatter atop `profile.md` (e.g. `attributes.industry: "logistics"`). **Update prose memory:** `echo "- new note" >> /contacts/<id>/MEMORY.md`.',
+        '**Update prose memory:** `echo "- new note" >> /contacts/<id>/MEMORY.md`.',
         '',
-        '**When the customer asks for a profile change** (email, phone, displayName, segments, attributes), the workflow is mandatory and must happen IN THIS WAKE — do not punt to "I\'ll log it for staff" without doing the work:',
-        '1. `cat /contacts/<id>/profile.md` to see which keys are present in the frontmatter.',
-        '2. Edit with `sed`/`echo`/here-doc — see the **Bash sandbox** section in the static instructions for the exact insert-or-replace patterns. A new contact often has only `displayName` + `marketingOptOut`, so a plain "replace existing key" sed for `email` will silently match nothing — use the insert pattern.',
-        '3. `cat` the file again to confirm your edit landed.',
-        '4. Read the `stderr` of your edit. Gated fields (`displayName`, `email`) emit a `vobase notice:` line saying the change is queued for staff approval. Non-gated fields apply immediately.',
-        '5. Reply to the customer based on step 4: "logged for our team to review" for gated fields with the notice; "all set" for non-gated fields. Never invent a "logged" reply without a verified edit and an actual stderr notice in your tool result.',
+        '**When the customer asks for a profile change** (email, phone, displayName, segments, attributes), call `propose_contact_update` — it is the ONLY supported path for customer-driven profile updates. Bash-editing `profile.md` is for operator/admin workflows and is silently ignored if you try to use it as a customer-asked-update shortcut.',
+        '',
+        '1. Call `propose_contact_update({ patch: {<field>: <value>}, rationale: "<one-sentence summary of what the customer asked>" })`. The tool resolves the contact from the conversation — you do not pass `contactId`.',
+        "2. Read the tool result's `status` field:",
+        '   - `auto_written` → the change is live. Reply: "All set — your <field> is updated."',
+        '   - `pending` → a gated field touched (currently `displayName` and `email`). Reply: "Logged for our team to review — they\'ll confirm shortly."',
+        "   - `no_op` → the proposed values already match what's on file. Acknowledge with no change action.",
+        "3. Never reply with a 'logged for review' / 'updated' phrasing without first calling the tool and seeing the corresponding status in the tool result. Phantom approvals are the single most common reason customers later complain that nothing happened.",
       ].join('\n'),
   }),
 ]
