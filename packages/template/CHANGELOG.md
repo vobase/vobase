@@ -1,5 +1,13 @@
 # @vobase/template
 
+## 3.6.1
+
+### Patch Changes
+
+- [#75](https://github.com/vobase/vobase/pull/75) [`61b46b9`](https://github.com/vobase/vobase/commit/61b46b9b3daa18b0c4ef509881db8a4947eef0fc) Thanks [@amirahillyana](https://github.com/amirahillyana)! - fix(template): resolve dist/web from project root in production server
+
+  `runtime/bootstrap.ts` computed the SPA dist directory as `join(import.meta.dir, 'dist', 'web')`, which resolves to `/app/runtime/dist/web` at runtime. The Vite build outputs to `/app/dist/web`, so the `index.html` lookup always failed and the static-files block silently no-op'd — every freshly-deployed tenant returned Railway's edge 404 on `/`. Walk one directory up so the path matches the Dockerfile layout.
+
 ## 3.6.0
 
 ### Minor Changes
