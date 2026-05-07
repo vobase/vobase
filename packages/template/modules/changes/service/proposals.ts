@@ -342,7 +342,10 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
   }
 
   async function findPendingDuplicate(input: InsertProposalInput): Promise<{ id: string } | null> {
-    const rows = await db
+    // Generic `db` here resolves `select({...})` to `Record<string, unknown>[]`,
+    // so we cast back to the projected shape — same pattern as the other
+    // queries in this file (e.g. `as unknown as ChangeProposalRow[]`).
+    const rows = (await db
       .select({ id: changeProposals.id })
       .from(changeProposals)
       .where(
@@ -354,7 +357,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
           eq(changeProposals.status, 'pending'),
         ),
       )
-      .limit(1)
+      .limit(1)) as unknown as { id: string }[]
     return rows[0] ?? null
   }
 
