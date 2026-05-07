@@ -3,7 +3,11 @@ import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 import type { ModuleDef } from '~/runtime'
 import { contactsAgent } from './agent'
 import { contactsVerbs } from './cli'
-import { createAttrDefService, installAttrDefService } from './service/attribute-definitions'
+import {
+  createAttrDefService,
+  installAttrDefService,
+  resolveAttributeSensitivities,
+} from './service/attribute-definitions'
 import { CONTACT_RESOURCE, contactChangeMaterializer } from './service/changes'
 import { createContactsService, installContactsService } from './service/contacts'
 import * as web from './web'
