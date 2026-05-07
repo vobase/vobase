@@ -45,17 +45,17 @@ import { summarizeInboxTool } from './tools/summarize-inbox'
 
 /**
  * RO-error hints for messaging-owned derived files: the conversation
- * timeline (`messages.md`) and `internal-notes.md`. Both are rendered from
+ * timeline (`MESSAGES.md`) and `INTERNAL-NOTES.md`. Both are rendered from
  * `conversation_events` and accept mutations only via tool calls
  * (`reply` / `send_card` / `send_file` for messages; staff-authored notes
  * for internal-notes).
  */
 export const messagingRoHints: RoHintFn[] = [
   (path) => {
-    if (path.endsWith('/messages.md')) {
+    if (path.endsWith('/MESSAGES.md')) {
       return `bash: ${path}: Read-only filesystem.\n  The conversation timeline is derived from channel events. Use the \`reply\` tool (or \`send_card\`, \`send_file\`) to send a customer-visible message; do not append to this file.`
     }
-    if (path.endsWith('/internal-notes.md')) {
+    if (path.endsWith('/INTERNAL-NOTES.md')) {
       return `bash: ${path}: Read-only filesystem.\n  Internal notes are derived from staff-authored events in the messaging module. This file reflects, but does not accept, new notes.`
     }
     return null
@@ -91,10 +91,10 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Conversation surface',
         '',
-        '- `/contacts/<id>/<channelInstanceId>/messages.md` — customer-visible timeline (read-only). Reflects, but does not accept, new messages.',
-        '- `/contacts/<id>/<channelInstanceId>/internal-notes.md` — staff ↔ agent notes (read-only). Reflects, but does not accept, new notes.',
+        '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — customer-visible timeline (read-only). Reflects, but does not accept, new messages.',
+        '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — staff ↔ agent notes (read-only). Reflects, but does not accept, new notes.',
         '',
-        'The timeline files are materialized from the database — never `echo >>` into them. Send customer-visible content via the `reply` / `send_card` / `send_file` / `book_slot` tools (see `## Tool guidance`). Reassign with `vobase conv reassign` (see `## Commands`); ask staff a question by calling `add_note` with `mentions` populated.',
+        'These files are rebuilt from DB state on every wake — never `echo >>` into them. Send customer-visible content via the `reply` / `send_card` / `send_file` / `book_slot` tools (see `## Tool guidance`). Reassign with `vobase conv reassign` (see `## Commands`); ask staff a question by calling `add_note` with `mentions` populated.',
       ].join('\n'),
   }),
   // Lane-aware blocks. Conditional on `getWakeAgentsMdScratch(ctx)` — return
@@ -272,7 +272,7 @@ export async function renderInternalNotes(messaging: MessagingReader, conversati
 /**
  * Per-wake attachment-prefetch cache. Keyed by `${orgId}:${conversationId}`,
  * invalidated at the top of every wake (when the materializer factory
- * runs) and shared between the initial `messages.md` materialization and
+ * runs) and shared between the initial `MESSAGES.md` materialization and
  * `conversationSideLoad`'s per-turn re-render so a single wake issues
  * exactly ONE batched drive query for attachment enrichment.
  */
@@ -320,7 +320,7 @@ export const messagingMaterializerFactory: WakeMaterializerFactory = (ctx) => {
   const folder = `/contacts/${ctx.contactId}/${ctx.channelInstanceId}`
   return [
     {
-      path: `${folder}/messages.md`,
+      path: `${folder}/MESSAGES.md`,
       phase: 'frozen',
       materialize: async (mctx) => {
         const snapshot = await getAttachmentSnapshot(ctx.organizationId, mctx.conversationId)
@@ -328,7 +328,7 @@ export const messagingMaterializerFactory: WakeMaterializerFactory = (ctx) => {
       },
     },
     {
-      path: `${folder}/internal-notes.md`,
+      path: `${folder}/INTERNAL-NOTES.md`,
       phase: 'frozen',
       materialize: (mctx) => renderInternalNotes(messagingReader, mctx.conversationId),
     },
@@ -359,7 +359,7 @@ export async function loadMessagingIndexContributors(opts: MessagingIndexContrib
         for (const c of top) {
           const last = c.lastMessageAt ? new Date(c.lastMessageAt).toISOString() : 'never'
           lines.push(
-            `- /contacts/${c.contactId}/${c.channelInstanceId}/messages.md — assignee=${c.assignee} status=${c.status} last=${last}`,
+            `- /contacts/${c.contactId}/${c.channelInstanceId}/MESSAGES.md — assignee=${c.assignee} status=${c.status} last=${last}`,
           )
         }
         if (open.length > top.length) lines.push(`- … and ${open.length - top.length} more`)

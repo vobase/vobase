@@ -14,7 +14,7 @@ import { contacts as contactsTable } from '../schema'
 /** Stable (resourceModule, resourceType) pair shared by registration, CLI verb, and CRUD audit calls. */
 export const CONTACT_RESOURCE = { module: 'contacts', type: 'contact' } as const
 
-// profile.md is now the structured-edit surface (frontmatter → field_set).
+// PROFILE.md is now the structured-edit surface (frontmatter → field_set).
 // Markdown patches target `'memory'` only.
 const MARKDOWN_FIELDS = new Set<keyof Contact>(['memory'])
 /** Top-level scalar keys this materializer accepts in `field_set` proposals. */

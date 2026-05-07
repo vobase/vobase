@@ -34,12 +34,12 @@ export const RequestCaptionInputSchema = Type.Object({
 export type RequestCaptionInput = Static<typeof RequestCaptionInputSchema>
 
 const TOOL_PROMPT = [
-  'Fire-and-forget. The caption is NOT in the workspace yet — it surfaces in messages.md',
+  'Fire-and-forget. The caption is NOT in the workspace yet — it surfaces in MESSAGES.md',
   'on a NEW wake that fires when extraction completes. After this tool returns:',
   '  1. Acknowledge the request in your turn output if appropriate.',
   '  2. End your turn. Do NOT re-read the file in this wake — it has not changed.',
   "  3. The next wake's first-user-turn cue tells you the caption is ready and points",
-  '     you back at messages.md.',
+  '     you back at MESSAGES.md.',
 ].join('\n')
 
 export const requestCaptionTool = defineAgentTool({

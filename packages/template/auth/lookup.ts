@@ -2,7 +2,7 @@
  * Staff display-name lookup against `auth_user` rows.
  *
  * Used by team materializers to resolve "who is staff_xyz?" → `name`/`email`
- * for the `/staff/<id>/profile.md` panel. Lives under `auth/` because it
+ * for the `/staff/<id>/PROFILE.md` panel. Lives under `auth/` because it
  * reads better-auth tables; modules that need it import from `@auth/lookup`.
  *
  * Lookups are best-effort: missing rows / DB errors return `null` rather

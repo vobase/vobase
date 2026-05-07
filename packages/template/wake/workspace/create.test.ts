@@ -307,7 +307,7 @@ async function buildWorkspace(files: DriveFile[] = []) {
     ...agentsMaterializerFactory(wakeCtx),
     ...driveMaterializerFactory(wakeCtx),
     {
-      path: `${contactFolder}/profile.md`,
+      path: `${contactFolder}/PROFILE.md`,
       phase: 'frozen',
       materialize: () => renderContactProfile(contacts, CONTACT_ID),
     },
@@ -317,12 +317,12 @@ async function buildWorkspace(files: DriveFile[] = []) {
       materialize: () => renderContactMemory(contacts, CONTACT_ID),
     },
     {
-      path: `${convFolder}/messages.md`,
+      path: `${convFolder}/MESSAGES.md`,
       phase: 'frozen',
       materialize: (ctx) => renderTranscript(messaging, ctx.conversationId),
     },
     {
-      path: `${convFolder}/internal-notes.md`,
+      path: `${convFolder}/INTERNAL-NOTES.md`,
       phase: 'frozen',
       materialize: (ctx) => renderInternalNotes(messaging, ctx.conversationId),
     },
@@ -437,9 +437,9 @@ describe('createWorkspace', () => {
     expect(r.stdout.trim()).toBe('note')
   })
 
-  it('contact profile.md leads with frontmatter delimiters and includes the identity heading', async () => {
+  it('contact PROFILE.md leads with frontmatter delimiters and includes the identity heading', async () => {
     const ws = await buildWorkspace([])
-    const r = await runShell(ws, `cat /contacts/${CONTACT_ID}/profile.md`)
+    const r = await runShell(ws, `cat /contacts/${CONTACT_ID}/PROFILE.md`)
     expect(r.exitCode).toBe(0)
     // Output now begins with the YAML frontmatter (`---\n...\n---\n`) and the
     // identity heading lives below the closing delimiter (still inside contents,
@@ -448,12 +448,12 @@ describe('createWorkspace', () => {
     expect(r.stdout).toContain(`# Test Customer (${CONTACT_ID})`)
   })
 
-  it('emits /contacts/<id>/<channelInstanceId>/messages.md and internal-notes.md in the virtual FS', async () => {
+  it('emits /contacts/<id>/<channelInstanceId>/MESSAGES.md and INTERNAL-NOTES.md in the virtual FS', async () => {
     const ws = await buildWorkspace([])
-    const m = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/messages.md`)
+    const m = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/MESSAGES.md`)
     expect(m.exitCode).toBe(0)
     expect(m.stdout).toContain('No messages yet')
-    const n = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/internal-notes.md`)
+    const n = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/INTERNAL-NOTES.md`)
     expect(n.exitCode).toBe(0)
     expect(n.stdout).toContain('No notes yet')
   })

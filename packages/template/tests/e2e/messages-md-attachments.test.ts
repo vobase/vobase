@@ -1,5 +1,5 @@
 /**
- * Step 13 acceptance — `messages.md` materializer attachment caption blocks.
+ * Step 13 acceptance — `MESSAGES.md` materializer attachment caption blocks.
  *
  * Asserts:
  *   1. Inline `[file: …]` / `[binary: …]` blocks render per-attachment.
@@ -37,7 +37,7 @@ afterAll(async () => {
   if (h) await h.teardown()
 })
 
-describe('messages.md attachments — render + snapshot semantics', () => {
+describe('MESSAGES.md attachments — render + snapshot semantics', () => {
   it('renders [file: …] block for an extracted attachment and observes path drift on next wake', async () => {
     const externalId = `wa_md_${Date.now()}`
     const result = await createInboundMessage({

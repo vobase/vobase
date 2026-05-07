@@ -1,5 +1,5 @@
 /**
- * Drive-attachment lookup for the `messages.md` materializer.
+ * Drive-attachment lookup for the `MESSAGES.md` materializer.
  *
  * The materializer renders per-message attachment blocks pointing at
  * `drive_files` rows. To avoid N+1 query patterns, it pre-fetches a

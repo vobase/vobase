@@ -177,7 +177,7 @@ describe('per-module materializer factories', () => {
   it('contacts factory self-gates: emits per-contact files only when contactId is set', () => {
     const conv = contactsMaterializerFactory(conversationCtx())
     const stand = contactsMaterializerFactory(standaloneCtx())
-    expect(conv.map((m) => m.path)).toEqual([`/contacts/${CONTACT_ID}/profile.md`, `/contacts/${CONTACT_ID}/MEMORY.md`])
+    expect(conv.map((m) => m.path)).toEqual([`/contacts/${CONTACT_ID}/PROFILE.md`, `/contacts/${CONTACT_ID}/MEMORY.md`])
     expect(stand).toEqual([])
   })
 
@@ -186,8 +186,8 @@ describe('per-module materializer factories', () => {
     const stand = messagingMaterializerFactory(standaloneCtx())
     const partial = messagingMaterializerFactory(conversationCtx({ channelInstanceId: undefined }))
     expect(conv.map((m) => m.path)).toEqual([
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/messages.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/internal-notes.md`,
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/MESSAGES.md`,
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/INTERNAL-NOTES.md`,
     ])
     expect(stand).toEqual([])
     expect(partial).toEqual([])
@@ -198,9 +198,9 @@ describe('per-module materializer factories', () => {
     const some = teamMaterializerFactory(conversationCtx({ staffIds: ['s1', 's2'] }))
     expect(empty).toEqual([])
     expect(some.map((m) => m.path)).toEqual([
-      '/staff/s1/profile.md',
+      '/staff/s1/PROFILE.md',
       '/staff/s1/MEMORY.md',
-      '/staff/s2/profile.md',
+      '/staff/s2/PROFILE.md',
       '/staff/s2/MEMORY.md',
     ])
   })
@@ -220,11 +220,11 @@ describe('per-module materializer factories', () => {
       '/drive/BUSINESS.md',
       `/agents/${AGENT_ID}/AGENTS.md`,
       `/agents/${AGENT_ID}/MEMORY.md`,
-      `/contacts/${CONTACT_ID}/profile.md`,
+      `/contacts/${CONTACT_ID}/PROFILE.md`,
       `/contacts/${CONTACT_ID}/MEMORY.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/messages.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/internal-notes.md`,
-      '/staff/s1/profile.md',
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/MESSAGES.md`,
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/INTERNAL-NOTES.md`,
+      '/staff/s1/PROFILE.md',
       '/staff/s1/MEMORY.md',
     ])
   })
@@ -261,7 +261,7 @@ describe('AGENTS.md composition through agentsMaterializerFactory', () => {
     const titleIdx = body.indexOf(`# ${AGENT_DEFINITION.name} (${AGENT_ID})`)
     const selfIdx = body.indexOf('## Self-state')
     const driveIdx = body.indexOf('## Organization knowledge (drive)')
-    const contactsIdx = body.indexOf('## Contact context')
+    const contactsIdx = body.indexOf('\n## Contact context\n')
     const messagingIdx = body.indexOf('## Conversation surface')
     const teamIdx = body.indexOf('## Staff\n')
     const instructionsIdx = body.indexOf('## Instructions')
@@ -357,7 +357,7 @@ describe('roHints chained across modules', () => {
 
   it('falls through when earlier modules do not own the path', () => {
     const chain = chainRoHints([...driveRoHints, ...messagingRoHints])
-    const out = chain('/contacts/c1/ci1/messages.md')
+    const out = chain('/contacts/c1/ci1/MESSAGES.md')
     expect(out).toContain('Read-only filesystem')
     expect(out).toContain('Use the `reply` tool')
   })

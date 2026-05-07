@@ -225,7 +225,7 @@ export interface MessagingPort {
  * Defined here (not under `agent.ts`) so the type lives next to its
  * service-layer source-of-truth and `agent.ts` stays purely declarative.
  *
- * Drive-attachment lookups for `messages.md` enrichment go through
+ * Drive-attachment lookups for `MESSAGES.md` enrichment go through
  * `messaging/service/drive-attachments.ts` directly (a separate module
  * function, not part of this read-slice) so existing `MessagingPort`
  * stubs in tests don't need to satisfy a new method.

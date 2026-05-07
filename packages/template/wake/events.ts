@@ -42,12 +42,12 @@ export type WakeTrigger =
     }
   | { trigger: 'scheduled_followup'; conversationId: string; reason: string; scheduledAt: Date; sourceWakeId?: string }
   | { trigger: 'manual'; conversationId: string; reason: string; actorUserId: string }
-  | { trigger: 'operator_thread'; threadId: string; messageIds: string[] }
+  | { trigger: 'operator_thread'; threadId: string; messageIds: string[]; threadMessage: string }
   | { trigger: 'heartbeat'; scheduleId: string; intendedRunAt: Date; reason: string }
   /**
    * Drive caption / OCR finished for a binary-stub or extracted file the
    * agent asked about (or that arrived as an inbound attachment). The wake
-   * fires conversation-bound so the agent re-reads `messages.md` for the
+   * fires conversation-bound so the agent re-reads `MESSAGES.md` for the
    * new caption block. Producer: `modules/drive/jobs.ts`'s `forceCaption`
    * branch. See `wake/trigger.ts` for the renderer.
    */
@@ -123,6 +123,7 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     trigger: z.literal('operator_thread'),
     threadId: z.string(),
     messageIds: z.array(z.string()),
+    threadMessage: z.string(),
   }),
   z.object({
     trigger: z.literal('heartbeat'),

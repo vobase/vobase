@@ -13,7 +13,6 @@ import { contactsProposeChangeVerb } from './cli'
 describe('contacts propose-change Zod validation', () => {
   it('rejects --confidence above the [0, 1] range', () => {
     const result = contactsProposeChangeVerb.inputSchema.safeParse({
-      type: 'contact',
       id: 'ctt0test00',
       kind: 'markdown_patch',
       field: 'notes',
@@ -30,7 +29,6 @@ describe('contacts propose-change Zod validation', () => {
 
   it('rejects negative confidence', () => {
     const result = contactsProposeChangeVerb.inputSchema.safeParse({
-      type: 'contact',
       id: 'ctt0test00',
       kind: 'markdown_patch',
       field: 'notes',
@@ -42,7 +40,6 @@ describe('contacts propose-change Zod validation', () => {
 
   it('rejects markdown_patch without body', () => {
     const result = contactsProposeChangeVerb.inputSchema.safeParse({
-      type: 'contact',
       id: 'ctt0test00',
       kind: 'markdown_patch',
       field: 'notes',
@@ -55,7 +52,6 @@ describe('contacts propose-change Zod validation', () => {
 
   it('rejects field_set without --to', () => {
     const result = contactsProposeChangeVerb.inputSchema.safeParse({
-      type: 'contact',
       id: 'ctt0test00',
       kind: 'field_set',
       field: 'displayName',
@@ -68,7 +64,6 @@ describe('contacts propose-change Zod validation', () => {
 
   it('accepts a valid markdown_patch payload', () => {
     const result = contactsProposeChangeVerb.inputSchema.safeParse({
-      type: 'contact',
       id: 'ctt0test00',
       kind: 'markdown_patch',
       field: 'notes',
@@ -82,12 +77,38 @@ describe('contacts propose-change Zod validation', () => {
 
   it('accepts a valid field_set payload', () => {
     const result = contactsProposeChangeVerb.inputSchema.safeParse({
-      type: 'contact',
       id: 'ctt0test00',
       kind: 'field_set',
       field: 'email',
       from: 'old@x.test',
       to: 'new@x.test',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('defaults --kind to field_set when omitted', () => {
+    // Verb caller leaves `--kind` off → preprocess injects `kind: 'field_set'`,
+    // which is the agent's common case (the only customer-facing branch).
+    const result = contactsProposeChangeVerb.inputSchema.safeParse({
+      id: 'ctt0test00',
+      field: 'email',
+      to: 'new@x.test',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.kind).toBe('field_set')
+  })
+
+  it('schema accepts attributes.<key> shape — runtime guard rejects scalars elsewhere', () => {
+    // The schema is structural (`field: z.string().min(1)`); it accepts
+    // `attributes.phone`. The verb body rejects scalars-in-attributes-namespace
+    // separately so the agent gets a retry hint with the canonical column
+    // name. This test pins the schema-side contract — body-side coverage
+    // belongs in an integration test once the verb has one.
+    const result = contactsProposeChangeVerb.inputSchema.safeParse({
+      id: 'ctt0test00',
+      kind: 'field_set',
+      field: 'attributes.phone',
+      to: '+6591234567',
     })
     expect(result.success).toBe(true)
   })

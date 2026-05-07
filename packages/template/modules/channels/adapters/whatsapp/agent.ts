@@ -3,7 +3,7 @@
  *
  * When staff send messages via the WhatsApp Business App (SMB coexistence),
  * those messages arrive as echoes with `role='staff', metadata.echo=true`. The
- * agent sees them in `messages.md` on the next turn's side-load and must stay
+ * agent sees them in `MESSAGES.md` on the next turn's side-load and must stay
  * silent so it doesn't talk over the human staffer.
  *
  * `whatsappAgentsMdContributors` is the canonical export aggregated by the
@@ -21,7 +21,7 @@ the WhatsApp Business App, not via Vobase.
 
 Treat them as authoritative staff intent (the staffer chose to handle the
 conversation directly). They do not open the 24h messaging window for you, and they
-did not wake you — you saw them on this turn's \`messages.md\` re-render.
+did not wake you — you saw them on this turn's \`MESSAGES.md\` re-render.
 
 **Behavior rule (locked):** when an echo appears in your context, stay silent.
 Do NOT post an acknowledgement message, do NOT post an internal note about

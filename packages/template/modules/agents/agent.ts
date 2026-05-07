@@ -30,7 +30,21 @@ import { getCliRegistry } from './service/cli-registry'
  * DEFAULT_HEADER via `generateAgentsMd({ headerOverride })`. Each owning
  * module contributes its own scope-specific section via `agentsMd`.
  */
-export const HELPDESK_AGENTS_MD_HEADER = `You operate inside a virtual workspace. Read files with \`cat\`, \`grep\`, \`head\`, \`tail\`; navigate with \`ls\`, \`find\`, \`tree\`. The workspace is read-by-default; specific zones below are writable and persist across wakes (your own \`MEMORY.md\`, the contact's \`MEMORY.md\`, the contact's drive folder, \`/tmp/\`). User-visible actions go through tool calls — derived files like \`messages.md\` and \`profile.md\` are rebuilt from DB state and cannot be \`echo >\`-edited. The sections below describe each scope and the right mutation path for it.`
+export const HELPDESK_AGENTS_MD_HEADER = `You operate inside a virtual workspace. Read files with \`cat\`, \`grep\`, \`head\`, \`tail\`; navigate with \`ls\`, \`find\`, \`tree\`.
+
+ALL-CAPS filenames are framework-managed (\`AGENTS.md\`, \`INDEX.md\`, \`MEMORY.md\`, \`PROFILE.md\`, \`MESSAGES.md\`, \`INTERNAL-NOTES.md\`, \`BUSINESS.md\`); lowercase paths are real files (drive uploads, \`/tmp/\` scratch).
+
+There are three write paths and you must use them on purpose:
+
+1. **Direct file writes** (\`echo\`, \`cat >>\`, heredocs, \`sed\`) for \`MEMORY.md\` only (prose narrative, three scopes). Edits are observed at \`agent_end\` and flush to a virtual column.
+
+2. **CLI verbs** (\`vobase contacts propose-change\`, \`vobase drive propose\`, …) for structured edits to read-only resources. The owning row routes through the change-proposal pipeline — non-gated fields auto-apply, gated fields queue for staff review. Inspect the returned \`status\` to know what to tell the customer.
+
+3. **Tool calls** for user-visible actions (\`reply\`, \`send_card\`, \`send_file\`, \`book_slot\`) and cross-cutting effects (\`add_note\`, \`vobase conv reassign\`).
+
+Auto-rendered files (\`PROFILE.md\`, \`MESSAGES.md\`, \`INTERNAL-NOTES.md\`, \`AGENTS.md\`, \`INDEX.md\`, \`BUSINESS.md\`) are rebuilt from DB state every wake and cannot be \`echo >\`-edited — they reflect, but do not accept, writes. To mutate the underlying row, use the relevant CLI verb.
+
+The sections below describe each scope and which path applies.`
 
 const EMPTY_MEMORY_MD = '---\n---\n\n# Memory\n\n_empty_\n'
 
@@ -110,7 +124,7 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
         '| Scope | Path | When to write | Convention |',
         '| --- | --- | --- | --- |',
         '| agent | `/agents/<your-id>/MEMORY.md` | self-knowledge — "always do X", "from now on Y" | append dated `## YYYY-MM-DD` section, ≤12 lines |',
-        '| contact | `/contacts/<id>/MEMORY.md` + `propose_contact_attribute` (when available) | per-customer fact mentioned by name | append bullet AND propose attribute update; high confidence auto-applies, low confidence pends for staff review |',
+        '| contact | `/contacts/<id>/MEMORY.md` (prose) + `vobase contacts propose-change` (structured fields) | per-customer fact mentioned by name | append a bullet for narrative; for named scalars/`attributes.<key>` also call the verb so the change lands on the row (auto-applies for non-gated fields, pends staff review for gated ones) |',
         // Three-scope symmetric coverage. Staff guidance lives here (not in
         // team.staff-roster) because team-roster is the file index, not the
         // mutation playbook. See Architect F2.
@@ -134,20 +148,16 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
         '',
         '## Structured fields vs prose memory',
         '',
-        "Edit `profile.md` frontmatter to update structured fields (top-level scalars + `attributes.*`). Edit `MEMORY.md` for prose narrative. The body below the second `---` in `profile.md` is auto-rendered from the row — don't edit it.",
+        'Two paths, picked by shape:',
+        '- **Structured fields** (named scalars, `attributes.*`, segments) → `vobase contacts propose-change`. The contact row is the system of record; the verb routes through the change-proposal pipeline (auto-applies for non-gated fields, pends for staff review on gated ones). Per-resource field lists and gates are in `## Contact context` below.',
+        '- **Prose narrative** (sentiment, history, working observations, multi-sentence learnings) → `MEMORY.md` via direct file writes.',
         '',
-        '- Contact frontmatter: `displayName`, `email`, `phone`, `segments`, `marketingOptOut`, plus org-defined `attributes.*`. Most edits auto-apply; `displayName` and `email` queue for staff approval.',
-        '- Staff frontmatter: `displayName`, `title`, `availability`, `capacity`, `expertise`, `sectors`, `languages`, plus `attributes.*`. All staff edits queue for staff approval.',
+        '**When to call `propose-change`:**',
         '',
-        '**When to capture into frontmatter (vs MEMORY.md):**',
+        '1. **Customer-volunteered facts** with a clear field shape. "We\'re at GK Corp, 220 employees, contract renews September." → one verb call per attribute, e.g. `vobase contacts propose-change --id <id> --field attributes.company --to "GK Corp" --rationale "Customer mentioned in chat"`.',
+        '2. **High-confidence inferences** that map to a known field. Deal size implies `segments: ["enterprise"]`; tone implies `attributes.priority: "high"`. Only capture inferences you\'d defend if asked.',
         '',
-        '1. **Customer-volunteered facts.** "We\'re at GK Corp, 220 employees, contract renews September." Update `attributes.company`, `attributes.employeeCount`, `attributes.renewalDate` on the contact\'s `profile.md`.',
-        '2. **Staff-volunteered facts in internal notes.** A teammate writes "Sarah is now VP Operations" — update `attributes.title` (or the proper structured field) on the relevant staff `profile.md`.',
-        '3. **High-confidence inferences.** Deal size implies `segments: ["enterprise"]`; tone implies `attributes.priority: "high"`. Use your judgement — only capture inferences you\'d defend if asked.',
-        '',
-        'Sentiment, history, free-running observations belong in `MEMORY.md`, not in frontmatter.',
-        '',
-        '_See the follow-up `memory-contact-attribute-confidence` plan for the `propose_contact_attribute` tool wiring._',
+        'Staff records have no CLI verb yet — staff-volunteered facts about teammates go into `/staff/<id>/MEMORY.md` instead. Sentiment, history, free-running observations always belong in `MEMORY.md`, not on the row.',
       ].join('\n'),
   }),
 ]

@@ -1,7 +1,13 @@
 import { conversations } from '@modules/messaging/schema'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
 import type { ChangePayload } from '@vobase/core'
-import { conflict, journalGetLatestTurnIndex as getLatestTurnIndex, notFound, validation } from '@vobase/core'
+import {
+  conflict,
+  journalGetLatestTurnIndex as getLatestTurnIndex,
+  notFound,
+  VobaseError,
+  validation,
+} from '@vobase/core'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
@@ -335,9 +341,9 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     }
   }
 
-  async function findPendingDuplicate(input: InsertProposalInput): Promise<ChangeProposalRow | null> {
-    const rows = (await db
-      .select()
+  async function findPendingDuplicate(input: InsertProposalInput): Promise<{ id: string } | null> {
+    const rows = await db
+      .select({ id: changeProposals.id })
       .from(changeProposals)
       .where(
         and(
@@ -348,7 +354,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
           eq(changeProposals.status, 'pending'),
         ),
       )
-      .limit(1)) as unknown as ChangeProposalRow[]
+      .limit(1)
     return rows[0] ?? null
   }
 
@@ -364,8 +370,19 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     if (status === 'pending') {
       const dup = await findPendingDuplicate(input)
       if (dup) {
-        throw conflict(
+        // Per-resource (not per-field): matches the partial unique index on
+        // `change_proposals`. Typed `details.reason` is read by `isPendingConflict`.
+        throw new VobaseError(
           `change-proposals: ${input.resourceModule}/${input.resourceType}/${input.resourceId} already has a pending proposal (id=${dup.id})`,
+          'CONFLICT',
+          409,
+          {
+            reason: 'pending_conflict',
+            existingProposalId: dup.id,
+            resourceModule: input.resourceModule,
+            resourceType: input.resourceType,
+            resourceId: input.resourceId,
+          },
         )
       }
     }
@@ -746,3 +763,15 @@ export function recordChange(input: RecordChangeInput): Promise<{ id: string }> 
 }
 
 export type { ChangeHistoryRow, ChangeProposalRow }
+
+export interface PendingConflictDetails {
+  reason: 'pending_conflict'
+  existingProposalId: string
+  resourceModule: string
+  resourceType: string
+  resourceId: string
+}
+
+export function isPendingConflict(err: unknown): err is VobaseError & { details: PendingConflictDetails } {
+  return err instanceof VobaseError && (err.details as { reason?: string } | undefined)?.reason === 'pending_conflict'
+}

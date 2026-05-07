@@ -63,7 +63,7 @@ function convoFolder(refs: RenderRefs): string {
 }
 
 function renderInboundMessage(_trigger: WakeTrigger, refs: RenderRefs): string {
-  return `New customer message(s). See ${convoFolder(refs)}/messages.md for context.`
+  return `New customer message(s). See ${convoFolder(refs)}/MESSAGES.md for context.`
 }
 
 function renderApprovalResumed(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -76,8 +76,8 @@ function renderApprovalResumed(trigger: WakeTrigger, _refs: RenderRefs): string 
 function renderSupervisor(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'supervisor') return ''
   const base = trigger.mentionedAgentId
-    ? `Staff @-mentioned you in an internal note. Read ${convoFolder(refs)}/internal-notes.md for context.`
-    : `Staff added an internal note. Read ${convoFolder(refs)}/internal-notes.md for context.`
+    ? `Staff @-mentioned you in an internal note. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
+    : `Staff added an internal note. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
   // Peer-wake guard: if you are NOT the conversation assignee, the human or
   // agent who is must drive the customer-facing reply. Treat the staff note
   // as coaching/consultation only — internalise it (memory, learnings),
@@ -97,12 +97,12 @@ function renderSupervisor(trigger: WakeTrigger, refs: RenderRefs): string {
   // `wake/build-config/conversation.ts` for this kind so the agent can
   // relay the answer.
   if (refs.supervisorKind === 'ask_staff_answer') {
-    return `${base} First, run \`cat ${convoFolder(refs)}/internal-notes.md\` to read the staff answer. Then send the customer-facing reply now (reply / send_card / send_file / book_slot as appropriate). Only if you still have follow-up questions after reading, call \`add_note\` with \`mentions\` populated instead of guessing.`
+    return `${base} First, run \`cat ${convoFolder(refs)}/INTERNAL-NOTES.md\` to read the staff answer. Then send the customer-facing reply now (reply / send_card / send_file / book_slot as appropriate). Only if you still have follow-up questions after reading, call \`add_note\` with \`mentions\` populated instead of guessing.`
   }
   // Assignee-wake, coaching branch (default): customer-facing tools are
   // stripped at the harness layer (`audience: 'customer'` filter). The read
   // directive is sentence 1 so the model cannot treat it as optional.
-  return `${base} Customer-facing tools are stripped on this wake — this is staff coaching, NOT a request to send another customer reply. First, run \`cat ${convoFolder(refs)}/internal-notes.md\` to read the note. Then capture any durable lesson in /agents/<your-id>/MEMORY.md (or the contact's MEMORY.md if it is contact-specific) by appending with \`echo\`. Only if the note is genuinely ambiguous after reading, call \`add_note\` with \`mentions\` populated to ask for clarification.`
+  return `${base} Customer-facing tools are stripped on this wake — this is staff coaching, NOT a request to send another customer reply. First, run \`cat ${convoFolder(refs)}/INTERNAL-NOTES.md\` to read the note. Then capture any durable lesson in /agents/<your-id>/MEMORY.md (or the contact's MEMORY.md if it is contact-specific) by appending with \`echo\`. Only if the note is genuinely ambiguous after reading, call \`add_note\` with \`mentions\` populated to ask for clarification.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -115,8 +115,21 @@ function renderManual(trigger: WakeTrigger, _refs: RenderRefs): string {
   return `Manual wake: ${trigger.reason}.`
 }
 
-function renderOperatorThread(_trigger: WakeTrigger, _refs: RenderRefs): string {
-  return 'A staff member posted in your operator thread. Read the latest message and respond or act.'
+function renderOperatorThread(trigger: WakeTrigger, _refs: RenderRefs): string {
+  if (trigger.trigger !== 'operator_thread') return ''
+  const body = trigger.threadMessage.trim()
+  if (!body) {
+    // Empty body shouldn't happen in practice (operator-thread handler always
+    // reads the latest user message), but guard so the cue still parses.
+    return 'A staff member posted in your operator thread, but the latest message is empty. Acknowledge politely and end the turn.'
+  }
+  // Quote the body so the agent sees it as the user request, not as
+  // background context. The blockquote prefix makes provenance unambiguous.
+  const quoted = body
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n')
+  return `A staff member posted in your operator thread:\n\n${quoted}\n\nRespond or act on this now. If the message implies a write to a workspace file, use bash (or the matching CLI verb) — do not reply "logged for review" without actually performing the write.`
 }
 
 function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -126,7 +139,7 @@ function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
 
 function renderCaptionReady(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'caption_ready') return ''
-  return `Caption ready for file ${trigger.fileId}. Re-read ${convoFolder(refs)}/messages.md for the updated context.`
+  return `Caption ready for file ${trigger.fileId}. Re-read ${convoFolder(refs)}/MESSAGES.md for the updated context.`
 }
 
 function renderChangeDecided(trigger: WakeTrigger, _refs: RenderRefs): string {

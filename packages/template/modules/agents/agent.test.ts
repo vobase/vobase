@@ -179,7 +179,7 @@ describe('agents.memory-conventions contributor', () => {
     const c = findContributor('agents.memory-conventions')
     const render = renderContributor(c)
     // Two headings: `## Memory scopes` (mutation playbook) and
-    // `## Structured fields vs prose memory` (frontmatter capture triggers).
+    // `## Structured fields vs prose memory` (CLI-verb routing for typed fields).
     expect(render.match(/^## /gm)?.length).toBe(2)
     expect(render.length).toBeGreaterThanOrEqual(1075)
     expect(render.length).toBeLessThanOrEqual(2900)
@@ -193,21 +193,27 @@ describe('agents.memory-conventions contributor', () => {
     expect((render.match(/^\| staff \|/gm) ?? []).length).toBe(1)
   })
 
-  it('mentions propose_contact_attribute and the follow-up plan name', () => {
+  it('points at the `vobase contacts propose-change` CLI verb for structured contact fields', () => {
     const c = findContributor('agents.memory-conventions')
     const render = renderContributor(c)
-    expect(render).toContain('propose_contact_attribute')
-    expect(render).toContain('memory-contact-attribute-confidence')
+    // Replaces the prior `propose_contact_attribute` tool — that surface was
+    // removed when contact PROFILE.md became RO and structured edits routed
+    // exclusively through the CLI verb.
+    expect(render).toContain('vobase contacts propose-change')
+    expect(render).not.toContain('propose_contact_attribute')
   })
 
-  it('teaches the profile.md frontmatter vs MEMORY.md prose split', () => {
+  it('teaches the structured-fields-vs-prose split via the CLI verb path (not frontmatter writes)', () => {
     const c = findContributor('agents.memory-conventions')
     const render = renderContributor(c)
-    expect(render).toMatch(/profile\.md.*frontmatter/)
-    expect(render).toMatch(/auto-rendered/)
+    // Section title pivoted from "PROFILE.md frontmatter vs MEMORY.md prose"
+    // to "Structured fields vs prose memory" once frontmatter became RO.
+    expect(render).toContain('Structured fields vs prose memory')
     expect(render).toMatch(/Customer-volunteered facts/)
-    expect(render).toMatch(/Staff-volunteered facts/)
     expect(render).toMatch(/High-confidence inferences/)
+    // Old framing (frontmatter as a write target) must be gone.
+    expect(render).not.toMatch(/PROFILE\.md.*frontmatter/)
+    expect(render).not.toMatch(/Staff-volunteered facts/)
   })
 })
 

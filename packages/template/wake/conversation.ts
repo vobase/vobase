@@ -3,7 +3,7 @@
  * `approval_resumed` path that the helpdesk has had since day one. Every
  * conversation-lane wake is conversation-bound — `conv.channelInstanceId` drives the
  * `/contacts/<contactId>/<channelInstanceId>/` materializers, the side-load
- * pulls the rolling transcript, and the trigger renderer points at messages.md
+ * pulls the rolling transcript, and the trigger renderer points at MESSAGES.md
  * for context.
  *
  * Standalone-lane wakes (heartbeat, operator-thread) use `./standalone.ts` instead;
@@ -44,7 +44,6 @@ import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
 import { createLearningProposalObserver } from './observers/learning-proposals'
 import { createMemoryDistillListener } from './observers/memory-distill'
-import { createSensitiveWriteWarner } from './observers/sensitive-write-warner'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
 import { resolvePlatformHint } from './platform-hints'
 import { buildFrozenPrompt } from './prompt'
@@ -227,9 +226,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     contactId: data.contactId,
     drive,
     logger: deps.logger,
-    agentName: agentDefinition.name,
-    authLookup,
-    conversationId,
   })
 
   const emitEventHandle: LlmEmitter = {}
@@ -249,13 +245,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     logger: deps.logger,
     agentName: agentDefinition.name,
     authLookup,
-  })
-
-  const sensitiveWriteWarner = createSensitiveWriteWarner({
-    fs: workspace.innerFs,
-    contactId: data.contactId,
-    staffIds,
-    logger: deps.logger,
   })
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
@@ -311,7 +300,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
         memoryDistillListener as OnEventListener<WakeTrigger>,
         learningProposalListener as OnEventListener<WakeTrigger>,
       ],
-      coreToolResults: [sensitiveWriteWarner],
       toolFilter: supervisorKind === 'coaching' ? (t) => t.audience !== 'customer' : undefined,
     }),
     materializers: wakeMaterializers,

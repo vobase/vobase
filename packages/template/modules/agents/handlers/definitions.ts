@@ -92,7 +92,7 @@ type PreviewQuery = z.infer<typeof previewQuery>
  * messaging's supervisor-coaching prose) appear in the right cases.
  *
  * Drive / staff / auth handles are stubbed because the AGENTS.md
- * materializer never reads them — only the messages.md / profile.md
+ * materializer never reads them — only the MESSAGES.md / PROFILE.md
  * materializers do, and those don't fire here. Type-safety satisfied;
  * runtime never touches them.
  */

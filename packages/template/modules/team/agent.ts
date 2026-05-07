@@ -2,7 +2,7 @@
  * Agent-facing surfaces for the team module.
  *
  * Materializers are wake-time factories — staff ids are wake-time data. They
- * render `/staff/<staffId>/profile.md` (RO identity card) and
+ * render `/staff/<staffId>/PROFILE.md` (RO identity card) and
  * `/staff/<staffId>/MEMORY.md` (agent-writable per-(agent, staff) memory,
  * backed by `agents.agent_staff_memory`).
  *
@@ -41,7 +41,7 @@ export const teamAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Staff',
         '',
-        "- `/staff/<id>/profile.md` — staff identity. The YAML frontmatter at the top is editable: `displayName`, `title`, `availability`, `capacity`, `expertise`, `sectors`, `languages`, plus `attributes.*`. Edits queue for staff approval (resource-level gate). The body below the second `---` is auto-rendered — don't edit it.",
+        '- `/staff/<id>/PROFILE.md` — staff identity. **Read-only**: there is no CLI verb for staff fields yet. Capture observations about teammates in `/staff/<id>/MEMORY.md` instead; if a staff record genuinely needs to change (title, availability), escalate to a human via `add_note` with `mentions`.',
         '- `/staff/<id>/MEMORY.md` — per-(agent, staff) memory you maintain about that staff member. Direct-writable.',
       ].join('\n'),
   }),
@@ -69,7 +69,7 @@ export async function renderStaffMemory(key: {
 }
 
 /**
- * Team materializer factory — emits `/staff/<id>/profile.md` (RO identity)
+ * Team materializer factory — emits `/staff/<id>/PROFILE.md` (RO identity)
  * and `/staff/<id>/MEMORY.md` (per-(agent, staff) memory) for every staff
  * id resolved by the wake builder.
  *
@@ -84,7 +84,7 @@ export const teamMaterializerFactory: WakeMaterializerFactory = (ctx) => {
   const budgetSet = new Set(ctx.budgetHeaderStaffIds)
   for (const staffId of ctx.staffIds) {
     mats.push({
-      path: `/staff/${staffId}/profile.md`,
+      path: `/staff/${staffId}/PROFILE.md`,
       phase: 'frozen',
       materialize: () => renderStaffProfile(staffId, ctx.authLookup),
     })

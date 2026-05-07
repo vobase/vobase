@@ -43,9 +43,9 @@ describe('collectAgentContributions over the real template module list', () => {
 
   it('returns roHints from every module that ships them', () => {
     const result = collectAgentContributions<unknown, unknown, WakeContext>(ALL_MODULES)
-    // 3 modules ship hints — agents/drive/messaging. contacts dropped its hint
-    // when profile.md became editable (frontmatter routes through change
-    // proposals); team never had a hint.
+    // 3 modules ship hints — agents/drive/messaging. contacts/team don't ship
+    // their own hints; PROFILE.md hinting is a built-in inside `chainRoHints`'s
+    // workspace assembly, not a per-module contribution.
     expect(result.roHints.length).toBeGreaterThanOrEqual(3)
     // Each hint accepts a path and returns string|null.
     for (const fn of result.roHints) {

@@ -173,11 +173,11 @@ describe('standaloneWakeConfig (real PG)', () => {
 
     // Conversation transcript materializers MUST NOT be present — operator
     // wakes have no contactId, no channelInstanceId.
-    expect(paths.some((p) => p.endsWith('/messages.md'))).toBe(false)
-    expect(paths.some((p) => p.endsWith('/internal-notes.md'))).toBe(false)
+    expect(paths.some((p) => p.endsWith('/MESSAGES.md'))).toBe(false)
+    expect(paths.some((p) => p.endsWith('/INTERNAL-NOTES.md'))).toBe(false)
 
-    // Operator brief side-load — the staff message surfaces in the rendered
-    // body so the agent has explicit context.
+    // Operator brief side-load — framing only, message body has moved to the
+    // user-turn render text (see the renderTrigger assertion below).
     const sideLoadEntries = await Promise.all(
       (config.sideLoadContributors ?? []).map((fn) =>
         fn({
@@ -193,12 +193,20 @@ describe('standaloneWakeConfig (real PG)', () => {
     expect(briefEntry).toBeDefined()
     if (briefEntry?.kind === 'custom') {
       const rendered = briefEntry.render()
-      expect(rendered).toContain('## Latest staff message')
-      expect(rendered).toContain('Summarize today and propose any follow-ups.')
+      // Brief is framing only; do NOT duplicate the staff message body here.
+      expect(rendered).not.toContain('## Latest staff message')
     }
 
+    // The staff message body lives in the trigger-render text — the user-turn
+    // cue prepended to the first turn. This is what fixed the discipline
+    // failure where the agent verbalised "I don't have the message" while the
+    // body sat unused in the side-load.
+    const renderedTrigger = config.renderTrigger?.(config.trigger)
+    expect(renderedTrigger).toContain('Summarize today and propose any follow-ups.')
+    expect(renderedTrigger).toContain('A staff member posted in your operator thread')
+
     // Trigger renderer should produce the operator-friendly cue, NOT the
-    // conversation-lane "see messages.md" cue.
+    // conversation-lane "see MESSAGES.md" cue.
     const cue = config.renderTrigger?.(config.trigger)
     expect(cue).toContain('staff member posted')
   })

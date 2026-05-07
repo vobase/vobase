@@ -47,7 +47,7 @@ export interface RenderStubInput {
 
 /**
  * Render the markdown body for a binary-stub row. The generated body is what
- * `messages.md` materializer surfaces to the agent — keep it short, action-
+ * `MESSAGES.md` materializer surfaces to the agent — keep it short, action-
  * oriented, and side-effect-free (no LLM calls).
  */
 export function renderStub(input: RenderStubInput): string {

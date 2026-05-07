@@ -117,7 +117,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   }
 
   // Staff dirs — discovered from the frozen materializer paths that got
-  // rendered above (`/staff/<id>/(profile.md|MEMORY.md)`).
+  // rendered above (`/staff/<id>/(PROFILE.md|MEMORY.md)`).
   const seenStaffIds = new Set<string>()
   for (const m of opts.materializers) {
     const match = m.path.match(/^\/staff\/([^/]+)\//)

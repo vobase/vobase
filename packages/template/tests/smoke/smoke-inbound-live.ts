@@ -18,7 +18,11 @@
 import { createHmac } from 'node:crypto'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000'
-const SECRET = process.env.CHANNEL_WEB_WEBHOOK_SECRET ?? 'dev-secret'
+// `||` not `??` — `.env` ships with `CHANNEL_WEB_WEBHOOK_SECRET=` (empty),
+// which is truthy enough to bypass `??` but is not actually a secret. The
+// server-side resolver uses `if (configured)` truthy-check so it falls
+// through to the same `dev-secret` default; matching the client to that.
+const SECRET = process.env.CHANNEL_WEB_WEBHOOK_SECRET || 'dev-secret'
 const CHANNEL_INSTANCE_ID = process.env.CHANNEL_INSTANCE_ID ?? 'chi00web00'
 const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const POLL_S = Number(process.env.POLL_S ?? 60)
@@ -26,12 +30,14 @@ const POLL_S = Number(process.env.POLL_S ?? 60)
 // `channelInstanceId` is NOT in `ChannelInboundEventSchema` — the route reads
 // it from the `x-channel-instance-id` header. Sending it in the body would
 // fail zod validation.
+const CONTENT = process.env.CONTENT ?? 'Hi! What are your clinic hours?'
+
 const body = JSON.stringify({
   channelType: 'web',
   organizationId: ORG_ID,
   from: `smoke-${Date.now()}`,
   profileName: 'Smoke Tester',
-  content: 'Hi! What are your clinic hours?',
+  content: CONTENT,
   contentType: 'text',
   externalMessageId: `smoke-${Date.now()}`,
   timestamp: Date.now(),

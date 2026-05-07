@@ -231,17 +231,17 @@ describe('teamMaterializerFactory budget header', () => {
   })
 
   // biome-ignore lint/suspicious/useAwait: bun:test it() callback signature kept async for parity with sibling cases
-  it('still emits profile.md and MEMORY.md for every staff id, regardless of budget cap', async () => {
+  it('still emits PROFILE.md and MEMORY.md for every staff id, regardless of budget cap', async () => {
     const ctx = makeWakeCtx({ staffIds: ['u_a', 'u_b', 'u_c'], budgetHeaderStaffIds: ['u_a'] })
     const mats = teamMaterializerFactory(ctx)
     const paths = mats.map((m) => m.path).sort()
     expect(paths).toEqual([
       '/staff/u_a/MEMORY.md',
-      '/staff/u_a/profile.md',
+      '/staff/u_a/PROFILE.md',
       '/staff/u_b/MEMORY.md',
-      '/staff/u_b/profile.md',
+      '/staff/u_b/PROFILE.md',
       '/staff/u_c/MEMORY.md',
-      '/staff/u_c/profile.md',
+      '/staff/u_c/PROFILE.md',
     ])
   })
 

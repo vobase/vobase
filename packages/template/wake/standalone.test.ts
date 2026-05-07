@@ -46,7 +46,7 @@ describe('standaloneConversationId', () => {
 
 describe('standalone wake trigger types', () => {
   it('operator_thread + heartbeat are part of the WakeTrigger union', () => {
-    const ot: WakeTrigger = { trigger: 'operator_thread', threadId: 't1', messageIds: ['m1'] }
+    const ot: WakeTrigger = { trigger: 'operator_thread', threadId: 't1', messageIds: ['m1'], threadMessage: 'hi' }
     const hb: WakeTrigger = {
       trigger: 'heartbeat',
       scheduleId: 's1',

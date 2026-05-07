@@ -37,7 +37,6 @@ import type { WakeTrigger } from './events'
 import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
 import { createLearningProposalObserver } from './observers/learning-proposals'
-import { createSensitiveWriteWarner } from './observers/sensitive-write-warner'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
 import { buildFrozenPrompt } from './prompt'
 import { resolveTriggerSpec } from './trigger'
@@ -161,8 +160,6 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     contactId: '',
     drive,
     logger: deps.logger,
-    agentName: agentDefinition.name,
-    authLookup,
   })
 
   const learningProposalListener = createLearningProposalObserver({
@@ -172,13 +169,6 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     logger: deps.logger,
     agentName: agentDefinition.name,
     authLookup,
-  })
-
-  const sensitiveWriteWarner = createSensitiveWriteWarner({
-    fs: workspace.innerFs,
-    contactId: null,
-    staffIds,
-    logger: deps.logger,
   })
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
@@ -262,7 +252,6 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
         learningProposalListener as OnEventListener<WakeTrigger>,
         ...(operatorThreadBridgeListener ? [operatorThreadBridgeListener] : []),
       ],
-      coreToolResults: [sensitiveWriteWarner],
     }),
     materializers: wakeMaterializers,
     sideLoadContributors: [standaloneBriefSideLoad, ...contributions.sideLoad],
@@ -283,7 +272,12 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
 function buildStandaloneTrigger(data: StandaloneWakeConfigInput['data']): WakeTrigger {
   if (data.triggerKind === 'operator_thread') {
     if (!data.threadId) throw new Error('operator wake: threadId required')
-    return { trigger: 'operator_thread', threadId: data.threadId, messageIds: [] }
+    return {
+      trigger: 'operator_thread',
+      threadId: data.threadId,
+      messageIds: [],
+      threadMessage: data.threadMessage ?? '',
+    }
   }
   if (!data.scheduleId || !data.intendedRunAt) {
     throw new Error('heartbeat wake: scheduleId + intendedRunAt required')
@@ -299,14 +293,15 @@ function buildStandaloneTrigger(data: StandaloneWakeConfigInput['data']): WakeTr
 function renderStandaloneBrief(data: StandaloneWakeConfigInput['data']): string {
   const lines: string[] = ['# Operator Brief', '']
   if (data.triggerKind === 'operator_thread') {
+    // Body of the staff message is embedded in the user-turn render text
+    // (see `renderOperatorThread` in `wake/trigger.ts`) so the agent treats
+    // it as the actual request, not as background context. Keep this brief
+    // to framing only — the message itself lives in the user turn.
     lines.push(
       'You were woken by a staff message in your operator thread.',
       '',
-      'Read the message, decide what action it implies, and either reply via the thread (your assistant message goes back to staff) or call one of the operator tools. Per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
+      'The message body is at the top of this turn (the user-turn cue). Read it, decide what action it implies, and either reply via the thread (your assistant message goes back to staff) or call one of the operator tools. Per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
     )
-    if (data.threadMessage) {
-      lines.push('', '## Latest staff message', '', data.threadMessage)
-    }
   } else {
     lines.push(
       `You were woken by your **${data.reason ?? 'scheduled'}** heartbeat.`,

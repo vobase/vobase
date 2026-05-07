@@ -24,7 +24,7 @@ export interface WakeContext {
   staffIds: readonly string[]
   /**
    * Capped subset of `staffIds` surfaced in the per-wake memory-budget header.
-   * Body materialization for `/staff/<id>/MEMORY.md` and `profile.md` still
+   * Body materialization for `/staff/<id>/MEMORY.md` and `PROFILE.md` still
    * iterates the full `staffIds`; this slice only bounds the budget-header
    * loop in `teamMaterializerFactory` so side-load tokens stay bounded for
    * orgs with many staff. Length ≤ `STAFF_BUDGET_HEADER_CAP`.
@@ -38,6 +38,7 @@ export interface WakeContext {
   agentsMdContributors: readonly IndexContributor[]
   /** Which wake builder produced this context. */
   lane: LaneName
+
   /** Trigger that fired this wake. */
   triggerKind: WakeTrigger['trigger']
   /**

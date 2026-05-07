@@ -6,6 +6,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   ClockIcon,
+  InfoIcon,
   PencilLineIcon,
   RotateCcwIcon,
   StickyNote,
@@ -438,20 +439,29 @@ function ActivityRow({ ev, directory }: { ev: ActivityEvent; directory: Principa
         <ChangeActivityLine
           icon={<ClockIcon className="size-3.5 text-amber-600" />}
           payload={p}
+          directory={directory}
           fallbackText="Change proposed"
+          actor={{ tokenKey: 'proposedBy', verb: 'proposed', defaultKind: 'agent' }}
         />
       )
     case 'change.auto_applied':
       return (
-        <ChangeActivityLine icon={<PencilLineIcon className="size-3.5" />} payload={p} fallbackText="Change applied" />
+        <ChangeActivityLine
+          icon={<PencilLineIcon className="size-3.5" />}
+          payload={p}
+          directory={directory}
+          fallbackText="Change applied"
+          actor={{ tokenKey: 'proposedBy', verb: 'auto-applied', defaultKind: 'agent' }}
+        />
       )
     case 'change.approved':
       return (
         <ChangeActivityLine
           icon={<CheckIcon className="size-3.5 text-emerald-600" />}
           payload={p}
+          directory={directory}
           fallbackText="Change approved"
-          prefix="Approved"
+          actor={{ tokenKey: 'decidedBy', verb: 'approved', defaultKind: 'staff' }}
         />
       )
     case 'change.rejected':
@@ -459,8 +469,9 @@ function ActivityRow({ ev, directory }: { ev: ActivityEvent; directory: Principa
         <ChangeActivityLine
           icon={<XIcon className="size-3.5 text-rose-600" />}
           payload={p}
+          directory={directory}
           fallbackText="Change declined"
-          prefix="Declined"
+          actor={{ tokenKey: 'decidedBy', verb: 'declined', defaultKind: 'staff' }}
         />
       )
     default:
@@ -482,22 +493,35 @@ function ActivityLine({ icon, children }: { icon: React.ReactNode; children: Rea
 const SYSTEM_REJECTION_REASONS = new Set(['staff_rejected', 'threat_scan'])
 
 /**
- * Inline timeline row for `change.*` lifecycle events. Renders the short
- * `summary` so the row stays scannable; the longer `rationale` and
- * staff-authored `decidedNote` live in a hover card. The whole line links
- * to `/changes?id=<proposalId>` so staff can jump to the proposal record
- * for the diff + approve/reject UI.
+ * Inline timeline row for `change.*` lifecycle events. Shape:
+ *   `[icon] <Principal> <verb>: <headline>  (i)`
+ * Where:
+ *  - Principal renders the actor (`proposedBy` for proposed/auto-applied,
+ *    `decidedBy` for approved/declined) so timelines tell you *who* did it,
+ *    not just what changed.
+ *  - The headline is the short `summary` (falls back to `rationale`, then
+ *    the fallback text) and the line links to `/changes?id=<proposalId>`
+ *    so staff can jump to the diff + approve/reject UI.
+ *  - The `(i)` info icon at the end of the row reveals the longer
+ *    `rationale` and any staff-authored `decidedNote` in a tooltip — small
+ *    explicit affordance instead of the previous full-line hover trigger.
  */
 function ChangeActivityLine({
   icon,
   payload,
+  directory,
   fallbackText,
-  prefix,
+  actor,
 }: {
   icon: React.ReactNode
   payload: Record<string, unknown>
+  directory: PrincipalDirectory
   fallbackText: string
-  prefix?: 'Approved' | 'Declined'
+  actor: {
+    tokenKey: 'proposedBy' | 'decidedBy'
+    verb: 'proposed' | 'auto-applied' | 'approved' | 'declined'
+    defaultKind: PrincipalKind
+  }
 }) {
   const summary = typeof payload.summary === 'string' && payload.summary.trim() ? payload.summary : null
   const rationale = typeof payload.rationale === 'string' && payload.rationale.trim() ? payload.rationale : null
@@ -508,37 +532,51 @@ function ChangeActivityLine({
   // tokens, not staff-authored prose — suppress so the hover card stays clean.
   const decidedNote = decidedNoteRaw && !SYSTEM_REJECTION_REASONS.has(decidedNoteRaw) ? decidedNoteRaw : null
 
+  // `decidedBy` historically lands as a bare userId (no `staff:` prefix); coerce
+  // to canonical form so the directory can resolve avatar + display name.
+  const actorRaw = payload[actor.tokenKey]
+  const actorToken =
+    typeof actorRaw === 'string' && actorRaw.length > 0
+      ? actorRaw.includes(':')
+        ? actorRaw
+        : `${actor.defaultKind}:${actorRaw}`
+      : null
+
   const headline = summary ?? rationale ?? fallbackText
-  const labelled = prefix ? `${prefix} ${headline}` : headline
   const hasHoverDetail = (rationale && rationale !== headline) || decidedNote
 
-  const linkBody = (
+  const linkInner = (
     <span className="inline-flex items-center gap-1">
       {icon}
-      <span className={cn('truncate', hasHoverDetail && 'border-muted-foreground/30 border-b border-dashed')}>
-        {labelled}
-      </span>
+      {actorToken ? <PrincipalInline value={actorToken} directory={directory} fallback={actor.defaultKind} /> : null}
+      <span>{actor.verb}:</span>
+      <span className="truncate">{headline}</span>
     </span>
   )
 
   const linked = proposalId ? (
-    <Link
-      to="/changes"
-      search={{ id: proposalId }}
-      className="inline-flex items-center hover:text-foreground hover:underline"
-    >
-      {linkBody}
+    <Link to="/changes" search={{ id: proposalId }} className="inline-flex items-center hover:text-foreground">
+      {linkInner}
     </Link>
   ) : (
-    linkBody
+    linkInner
   )
 
   return (
     <div className="flex justify-center px-2">
       <div className="inline-flex max-w-[36rem] items-center gap-1.5 text-muted-foreground text-xs">
+        {linked}
         {hasHoverDetail ? (
           <HoverCard openDelay={150} closeDelay={75}>
-            <HoverCardTrigger asChild>{linked}</HoverCardTrigger>
+            <HoverCardTrigger asChild>
+              <button
+                type="button"
+                aria-label="Show change details"
+                className="inline-flex items-center text-muted-foreground/60 hover:text-foreground"
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </HoverCardTrigger>
             <HoverCardContent side="top" align="center" className="w-80 space-y-2 text-xs leading-relaxed">
               {rationale && rationale !== headline ? <p className="text-foreground">{rationale}</p> : null}
               {decidedNote ? (
@@ -548,9 +586,7 @@ function ChangeActivityLine({
               ) : null}
             </HoverCardContent>
           </HoverCard>
-        ) : (
-          linked
-        )}
+        ) : null}
       </div>
     </div>
   )

@@ -56,10 +56,10 @@ describe('loadMessagingIndexContributors', () => {
     const contribs = await loadMessagingIndexContributors({ organizationId: ORG_ID, conversations: makeReader(rows) })
     const out = contribs[0].render({ file: 'INDEX.md' })
     expect(out).toContain('# Open Conversations (3)')
-    expect(out).toContain('/contacts/cont0/ch0/messages.md')
+    expect(out).toContain('/contacts/cont0/ch0/MESSAGES.md')
     expect(out).toContain('assignee=u0')
-    expect(out).toContain('/contacts/cont1/ch1/messages.md')
-    expect(out).toContain('/contacts/cont2/ch2/messages.md')
+    expect(out).toContain('/contacts/cont1/ch1/MESSAGES.md')
+    expect(out).toContain('/contacts/cont2/ch2/MESSAGES.md')
   })
 
   it('truncates beyond 10 entries and emits an overflow line', async () => {
@@ -68,7 +68,7 @@ describe('loadMessagingIndexContributors', () => {
     )
     const contribs = await loadMessagingIndexContributors({ organizationId: ORG_ID, conversations: makeReader(rows) })
     const out = contribs[0].render({ file: 'INDEX.md' }) ?? ''
-    const bullets = out.split('\n').filter((l) => l.startsWith('- /contacts/'))
+    const bullets = out.split('\n').filter((l) => l.startsWith('- /contacts/') && l.includes('/MESSAGES.md'))
     expect(bullets).toHaveLength(10)
     expect(out).toContain('… and 3 more')
   })

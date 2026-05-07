@@ -28,9 +28,9 @@ describe('chainRoHints', () => {
 
   it('falls through to subsequent hints when earlier ones return null', () => {
     const drive: RoHintFn = (path) => (path.startsWith('/drive/') ? 'drive-hint' : null)
-    const messaging: RoHintFn = (path) => (path.endsWith('/messages.md') ? 'messaging-hint' : null)
+    const messaging: RoHintFn = (path) => (path.endsWith('/MESSAGES.md') ? 'messaging-hint' : null)
     const chained = chainRoHints([drive, messaging])
-    expect(chained('/contacts/c1/ci1/messages.md')).toBe('messaging-hint')
+    expect(chained('/contacts/c1/ci1/MESSAGES.md')).toBe('messaging-hint')
     expect(chained('/drive/policies.md')).toBe('drive-hint')
   })
 

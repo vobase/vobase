@@ -62,7 +62,7 @@ export interface Message {
   /**
    * Drive-backed attachments referenced by this message. Each entry carries
    * `driveFileId` (durable handle) plus a path/caption denorm so the
-   * `messages.md` materializer renders without a join hop. Read-mostly,
+   * `MESSAGES.md` materializer renders without a join hop. Read-mostly,
    * single-writer (only `messaging/service/**`), defaults to `[]`.
    */
   attachments: import('@modules/drive/service/types').MessageAttachmentRef[]
