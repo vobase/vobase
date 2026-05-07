@@ -84,3 +84,29 @@ bun -e '
 ```
 
 Expected: `change.approved` activity row carrying `summary: "Email change to …"` + `proposalId`; agent posts a brief customer-facing confirmation reply on the next wake.
+
+## propose_contact_update — first-class tool for customer-asked profile edits
+
+Closes the agent-tool-discipline gap that surfaced during the lifecycle smoke: with bash-edited `profile.md` as the only path, `gpt-5.4` (and Sonnet, tested via single-line model swap) reliably skipped the bash sed for customer-asked profile updates and replied with a hallucinated "logged for review" — silently breaking the propose pipeline (no `change_proposals` row, no journal event, no staff inbox entry, no `sensitive-write-warner` notice). 5 consecutive baseline runs produced 0 proposals; 4 prompt iterations did not move the model.
+
+**New surface:**
+
+- `modules/contacts/tools/propose-contact-update.ts` — conversation-lane, customer-facing tool. `audience: 'customer'`, `lane: 'conversation'`. Resolves `contactId` from `ctx.conversationId` (the model can't pick the wrong contact). Input is `{patch, rationale}` where `patch` accepts `{displayName, email, phone, segments, marketingOptOut, attributes}`; `attributes` is a flat map flattened to `attributes.*` field_set keys server-side. Builds the `field_set` diff against the current row, reuses `buildFieldSetCopy` for `expectedOutcome`, and forwards the model's `rationale` verbatim to `insertProposal`. Returns `{proposalId, status, fieldsTouched, replyHint}` where `replyHint` is one of three deterministic strings keyed off `status`:
+  - `auto_written` → "Tell the customer the change is done (it applied immediately and is now on file)."
+  - `pending` → "Tell the customer it's logged for our team to review (a gated field was touched)."
+  - `no_op` → "No values would change — the patch you proposed already matches what's on file."
+  Idempotent on rapid double-call: a duplicate-pending conflict from `insertProposal` collapses to `{status: 'pending', proposalId: null}` rather than re-throwing, so the model still gets a deterministic answer.
+- 7 unit tests in `modules/contacts/tools/propose-contact-update.test.ts`. Uses `mock.module('@modules/changes/service/proposals', …)` because `wake/observers/workspace-sync.test.ts` and `wake/observers/learning-proposals.test.ts` already mock that module process-wide; an `installChangeProposalsService` stub would silently lose to their `mock.module` replacement.
+
+**Changed:**
+
+- `modules/contacts/agent.ts`: registers `proposeContactUpdateTool` in `contactsTools` and rewrites the `contacts.contact-context` AGENTS.md fragment to lead with the tool. The 5-step bash workflow is replaced with a 3-step tool workflow ("call `propose_contact_update`; read the returned `status`; reply accordingly"). Bash-editing `profile.md` is demoted to operator/admin workflows; the fragment explicitly tells the agent that bash-as-customer-shortcut is silently ignored.
+
+**Verified.** Re-running the same gpt-5.4 baseline smoke after the fix:
+
+| Runs | bash calls | proposals created | journal events | reply matches reality |
+|------|-----------:|------------------:|----------------|-----------------------|
+| Before fix | 0 / 5 | 0 / 5 | none | "logged for review" — false |
+| After fix  | 0 / 4 | **4 / 4** | `change.proposed` × 4 | "logged for review" — **true** |
+
+Plus a non-gated phone-update run that auto-wrote (`status=auto_written`, `contacts.phone` updated to the new value) and the agent replied with the corresponding "all set" copy.
