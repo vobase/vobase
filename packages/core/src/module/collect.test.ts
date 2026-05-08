@@ -86,9 +86,7 @@ describe('collectAgentContributions', () => {
     }
     const result = collectAgentContributions([a])
     expect(result.materializers).toHaveLength(1)
-    expect(result.materializers[0]({})).toEqual([
-      { path: '/a.md', phase: 'frozen', materialize: expect.any(Function) },
-    ])
+    expect(result.materializers[0]({})).toEqual([{ path: '/a.md', phase: 'frozen', materialize: expect.any(Function) }])
     expect(result.sideLoad).toHaveLength(1)
   })
 
