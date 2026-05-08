@@ -148,7 +148,9 @@ Tests never hit real LLM. Pass `streamFn: stubStreamFn([...])` to `bootWake` (or
 
 E2E in `tests/e2e/`. Live smokes in `tests/smoke/` (real LLM, dev server). Helpers: `test-db.ts`, `test-harness.ts`, `stub-stream.ts`, `simulated-channel-web.ts`, `assert-event-sequence.ts`, `capture-side-load-hashes.ts`, `assert-learning-flow.ts`. E2E that bypasses module init must `setCliRegistry(new CliVerbRegistry())` in `beforeAll` and `__resetCliRegistryForTests()` in `afterAll`.
 
-`tests/smoke/smoke-{inbound,staff-note,operator-thread,heartbeat}-live.ts` (+ `smoke-all-triggers-live.ts` driver) verify cross-module effects (memory writes, drive proposals, internal-note replies) actually fire. "Agent silently no-ops" failure mode historically caught only at this layer.
+`tests/smoke/smoke-{inbound,conversation,staff-note,operator-thread,heartbeat}-live.ts` (+ `smoke-all-triggers-live.ts` driver) verify cross-module effects (memory writes, drive proposals, internal-note replies) actually fire. "Agent silently no-ops" failure mode historically caught only at this layer. Run with `bun run tests/smoke/<file>.ts [scenario]`; needs `bun run dev` up + `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` in env.
+
+Every smoke uses `tests/helpers/smoke-runtime.ts` — single source of truth. `runSmoke(name, async ({ sql, baseUrl }) => …)` opens one DB connection, dumps `dumpConversationState(sql, conversationId)` on throw, and exits with the right code. Use `pollAssistantTurns` (1s→3s exp backoff) for "wait for agent reply"; `pickText`/`pickToolCalls` to extract assistant payload content; `SMOKE_AGENT_ID` for the seeded agent. Don't reopen `postgres()`, redefine `pickText`, or rewrite the poll loop. Failure dumps print customer messages + assistant text + tool calls **with arguments** + tool-result stderr + journal sequence + proposals + change.* events — the readable transcript, not opaque counts. When adding a smoke, copy the shape of `smoke-inbound-live.ts` (~40 lines).
 
 Anti-patterns: don't mock database (mocks hide migration / CHECK / pg_notify bugs); no JSONL recorded-provider fixtures; no narrative Phase/Lane comments in tests; no `renderToString` SSR-snapshot tests.
 
