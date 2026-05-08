@@ -1,5 +1,116 @@
 # create-vobase
 
+## 0.37.0
+
+### Minor Changes
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Learning loop slice 3: `agentskills.io` skill spec + signal × scope smoke coverage.
+
+  Aligns the learned-skill format with the public `agentskills.io` spec (frontmatter + body convention), updates the skill-emission path to write that shape, and adds smoke coverage exercising every `(signalKind, scope)` pair from the triage pipeline so the cheap-model classifier and the routing rules are tested as a matrix instead of as one happy-path scenario per signal.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Migrate the change-proposal registry to sensitivity-driven routing.
+
+  Replaces the binary `requiresApproval` flag with a typed `Sensitivity` enum (`'low' | 'medium' | 'high' | 'critical'`). `insertProposal` now combines the agent-supplied `confidence` with the resource's effective sensitivity (resource-level + per-scalar + per-attribute) via `effectiveSensitivity()` and routes to one of three outcomes:
+
+  - `'drop'` — confidence below `T_REVIEW` (the trivia gate)
+  - `'pending'` — middle band, lands on `/changes` for human review
+  - `'auto_written'` — confidence ≥ `T_AUTO_BASE + sLevel × HEADROOM`
+
+  The auto bar is **additive** (`T_AUTO_BASE + sLevel × HEADROOM`), not multiplicative — a `'critical'` resource raises the auto threshold but never silences high-confidence proposals into `'drop'`. Calibration knobs (`T_REVIEW=0.3`, `T_AUTO_BASE=0.7`, `SENSITIVITY_HEADROOM=0.3`) and the level→number map (`low=0.2`, `medium=0.4`, `high=0.7`, `critical=0.95`) read from env at module load.
+
+  `MaterializerRegistration` gains optional `sensitivity`, `sensitivityForFields`, and `resolveAttributeSensitivities` fields; the five existing module registrations migrate to the new shape with their previous defaults preserved.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Per-attribute sensitivity for tenant-defined contact fields.
+
+  `contact_attribute_definitions` now carries a `sensitivity` column (`'low' | 'medium' | 'high' | 'critical'`, default `'medium'`), and the contacts module wires `resolveAttributeSensitivities()` into the change-proposal registration. When a `field_set` payload touches `attributes.<key>`, the resolver looks up the per-key sensitivity and the routing layer combines it with the resource baseline via `effectiveSensitivity()` — so tenants can mark `attributes.tax_id` as `critical` without core code changes, and proposals routing reflects it automatically.
+
+  The settings UI gets a sensitivity picker on attribute definitions; the `/changes` inbox shows the effective sensitivity that drove the routing decision.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Drive editor: render markdown frontmatter as a read-only table above the editable surface.
+
+  `drive/components/drive-markdown-editor.tsx` now ships the GFM-table plugin set plus a frontmatter splitter that pulls leading YAML out of skill / profile markdown and renders it as a read-only `PlateStatic` table. The raw frontmatter is preserved verbatim and re-prepended on save so the on-disk YAML stays byte-stable.
+
+  Also fixes the AGENTS.md preamble preview in `agents/components/agents-md-editor.tsx`: the editor now uses `createSlateEditor({ value })` (mutating `ed.children` after construction never propagated to the rendered tree). Collapsed view stays at `max-h-48` with the fade gradient; expanded drops the cap so the preamble flows into the parent scroll container.
+
+  `agents/handlers/definitions.ts` awaits `materialize()` and `renderPreviewAgentsMd` so the preamble route returns the rendered markdown instead of `[object Promise]`.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Learning loop slice 2: agent-driven learning loop with triage pipeline.
+
+  Adds the cheap-model triage pre-filter that runs before any expensive learning operation (full distill, skill emission, memory rewrite). Triage classifies the signal, scopes it (`agent.agent_memory` / `team.staff_memory` / `contacts.contact_memory` / `agents.learned_skill`), and either drops, queues, or fans out to the matching observer. Drops never leave a row; queued candidates land in a typed table for staff visibility; auto-applied lessons go through the same `change_proposals` machinery as everything else, so confidence + sensitivity routing applies uniformly.
+
+  Wire-up: `wake/learning/triage.ts` runs as a post-wake job, and the existing learning observers (`coaching_note`, `staff_takeover`, `coexistence_echo`, `rejection`, `learned_skill`, `contact_memory`, `staff_memory`) now consume only triage-classified candidates. New `learning_candidates` table tracks pending vs consumed rows.
+
+### Patch Changes
+
+- [`426cef6`](https://github.com/vobase/vobase/commit/426cef6d6153e2adbf1600dcd8ce70feb235a216) Thanks [@mdluo](https://github.com/mdluo)! - Strengthen agent prompts for `send_card` and `learned_skill` capture.
+
+  **`MERIGPT_INSTRUCTIONS` (`modules/agents/seed.ts`)** — adds two sections derived from realistic-persona smoke findings:
+
+  - **Reply format** rule: when the customer has 2+ options to choose, compare, confirm, or act on (plans/pricing, refund decisions, booking slots, lists of choices), prefer `send_card` over `reply`. Cards let the customer one-tap their next move; `reply` is reserved for pure acknowledgements and free-form questions. Surfaces a discipline that was previously only documented per-tool.
+  - **Product / pricing / plan questions** rule: must `cat /drive/BUSINESS.md` and `cat /drive/pricing.md` before replying. The smoke caught the agent answering plan-comparison questions from memory, sometimes with stale information; this forces grounding in the canonical drive docs and pairs naturally with the new `send_card` rule.
+
+  **`learning-candidates-sideload.ts`** — replaces the hedged "rarely the right move" wording for `agents.learned_skill` candidates with a load-bearing rule: treat the candidate body as authoritative, capture verbatim, dismissal requires an explicit reason ("duplicates X" / "contradicted by Y"), replying without acting is wrong. The prior phrasing left enough room for the agent to ignore high-confidence skill candidates entirely — observed in smoke as a reply that consulted an unrelated skill, grep'd for context, then bailed without capturing the lesson.
+
+  After both changes the realistic-persona smoke went from 7/10 → 10/10 (with the `redeem-promo` skill captured at `auto_written` from the staff coaching note).
+
+- [`beb2f58`](https://github.com/vobase/vobase/commit/beb2f5850d8d4cb1a28d487c41cf028f490bdb06) Thanks [@mdluo](https://github.com/mdluo)! - Fix: bootstrap an organization on first signup in single-org tenants.
+
+  Fresh `VOBASE_MULTI_ORG=false` tenants previously had no path to enroll the first user — `autoEnroll` early-returned when no `auth.organization` existed, so the first Google signup got an `auth.user` row but no membership and `requireOrganization` 403'd with `"user is not a member of any organization"`.
+
+  `packages/template/auth/index.ts` now bootstraps a sole org during the `user.create.after` hook when none exists. The first signup becomes `owner`; subsequent signups continue to land as `member` of that sole org. The org name and slug are read from `VITE_PLATFORM_TENANT_NAME` and `VITE_PLATFORM_TENANT_SLUG` (platform-stamped at deploy time), defaulting to `"Workspace"` / `"workspace"` if unset.
+
+  Concurrency: the slug is deterministic so the unique index on `auth.organization.slug` serializes parallel first-signups — losers catch the `23505` and re-read the winner's org. The sole-org `LIMIT 1` lookups are now `ORDER BY created_at` for stability if duplicates ever exist (e.g. legacy data, multi→single-org flip).
+
+- [`0949685`](https://github.com/vobase/vobase/commit/0949685201971ae5973d2f8151ba5e6a0d8763cc) Thanks [@mdluo](https://github.com/mdluo)! - Fix: tenant bootstrap now writes the configured slug to the first organization.
+
+  `packages/template/auth/index.ts` computed `orgSlug` from `VITE_PLATFORM_TENANT_SLUG` (or default `"workspace"`) but the subsequent `authOrganization.insert` hardcoded `slug: 'workspace'` — so single-org tenants stamped a different slug at deploy time silently fell back to the default. The retry path on the `23505` (concurrent first-signup) collision still queried `slug = orgSlug`, which then failed to find the just-inserted row when the winner had inserted under `'workspace'`.
+
+  The fix passes `orgSlug` through to the insert, matching the existing retry-side lookup. The unused-variable lint (caught by `biome check`) was the trail to this; the underlying bug had been latent since the bootstrap path landed.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - `vobase contacts propose-change`: route high-sensitivity fields to `pending` and stop leaking cross-account uniqueness.
+
+  **Confidence default depends on principal.** Agent-origin calls without an explicit `--confidence` now default to `0.85` (was `1.0`). With `T_AUTO_BASE=0.7` + `LEVEL_HIGH=0.7` + `HEADROOM=0.3`, the high auto-bar is `0.91`, so `0.85` routes high-sensitivity fields (`email`, `phone`, `displayName`) to `pending` for staff review while leaving low/medium fields auto-applying. Manual CLI calls (`apikey`/`user` principal) keep the `1.0` default — explicit operator decisions still auto-apply unless the resource is `critical`. Agents can bypass review by passing `--confidence 0.95` when a learned skill or staff memory authorizes direct writes.
+
+  **Unique-violation (`23505`) is now neutral.** The verb's response no longer echoes `pg.detail` (which contained the conflicting row's value, leaking that another customer in the org owns it). The error reads `"That value cannot be set on this contact. Ask the customer to verify or provide a different one."`, and the verb prompt explicitly tells the agent to treat the conflict as confidential.
+
+  Verb prompt updated: `pending` example phrasing now lists `phone` alongside `displayName`/`email` and forbids `"done/updated/all set"` replies; `auto_applied` example shifted to `segments`.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Fix: silent in-process DB writes after a bash tool dispatch.
+
+  `just-bash`'s `DefenseInDepthBox.lockWellKnownSymbols()` redefines `Error.stackTraceLimit` as `writable: false` while a bash tool runs. The lock is global (not ALS-scoped), so any postgres transaction begun inside a bash-tool-dispatched verb hits `cachedError` (`postgres@3.4.9` `query.js:169`), which writes `Error.stackTraceLimit = 4` and throws `TypeError: Attempted to assign to readonly property`.
+
+  Symptom: `vobase contacts propose-change` (and any other in-process DB write under bash) failed silently for fresh contacts, while pre-cached SQL templates kept working — making the bug look like model variance.
+
+  Fix: `packages/template/main.ts` now pins `Error.stackTraceLimit` as `configurable: false` at process start, so just-bash's `Object.defineProperty` no-ops (caught by its own try/catch).
+
+  Also surfaces postgres `23505` unique violations as a typed `errorCode: 'unique_conflict'` in `vobase contacts propose-change`, and fixes the rename leftover in `tests/smoke/smoke-all-triggers-live.ts` that pointed at the never-renamed `smoke-staff-note-action-live.ts`.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Test infrastructure: consolidate the smoke runtime.
+
+  `tests/helpers/smoke-runtime.ts` is now the single source of truth for live-smoke plumbing — `runSmoke` wrapper, single DB connection, `pollAssistantTurns` with 1s→3s exponential backoff, `pickText`/`pickToolCalls`, `SMOKE_AGENT_ID`, and `dumpConversationState`. The five standalone smokes (`smoke-{inbound,conversation,staff-note,operator-thread,heartbeat}-live.ts`) shrink from 796 LoC to 451 LoC (~43%).
+
+  The big win is failure inspectability: a failing smoke now prints customer messages, agent text, tool calls **with arguments**, tool-result stderr, the wake's journal sequence, change proposals, and `change.*` lifecycle events — not opaque `expected 1 got 0` counts.
+
+  Also drops the orphaned `_smoke-coach-stale.ts`, renames `smoke-wa-{echo,inbound}-live.test.ts` → `*-live.ts` so they no longer get auto-picked-up by `bun test`, fixes `pickToolCalls` to match the canonical `'toolCall'` literal (was checking the non-existent `'tool_call'`), and centralises the seed agent id.
+
+- [`8f376ea`](https://github.com/vobase/vobase/commit/8f376eac4a1512b68123b3828d74f83dfa2b3fd9) Thanks [@mdluo](https://github.com/mdluo)! - Rename the `supervisor` wake trigger to `staff_note`, and drop two pieces of incidental complexity.
+
+  1. **Conceptual merge.** `SupervisorKind` (`'coaching' | 'ask_staff_answer'`) is gone — the @-mention of an agent is the only signal that fires a wake; non-mention staff notes flow through the learning-loop triage instead. This removes the classifier, the tool-stripping logic, and the conditional render text that picked between two coaching styles.
+  2. **Tool `audience` field dropped.** With `SupervisorKind` gone, no caller needs lane-time tool filtering by `audience: 'customer' | 'internal'`; tool `lane` is sufficient.
+  3. **AGENTS.md preamble trimmed.** Lane-aware contributors gate by `triggerKind` and stay focused — drops ~50% of the per-wake preamble bytes.
+
+  Mechanical rename: `WakeTrigger` discriminant `'supervisor'` → `'staff_note'`, `SupervisorWakePayloadSchema` → `StaffNoteWakePayloadSchema`, `MESSAGING_SUPERVISOR_TO_WAKE_JOB` → `MESSAGING_STAFF_NOTE_TO_WAKE_JOB`, file `wake/supervisor.ts` → `wake/staff-note.ts`, smoke file `tests/smoke/smoke-supervisor-action-live.ts` → `tests/smoke/smoke-staff-note-live.ts`. Renderer cue strengthened to clear assignee vs peer-consultation guidance.
+
+  Also adds a path-leak prohibition to `messaging/tools/reply.ts`: customer replies must never cite virtual-FS paths (`/drive/...`, `/contacts/...`, `MEMORY.md`, etc.) or internal ids. Seeds dev WhatsApp placeholder credentials in `modules/contacts/seed.ts` so the adapter Zod validation passes for staff-reply paths in dev.
+
+- [`e3b9a8b`](https://github.com/vobase/vobase/commit/e3b9a8b326f936421bfde74cd7f66e1ddaca4eb5) Thanks [@mdluo](https://github.com/mdluo)! - Add two CI lint rules at CLI verb boundaries.
+
+  `check:trust-defaults` (`scripts/check-trust-defaults.ts`) — scans every file under `modules/` for trust-bearing input fields (`confidence`, `severity`, `priority`, `sensitivity`, `autoApply` / `auto_apply`) declared with literal `.default(...)` values in their Zod schema. Trust levels must be derived in the verb body from `ctx.principal` (see the `effectiveConfidence` pattern in `modules/contacts/cli.ts`), not baked into the schema. Closes the bug class behind the phone-hallucination from 2026-05 — a verb's `confidence: z.number().default(1.0)` quietly set `1.0` for every agent-origin call, exceeding the auto-bar for high-sensitivity fields and auto-writing fabricated values.
+
+  `check:error-shape` (`scripts/check-error-shape.ts`) — scans `cli.ts` and `verbs/**/*.ts` for `error:` properties whose values include `cause.detail`, `cause.message`, `pg.detail`, or `pg.message`, and `data:` properties that pass the bare `cause` / `pg` identifier (or spread it). Closes the bug class behind the cross-account leak from 2026-05 where a verb forwarded raw 23505 `cause.detail` (which contains the conflicting row's primary-key tuple, including `organization_id`) into the agent-visible `error:` string — disclosing existence of another tenant's contact.
+
+  Both rules wire into the existing `check:*` aggregator (`bun run check`); CI picks them up via the `conc bun:check:*` glob.
+
 ## 0.6.2
 
 ### Patch Changes
