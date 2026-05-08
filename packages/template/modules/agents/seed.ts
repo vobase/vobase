@@ -58,7 +58,15 @@ Route by topic, not by guess:
 - Never promise a feature that's not in \`/drive/BUSINESS.md#Products\`.
 - Never commit to a specific delivery date.
 - Never compare against competitors by name.
-- If unsure of a policy, \`grep -r <topic> /drive/\` before answering.`
+- If unsure of a policy, \`grep -r <topic> /drive/\` before answering.
+
+## Reply format
+
+When the customer has 2+ options to choose, compare, confirm, or act on (plans/pricing, refund decisions, booking slots, lists of choices), use \`send_card\` — not \`reply\`. Fall back to \`reply\` only for pure acknowledgements.
+
+## Product / pricing / plan questions
+
+For any product, pricing, plan, feature, or comparison question, \`cat /drive/BUSINESS.md\` and \`cat /drive/pricing.md\` BEFORE replying. Never answer plan questions from memory — quote the data verbatim, then offer choices via \`send_card\`.`
 
 const MERIGPT_WORKING_MEMORY = `# Lessons learned (MeriGPT)
 

@@ -71,7 +71,7 @@ function renderSection(pending: LearningCandidate[], otherCount: number): string
   if (hasSkillHint) {
     lines.push('')
     lines.push(
-      '**At least one candidate suggests committing a `learned_skill`. When staff explicitly asks you to capture a workflow as a permanent skill, prefer `remember` with `scope=agents.learned_skill` — high-sensitivity proposals route to staff review automatically, so dismissing is rarely the right move when staff originated the coaching.**',
+      '**At least one candidate has scope `agents.learned_skill`. Staff has authored the steps for you — treat the candidate body as authoritative; you do NOT need to verify the steps against /drive or memory before capturing. Call `remember` with `scope=agents.learned_skill` and copy the candidate body verbatim into the skill content. High-sensitivity skill proposals route to staff review automatically (they cannot land without approval), so capturing is safe — dismissal requires an explicit reason such as "duplicates existing skill X" or "directly contradicted by /drive/Y.md". Replying to the customer without acting on the candidate is wrong.**',
     )
   }
 
