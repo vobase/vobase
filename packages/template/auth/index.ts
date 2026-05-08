@@ -210,8 +210,37 @@ export function createAuth(db: ScopedDb) {
       const domain = user.email.split('@')[1]?.toLowerCase()
       if (!domain || !allowedDomains.map((d) => d.toLowerCase()).includes(domain)) return
     }
-    const [soleOrg] = await dbAny.select({ id: authOrganization.id }).from(authOrganization).limit(1)
-    if (!soleOrg) return
+    let [soleOrg] = await dbAny
+      .select({ id: authOrganization.id })
+      .from(authOrganization)
+      .orderBy(authOrganization.createdAt)
+      .limit(1)
+    if (!soleOrg) {
+      // Bootstrap: fresh single-org tenant. Platform stamps VITE_PLATFORM_TENANT_{NAME,SLUG} at
+      // deploy time; slug must be deterministic so the unique index serializes concurrent
+      // first-signups — second insert hits 23505, we re-read and join the winner's org.
+      const orgName = process.env.VITE_PLATFORM_TENANT_NAME?.trim() || 'Workspace'
+      const orgSlug = process.env.VITE_PLATFORM_TENANT_SLUG?.trim() || 'workspace'
+      const newOrgId = createNanoid()()
+      try {
+        await dbAny.insert(authOrganization).values({ id: newOrgId, name: orgName, slug: 'workspace' })
+        soleOrg = { id: newOrgId }
+        logger.info({ email: user.email, organizationId: newOrgId }, '[auth] Bootstrapped first organization')
+      } catch (err) {
+        const code = (err as { code?: string } | null)?.code
+        if (code !== '23505') throw err
+        const [retry] = await dbAny
+          .select({ id: authOrganization.id })
+          .from(authOrganization)
+          .orderBy(authOrganization.createdAt)
+          .limit(1)
+        if (!retry) {
+          logger.error({ email: user.email }, '[auth] Bootstrap unique-violation but no org visible on re-read')
+          return
+        }
+        soleOrg = retry
+      }
+    }
     const [firstMember] = await dbAny
       .select({ id: authMember.id })
       .from(authMember)
