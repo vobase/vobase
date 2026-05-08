@@ -22,6 +22,9 @@ import { createHmac } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 
 import { devLogin as devLoginRaw, makeAuthedFetch, type SmokeAuth } from '../smoke/_helpers'
+import { pickText, pickToolCalls, pollAssistantTurns, SMOKE_AGENT_ID } from './smoke-runtime'
+
+export { pickText, pickToolCalls, SMOKE_AGENT_ID }
 
 export interface SmokeCtx {
   baseUrl: string
@@ -136,6 +139,10 @@ export interface AgentReply {
  * `conversationId` exceeds `afterCount`. Returns the latest reply (text +
  * id + createdAt).
  *
+ * Thin compatibility wrapper around the journal-side `pollAssistantTurns` —
+ * `messaging.messages` is the customer-facing surface, so we still query it
+ * directly here (a single text reply, no tool-call detail needed).
+ *
  * Throws on `timeoutS` (default 90s) so a stuck wake fails fast.
  */
 export async function waitForReply(
@@ -145,8 +152,11 @@ export async function waitForReply(
   opts: { timeoutS?: number; quiet?: boolean } = {},
 ): Promise<AgentReply> {
   const timeoutS = opts.timeoutS ?? 90
-  for (let i = 0; i < timeoutS; i += 1) {
-    await new Promise((r) => setTimeout(r, 1000))
+  const deadline = Date.now() + timeoutS * 1000
+  let waitMs = 1000
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, waitMs))
+    waitMs = Math.min(3000, Math.floor(waitMs * 1.5))
     const rows = await ctx.sql<{ id: string; role: string; text: string | null; created_at: Date }[]>`
       SELECT id, role, content->>'text' AS text, created_at
       FROM messaging.messages
@@ -158,11 +168,35 @@ export async function waitForReply(
       const latest = replies[replies.length - 1]
       return { id: latest.id, text: latest.text ?? '', createdAt: latest.created_at }
     }
-    if (!opts.quiet && i > 0 && i % 15 === 0) {
-      console.log(`[waitForReply] ${i}s — replies=${replies.length} (need >${afterCount})`)
+    if (!opts.quiet) {
+      const elapsedS = Math.floor((Date.now() - (deadline - timeoutS * 1000)) / 1000)
+      if (elapsedS > 0 && elapsedS % 15 === 0) {
+        console.log(`[waitForReply] ${elapsedS}s — replies=${replies.length} (need >${afterCount})`)
+      }
     }
   }
   throw new Error(`waitForReply timed out after ${timeoutS}s (need >${afterCount} replies)`)
+}
+
+/**
+ * Polls `harness.messages` for new assistant *journal* turns (vs. customer
+ * surface messages). Use this when you need to inspect tool calls / journal
+ * sequence rather than just the final text reply.
+ */
+export async function waitForAssistantTurn(
+  ctx: SmokeCtx,
+  conversationId: string,
+  baseline: number,
+  opts: { timeoutS?: number; label?: string } = {},
+): Promise<unknown> {
+  const turns = await pollAssistantTurns({
+    sql: ctx.sql,
+    conversationId,
+    baseline,
+    timeoutS: opts.timeoutS ?? 90,
+    label: opts.label,
+  })
+  return turns[turns.length - 1]
 }
 
 export interface InsertPendingOpts {
@@ -193,7 +227,7 @@ export async function insertPending(ctx: SmokeCtx, opts: InsertPendingOpts): Pro
       ${proposalId}, ${ctx.organizationId}, 'contacts', 'contact', ${opts.contactId},
       ${ctx.sql.json({ kind: 'field_set', fields: { [opts.field]: { from: null, to: opts.value } } })},
       'pending', ${opts.rationale}, ${opts.conversationId},
-      'agt0meri0v1', 'agent', now()
+      ${SMOKE_AGENT_ID}, 'agent', now()
     )
   `
   return proposalId

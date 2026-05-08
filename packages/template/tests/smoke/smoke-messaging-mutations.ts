@@ -52,7 +52,10 @@ async function main() {
   }
 
   // Reassign back to the agent so re-running the smoke is idempotent
-  // (cnv0test00 is seeded with `agent:agt0mer0v1` as the initial assignee).
+  // (cnv0test00 is seeded with `agent:agt0meri0v1` as the initial assignee;
+  // note: the request body below still uses `agt0mer0v1` — TODO confirm whether
+  // the reassign endpoint accepts an unknown agent id and whether this smoke
+  // ever actually exercised the round-trip).
   const reassign = await post(`/api/messaging/conversations/${CONV_ID}/reassign`, {
     assignee: 'agent:agt0mer0v1',
     by: auth.userId,

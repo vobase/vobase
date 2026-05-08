@@ -23,10 +23,14 @@ import {
   listTranscript,
   type OpenOpts,
   open,
+  pickText,
+  pickToolCalls,
   type SendInboundOpts,
+  SMOKE_AGENT_ID,
   type SmokeAuth,
   type SmokeCtx,
   sendInbound,
+  waitForAssistantTurn,
   waitForReply,
 } from './changes-smoke'
 
@@ -44,16 +48,21 @@ export {
   listTranscript,
   type OpenOpts,
   open,
+  pickText,
+  pickToolCalls,
   type SendInboundOpts,
+  SMOKE_AGENT_ID,
   type SmokeAuth,
   type SmokeCtx,
   sendInbound,
+  waitForAssistantTurn,
   waitForReply,
 }
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
-export const MERIGPT_AGENT_ID = 'agt0meri0v1'
+/** Backwards-compatible alias for `SMOKE_AGENT_ID` (the seeded MeriGPT agent). */
+export const MERIGPT_AGENT_ID = SMOKE_AGENT_ID
 export const ALICE_USER_ID = 'usr0alice0'
 
 // ─── Learning candidate inspectors ───────────────────────────────────────────
