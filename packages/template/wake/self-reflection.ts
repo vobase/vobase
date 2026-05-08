@@ -24,17 +24,24 @@ export interface SelfReflectionCtx {
 }
 
 /**
- * Enqueues a `learning:triage` job for the `self_reflection` signal kind.
- * Errors are swallowed and warned — a failed enqueue must not surface to
- * the harness as a wake failure.
+ * Body text for the self-reflection signal. Triage prompts treat
+ * `signalBody` as "the given learning signal"; an empty body looks
+ * indistinguishable from a no-op trigger and reliably drops as low
+ * signal. Point the cheap-model triage at the journal context instead
+ * — that is where the actual wake activity lives.
  */
+const SELF_REFLECTION_BODY =
+  'Wake just ended. Review the journal context below for non-trivial patterns worth remembering: ' +
+  'recurring customer topics, mistakes the agent made, durable handling rules, or anti-lessons. ' +
+  'Skip when the wake was a routine no-op (greeting, FAQ already covered).'
+
 export async function enqueueSelfReflection(ctx: SelfReflectionCtx, event: { wakeId: string }): Promise<void> {
   try {
     await ctx.jobs.send(LEARNING_TRIAGE_JOB, {
       organizationId: ctx.organizationId,
       agentId: ctx.agentId,
       conversationId: ctx.conversationId,
-      signal: { kind: 'self_reflection', wakeId: event.wakeId, body: '' },
+      signal: { kind: 'self_reflection', wakeId: event.wakeId, body: SELF_REFLECTION_BODY },
     })
   } catch (err) {
     console.warn('[wake/conversation] self_reflection triage enqueue failed:', err)

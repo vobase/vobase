@@ -14,9 +14,22 @@ export function envNumber(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+/** Cheap models the triage prompt is cleared to use. Keep small — anything pricier loses the point. */
+const TRIAGE_MODEL_ALIASES = ['gpt_mini', 'claude_haiku', 'gemini_flash'] as const
+export type TriageModelAlias = (typeof TRIAGE_MODEL_ALIASES)[number]
+
+function isTriageModelAlias(value: string): value is TriageModelAlias {
+  return (TRIAGE_MODEL_ALIASES as readonly string[]).includes(value)
+}
+
+function envTriageModel(): TriageModelAlias {
+  const raw = process.env.LEARN_TRIAGE_MODEL
+  return raw && isTriageModelAlias(raw) ? raw : 'gpt_mini'
+}
+
 export interface LearningThresholds {
-  /** Cheap-model alias used for triage calls. */
-  triageModel: 'gpt_mini'
+  /** Cheap-model alias used for triage calls. Override via `LEARN_TRIAGE_MODEL`. */
+  triageModel: TriageModelAlias
   /** Confidence floor — proposals below this drop silently (review gate). */
   tReview: number
   /** Base auto-apply threshold — sensitivity 'low' starts here. */
@@ -34,7 +47,7 @@ export interface LearningThresholds {
 /** Build a fresh `LearningThresholds` object by reading `process.env` at call time. */
 export function loadThresholds(): LearningThresholds {
   return {
-    triageModel: 'gpt_mini',
+    triageModel: envTriageModel(),
     tReview: envNumber('LEARN_T_REVIEW', 0.3),
     tAutoBase: envNumber('LEARN_T_AUTO_BASE', 0.7),
     sensitivityHeadroom: envNumber('LEARN_S_HEADROOM', 0.3),

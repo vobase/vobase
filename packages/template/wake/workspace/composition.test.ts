@@ -14,6 +14,7 @@ import { describe, expect, it } from 'bun:test'
 import type { AuthLookup } from '@auth/lookup'
 import { agentsAgentsMdContributors, agentsMaterializerFactory, agentsRoHints } from '@modules/agents/agent'
 import type { AgentDefinition } from '@modules/agents/schema'
+import { installAgentSkillsService } from '@modules/agents/service/changes'
 import { setCliRegistry } from '@modules/agents/service/cli-registry'
 import { contactsAgentsMdContributors, contactsMaterializerFactory } from '@modules/contacts/agent'
 import { driveAgentsMdContributors, driveMaterializerFactory, driveRoHints } from '@modules/drive/agent'
@@ -27,6 +28,7 @@ import type { WakeContext } from '../context'
 import { chainRoHints } from './index'
 
 setCliRegistry(new CliVerbRegistry())
+installAgentSkillsService({ listSkillsForAgent: async () => [] })
 
 const AGENT_ID = 'agent-comp-1'
 const CONTACT_ID = 'contact-comp-1'

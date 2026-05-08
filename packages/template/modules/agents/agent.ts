@@ -23,6 +23,7 @@ import { defineIndexContributor, generateAgentsMd, isVerbVisible } from '@vobase
 import { buildWakeAgentsMdScratch } from '~/wake/agents-md-scratch'
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
+import { listSkillsForAgent } from './service/changes'
 import { getCliRegistry } from './service/cli-registry'
 import { learningCandidatesSideLoadContributor } from './service/learning-candidates-sideload'
 import { dismissCandidateTool } from './tools/dismiss-candidate'
@@ -89,7 +90,7 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
         '## Self-state',
         '',
         '- `/agents/<id>/MEMORY.md` — your working memory. Latest contents are inlined in the `## Active lessons` section above; treat that as canonical for this wake.',
-        '- `/agents/<id>/skills/*.md` — how-to playbooks. Metadata is in the `## Skills` section; `cat` the file for the full body. Add new skills via the learning-flow observer, not direct writes.',
+        '- `/agents/<id>/skills/<name>/SKILL.md` — how-to playbooks (per the [agentskills.io spec](https://agentskills.io/specification)). Catalog (name + description) is in the `## Skills` section; `cat` the file for the full body. Add new skills via the `remember` tool with `scope=agents.learned_skill`.',
         '- `/tmp/` — scratch space (writable; cleared between wakes). Use for intermediate files, tool pipelines, debugging output.',
         '',
         'See the `## When to capture` and `## Memory scopes` sections below for capture rules and the three-scope routing table.',
@@ -197,7 +198,26 @@ export const agentsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
     {
       path: `/agents/${agentId}/AGENTS.md`,
       phase: 'frozen',
-      materialize: () => agentsMdSource,
+      materialize: async () => {
+        const learned = await listSkillsForAgent({
+          organizationId: agentDefinition.organizationId,
+          agentId,
+        })
+        if (learned.length === 0) return agentsMdSource
+        const lines: string[] = [
+          '',
+          '## Skills',
+          '',
+          "These skills provide specialized instructions for specific tasks. When a task matches a skill's description, `cat` the listed `SKILL.md` to load its full body before proceeding. Bundled resources (relative paths inside the skill body) resolve against the skill's folder.",
+          '',
+        ]
+        for (const s of learned) {
+          const desc = (s.description ?? '').slice(0, 200) || '(no description)'
+          lines.push(`- \`${s.name}\` — ${desc}`)
+          lines.push(`  Location: \`/agents/${agentId}/skills/${s.name}/SKILL.md\``)
+        }
+        return `${agentsMdSource}\n${lines.join('\n')}\n`
+      },
     },
     {
       path: `/agents/${agentId}/MEMORY.md`,

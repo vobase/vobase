@@ -347,12 +347,23 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     const rawProposedBy = proposal.proposedById ?? ''
     const agentId = rawProposedBy.startsWith('agent:') ? rawProposedBy.slice('agent:'.length) : rawProposedBy
     if (!agentId) return
+    // For rejections the lesson lives in the staff's decidedNote (why the
+    // proposal was wrong), not the agent's rationale (why it argued for it).
+    // Send both so triage can write a useful anti-lesson; lead with the
+    // decidedNote so a thin proposal rationale doesn't bury the coaching.
+    const rejectionBody = [
+      proposal.decidedNote ? `Staff rejection note: ${proposal.decidedNote}` : '',
+      proposal.rationale ? `Original proposal rationale: ${proposal.rationale}` : '',
+      `Rejected payload (${proposal.resourceModule}.${proposal.resourceType}): ${JSON.stringify(proposal.payload).slice(0, 400)}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
     void triageScheduler
       .publish(LEARNING_TRIAGE_JOB, {
         organizationId: proposal.organizationId,
         agentId,
         conversationId: proposal.conversationId,
-        signal: { kind: 'rejection', proposalId: proposal.id, body: proposal.rationale ?? proposal.decidedNote ?? '' },
+        signal: { kind: 'rejection', proposalId: proposal.id, body: rejectionBody },
       })
       .catch((err) => {
         console.warn('[changes/proposals] triage enqueue failed (rejection):', err)

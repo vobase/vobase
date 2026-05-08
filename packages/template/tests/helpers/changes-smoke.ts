@@ -78,22 +78,34 @@ export interface InboundResult {
   messageId: string
 }
 
+export interface SendInboundOpts {
+  /** Override the customer external id (defaults to `ctx.from`). */
+  from?: string
+  /** Override the displayed profile name. */
+  profileName?: string
+  /** Adapter-level metadata; e.g. `{ echo: true }` to simulate a coexistence echo. */
+  metadata?: Record<string, unknown>
+}
+
 /**
  * Posts an HMAC-signed inbound web message. Repeat calls with the same
  * `ctx.from` reuse the same contact + conversation, simulating a multi-turn
  * customer thread.
  */
-export async function sendInbound(ctx: SmokeCtx, content: string): Promise<InboundResult> {
-  const body = JSON.stringify({
+export async function sendInbound(ctx: SmokeCtx, content: string, opts: SendInboundOpts = {}): Promise<InboundResult> {
+  const from = opts.from ?? ctx.from
+  const payload: Record<string, unknown> = {
     channelType: 'web',
     organizationId: ctx.organizationId,
-    from: ctx.from,
-    profileName: 'Smoke Customer',
+    from,
+    profileName: opts.profileName ?? 'Smoke Customer',
     content,
     contentType: 'text',
-    externalMessageId: `${ctx.from}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    externalMessageId: `${from}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: Date.now(),
-  })
+  }
+  if (opts.metadata) payload.metadata = opts.metadata
+  const body = JSON.stringify(payload)
   const sig = `sha256=${createHmac('sha256', ctx.webhookSecret).update(body).digest('hex')}`
   const res = await fetch(`${ctx.baseUrl}/api/channels/adapters/web/inbound`, {
     method: 'POST',
@@ -106,11 +118,11 @@ export async function sendInbound(ctx: SmokeCtx, content: string): Promise<Inbou
   })
   const txt = await res.text()
   if (!res.ok) throw new Error(`inbound ${res.status}: ${txt}`)
-  const payload = JSON.parse(txt) as { conversationId: string; messageId: string }
+  const reply = JSON.parse(txt) as { conversationId: string; messageId: string }
   const rows = await ctx.sql<{ contact_id: string }[]>`
-    SELECT contact_id FROM messaging.conversations WHERE id = ${payload.conversationId}
+    SELECT contact_id FROM messaging.conversations WHERE id = ${reply.conversationId}
   `
-  return { conversationId: payload.conversationId, messageId: payload.messageId, contactId: rows[0].contact_id }
+  return { conversationId: reply.conversationId, messageId: reply.messageId, contactId: rows[0].contact_id }
 }
 
 export interface AgentReply {

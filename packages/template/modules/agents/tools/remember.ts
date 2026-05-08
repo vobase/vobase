@@ -59,8 +59,16 @@ export const rememberTool = defineAgentTool({
   errorCode: 'REMEMBER_ERROR',
   audience: 'internal',
   lane: 'both',
-  prompt:
-    'Use to commit lasting facts: agent rules ("always do X"), per-customer facts (preferences, history), per-staff facts (tone, expertise). Pick `scope` from the AGENTS.md "Memory & sensitivity" table. Set `confidence` honestly — high confidence + low-sensitivity scope auto-writes; lower combinations queue for staff review.',
+  prompt: [
+    'Use to commit lasting facts: agent rules ("always do X"), per-customer facts (preferences, history), per-staff facts (tone, expertise).',
+    'Pick `scope` from the AGENTS.md "Memory & sensitivity" table.',
+    '**`resourceId` is required for every scope except `agents.agent_memory`** (which defaults to your own agent id):',
+    '  - `contacts.contact_memory` → resourceId = the contact id you can read from `/contacts/<id>/MEMORY.md` or `messaging.conversations.contact_id`.',
+    '  - `team.staff_memory` → resourceId = `<your-agent-id>:<staffId>` (single colon). The staff id is the `usr...` id you see in `/staff/<id>/MEMORY.md`.',
+    '  - `agents.learned_skill` → resourceId = a kebab-case skill name (e.g. `redeem-promo`). New skill → pick a name; updating an existing skill → reuse the exact name.',
+    'Set `confidence` honestly — high confidence + low-sensitivity scope auto-writes; lower combinations queue for staff review.',
+    'When acting on a `learning_candidate` from side-load, pass its id as `candidateId` so it gets marked consumed.',
+  ].join('\n'),
   async run(args, ctx) {
     const scopes = listScopes()
     if (!scopes.includes(args.scope)) {

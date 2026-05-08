@@ -41,13 +41,39 @@ export const learningCandidatesSideLoadContributor: SideLoadContributor = async 
 }
 
 function renderSection(pending: LearningCandidate[], otherCount: number): string {
+  const hasRejection = pending.some((c) => c.signalKind === 'rejection')
   const lines: string[] = [
     '## Pending learning candidates',
     '',
-    `You have ${pending.length} pending learning signal${pending.length === 1 ? '' : 's'} from before this wake. Use the \`remember\``,
-    'tool to commit one to durable memory, or `dismiss_candidate` to skip with a',
-    'reason. Ignoring them is also fine — they expire after 7 days.',
+    `You have ${pending.length} pending learning signal${pending.length === 1 ? '' : 's'} from prior wakes that staff or coexisting`,
+    'channels emitted before you woke. Each one represents a moment when a human corrected,',
+    'coached, or echoed something the agent should learn from.',
+    '',
+    'For each candidate below, decide one of:',
+    '  - `remember(candidateId, scope, body, confidence, rationale)` — commit a durable lesson.',
+    '    Prefer this for `rejection` and `staff_takeover` signals — those are explicit corrections.',
+    '  - `dismiss_candidate(candidateId, reason)` — skip when the lesson is wrong, redundant, or too narrow.',
+    '',
+    'A pending candidate that you act on now lives forever; a candidate ignored expires in 7 days.',
+    'If the candidate is relevant to *this* customer turn, applying it behaviorally is not enough —',
+    "commit it via `remember` so future wakes inherit the lesson when this conversation's history rolls off.",
   ]
+
+  if (hasRejection) {
+    lines.push('')
+    lines.push('**At least one of these is a `rejection` signal — staff explicitly rejected a proposal you authored.')
+    lines.push(
+      'Prefer to `remember` an anti-lesson (or `dismiss_candidate` with a reason) rather than leave it pending.**',
+    )
+  }
+
+  const hasSkillHint = pending.some((c) => c.scopeHint === 'agents.learned_skill')
+  if (hasSkillHint) {
+    lines.push('')
+    lines.push(
+      '**At least one candidate suggests committing a `learned_skill`. When staff explicitly asks you to capture a workflow as a permanent skill, prefer `remember` with `scope=agents.learned_skill` — high-sensitivity proposals route to staff review automatically, so dismissing is rarely the right move when staff originated the coaching.**',
+    )
+  }
 
   if (pending.length > 0) {
     lines.push('')

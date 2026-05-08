@@ -3,10 +3,12 @@ import { getInstance as getChannelInstance } from '@modules/channels/service/ins
 import { requireJobs } from '@modules/channels/service/state'
 import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
+import { extractEchoMetadata } from '@modules/messaging/service/echo-metadata'
 import type { Context } from 'hono'
 
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
 import { AGENTS_WAKE_JOB } from '~/wake/inbound'
+import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'
 
@@ -28,9 +30,19 @@ interface InboundInput {
   contentType: ChannelInboundEvent['contentType']
   externalMessageId: string
   profileName: string
+  /**
+   * Coexistence echo metadata. When `metadata.echo === true`, the message
+   * is treated as a staff-authored mirror (role='staff', no agent wake,
+   * `coexistence_echo` learning-triage signal fired). Mirrors the WhatsApp
+   * adapter's behavior in `modules/channels/service/inbound.ts`.
+   */
+  metadata?: Record<string, unknown> | null
 }
 
 async function dispatchInbound(c: Context, input: InboundInput): Promise<Response> {
+  const echoMeta = extractEchoMetadata(input.metadata ?? undefined)
+  const isEcho = echoMeta.echo === true
+
   // Web sessions are anonymous — no phone/email identity. The session id is
   // the dedup key only; `contacts.phone`/`email` stay null until a profile
   // form fills them in.
@@ -52,15 +64,38 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
     contentType: input.contentType,
     profileName: input.profileName,
     initialAssignee: defaultAssignee,
+    metadata: isEcho ? echoMeta : undefined,
+    role: isEcho ? 'staff' : undefined,
   })
 
-  if (result.isNew) {
+  // Echoes never wake the agent — staff-authored, not customer-driven.
+  if (!isEcho && result.isNew) {
     await requireJobs().send(AGENTS_WAKE_JOB, {
       organizationId: input.organizationId,
       conversationId: result.conversation.id,
       messageId: result.message.id,
       contactId: contact.id,
     })
+  }
+
+  // Echo: fire-and-forget `coexistence_echo` triage when the conversation is
+  // currently assigned to an agent. Mirrors `modules/channels/service/inbound.ts`.
+  if (isEcho) {
+    const assignee = result.conversation.assignee
+    const assigneeAgentId = assignee?.startsWith('agent:') ? assignee.slice('agent:'.length) : null
+    if (assigneeAgentId) {
+      const triagePayload: LearningTriageJobPayload = {
+        organizationId: input.organizationId,
+        agentId: assigneeAgentId,
+        conversationId: result.conversation.id,
+        signal: { kind: 'coexistence_echo', messageId: result.message.id, body: input.content },
+      }
+      void requireJobs()
+        .send(LEARNING_TRIAGE_JOB, triagePayload)
+        .catch((err) => {
+          console.warn('[channels/adapters/web] triage enqueue failed (coexistence_echo):', err)
+        })
+    }
   }
 
   return c.json({
@@ -130,6 +165,7 @@ async function handleHmacInbound(c: Context, channelInstanceId: string): Promise
     contentType: event.contentType,
     externalMessageId: event.externalMessageId,
     profileName: event.profileName,
+    metadata: event.metadata ?? null,
   })
 }
 

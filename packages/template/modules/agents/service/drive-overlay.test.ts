@@ -103,7 +103,7 @@ describe('agentSkillsOverlay.list', () => {
     expect(rows).toHaveLength(0)
   })
 
-  it('returns skill files inside /skills folder, deduplicated', async () => {
+  it('returns skill folders inside /skills folder, deduplicated', async () => {
     const dirId = formatProviderId(SKILLS_PROVIDER_ID, AGENT_A, 'dir')
     const rows = await agentSkillsOverlay.list({
       scope: agentScope(AGENT_A),
@@ -111,14 +111,28 @@ describe('agentSkillsOverlay.list', () => {
       organizationId: ORG_A,
     })
     // allowlist: ['read', 'write'] + learned: ['read'(shadow), 'extra']
-    // deduped: read, write, extra
+    // deduped: read, write, extra (each as a folder per agentskills.io spec)
     expect(rows).toHaveLength(3)
     const paths = rows.map((r) => r.path).sort()
-    expect(paths).toEqual(['/skills/extra.md', '/skills/read.md', '/skills/write.md'])
+    expect(paths).toEqual(['/skills/extra', '/skills/read', '/skills/write'])
     for (const row of rows) {
-      expect(row.kind).toBe('file')
+      expect(row.kind).toBe('folder')
       expect(row.parentFolderId).toBe(dirId)
     }
+  })
+
+  it('returns SKILL.md leaf inside a skill folder', async () => {
+    const subId = formatProviderId(SKILLS_PROVIDER_ID, AGENT_A, 'sub:read')
+    const rows = await agentSkillsOverlay.list({
+      scope: agentScope(AGENT_A),
+      parentId: subId,
+      organizationId: ORG_A,
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].path).toBe('/skills/read/SKILL.md')
+    expect(rows[0].kind).toBe('file')
+    expect(rows[0].name).toBe('SKILL.md')
+    expect(rows[0].parentFolderId).toBe(subId)
   })
 
   it('cross-org isolation: returns empty for wrong org', async () => {
@@ -133,41 +147,54 @@ describe('agentSkillsOverlay.list', () => {
 })
 
 describe('agentSkillsOverlay.read', () => {
-  it('returns body for a learned skill', async () => {
+  it('returns body wrapped in YAML frontmatter for a learned skill', async () => {
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/read.md',
+      path: '/skills/read/SKILL.md',
       organizationId: ORG_A,
     })
     expect(result).not.toBeNull()
-    expect(result?.content).toBe('# Read skill')
+    expect(result?.content).toContain('---')
+    expect(result?.content).toContain('name: read')
+    expect(result?.content).toContain('description: "read"')
+    expect(result?.content).toContain('# Read skill')
   })
 
-  it('returns placeholder for allowlisted skill with no body', async () => {
+  it('returns placeholder body for allowlisted skill with no body', async () => {
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/write.md',
+      path: '/skills/write/SKILL.md',
       organizationId: ORG_A,
     })
     expect(result).not.toBeNull()
+    expect(result?.content).toContain('name: write')
     expect(result?.content).toContain('allow-listed')
-    expect(result?.content).toContain('write')
   })
 
   it('returns org-floating learned skill not in allowlist', async () => {
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/extra.md',
+      path: '/skills/extra/SKILL.md',
       organizationId: ORG_A,
     })
     expect(result).not.toBeNull()
-    expect(result?.content).toBe('# Extra')
+    expect(result?.content).toContain('name: extra')
+    expect(result?.content).toContain('# Extra')
   })
 
   it('returns null for unknown skill', async () => {
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/nonexistent.md',
+      path: '/skills/nonexistent/SKILL.md',
+      organizationId: ORG_A,
+    })
+    expect(result).toBeNull()
+  })
+
+  it('returns null for legacy flat /skills/<name>.md path', async () => {
+    const result = await agentSkillsOverlay.read({
+      scope: agentScope(AGENT_A),
+      path: '/skills/read.md',
       organizationId: ORG_A,
     })
     expect(result).toBeNull()
@@ -185,7 +212,7 @@ describe('agentSkillsOverlay.read', () => {
   it('cross-org isolation: returns null for wrong org', async () => {
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/read.md',
+      path: '/skills/read/SKILL.md',
       organizationId: ORG_B,
     })
     expect(result).toBeNull()
@@ -198,7 +225,7 @@ describe('agentSkillsOverlay.read', () => {
     })
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/extra.md',
+      path: '/skills/extra/SKILL.md',
       organizationId: ORG_A,
     })
     expect(result?.updatedAt?.getTime()).toBe(skillTs.getTime())
@@ -217,7 +244,7 @@ describe('agentSkillsOverlay.read', () => {
     installAgentSkillsService({ listSkillsForAgent: async () => [] })
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
-      path: '/skills/write.md',
+      path: '/skills/write/SKILL.md',
       organizationId: ORG_A,
     })
     expect(result?.updatedAt?.getTime()).toBe(agentTs.getTime())

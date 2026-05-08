@@ -48,8 +48,13 @@ describe('enqueueSelfReflection', () => {
       organizationId: ORG,
       agentId: AGENT,
       conversationId: CONV,
-      signal: { kind: 'self_reflection', wakeId: WAKE_ID, body: '' },
+      signal: { kind: 'self_reflection', wakeId: WAKE_ID },
     })
+    // Body is a fixed prompt that points triage at the journal context;
+    // assert non-empty so a future regression to body:'' is caught, but
+    // don't pin the wording (it gets tuned during slice 3 calibration).
+    const body = (payload as { signal: { body: string } }).signal.body
+    expect(body.length).toBeGreaterThan(40)
   })
 
   it('swallows jobs.send errors without throwing', async () => {
