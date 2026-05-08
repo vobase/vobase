@@ -130,11 +130,14 @@ function PreambleView({
   onVariantChange: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const editor = useMemo(() => {
-    const ed = createSlateEditor({ plugins: contentPlugins })
-    ed.children = ed.getApi(MarkdownPlugin).markdown.deserialize(preamble) as Value
-    return ed
-  }, [preamble])
+  const editor = useMemo(
+    () =>
+      createSlateEditor({
+        plugins: contentPlugins,
+        value: (ed) => ed.getApi(MarkdownPlugin).markdown.deserialize(preamble) as Value,
+      }),
+    [preamble],
+  )
   return (
     <div className="border-border border-b bg-muted px-4 py-3 text-muted-foreground text-sm leading-relaxed">
       <div className="mb-2 flex items-center gap-2 font-medium text-[11px] uppercase tracking-wide">
@@ -154,7 +157,9 @@ function PreambleView({
         </Select>
       </div>
       <div className="relative">
-        <div className={cn('overflow-hidden', !expanded && 'max-h-32')}>
+        <div
+          className={cn('transition-[max-height] duration-300 ease-out', expanded ? '' : 'max-h-48 overflow-hidden')}
+        >
           <PlateStatic editor={editor} />
         </div>
         {!expanded && (

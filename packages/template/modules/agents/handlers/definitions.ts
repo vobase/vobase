@@ -96,13 +96,13 @@ type PreviewQuery = z.infer<typeof previewQuery>
  * materializers do, and those don't fire here. Type-safety satisfied;
  * runtime never touches them.
  */
-function renderPreviewAgentsMd(input: {
+async function renderPreviewAgentsMd(input: {
   agentDefinition: AgentDefinition
   organizationId: string
   lane: LaneName
   triggerKind: PreviewQuery['triggerKind']
   supervisorKind?: SupervisorKind
-}): string {
+}): Promise<string> {
   const contributions = getAgentContributions()
 
   // Mirrors `wake/conversation.ts` + `wake/standalone.ts`. Coaching wakes
@@ -138,7 +138,7 @@ function renderPreviewAgentsMd(input: {
   // The agents AGENTS.md materializer closes over the rendered markdown
   // (computed during the factory call) and ignores its `MaterializerCtx`
   // argument. Pass a minimal stub purely to satisfy the type signature.
-  const out = agentsMdEntry.materialize({
+  const out = await agentsMdEntry.materialize({
     organizationId: input.organizationId,
     agentId: input.agentDefinition.id,
     conversationId: wakeCtx.conversationId,
@@ -196,13 +196,14 @@ const app = new Hono<OrganizationEnv>()
         const row = await getById(c.req.param('id'))
         if (row.organizationId !== c.get('organizationId')) return c.json({ error: 'not_found' }, 404)
         const { lane, triggerKind, supervisorKind } = c.req.valid('query')
-        const preamble = renderPreviewAgentsMd({
+        const rendered = await renderPreviewAgentsMd({
           agentDefinition: row,
           organizationId: c.get('organizationId'),
           lane,
           triggerKind,
           supervisorKind,
-        }).replace(/\n## Instructions\n[\s\S]*$/, '\n')
+        })
+        const preamble = rendered.replace(/\n## Instructions\n[\s\S]*$/, '\n')
         return c.json({ preamble })
       } catch {
         return c.json({ error: 'not_found' }, 404)
