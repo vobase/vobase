@@ -43,7 +43,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000'
 
 const CHILD_SMOKES: { name: string; trigger: string; file: string }[] = [
   { name: 'inbound', trigger: 'inbound_message', file: 'tests/smoke/smoke-inbound-live.ts' },
-  { name: 'staff-note-action', trigger: 'staff_note', file: 'tests/smoke/smoke-staff-note-action-live.ts' },
+  { name: 'staff-note-action', trigger: 'staff_note', file: 'tests/smoke/smoke-staff-note-live.ts' },
   { name: 'operator-thread', trigger: 'operator_thread', file: 'tests/smoke/smoke-operator-thread-live.ts' },
   { name: 'heartbeat', trigger: 'heartbeat', file: 'tests/smoke/smoke-heartbeat-live.ts' },
 ]

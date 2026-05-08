@@ -134,6 +134,8 @@ export const contactsProposeChangeVerb = defineCliVerb({
     '',
     'If the verb returns `ok: false` with `errorCode: pending_conflict`, this contact already has an earlier pending proposal awaiting staff review. Do NOT retry, and do NOT pretend the change went through. Tell the customer their previous request is still under review by our team and ask whether they want to wait for that decision before submitting another change.',
     '',
+    'If the verb returns `ok: false` with `errorCode: unique_conflict`, the value the customer asked for (e.g. an email or phone) is already used by another contact in this organization. Do NOT retry, and do NOT pretend the change went through. Tell the customer that value is already on file under a different account and ask them to confirm or provide a different one.',
+    '',
     'Always pass a one-sentence `--rationale` summarising what the customer asked — it renders verbatim in the staff /changes inbox.',
   ].join('\n'),
   body: async ({ input, ctx }) => {
@@ -196,6 +198,18 @@ export const contactsProposeChangeVerb = defineCliVerb({
           error: 'A previous change to this contact is still pending staff review.',
           errorCode: 'pending_conflict',
           data: { existingProposalId: err.details.existingProposalId },
+        }
+      }
+      // Postgres unique-violation (e.g. uq_contacts_tenant_phone). Surfaces as
+      // a typed errorCode so the agent can ask the customer for a different
+      // value instead of seeing a raw `Failed query` stack from drizzle.
+      const pg = (err as { cause?: { code?: string; constraint?: string; detail?: string } } | undefined)?.cause
+      if (pg?.code === '23505') {
+        return {
+          ok: false as const,
+          error: `Another contact in this organization already uses that value (${pg.constraint ?? 'unique constraint'}).`,
+          errorCode: 'unique_conflict',
+          data: { constraint: pg.constraint, detail: pg.detail },
         }
       }
       return {
