@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Live smoke for the operator_thread wake path. Posts a fresh staff message
  * to the seeded `thd0smoke01` thread (Sentinel) and polls the agent_messages
@@ -8,16 +9,16 @@
  * Usage: BASE_URL=http://localhost:3000 bun run tests/smoke/smoke-operator-thread-live.ts
  */
 
-import { devLogin, makeAuthedFetch } from './_helpers'
 import {
-  POLL_S_DEFAULTS,
   connectSmokeDb,
   countAssistantTurns,
   envPollS,
+  POLL_S_DEFAULTS,
   pickText,
   pollAssistantTurns,
   runSmoke,
 } from '../helpers/smoke-runtime'
+import { devLogin, makeAuthedFetch } from './_helpers'
 
 const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const THREAD_ID = process.env.THREAD_ID ?? 'thd0smoke01'

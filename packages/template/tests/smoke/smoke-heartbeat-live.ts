@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Live smoke for the heartbeat wake path. Hits dev-only
  * `POST /api/agents/schedules/:id/run` to fire one heartbeat, then polls
@@ -9,16 +10,16 @@
  * Usage: BASE_URL=http://localhost:3000 bun run tests/smoke/smoke-heartbeat-live.ts
  */
 
-import { devLogin, makeAuthedFetch } from './_helpers'
 import {
-  POLL_S_DEFAULTS,
   connectSmokeDb,
   countAssistantTurns,
   envPollS,
+  POLL_S_DEFAULTS,
   pickText,
   pollAssistantTurns,
   runSmoke,
 } from '../helpers/smoke-runtime'
+import { devLogin, makeAuthedFetch } from './_helpers'
 
 const SCHEDULE_ID = process.env.SCHEDULE_ID ?? 'sch0bri0v1'
 const EMAIL = process.env.SMOKE_EMAIL ?? 'alice@meridian.test'

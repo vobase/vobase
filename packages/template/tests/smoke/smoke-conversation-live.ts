@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Multi-turn live smoke. Sends a sequence of HMAC-signed inbound messages
  * to a running dev server using a *single* `from` so they all land on the
@@ -12,7 +13,7 @@
  */
 
 import { open as openSmokeCtx, sendInbound, waitForReply } from '../helpers/changes-smoke'
-import { POLL_S_DEFAULTS, dumpConversationState, envPollS, runSmoke } from '../helpers/smoke-runtime'
+import { dumpConversationState, envPollS, POLL_S_DEFAULTS, runSmoke } from '../helpers/smoke-runtime'
 
 type Turn = { content: string; expectProposal?: boolean }
 

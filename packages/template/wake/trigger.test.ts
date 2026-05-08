@@ -180,7 +180,7 @@ describe('renderStaffNote (assignee branch)', () => {
       },
     )
     expect(text).toContain('INTERNAL-NOTES.md')
-        expect(text).toMatch(/routing table|AGENTS\.md/)
+    expect(text).toMatch(/routing table|AGENTS\.md/)
   })
 
   it('keeps the existing peer-wake guard for non-assignee agents', () => {

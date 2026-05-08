@@ -267,11 +267,7 @@ export interface DumpOpts {
  * + tool results), the harness journal sequence, and any change proposals /
  * lifecycle events. This is the only failure-reporting path smokes should use.
  */
-export async function dumpConversationState(
-  sql: Sql,
-  conversationId: string,
-  opts: DumpOpts = {},
-): Promise<void> {
+export async function dumpConversationState(sql: Sql, conversationId: string, opts: DumpOpts = {}): Promise<void> {
   const messagesLimit = opts.messagesLimit ?? 12
   console.error(`\n─── conversation ${conversationId} ───`)
 
@@ -339,9 +335,7 @@ export async function dumpConversationState(
       ORDER BY ts ASC
     `
     if (events.length > 0) {
-      const seq = events
-        .map((e) => (e.tool_name ? `${e.type}(${e.tool_name})` : e.type))
-        .join(' → ')
+      const seq = events.map((e) => (e.tool_name ? `${e.type}(${e.tool_name})` : e.type)).join(' → ')
       console.error(`[journal events] ${truncate(seq, 800)}`)
     } else {
       console.error('[journal events] (none)')

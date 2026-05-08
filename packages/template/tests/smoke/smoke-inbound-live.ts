@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Live smoke — POST an HMAC-signed inbound web message to a running dev
  * server and wait for the agent's first reply on `messaging.messages`.
@@ -9,7 +10,7 @@
  */
 
 import { open as openSmokeCtx, sendInbound } from '../helpers/changes-smoke'
-import { POLL_S_DEFAULTS, envPollS, pollAssistantTurns, runSmoke } from '../helpers/smoke-runtime'
+import { envPollS, POLL_S_DEFAULTS, pollAssistantTurns, runSmoke } from '../helpers/smoke-runtime'
 
 const CONTENT = process.env.CONTENT ?? 'Hi! What are your clinic hours?'
 const POLL_S = envPollS(POLL_S_DEFAULTS.inbound)

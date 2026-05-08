@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Live smoke for the staff-note wake → tool-using agent flow.
  *
@@ -22,18 +23,18 @@
  * Tunable env: CONV_ID, AGENT_ID, AGENT_HANDLE, CONTACT_ID, POLL_S.
  */
 
-import { devLogin, makeAuthedFetch } from './_helpers'
 import {
-  POLL_S_DEFAULTS,
   connectSmokeDb,
   countAssistantTurns,
   envPollS,
+  POLL_S_DEFAULTS,
   pickText,
   pickToolCalls,
   pollAssistantTurns,
   runSmoke,
   SMOKE_AGENT_ID,
 } from '../helpers/smoke-runtime'
+import { devLogin, makeAuthedFetch } from './_helpers'
 
 const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const CONV_ID = process.env.CONV_ID ?? 'cnv0marcus'
