@@ -22,6 +22,8 @@
     "check:bundle": "bun run scripts/check-frontend-bundle.ts",
     "check:no-auto-nav-tabs": "bun run scripts/check-no-auto-nav-tabs.ts",
     "check:shadcn-overrides": "bun run scripts/check-shadcn-overrides.ts",
+    "check:trust-defaults": "bun run scripts/check-trust-defaults.ts",
+    "check:error-shape": "bun run scripts/check-error-shape.ts",
     "test": "bun test",
     "test:e2e": "bun test tests/e2e",
     "test:smoke": "for f in tests/smoke/*.ts; do bun run \"$f\" || exit 1; done",
