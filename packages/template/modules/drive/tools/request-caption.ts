@@ -11,7 +11,7 @@
  * re-wake.
  *
  * Audience: `'internal'` — never sent to the customer; allowed on
- * supervisor-coaching wakes too.
+ * staff-note wakes too.
  *
  * Wake mechanism: producer-side, the drive job enqueues
  * `AGENTS_WAKE_JOB` with `{ trigger: 'caption_ready', conversationId,
@@ -48,7 +48,6 @@ export const requestCaptionTool = defineAgentTool({
     'Ask the runtime to caption / OCR a binary file in the drive. Returns immediately; the caption surfaces on the next wake (~30s).',
   schema: RequestCaptionInputSchema,
   errorCode: 'REQUEST_CAPTION_ERROR',
-  audience: 'internal',
   lane: 'conversation',
   prompt: TOOL_PROMPT,
   async run(args, ctx) {

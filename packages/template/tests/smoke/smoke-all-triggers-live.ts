@@ -9,7 +9,7 @@
  *
  * Lanes / triggers covered:
  *   - inbound_message       → smoke-inbound-live.ts        (HMAC-signed webhook → conv-lane wake)
- *   - supervisor (action)   → smoke-supervisor-action-live (note → conv-lane wake → 3 cross-module effects)
+ *   - staff_note (action)    → smoke-staff-note-live       (note → conv-lane wake → 3 cross-module effects)
  *   - operator_thread       → smoke-operator-thread-live   (staff DM → standalone-lane wake)
  *   - heartbeat             → smoke-heartbeat-live         (cron-tick → standalone-lane wake)
  *
@@ -43,7 +43,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000'
 
 const CHILD_SMOKES: { name: string; trigger: string; file: string }[] = [
   { name: 'inbound', trigger: 'inbound_message', file: 'tests/smoke/smoke-inbound-live.ts' },
-  { name: 'supervisor-action', trigger: 'supervisor', file: 'tests/smoke/smoke-supervisor-action-live.ts' },
+  { name: 'staff-note-action', trigger: 'staff_note', file: 'tests/smoke/smoke-staff-note-action-live.ts' },
   { name: 'operator-thread', trigger: 'operator_thread', file: 'tests/smoke/smoke-operator-thread-live.ts' },
   { name: 'heartbeat', trigger: 'heartbeat', file: 'tests/smoke/smoke-heartbeat-live.ts' },
 ]

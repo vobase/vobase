@@ -38,7 +38,7 @@ Init order in `runtime/modules.ts` (re-sorted by `requires`):
 - **contacts** — customer records + `contacts.memory` (`/contacts/<id>/MEMORY.md`).
 - **team** — staff directory + attributes; staff side principal directory.
 - **drive** — virtual filesystem; other modules register overlays via `service/overlays.ts`.
-- **messaging** — conversations, messages, internal notes, pending approvals, state machine, supervisor fan-out producer. Sole writer `conversation_events` (`check:shape`).
+- **messaging** — conversations, messages, internal notes, pending approvals, state machine, staff-note fan-out producer. Sole writer `conversation_events` (`check:shape`).
 - **agents** — definitions, learned skills, staff memory, scores, threads, agent-side schedules, runtime `CliVerbRegistry` singleton, agent self-state surface (`/agents/<id>/AGENTS.md` + `/MEMORY.md`). Imports nothing from messaging/contacts.
 - **schedules** — `agent_schedules` + cron-tick emits `HeartbeatTrigger`.
 - **channels** — umbrella aggregating `adapters/<name>/`. Owns `channel_instances`, generic webhook router, outbound dispatch.
@@ -47,7 +47,7 @@ Init order in `runtime/modules.ts` (re-sorted by `requires`):
 
 Each `module.ts` thin aggregator over sibling files:
 
-- `agent.ts` — `agentsMd` (AGENTS.md fragments), `materializers` (`WorkspaceMaterializerFactory<WakeContext>` returning `WorkspaceMaterializer[]`), `roHints` (chained by `chainRoHints`), `tools` (`AgentTool[]` with `audience: 'customer'|'internal'`, `lane: 'conversation'|'standalone'|'both'`, optional `prompt` for AGENTS.md guidance).
+- `agent.ts` — `agentsMd` (AGENTS.md fragments), `materializers` (`WorkspaceMaterializerFactory<WakeContext>` returning `WorkspaceMaterializer[]`), `roHints` (chained by `chainRoHints`), `tools` (`AgentTool[]` with `lane: 'conversation'|'standalone'|'both'`, optional `prompt` for AGENTS.md guidance).
 - `tools/<name>.ts` — `defineAgentTool` from `@vobase/core`. Colocated with service owning side-effect.
 - `verbs/<name>.ts` — `defineCliVerb` registrations.
 - `cli.ts` — barrel exporting `<module>Verbs` for `init`'s `ctx.cli.registerAll(...)`.
@@ -75,11 +75,11 @@ For staff- or agent-reviewed mutations, wire resource into `modules/changes/`. R
 
 **Naming.** Two context types, one informal noun. No new ones.
 - `AgentContributions<WakeContext>` — boot-time aggregate (every module's `agent` slot merged by `bootModules`). Singleton per process.
-- `WakeContext` (`wake/context.ts`) — per-wake bag passed to each `WorkspaceMaterializerFactory<WakeContext>`. Carries identity (`organizationId`, `agentId`, `conversationId`, optional `contactId`/`channelInstanceId`), handles (`drive`, `authLookup`, `staffIds`, `agentDefinition`), lane-filtered slices (`tools`, `agentsMdContributors`), wake classification (`lane`, `triggerKind`, optional `supervisorKind`, `audienceTier`).
+- `WakeContext` (`wake/context.ts`) — per-wake bag passed to each `WorkspaceMaterializerFactory<WakeContext>`. Carries identity (`organizationId`, `agentId`, `conversationId`, optional `contactId`/`channelInstanceId`), handles (`drive`, `authLookup`, `staffIds`, `agentDefinition`), lane-filtered slices (`tools`, `agentsMdContributors`), wake classification (`lane`, `triggerKind`, `audienceTier`).
 - "Agent harness" — informal name for `wake/` folder + runtime machinery; **not** context type. No `HarnessContext` anywhere.
 
 **Lanes.**
-- Conversation (`wake/conversation.ts → conversationWakeConfig`) — bound to `(contactId, channelInstanceId, conversationId)`. Triggers: `inbound_message`, `supervisor`, `approval_resumed`, `scheduled_followup`, `manual`.
+- Conversation (`wake/conversation.ts → conversationWakeConfig`) — bound to `(contactId, channelInstanceId, conversationId)`. Triggers: `inbound_message`, `staff_note`, `approval_resumed`, `scheduled_followup`, `manual`.
 - Standalone (`wake/standalone.ts → standaloneWakeConfig`) — operator threads + heartbeats. Triggers: `operator_thread`, `heartbeat`. Tools with `lane === 'conversation'` dropped.
 
 **Audience tiers.** Three-tier monotonic trust model: `'admin' | 'staff' | 'contact'` (`AudienceTier` from `@vobase/core`). Wake's `audienceTier` derived from `(lane, triggerKind)` by lane builders:
@@ -87,7 +87,7 @@ For staff- or agent-reviewed mutations, wire resource into `modules/changes/`. R
 | `(lane, triggerKind)` | `audienceTier` |
 |---|---|
 | `conversation + inbound_message` | `'contact'` (least trust — customer-driven) |
-| `conversation + supervisor / approval_resumed / scheduled_followup / manual` | `'staff'` |
+| `conversation + staff_note / approval_resumed / scheduled_followup / manual` | `'staff'` |
 | `standalone + operator_thread / heartbeat` | `'staff'` |
 | `vobase` CLI binary with admin API key (outside harness) | `'admin'` |
 
@@ -96,37 +96,35 @@ Agent's AGENTS.md `## Commands` block + in-bash `vobase --help` filter via `isVe
 - `'staff'` — staff-initiated wakes + admin only. Mutating verbs scoped to thread/inbox (`messaging close`, `messaging show`, `agents show`).
 - `'admin'` — tenant-config / dev-tooling verbs run by operator from actual CLI (`install`, `drive cat`, anything in `system/`). Default when omitted.
 
-NB: tool-side `audience: 'customer' | 'internal'` field on `defineAgentTool` is **different concept** — gates whether tool dropped on supervisor-**coaching** wakes (`audience: 'customer'` tools stripped so agent can't reply to customer mid-correction). Same word, different filter; don't conflate.
-
-**Adding agent surfaces in new module.** Declare any of `tools` / `materializers` / `agentsMd` / `roHints` on `agent.ts` (re-exported by `module.ts`; `check:shape` rejects inline literals). Wake builder filters `tools` by `lane` (and by `audience: 'customer'|'internal'` on supervisor-coaching wakes), invokes each `WorkspaceMaterializerFactory<WakeContext>` with wake's context, chains `roHints` via `chainRoHints`, feeds `agentsMd` fragments into AGENTS.md preamble — no further wiring. Verbs registered via `ctx.cli.register(...)` in `init` (not agent slot); set `audience` per **Audience tiers** table above.
+**Adding agent surfaces in new module.** Declare any of `tools` / `materializers` / `agentsMd` / `roHints` on `agent.ts` (re-exported by `module.ts`; `check:shape` rejects inline literals). Wake builder filters `tools` by `lane`, invokes each `WorkspaceMaterializerFactory<WakeContext>` with wake's context, chains `roHints` via `chainRoHints`, feeds `agentsMd` fragments into AGENTS.md preamble — no further wiring. Verbs registered via `ctx.cli.register(...)` in `init` (not agent slot); set `audience` per **Audience tiers** table above.
 
 **Entry points** (each pg-boss consumer registered in `runtime/bootstrap.ts`):
 
 | File | Job | Lane |
 |---|---|---|
 | `wake/inbound.ts` | `agents:wake` | conversation |
-| `wake/supervisor.ts` | `messaging:supervisor-to-wake` | conversation |
+| `wake/staff-note.ts` | `messaging:staff-note-to-wake` | conversation |
 | `wake/operator-thread.ts` | `agents:operator-thread-to-wake` | standalone |
 | `wake/heartbeat.ts` | cron-tick callback for `schedules` | standalone |
 
-Each handler factory takes `(deps, contributions)` at boot. At wake time builder filters `contributions.tools` by lane (and by `audience` on supervisor-coaching wakes), invokes each `materializerFactories[i](wakeContext)`, chains `roHints` via `chainRoHints`, feeds `agentsMdContributors` into agents-module `agentsMaterializerFactory` (runs `generateAgentsMd` with per-module fragments + tool guidance + helpdesk preamble).
+Each handler factory takes `(deps, contributions)` at boot. At wake time builder filters `contributions.tools` by lane, invokes each `materializerFactories[i](wakeContext)`, chains `roHints` via `chainRoHints`, feeds `agentsMdContributors` into agents-module `agentsMaterializerFactory` (runs `generateAgentsMd` with per-module fragments + tool guidance + helpdesk preamble).
 
 **Trigger registry.** `wake/trigger.ts` maps each `WakeTriggerKind → { lane, logPrefix, render }`. Pure: deterministic in `(triggerKind, payload, refs)`, so downstream `systemHash` byte-stable. Tools NOT in registry — adding one is one-line edit in owning module's `agent.ts`. `render` function emits wake-reason cue prepended to first user-turn message; persistent rules belong in `agentDefinitions.instructions` or skill files, not render text.
 
-**Build helpers.** `wake/build-base.ts` (idle-resumption constant, SSE listener, journal adapter, hook composer, staff-id resolver, `INDEX.md` materializer). Conversation builder calls `classifySupervisorTrigger` from `messaging/service/notes` and threads resulting `supervisorKind` into `RenderRefs` so render text and tool filter agree.
+**Build helpers.** `wake/build-base.ts` (idle-resumption constant, SSE listener, journal adapter, hook composer, staff-id resolver, `INDEX.md` materializer).
 
 **Tools by module:**
-- `messaging/tools/` — `reply`, `send_card`, `send_file`, `book_slot` (`audience: 'customer'`, `lane: 'conversation'`); `add_note` (`internal`, `both`); `summarize_inbox`, `draft_email_to_review` (`standalone`).
+- `messaging/tools/` — `reply`, `send_card`, `send_file`, `book_slot` (`lane: 'conversation'`); `add_note` (`lane: 'both'`); `summarize_inbox`, `draft_email_to_review` (`lane: 'standalone'`).
 - `contacts/tools/` — `update_contact`, `propose_outreach`.
 - `schedules/tools/` — `create_schedule`, `pause_schedule`.
 
 **Verbs by module:** `messaging/verbs/` (`conv-reassign`), `drive/verbs/` (`drive-propose`), `team/verbs/` (`team-list`, `team-get`), `agents/cli.ts` (`agents list/show/inspect`, `schedules list/...`).
 
-**Supervisor fan-out.** `messaging/service/notes::addNote` post-commit enqueues one supervisor wake per interested agent (assignee + each @-mentioned peer). Agent-authored notes never trigger fan-out (HARD filter at `notes.ts`). `classifySupervisorTrigger` returns `coaching` (default; strips `audience: 'customer'`) or `ask_staff_answer` (staff replying to prior agent question; customer-facing tools stay).
+**Staff-note fan-out.** `messaging/service/notes::addNote` post-commit enqueues one `staff_note` wake per @-mentioned agent. Notes without an `@-mention` wake nobody. Agent-authored notes never trigger fan-out (HARD filter at `notes.ts`).
 
 **Invariants.**
 - *Frozen snapshot.* System prompt computed once at `agent_start`; `systemHash` identical every turn. Mid-wake writes surface in NEXT turn's side-load (provider prefix cache byte-keyed, agent must not race itself).
-- *Abort/steer between turns.* Customer messages append to `SteerQueue` and drain after `tool_execution_end`. Supervisor + approval-resumed hard-abort and re-wake.
+- *Abort/steer between turns.* Customer messages append to `SteerQueue` and drain after `tool_execution_end`. Staff-note + approval-resumed hard-abort and re-wake.
 - *Tool stdout budget.* 4KB inline → 100KB spill (`/tmp/tool-<callId>.txt`) → 200KB turn ceiling. Re-reads of spills exempt.
 - *Wake event order.* `agent_start → turn_start → llm_call → message_start → message_update* → message_end → (tool_execution_start → tool_execution_end)* → turn_end → … → agent_end`. Filter `message_update` when asserting sequences.
 
@@ -150,7 +148,7 @@ Tests never hit real LLM. Pass `streamFn: stubStreamFn([...])` to `bootWake` (or
 
 E2E in `tests/e2e/`. Live smokes in `tests/smoke/` (real LLM, dev server). Helpers: `test-db.ts`, `test-harness.ts`, `stub-stream.ts`, `simulated-channel-web.ts`, `assert-event-sequence.ts`, `capture-side-load-hashes.ts`, `assert-learning-flow.ts`. E2E that bypasses module init must `setCliRegistry(new CliVerbRegistry())` in `beforeAll` and `__resetCliRegistryForTests()` in `afterAll`.
 
-`tests/smoke/smoke-{inbound,supervisor-action,operator-thread,heartbeat}-live.ts` (+ `smoke-all-triggers-live.ts` driver) verify cross-module effects (memory writes, drive proposals, internal-note replies) actually fire. "Agent silently no-ops" failure mode historically caught only at this layer.
+`tests/smoke/smoke-{inbound,staff-note,operator-thread,heartbeat}-live.ts` (+ `smoke-all-triggers-live.ts` driver) verify cross-module effects (memory writes, drive proposals, internal-note replies) actually fire. "Agent silently no-ops" failure mode historically caught only at this layer.
 
 Anti-patterns: don't mock database (mocks hide migration / CHECK / pg_notify bugs); no JSONL recorded-provider fixtures; no narrative Phase/Lane comments in tests; no `renderToString` SSR-snapshot tests.
 

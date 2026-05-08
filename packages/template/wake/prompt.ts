@@ -48,7 +48,7 @@ export interface FrozenPromptInput {
  * uses this to color-code / anchor-link the preview so operators can tell
  * which prose is framework-emitted vs tenant-edited vs drive-sourced.
  *
- * Note that lane-specific prose (supervisor-coaching mechanics, etc.) is NOT
+ * Note that lane-specific prose (staff-note mechanics, etc.) is NOT
  * a top-level region — it's contributed by individual modules (e.g.
  * messaging) into `agents-md` via the `agentsMd` contribution channel. The
  * region-aware preview UI surfaces it at AGENTS.md heading granularity, not

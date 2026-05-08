@@ -1,5 +1,5 @@
 /**
- * Conversation-lane wake-config assembly: the `inbound_message` / `supervisor` /
+ * Conversation-lane wake-config assembly: the `inbound_message` / `staff_note` /
  * `approval_resumed` path that the helpdesk has had since day one. Every
  * conversation-lane wake is conversation-bound — `conv.channelInstanceId` drives the
  * `/contacts/<contactId>/<channelInstanceId>/` materializers, the side-load
@@ -15,7 +15,6 @@ import type { AgentDefinition } from '@modules/agents/schema'
 import { getCliRegistry } from '@modules/agents/service/cli-registry'
 import { filesServiceFor } from '@modules/drive/service/files'
 import type { Conversation } from '@modules/messaging/schema'
-import { classifySupervisorTrigger } from '@modules/messaging/service/notes'
 import type { AgentContributions, WakeRuntime } from '@vobase/core'
 import {
   conversationEvents,
@@ -58,7 +57,7 @@ export interface ConversationWakeConfigInput {
     conversationId: string
     /**
      * Optional. Carried for back-compat with the inbound-message default
-     * trigger fallback below; non-inbound triggers (`supervisor`,
+     * trigger fallback below; non-inbound triggers (`staff_note`,
      * `caption_ready`, …) leave this unset and pass their own
      * `triggerOverride` instead.
      */
@@ -72,7 +71,7 @@ export interface ConversationWakeConfigInput {
   deps: BaseWakeDeps
   /**
    * Optional explicit trigger to use in place of the default
-   * `inbound_message` shape. Supervisor wakes pass a `supervisor` trigger
+   * `inbound_message` shape. Staff-note wakes pass a `staff_note` trigger
    * here so the renderer + `systemHash` reflect the staff-note variant;
    * `caption_ready` wakes (drive OCR completion) likewise pass their own
    * variant. The override is forwarded unchanged into `trigger`,
@@ -104,7 +103,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   })
 
   // Tool guidance section in AGENTS.md reflects the conversation-lane catalogue
-  // — same set the wake's harness will see (supervisor-coaching's `audience`
+  // — same set the wake's harness will see (staff-note's `audience`
   // filter is a runtime exception not surfaced here). Tools opt into the lane
   // via their `lane` field; `'both'` enrols a tool into both lanes (e.g. add_note).
   const laneTools = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
@@ -118,46 +117,8 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
         })())
   const capability = resolveTriggerSpec(trigger.trigger)
 
-  // Supervisor-wake policy is split across two seams:
-  //   1. The MESSAGING module classifies the triggering note (it owns the
-  //      internal-note schema). `ask_staff_answer` means staff is replying to
-  //      an `add_note` (with `mentions`) the agent posted; `coaching` is
-  //      everything else.
-  //   2. The TOOL CATALOG carries `audience` metadata on each tool. Tools
-  //      marked `audience: 'customer'` produce direct customer output (reply,
-  //      send_card, send_file, book_slot today).
-  // The wake builder just composes those two — it never names tools by string
-  // or reaches into note rows. Coaching wakes strip customer-facing tools so
-  // a staff coaching note can't accidentally trigger another customer reply
-  // (prompt-level guidance is unreliable; the model defies "don't reply"
-  // ~30%+ of the time without the filter).
-  const isSupervisorWake = trigger.trigger === 'supervisor'
-  // Supervisor wakes only fire when the agent is explicitly @-mentioned
-  // (`messaging/service/notes.ts::runSupervisorFanOut`). The remaining axis
-  // is whether the booted agent is the conversation assignee — assignees go
-  // through classify+coaching-strip (so `add_note` coaching doesn't trigger
-  // another customer reply), peers (any other mentioned agent) keep
-  // customer-facing tools because they're being asked to consult, not own
-  // the thread.
-  const supervisorAssigneeAgentId = conv.assignee.startsWith('agent:') ? conv.assignee.slice('agent:'.length) : null
-  const isPeerWake = isSupervisorWake && agentId !== supervisorAssigneeAgentId
-  let supervisorKind: 'ask_staff_answer' | 'coaching' | undefined
-  if (isSupervisorWake && !isPeerWake) {
-    try {
-      const classification = await classifySupervisorTrigger({
-        conversationId,
-        triggerNoteId: trigger.noteId,
-        agentId,
-      })
-      supervisorKind = classification.kind
-    } catch (err) {
-      deps.logger.warn?.({ err, conversationId, noteId: trigger.noteId }, 'supervisor-trigger classification failed')
-      supervisorKind = 'coaching'
-    }
-  }
-
   // Audience tier — only inbound-message wakes are customer-driven and untrusted;
-  // every other conversation-lane trigger (supervisor, approval, scheduled,
+  // every other conversation-lane trigger (staff_note, approval, scheduled,
   // manual) is staff-initiated.
   const audienceTier: 'staff' | 'contact' = trigger.trigger === 'inbound_message' ? 'contact' : 'staff'
 
@@ -176,7 +137,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     agentsMdContributors: contributions.agentsMd,
     lane: 'conversation',
     triggerKind: trigger.trigger,
-    supervisorKind,
     audienceTier,
   }
 
@@ -275,7 +235,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
             channelInstanceId,
             assignee: conv.assignee,
             currentAgentId: agentId,
-            supervisorKind,
           })
         : 'Manual wake.',
 
@@ -287,7 +246,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
       laneTools,
       contributions,
       coreListeners: [sseListener, workspaceSyncListener as OnEventListener<WakeTrigger>, selfReflectionListener],
-      toolFilter: supervisorKind === 'coaching' ? (t) => t.audience !== 'customer' : undefined,
     }),
     materializers: wakeMaterializers,
     sideLoadContributors: contributions.sideLoad,

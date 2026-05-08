@@ -106,7 +106,6 @@ function describeErrors(value: unknown): string {
 export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
   name: 'send_card',
   parallelGroup: 'never',
-  audience: 'customer',
   lane: 'conversation',
   description:
     'Send a rich interactive card. Card children must be one of: text, image, divider, actions, fields, link. Buttons and link-buttons are NEVER top-level children — wrap them in {type:"actions", children:[{type:"button",...}|{type:"link-button",...}]}. Example: {type:"card", title:"Pro plan", children:[{type:"text", content:"$12/user/mo"}, {type:"actions", children:[{type:"button", id:"buy", label:"Upgrade", style:"primary"}, {type:"button", id:"later", label:"Not now"}]}]}. Requires staff approval if agent.cardApprovalRequired=true.',

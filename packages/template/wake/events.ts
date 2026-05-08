@@ -28,7 +28,7 @@ export type WakeTrigger =
       note?: string
     }
   | {
-      trigger: 'supervisor'
+      trigger: 'staff_note'
       conversationId: string
       noteId: string
       authorUserId: string
@@ -100,7 +100,7 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     note: z.string().optional(),
   }),
   z.object({
-    trigger: z.literal('supervisor'),
+    trigger: z.literal('staff_note'),
     conversationId: z.string(),
     noteId: z.string(),
     authorUserId: z.string(),

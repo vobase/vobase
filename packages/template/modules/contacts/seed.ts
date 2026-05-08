@@ -27,6 +27,18 @@ export const CAROL_USER_ID = 'usrcarol00'
 export const CUSTOMER_CHANNEL_INSTANCE_ID = 'chi0cust00'
 /** Staff-facing WhatsApp channel instance used for staff bindings. */
 export const STAFF_CHANNEL_INSTANCE_ID = 'chi0staff0'
+
+/**
+ * Placeholder credentials for seeded WhatsApp channel rows. Real Meta API
+ * calls would 401 — these only exist so adapter construction passes Zod
+ * validation in dev. Real deployments install creds via the WA Embedded
+ * Signup flow.
+ */
+const WHATSAPP_DEV_PLACEHOLDERS = {
+  accessToken: 'dev-placeholder-access-token',
+  appSecret: 'dev-placeholder-app-secret',
+  webhookVerifyToken: 'dev-placeholder-verify-token',
+} as const
 /** Customer-facing web (chat widget) channel instance — used by /test-web dogfood page. */
 export const WEB_CHANNEL_INSTANCE_ID = 'chi00web00'
 /** Shared dev-mode webhook secret for the web channel (matches CHANNEL_WEB_WEBHOOK_SECRET fallback). */
@@ -115,7 +127,11 @@ export async function seed(db: unknown): Promise<void> {
       channel: 'whatsapp',
       role: 'customer',
       displayName: 'Meridian Customer WA',
-      config: { phoneNumberId: '111000111', defaultAssignee: 'agent:agt0meri0v1' },
+      config: {
+        phoneNumberId: '111000111',
+        defaultAssignee: 'agent:agt0meri0v1',
+        ...WHATSAPP_DEV_PLACEHOLDERS,
+      },
     })
     .onConflictDoNothing()
 
@@ -127,7 +143,10 @@ export async function seed(db: unknown): Promise<void> {
       channel: 'whatsapp',
       role: 'staff',
       displayName: 'Meridian Staff WA',
-      config: { phoneNumberId: '222000222' },
+      config: {
+        phoneNumberId: '222000222',
+        ...WHATSAPP_DEV_PLACEHOLDERS,
+      },
     })
     .onConflictDoNothing()
 

@@ -14,10 +14,9 @@ import { describe, expect, it } from 'bun:test'
 import { requestCaptionTool } from './request-caption'
 
 describe('requestCaptionTool', () => {
-  it('declares lane=conversation, audience=internal, name=request_caption', () => {
+  it('declares lane=conversation, name=request_caption', () => {
     expect(requestCaptionTool.name).toBe('request_caption')
     expect(requestCaptionTool.lane).toBe('conversation')
-    expect(requestCaptionTool.audience).toBe('internal')
   })
 
   it('carries an AGENTS.md prompt (frozen-snapshot guidance)', () => {

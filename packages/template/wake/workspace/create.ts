@@ -51,7 +51,7 @@ export interface CreateWorkspaceOpts {
   /**
    * Wake-derived audience tier — drives the `vobase --help` filter inside the
    * bash sandbox. `'contact'` for inbound-message wakes; `'staff'` for every
-   * staff-initiated wake (supervisor / approval / scheduled / manual /
+   * staff-initiated wake (staff_note / approval / scheduled / manual /
    * operator-thread / heartbeat).
    */
   audienceTier: WakeAudienceTier
@@ -138,6 +138,21 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
       if (body) await innerFs.writeFile(`/drive${file.path}`, body.content)
     })
 
+  // Agent drive mount — both lanes get it. Surfaces overlay-synthesised files
+  // (today: `/skills/<name>/SKILL.md` from `agentSkillsOverlay`) so bash `cat`
+  // can read them. Overlay rows have virtual ids that `readContent` rejects,
+  // so we route through `readPath`. Materializer-owned paths (AGENTS.md,
+  // MEMORY.md) are skipped — they're written by the materializer pipeline and
+  // re-writing them here would clobber the materialized content.
+  const agentScope = { scope: 'agent' as const, agentId: opts.agentId }
+  const agentFiles = await listAllDriveFiles(opts.drivePort, agentScope)
+  const agentWrites = agentFiles
+    .filter((f) => f.path !== '/AGENTS.md' && f.path !== '/MEMORY.md')
+    .map(async (file) => {
+      const result = await opts.drivePort.readPath(agentScope, file.path).catch(() => null)
+      if (result?.content) await innerFs.writeFile(`${agentPrefix}${file.path}`, result.content)
+    })
+
   // Contact drive mount — conversation lane only.
   const contactWrites: Promise<void>[] = []
   if (isConversation) {
@@ -153,7 +168,7 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
     }
   }
 
-  await Promise.all([...tenantWrites, ...contactWrites])
+  await Promise.all([...tenantWrites, ...agentWrites, ...contactWrites])
 
   return handle
 }

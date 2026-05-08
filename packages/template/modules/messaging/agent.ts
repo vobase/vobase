@@ -15,7 +15,7 @@
  * under `./verbs/`. Both the wake's bash sandbox and the runtime CLI binary
  * dispatch through the same `CliVerbRegistry`. Asking staff a question is
  * handled by `add_note` with `mentions` (see `./tools/add-note.ts`) — the
- * post-commit fan-out enqueues a supervisor wake per mentioned staff and
+ * post-commit fan-out enqueues a staff-note wake per mentioned staff and
  * customer-facing tools stay available when staff replies.
  */
 
@@ -87,15 +87,16 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
     file: AGENTS_MD_FILE,
     priority: 50,
     name: 'messaging.conversation-surface',
-    render: () =>
-      [
+    render: () => {
+      return [
         '## Conversation surface',
         '',
-        '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — customer-visible timeline (read-only). Reflects, but does not accept, new messages.',
-        '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — staff ↔ agent notes (read-only). Reflects, but does not accept, new notes.',
+        '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — customer-visible timeline.',
+        '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — staff/agent notes.',
         '',
-        'These files are rebuilt from DB state on every wake — never `echo >>` into them. Send customer-visible content via the `reply` / `send_card` / `send_file` / `book_slot` tools (see `## Tool guidance`). Reassign with `vobase conv reassign` (see `## Commands`); ask staff a question by calling `add_note` with `mentions` populated.',
-      ].join('\n'),
+        'Send customer-visible content via `reply` / `send_card` / `send_file` / `book_slot`. Reassign with `vobase conv reassign`. Ask staff a question with `add_note` + `mentions`.',
+      ].join('\n')
+    },
   }),
   // Lane-aware blocks. Conditional on `getWakeAgentsMdScratch(ctx)` — return
   // null when the wake doesn't match (or scratch is absent, e.g. UI preview
@@ -105,44 +106,38 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
   defineIndexContributor({
     file: AGENTS_MD_FILE,
     priority: 60,
-    name: 'messaging.supervisor-coaching',
+    name: 'messaging.staff-note',
     render: (ctx) => {
       const wake = getWakeAgentsMdScratch(ctx)
-      if (wake?.lane !== 'conversation' || wake.triggerKind !== 'supervisor' || wake.supervisorKind !== 'coaching') {
-        return null
-      }
+      if (wake?.lane !== 'conversation' || wake.triggerKind !== 'staff_note') return null
       return [
-        '## When the staff note is coaching (current wake)',
+        '## Staff note (this wake)',
         '',
-        'A staff member posted an internal note as **coaching** — feedback or context, not a request to send another customer reply. Customer-facing tools (`reply`, `send_card`, `send_file`, `book_slot`) have been stripped from this wake by the harness; they will not appear in your tool list.',
+        'A staff member left a note. Decide what it asks for — fix an artifact, relay to the customer, or both.',
         '',
-        'Required steps:',
+        '**Step 1 — read the artifact the note mentions** before doing anything else:',
         '',
-        '1. Capture the lesson in the right `MEMORY.md`. Customer-specific facts (about a particular contact: plan tier, history, preferences, a recent purchase) → `/contacts/<contactId>/MEMORY.md`. Facts about your own behaviour, escalation rules, or voice → `/agents/<your-id>/MEMORY.md`. Facts about a specific teammate → `/staff/<staffId>/MEMORY.md`.',
-        '2. Acknowledge with `add_note` so staff sees the loop closed — one or two sentences summarising what you captured and where.',
-        '3. End the turn.',
+        '| If the note mentions… | Read this first |',
+        '| --- | --- |',
+        '| a skill or playbook | `cat /agents/<id>/skills/<name>/SKILL.md` (or `ls /agents/<id>/skills/`) |',
+        '| a contact | `cat /contacts/<id>/MEMORY.md` and `INTERNAL-NOTES.md` |',
+        '| a company doc or policy | `cat /drive/<doc>.md` |',
+        '| a staff member | `cat /staff/<id>/MEMORY.md` |',
         '',
-        'If the staff note is ambiguous, post an `add_note` asking for clarification instead of guessing.',
-      ].join('\n')
-    },
-  }),
-  defineIndexContributor({
-    file: AGENTS_MD_FILE,
-    priority: 60,
-    name: 'messaging.supervisor-ask-staff-answer',
-    render: (ctx) => {
-      const wake = getWakeAgentsMdScratch(ctx)
-      if (
-        wake?.lane !== 'conversation' ||
-        wake.triggerKind !== 'supervisor' ||
-        wake.supervisorKind !== 'ask_staff_answer'
-      ) {
-        return null
-      }
-      return [
-        '## When staff has answered your question (current wake)',
+        '**Step 2 — apply the fix or relay:**',
         '',
-        'Staff is replying to a prior `add_note` of yours that mentioned them. Customer-facing tools remain available — relay the answer back to the customer with `reply` or `send_card`, then end the turn. Do not re-ping staff unless the answer is incomplete.',
+        '- Wrong or missing skill → `remember(scope=agents.learned_skill, resourceId=<kebab-name>, body=<rewritten skill>)`',
+        '- Company doc needs updating → `vobase drive propose --path=/drive/<doc>.md --body="..."`',
+        '- Contact field is wrong → `vobase contacts propose-change --id <id> --field <name> --to "..."`',
+        '- Durable behaviour rule (no specific file) → `echo "- rule" >> /agents/<id>/MEMORY.md`',
+        '- Per-staff preference → `echo "- pref" >> /staff/<staffId>/MEMORY.md`',
+        '- Note is staff answering a prior question of yours → relay the answer to the customer with `reply` or `send_card`',
+        '',
+        '**Step 3 — acknowledge** with `add_note`. Short, conversational, ≤10 words; lead with the verb.',
+        'e.g. "Got it — rewrote stale-triage.", "Sent the answer to the customer.", "Pinned to Tarun\'s memory."',
+        '',
+        'If the note is unclear after reading the artifact, call `add_note` with `mentions` populated to ask — do not guess.',
+        'An empty `add_note` ack with no preceding artifact write, customer reply, or question is a failure mode — never end the turn that way.',
       ].join('\n')
     },
   }),
@@ -156,7 +151,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## No customer is on the line (current wake)',
         '',
-        'This is a standalone-lane wake (operator thread or scheduled heartbeat). No customer is waiting for a reply — customer-facing tools (`reply`, `send_card`, `send_file`, `book_slot`) are absent from your tool list by design. Use `add_note` if you need to leave a note on a conversation, or write into the operator thread directly.',
+        'Standalone wake — no customer is waiting. Customer-facing tools are absent. Use `add_note` to leave a note on a conversation, or write into the operator thread directly.',
       ].join('\n')
     },
   }),

@@ -1,14 +1,14 @@
 /**
- * Supervisor mention fan-out — Slice 1 of trigger-driven-capabilities.
+ * Staff-note mention fan-out — Slice 1 of trigger-driven-capabilities.
  *
  * Boots the messaging notes service against a real Postgres seed with a
- * captured `SupervisorScheduler` so each enqueue call (one per @-mentioned
+ * captured `StaffNoteScheduler` so each enqueue call (one per @-mentioned
  * agent) is observable as a payload.
  *
  * Mirrors the install pattern from `tests/e2e/operator-wake.e2e.test.ts`:
  *   - `connectTestDb` + `resetAndSeedDb` for a clean schema.
  *   - direct service installs — bypassing the runtime job queue keeps the
- *     test focused on the fan-out shape (the supervisor handler itself is
+ *     test focused on the fan-out shape (the staff-note handler itself is
  *     covered separately by `conversationWakeConfig` with `triggerOverride`).
  *
  * Fan-out rule: notes only wake agents that are explicitly @-mentioned. A
@@ -26,7 +26,7 @@
  *   (f) Plain staff note (no `@-mention`) → 0 enqueues
  *
  * Plus a frozen-snapshot byte-stability assertion for systemHash across two
- * consecutive supervisor wakes for the same (conversationId, mentionedAgentId)
+ * consecutive staff-note wakes for the same (conversationId, mentionedAgentId)
  * pair (Risk #2 mitigation).
  */
 
@@ -78,12 +78,12 @@ import {
 import {
   __resetNotesServiceForTests,
   addNote,
-  buildSupervisorSingletonKey,
+  buildStaffNoteSingletonKey,
   type ConversationsReader,
   createNotesService,
   installNotesService,
   listNotes,
-  type SupervisorScheduler,
+  type StaffNoteScheduler,
 } from '@modules/messaging/service/notes'
 import {
   __resetPendingApprovalsServiceForTests,
@@ -177,9 +177,9 @@ beforeAll(async () => {
   installStaffService(createStaffService({ db: db.db }))
   installPendingApprovalsService(createPendingApprovalsService({ db: db.db }))
 
-  const scheduler: SupervisorScheduler = {
+  const scheduler: StaffNoteScheduler = {
     // biome-ignore lint/suspicious/useAwait: capture scheduler matches async contract
-    enqueueSupervisor: async (opts) => {
+    enqueueStaffNote: async (opts) => {
       captured.push({
         conversationId: opts.conversationId,
         noteId: opts.noteId,
@@ -187,7 +187,7 @@ beforeAll(async () => {
         organizationId: opts.organizationId,
         mentionedAgentId: opts.mentionedAgentId,
         assigneeAgentId: opts.assigneeAgentId,
-        singletonKey: buildSupervisorSingletonKey({
+        singletonKey: buildStaffNoteSingletonKey({
           conversationId: opts.conversationId,
           noteId: opts.noteId,
           mentionedAgentId: opts.mentionedAgentId,
@@ -244,7 +244,7 @@ async function waitForCaptures(min: number, timeoutMs = 2000): Promise<void> {
   }
 }
 
-describe('supervisor mention fan-out', () => {
+describe('staff-note mention fan-out', () => {
   it('(a) @Sentinel in Meridian-assigned conv → only Sentinel wakes (no implicit assignee wake)', async () => {
     captured = []
 
@@ -265,7 +265,7 @@ describe('supervisor mention fan-out', () => {
     expect(peerWake?.mentionedAgentId).toBe(SENTINEL_AGENT_ID)
     expect(peerWake?.assigneeAgentId).toBe(MERIDIAN_AGENT_ID)
     expect(peerWake?.singletonKey).toBe(
-      buildSupervisorSingletonKey({
+      buildStaffNoteSingletonKey({
         conversationId: priyaConvId,
         noteId: note.id,
         mentionedAgentId: SENTINEL_AGENT_ID,
@@ -290,7 +290,7 @@ describe('supervisor mention fan-out', () => {
     expect(captured[0]?.mentionedAgentId).toBe(MERIDIAN_AGENT_ID)
     expect(captured[0]?.assigneeAgentId).toBe(MERIDIAN_AGENT_ID)
     expect(captured[0]?.singletonKey).toBe(
-      buildSupervisorSingletonKey({
+      buildStaffNoteSingletonKey({
         conversationId: priyaConvId,
         noteId: note.id,
         mentionedAgentId: MERIDIAN_AGENT_ID,
@@ -318,7 +318,7 @@ describe('supervisor mention fan-out', () => {
     expect(uniqueKeys.size).toBe(2)
     expect(
       uniqueKeys.has(
-        buildSupervisorSingletonKey({
+        buildStaffNoteSingletonKey({
           conversationId: priyaConvId,
           noteId: note.id,
           mentionedAgentId: SENTINEL_AGENT_ID,
@@ -327,7 +327,7 @@ describe('supervisor mention fan-out', () => {
     ).toBe(true)
     expect(
       uniqueKeys.has(
-        buildSupervisorSingletonKey({
+        buildStaffNoteSingletonKey({
           conversationId: priyaConvId,
           noteId: note.id,
           mentionedAgentId: ATLAS_AGENT_ID,
@@ -358,7 +358,7 @@ describe('supervisor mention fan-out', () => {
       expect(meridianPeerWake).toBeDefined()
       expect(meridianPeerWake?.assigneeAgentId).toBe(SENTINEL_AGENT_ID)
 
-      // Build the wake config via the same code path the supervisor handler
+      // Build the wake config via the same code path the staff-note handler
       // would take, then assert Meridian boots with conversation-lane tools.
       const conv = await getConversation(priyaConvId)
       const meridianDef = await getAgentDefinition(MERIDIAN_AGENT_ID)
@@ -383,7 +383,7 @@ describe('supervisor mention fan-out', () => {
         contributions,
         deps: { db: db.db, realtime: NOOP_REALTIME, logger: NOOP_LOGGER, jobs: NOOP_JOBS },
         triggerOverride: {
-          trigger: 'supervisor',
+          trigger: 'staff_note',
           conversationId: priyaConvId,
           noteId: note.id,
           authorUserId: STAFF_USER_ID,
@@ -453,7 +453,7 @@ describe('supervisor mention fan-out', () => {
     expect(after[after.length - 1]?.authorType).toBe('staff')
   })
 
-  it('frozen-snapshot byte-stability — same supervisor trigger yields identical systemHash twice', async () => {
+  it('frozen-snapshot byte-stability — same staff_note trigger yields identical systemHash twice', async () => {
     const conv = await getConversation(priyaConvId)
     const meridianDef = await getAgentDefinition(MERIDIAN_AGENT_ID)
     const contributions: AgentContributions = {
@@ -465,7 +465,7 @@ describe('supervisor mention fan-out', () => {
       roHints: [],
     }
     const triggerOverride = {
-      trigger: 'supervisor' as const,
+      trigger: 'staff_note' as const,
       conversationId: priyaConvId,
       noteId: 'note-frozen-fixture',
       authorUserId: STAFF_USER_ID,

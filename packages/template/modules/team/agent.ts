@@ -37,13 +37,14 @@ export const teamAgentsMdContributors: readonly IndexContributor[] = [
     file: AGENTS_MD_FILE,
     priority: 60,
     name: 'team.staff-roster',
-    render: () =>
-      [
+    render: () => {
+      return [
         '## Staff',
         '',
-        '- `/staff/<id>/PROFILE.md` — staff identity. **Read-only**: there is no CLI verb for staff fields yet. Capture observations about teammates in `/staff/<id>/MEMORY.md` instead; if a staff record genuinely needs to change (title, availability), escalate to a human via `add_note` with `mentions`.',
-        '- `/staff/<id>/MEMORY.md` — per-(agent, staff) memory you maintain about that staff member. Direct-writable.',
-      ].join('\n'),
+        '- `/staff/<id>/PROFILE.md` — staff identity (read-only).',
+        '- `/staff/<id>/MEMORY.md` — per-(agent, staff) notes you maintain. Direct-writable.',
+      ].join('\n')
+    },
   }),
 ]
 

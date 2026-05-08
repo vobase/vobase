@@ -12,7 +12,7 @@
  * in `modules/messaging/components/mentions.ts`. Case-insensitive.
  *
  * **HARD RULE — staff-authored only.** This resolver MUST NOT be invoked for
- * agent-authored notes. The supervisor fan-out path in `notes.ts::addNote`
+ * agent-authored notes. The staff-note fan-out path in `notes.ts::addNote`
  * checks `input.author.kind !== 'agent'` before calling in. Routing an agent
  * note through here would re-fire wakes on every `@-mention` an agent writes,
  * yielding a ping-pong loop (see the trigger-driven-capabilities plan,

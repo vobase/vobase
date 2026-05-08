@@ -240,7 +240,7 @@ export async function staffReply(ctx: SmokeCtx, conversationId: string, body: st
 /**
  * Post an internal coaching note. Without `mentions`, it emits the
  * `coaching_note` learning signal; with mentions, it triggers
- * supervisor fan-out (handled by main wake) and triage is skipped.
+ * staff-note fan-out (handled by main wake) and triage is skipped.
  */
 export async function staffNote(
   ctx: SmokeCtx,

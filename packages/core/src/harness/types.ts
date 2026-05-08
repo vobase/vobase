@@ -25,7 +25,7 @@ import type { DirtyTracker } from '../workspace/dirty-tracker'
  *                         and a user hasn't yet decided. `harness.pending_approvals`
  *                         carries the persisted context the resumer needs.
  * - `'completed'`       : reached a terminal `agent_end`.
- * - `'aborted'`         : reached `agent_aborted` (steer, supervisor, error).
+ * - `'aborted'`         : reached `agent_aborted` (steer, error).
  * - `'awaiting_resume'` : approval resolved, awaiting the wake-resumer job to
  *                         re-acquire the lease and resume.
  */
@@ -113,20 +113,6 @@ export interface AgentTool<TArgs = unknown, TResult = unknown> {
    * commutative read-only tools — most write paths should leave this at 1.
    */
   maxConcurrent?: number
-  /**
-   * Audience signal consumed by wake-time policy filters (e.g. supervisor-wake
-   * coaching mode strips customer-facing tools so a staff coaching note can't
-   * trigger another customer reply).
-   *
-   * - `'customer'`: this tool produces something the customer sees directly
-   *   (reply, send_card, send_file, book_slot).
-   * - `'internal'` (default): staff-only or pure read; safe to expose under
-   *   coaching/peer-consultation contexts.
-   *
-   * Owned by the module that ships the tool — the wake builder reads this
-   * metadata so it never has to know specific tool names.
-   */
-  audience?: 'customer' | 'internal'
   /**
    * Wake-lane partition. The wake builder filters `AgentContributions.tools`
    * by this field so each lane (conversation vs. standalone) sees only its own

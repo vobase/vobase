@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Live smoke for the supervisor wake → tool-using agent flow.
+ * Live smoke for the staff-note wake → tool-using agent flow.
  *
  * Reproduces the manual-test path that has historically been flaky:
  *   1. Staff `@-mention`s the assigned agent in a seeded conversation's
@@ -9,7 +9,7 @@
  *        a. update the contact's MEMORY.md with a fact
  *        b. update its own (agent) MEMORY.md with a rule
  *        c. propose a change to /drive/BUSINESS.md (or ask back if uncertain)
- *   2. The supervisor fan-out enqueues `messaging:supervisor-to-wake`.
+ *   2. The staff-note fan-out enqueues `messaging:staff-note-to-wake`.
  *   3. The wake handler boots the conversation-lane agent.
  *   4. Agent should explore (`cat`/`grep` virtual files), reason, and act —
  *      not silently no-op.
@@ -29,7 +29,7 @@
  *   - Postgres on :5432 with the standard seed (`bun run db:reset`)
  *
  * Usage:
- *   BASE_URL=http://localhost:3000 bun run tests/smoke/smoke-supervisor-action-live.ts
+ *   BASE_URL=http://localhost:3000 bun run tests/smoke/smoke-staff-note-action-live.ts
  *
  * Tunable env:
  *   CONV_ID — seeded conversation to target (default cnv0marcus)
@@ -84,8 +84,8 @@ interface ProposalRow {
 }
 
 async function main(): Promise<void> {
-  console.log(`[smoke:supervisor-action] target=${BASE_URL} conv=${CONV_ID} agent=${AGENT_ID}@${AGENT_HANDLE}`)
-  console.log(`[smoke:supervisor-action] note body:\n${NOTE_BODY}\n`)
+  console.log(`[smoke:staff-note-action] target=${BASE_URL} conv=${CONV_ID} agent=${AGENT_ID}@${AGENT_HANDLE}`)
+  console.log(`[smoke:staff-note-action] note body:\n${NOTE_BODY}\n`)
 
   const auth = await devLogin(BASE_URL, EMAIL)
   const api = makeAuthedFetch(BASE_URL, auth)
@@ -117,14 +117,14 @@ async function main(): Promise<void> {
         AND m.payload->>'role' = 'assistant'
     `
 
-    console.log('[smoke:supervisor-action] baselines:')
+    console.log('[smoke:staff-note-action] baselines:')
     console.log(`  contact.memory length: ${(contactBefore?.memory ?? '').length}`)
     console.log(`  agent.working_memory length: ${(agentBefore?.working_memory ?? '').length}`)
     console.log(`  internal_notes: ${baselineNotes[0]?.count ?? 0}`)
     console.log(`  drive proposals: ${baselineProposals[0]?.count ?? 0}`)
     console.log(`  assistant turns on conv: ${baselineAssistant[0]?.count ?? 0}`)
 
-    // ─── Post the supervisor note (@-mentions the agent) ───
+    // ─── Post the staff note (@-mentions the agent) ───
     const noteRes = await api(`/api/messaging/conversations/${CONV_ID}/notes`, {
       method: 'POST',
       body: JSON.stringify({
@@ -136,10 +136,10 @@ async function main(): Promise<void> {
     })
     const noteText = await noteRes.text()
     if (!noteRes.ok) {
-      console.error(`[smoke:supervisor-action] ✗ POST notes ${noteRes.status}: ${noteText}`)
+      console.error(`[smoke:staff-note-action] ✗ POST notes ${noteRes.status}: ${noteText}`)
       process.exit(1)
     }
-    console.log(`[smoke:supervisor-action] ✓ POST notes ${noteRes.status}: ${noteText.slice(0, 200)}…`)
+    console.log(`[smoke:staff-note-action] ✓ POST notes ${noteRes.status}: ${noteText.slice(0, 200)}…`)
 
     // ─── Poll for the assistant journal turn ───
     let assistantRow: JournalRow | undefined
@@ -166,7 +166,7 @@ async function main(): Promise<void> {
 
     const text = pickText(assistantRow.payload)
     const tools = pickToolCalls(assistantRow.payload)
-    console.log(`\n[smoke:supervisor-action] assistant turn id=${assistantRow.id} seq=${assistantRow.seq}`)
+    console.log(`\n[smoke:staff-note-action] assistant turn id=${assistantRow.id} seq=${assistantRow.seq}`)
     console.log(`  text: ${text ? text.slice(0, 400) : '(non-text or empty)'}`)
     console.log(`  tool calls: ${tools.length === 0 ? '(none)' : tools.join(', ')}`)
 
@@ -226,17 +226,17 @@ async function main(): Promise<void> {
     // failure mode is the agent acknowledging without acting; this guard
     // catches that explicitly.
     const fired = [contactChanged, agentChanged, agentPostedNote, driveProposalCreated].filter(Boolean).length
-    console.log(`\n[smoke:supervisor-action] effect count: ${fired}/4`)
+    console.log(`\n[smoke:staff-note-action] effect count: ${fired}/4`)
 
     if (tools.includes('bash')) console.log('  ✓ agent invoked bash (exploration confirmed)')
     else console.log('  ✗ NO bash invocations — agent did not explore the virtual FS first')
 
     if (fired >= 2) {
-      console.log('\n✅ supervisor wake produced concrete cross-module effects')
+      console.log('\n✅ staff-note wake produced concrete cross-module effects')
       process.exit(0)
     }
     console.error(
-      '\n❌ supervisor wake completed but produced fewer than 2 effects — likely the silent-no-op failure mode',
+      '\n❌ staff-note wake completed but produced fewer than 2 effects — likely the silent-no-op failure mode',
     )
     console.error('   Inspect the assistant turn payload above + harness.messages for tool calls / refusals.')
     process.exit(3)

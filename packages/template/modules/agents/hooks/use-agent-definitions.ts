@@ -64,8 +64,7 @@ export function useAgentDefinition(id: string | undefined) {
 
 export type LanePreviewVariant =
   | { lane: 'conversation'; triggerKind: 'inbound_message' }
-  | { lane: 'conversation'; triggerKind: 'supervisor'; supervisorKind: 'coaching' }
-  | { lane: 'conversation'; triggerKind: 'supervisor'; supervisorKind: 'ask_staff_answer' }
+  | { lane: 'conversation'; triggerKind: 'staff_note' }
   | { lane: 'standalone'; triggerKind: 'operator_thread' }
   | { lane: 'standalone'; triggerKind: 'heartbeat' }
 
@@ -76,14 +75,9 @@ export const LANE_PREVIEW_VARIANTS: ReadonlyArray<{ id: string; label: string; q
     query: { lane: 'conversation', triggerKind: 'inbound_message' },
   },
   {
-    id: 'supervisor-coaching',
-    label: 'Conversation — supervisor coaching',
-    query: { lane: 'conversation', triggerKind: 'supervisor', supervisorKind: 'coaching' },
-  },
-  {
-    id: 'supervisor-ask-staff',
-    label: 'Conversation — supervisor (ask-staff answer)',
-    query: { lane: 'conversation', triggerKind: 'supervisor', supervisorKind: 'ask_staff_answer' },
+    id: 'staff_note',
+    label: 'Conversation — staff note',
+    query: { lane: 'conversation', triggerKind: 'staff_note' },
   },
   {
     id: 'standalone-operator',
@@ -105,10 +99,7 @@ export function useAgentsMd(id: string | undefined, variant: LanePreviewVariant 
       if (!id) throw new Error('id required')
       const r = await agentsClient.definitions[':id']['agents-md'].$get({
         param: { id },
-        query:
-          'supervisorKind' in variant
-            ? { lane: variant.lane, triggerKind: variant.triggerKind, supervisorKind: variant.supervisorKind }
-            : { lane: variant.lane, triggerKind: variant.triggerKind },
+        query: { lane: variant.lane, triggerKind: variant.triggerKind },
       })
       if (!r.ok) throw new Error(`agents.agents-md failed: ${r.status}`)
       return (await r.json()) as unknown as { preamble: string }

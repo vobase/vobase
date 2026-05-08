@@ -34,7 +34,6 @@ export const sendFileTool = defineAgentTool({
   schema: SendFileInputSchema,
   errorCode: 'SEND_FILE_ERROR',
   requiresApproval: true,
-  audience: 'customer',
   lane: 'conversation',
   prompt:
     "Use when the customer needs an artefact (PDF, image, doc) that already exists in `/drive/`. The drive file id comes from `cat`-ing the file or grepping the drive listing — never fabricate ids. Captions are optional but help the customer understand what they're receiving.",

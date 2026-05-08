@@ -148,8 +148,8 @@ describe('agents.memory-capture-triggers contributor', () => {
     const c = findContributor('agents.memory-capture-triggers')
     const render = renderContributor(c)
     expect(render.match(/^## /gm)?.length).toBe(1)
-    expect(render.length).toBeGreaterThanOrEqual(850)
-    expect(render.length).toBeLessThanOrEqual(1450)
+    expect(render.length).toBeGreaterThanOrEqual(200)
+    expect(render.length).toBeLessThanOrEqual(700)
   })
 
   it('contains every MEMORY_CAPTURE_TRIGGERS keyword word-bounded', () => {
@@ -175,14 +175,13 @@ describe('agents.memory-conventions contributor', () => {
     expect(c.priority).toBe(26)
   })
 
-  it('renders exactly two `## ` headings and stays within pinned body-length bounds', () => {
+  it('renders exactly one `## ` heading and stays within pinned body-length bounds', () => {
     const c = findContributor('agents.memory-conventions')
     const render = renderContributor(c)
-    // Two headings: `## Memory scopes` (mutation playbook) and
-    // `## Structured fields vs prose memory` (CLI-verb routing for typed fields).
-    expect(render.match(/^## /gm)?.length).toBe(2)
-    expect(render.length).toBeGreaterThanOrEqual(1075)
-    expect(render.length).toBeLessThanOrEqual(2900)
+    // Single heading: `## Memory scopes`.
+    expect(render.match(/^## /gm)?.length).toBe(1)
+    expect(render.length).toBeGreaterThanOrEqual(200)
+    expect(render.length).toBeLessThanOrEqual(700)
   })
 
   it('renders all three scope rows exactly once', () => {
@@ -196,24 +195,8 @@ describe('agents.memory-conventions contributor', () => {
   it('points at the `vobase contacts propose-change` CLI verb for structured contact fields', () => {
     const c = findContributor('agents.memory-conventions')
     const render = renderContributor(c)
-    // Replaces the prior `propose_contact_attribute` tool — that surface was
-    // removed when contact PROFILE.md became RO and structured edits routed
-    // exclusively through the CLI verb.
     expect(render).toContain('vobase contacts propose-change')
     expect(render).not.toContain('propose_contact_attribute')
-  })
-
-  it('teaches the structured-fields-vs-prose split via the CLI verb path (not frontmatter writes)', () => {
-    const c = findContributor('agents.memory-conventions')
-    const render = renderContributor(c)
-    // Section title pivoted from "PROFILE.md frontmatter vs MEMORY.md prose"
-    // to "Structured fields vs prose memory" once frontmatter became RO.
-    expect(render).toContain('Structured fields vs prose memory')
-    expect(render).toMatch(/Customer-volunteered facts/)
-    expect(render).toMatch(/High-confidence inferences/)
-    // Old framing (frontmatter as a write target) must be gone.
-    expect(render).not.toMatch(/PROFILE\.md.*frontmatter/)
-    expect(render).not.toMatch(/Staff-volunteered facts/)
   })
 })
 
@@ -222,8 +205,8 @@ describe('agents.self-state contributor (post-trim)', () => {
     const c = findContributor('agents.self-state')
     const render = renderContributor(c)
     expect(render.match(/^## /gm)?.length).toBe(1)
-    expect(render.length).toBeGreaterThanOrEqual(200)
-    expect(render.length).toBeLessThanOrEqual(900)
+    expect(render.length).toBeGreaterThanOrEqual(100)
+    expect(render.length).toBeLessThanOrEqual(500)
   })
 
   it('does NOT carry the When-to-capture heading or capture-imperative phrasing', () => {

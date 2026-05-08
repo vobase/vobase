@@ -99,16 +99,15 @@ export const contactsAgentsMdContributors: readonly IndexContributor[] = [
     file: AGENTS_MD_FILE,
     priority: 40,
     name: 'contacts.contact-context',
-    render: () =>
-      [
+    render: () => {
+      return [
         '## Contact context',
         '',
-        '- `/contacts/<id>/PROFILE.md` — contact identity. **Read-only**: the body is auto-rendered from the row. To update a profile field on customer request, run `vobase contacts propose-change --id <id> --field <name> --to "<value>" --rationale "<why>"`. Read the returned `status` — `auto_applied` / `applied` → tell the customer it is done; `pending` → tell the customer it is logged for our team to review.',
-        '- `/contacts/<id>/MEMORY.md` — per-contact working memory (prose narrative). Direct-writable like any markdown file (`cat`, `echo >>`, `sed`, heredocs). Persists across wakes — use for per-customer learnings that should survive into future conversations.',
+        '- `/contacts/<id>/PROFILE.md` — contact identity (read-only). Update fields with `vobase contacts propose-change --id <id> --field <name> --to "<value>"` — check the returned `status`.',
+        '- `/contacts/<id>/MEMORY.md` — per-contact prose memory. Direct-writable (`echo "- note" >>`). Persists across wakes.',
         '- `/contacts/<id>/drive/` — per-contact upload space (writable).',
-        '',
-        '**Update prose memory:** `echo "- new note" >> /contacts/<id>/MEMORY.md`.',
-      ].join('\n'),
+      ].join('\n')
+    },
   }),
 ]
 

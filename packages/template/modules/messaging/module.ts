@@ -1,5 +1,5 @@
 import type { ModuleDef } from '~/runtime'
-import { MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
+import { MESSAGING_STAFF_NOTE_TO_WAKE_JOB } from '~/wake/staff-note'
 import { messagingAgent } from './agent'
 import { messagingVerbs } from './cli'
 import { jobs } from './jobs'
@@ -13,12 +13,12 @@ import {
 import { setDriveAttachmentsDb } from './service/drive-attachments'
 import { createMessagesService, installMessagesService } from './service/messages'
 import {
-  buildSupervisorSingletonKey,
+  buildStaffNoteSingletonKey,
   type ConversationsReader,
   createNotesService,
   installNotesService,
   type NoteTriageScheduler,
-  type SupervisorScheduler,
+  type StaffNoteScheduler,
 } from './service/notes'
 import {
   type ApprovalScheduler,
@@ -51,14 +51,14 @@ const messaging: ModuleDef = {
     // post-commit fan-out calls into it.
     installAgentMentionsService(createAgentMentionsService({ db: ctx.db }))
 
-    // Supervisor fan-out scheduler: bridges `addNote` to the queue. Each
+    // Staff-note fan-out scheduler: bridges `addNote` to the queue. Each
     // distinct (conversation, note, mentionedAgentId | 'self') tuple gets a
     // unique singletonKey so retries dedup but distinct peer wakes never
     // merge.
-    const supervisorScheduler: SupervisorScheduler = {
-      enqueueSupervisor: async (opts) => {
+    const staffNoteScheduler: StaffNoteScheduler = {
+      enqueueStaffNote: async (opts) => {
         await ctx.jobs.send(
-          MESSAGING_SUPERVISOR_TO_WAKE_JOB,
+          MESSAGING_STAFF_NOTE_TO_WAKE_JOB,
           {
             organizationId: opts.organizationId,
             conversationId: opts.conversationId,
@@ -68,7 +68,7 @@ const messaging: ModuleDef = {
             assigneeAgentId: opts.assigneeAgentId,
           },
           {
-            singletonKey: buildSupervisorSingletonKey({
+            singletonKey: buildStaffNoteSingletonKey({
               conversationId: opts.conversationId,
               noteId: opts.noteId,
               mentionedAgentId: opts.mentionedAgentId,
@@ -95,7 +95,7 @@ const messaging: ModuleDef = {
     installNotesService(
       createNotesService({
         db: ctx.db,
-        scheduler: supervisorScheduler,
+        scheduler: staffNoteScheduler,
         conversations: conversationsReader,
         triageScheduler,
       }),

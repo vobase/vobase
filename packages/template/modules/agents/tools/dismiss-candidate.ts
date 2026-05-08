@@ -15,7 +15,6 @@ export const dismissCandidateTool = defineAgentTool({
     'Mark a pending learning candidate as dismissed (skip without committing). Audit-only; the row stays in the table for analytics.',
   schema: DismissCandidateInputSchema,
   errorCode: 'DISMISS_CANDIDATE_ERROR',
-  audience: 'internal',
   lane: 'both',
   prompt:
     'Use when a surfaced learning candidate is noise (dup of existing memory, customer trivia, off-topic). Always supply a short `reason` so the audit trail is useful. Ignoring is also fine — uncommitted candidates expire after 7 days.',

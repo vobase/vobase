@@ -46,7 +46,7 @@ import { AGENTS_WAKE_JOB, createWakeHandler } from '~/wake/inbound'
 import { learningCandidateExpiryJob } from '~/wake/learning/expiry-cron'
 import { installTriageDeps, learningTriageJob } from '~/wake/learning/triage-job'
 import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
-import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
+import { createStaffNoteWakeHandler, MESSAGING_STAFF_NOTE_TO_WAKE_JOB } from '~/wake/staff-note'
 import type { RealtimeService, ScopedDb } from './index'
 import { modules } from './modules'
 import { createStorage } from './storage'
@@ -302,12 +302,12 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     createOperatorThreadWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions),
   )
 
-  // Supervisor wakes: staff posts an internal note. `addNote` post-commit
+  // Staff-note wakes: staff posts an internal note. `addNote` post-commit
   // fan-out enqueues one wake per agent `@-mentioned` in the body — notes
   // without an `@-mention` wake nobody. Agent-authored notes never fan out.
   jobHandlers.set(
-    MESSAGING_SUPERVISOR_TO_WAKE_JOB,
-    createSupervisorWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions),
+    MESSAGING_STAFF_NOTE_TO_WAKE_JOB,
+    createStaffNoteWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions),
   )
 
   // Change-decided wakes: staff approved/rejected a proposal that was created

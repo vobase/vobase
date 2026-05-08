@@ -15,7 +15,6 @@ export const bookSlotTool = defineAgentTool({
   schema: BookSlotInputSchema,
   errorCode: 'BOOK_SLOT_ERROR',
   requiresApproval: true,
-  audience: 'customer',
   lane: 'conversation',
   prompt:
     'Side-effect only: the customer sees nothing from this tool itself. After a successful booking, follow up with `reply` (or `send_card`) to confirm the appointment time + any next steps. Slot ids come from your earlier slot lookup — never fabricate them.',

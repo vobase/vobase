@@ -47,8 +47,7 @@ export const driveAgentsMdContributors: readonly IndexContributor[] = [
       [
         '## Organization knowledge (drive)',
         '',
-        '- `/drive/*` — organization knowledge base (read-only). Use `cat`, `grep`, `head` to read.',
-        '- `/drive/BUSINESS.md` — organization brand + policies (frozen).',
+        '- `/drive/*` — org knowledge base (read-only). `cat /drive/BUSINESS.md` for brand + policies.',
       ].join('\n'),
   }),
 ]

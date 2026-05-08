@@ -4,22 +4,20 @@
  * Wired into both lanes:
  *   - Standalone (operator/heartbeat): leave breadcrumbs after triage, refund
  *     analysis, or a sweep.
- *   - Conversation (inbound/supervisor/approval-resumed): acknowledge a staff
- *     coaching note, summarise what was captured to MEMORY.md, or record a
- *     decision the agent made on the thread. Survives the coaching tool
- *     filter because it has no `audience: 'customer'` tag.
+ *   - Conversation (inbound/staff_note/approval-resumed): acknowledge a staff
+ *     note, summarise what was captured to MEMORY.md, or record a decision
+ *     the agent made on the thread.
  *
  * **Mentions double as the "ask staff" affordance.** When `mentions` is
  * non-empty, each token is resolved against the staff roster (userId first,
  * then displayName lowercased), turned into `staff:<userId>` notification
  * targets, and prepended to the body as `@DisplayName` so the rendered note
  * shows the mention inline. The post-commit fan-out in `service/notes.ts`
- * then enqueues one supervisor wake per mentioned staff — when staff replies,
- * the agent wakes back up with `supervisorKind: 'ask_staff_answer'` and
- * customer-facing tools stay available.
+ * then enqueues one staff-note wake per mentioned staff — when staff replies,
+ * the agent wakes back up on a staff-note wake.
  *
  * Ping-pong is gated in `messaging/service/notes.ts` — agent-authored notes
- * never trigger supervisor fan-out for the AUTHORING agent, so this tool
+ * never trigger staff-note fan-out for the AUTHORING agent, so this tool
  * cannot recursively wake the caller.
  */
 
@@ -42,7 +40,7 @@ export const AddNoteInputSchema = Type.Object({
     Type.Array(Type.String({ minLength: 1, maxLength: 64 }), {
       maxItems: 16,
       description:
-        'Staff to notify — userIds or displayNames (resolved against `vobase team list`). Their reply fires a supervisor wake so you can resume with the answer. Omit for plain breadcrumbs.',
+        'Staff to notify — userIds or displayNames (resolved against `vobase team list`). Their reply fires a staff-note wake so you can resume with the answer. Omit for plain breadcrumbs.',
     }),
   ),
 })
@@ -52,12 +50,12 @@ export type AddNoteToolInput = Static<typeof AddNoteInputSchema>
 export const addNoteTool = defineAgentTool({
   name: 'add_note',
   description:
-    'Append an internal note to a conversation timeline. Author is the agent. Pass `mentions` (userIds or displayNames) to ask staff a question — staff reply fires a supervisor wake.',
+    'Append an internal note to a conversation timeline. Author is the agent. Pass `mentions` (userIds or displayNames) to ask staff a question — staff reply fires a staff-note wake.',
   schema: AddNoteInputSchema,
   errorCode: 'NOTES_ERROR',
   lane: 'both',
   prompt:
-    "Two uses: (1) leave breadcrumbs on the timeline after triage / refund analysis / a heartbeat sweep — visible to staff, not to the customer; (2) ask staff a question by passing `mentions` — staff reply fires a supervisor wake and customer-facing tools stay available so you can relay the answer. Omit `conversationId` on conversation-lane wakes — it defaults to the current wake's conversation. Pass it explicitly only on standalone-lane wakes (heartbeat / operator-thread) when noting on a different conversation. For (2), do NOT invent userIds — run `vobase team list` first.",
+    "Two uses: (1) leave breadcrumbs on the timeline after triage / refund analysis / a heartbeat sweep — visible to staff, not to the customer; (2) ask staff a question by passing `mentions` — staff reply fires a staff-note wake and customer-facing tools stay available so you can relay the answer. Omit `conversationId` on conversation-lane wakes — it defaults to the current wake's conversation. Pass it explicitly only on standalone-lane wakes (heartbeat / operator-thread) when noting on a different conversation. For (2), do NOT invent userIds — run `vobase team list` first.",
   async run(args, ctx) {
     const tokens = args.mentions ?? []
     const resolvedMentions: string[] = []

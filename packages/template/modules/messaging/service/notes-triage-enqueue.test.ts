@@ -3,7 +3,7 @@
  *
  * Covers:
  *   - Staff note with NO @-mention + agent assignee → one coaching_note enqueued
- *   - Staff note WITH @-mention → ZERO coaching_note enqueues (supervisor wake path instead)
+ *   - Staff note WITH @-mention → ZERO coaching_note enqueues (staff-note wake path instead)
  *   - Agent-authored note → ZERO coaching_note enqueues (hard ping-pong filter)
  *   - No assignee → ZERO coaching_note enqueues (nothing to attribute to)
  */
@@ -16,7 +16,7 @@ import {
   type ConversationsReader,
   createNotesService,
   type NoteTriageScheduler,
-  type SupervisorScheduler,
+  type StaffNoteScheduler,
 } from './notes'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -60,9 +60,9 @@ function makeDb(returnNote: InternalNote = fakeNote) {
   }
 }
 
-function makeSupervisorScheduler(): SupervisorScheduler {
+function makeStaffNoteScheduler(): StaffNoteScheduler {
   return {
-    enqueueSupervisor: () => Promise.resolve(),
+    enqueueStaffNote: () => Promise.resolve(),
   }
 }
 
@@ -98,7 +98,7 @@ describe('notes coaching_note triage enqueue', () => {
 
     const svc = createNotesService({
       db: makeDb(),
-      scheduler: makeSupervisorScheduler(),
+      scheduler: makeStaffNoteScheduler(),
       conversations: makeConversationsReader(ASSIGNEE_AGENT_ID),
       triageScheduler: scheduler,
     })
@@ -132,7 +132,7 @@ describe('notes coaching_note triage enqueue', () => {
 
     const svc = createNotesService({
       db: makeDb({ ...fakeNote, authorType: 'agent' }),
-      scheduler: makeSupervisorScheduler(),
+      scheduler: makeStaffNoteScheduler(),
       conversations: makeConversationsReader(ASSIGNEE_AGENT_ID),
       triageScheduler: scheduler,
     })
@@ -155,7 +155,7 @@ describe('notes coaching_note triage enqueue', () => {
 
     const svc = createNotesService({
       db: makeDb(),
-      scheduler: makeSupervisorScheduler(),
+      scheduler: makeStaffNoteScheduler(),
       conversations: makeConversationsReader(null),
       triageScheduler: scheduler,
     })

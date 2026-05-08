@@ -631,7 +631,7 @@ export async function seed(db: unknown): Promise<void> {
   // mentions @bob in an internal note → notification is delivered to Bob's
   // staff WhatsApp number → Bob replies via WA → that reply is recorded as
   // an internal note authored by 'staff' with @meridian in mentions →
-  // supervisor wake fires → Meridian uses Bob's guidance to answer Liam.
+  // staff-note wake fires → Meridian uses Bob's guidance to answer Liam.
   // Meanwhile Meridian keeps the customer engaged with a holding reply +
   // an information-gathering question so the wait is productive.
   await insertConv(ins, {
@@ -726,7 +726,7 @@ export async function seed(db: unknown): Promise<void> {
 
   // T-30: Bob replies via WhatsApp staff number — recorded as a staff
   // internal note. The inbound webhook attaches @meridian to mentions so
-  // the supervisor wake fires off it.
+  // the staff-note wake fires off it.
   await insertNote(ins, {
     id: 'not0liam02',
     conversationId: LIAM_CONV_ID,
@@ -755,13 +755,13 @@ export async function seed(db: unknown): Promise<void> {
     ts: mins(30),
   })
 
-  // T-30: supervisor wake fires off Bob's note (this is what kicks Meridian
-  // back awake on the conversation as a `supervisor` signal).
+  // T-30: staff-note wake fires off Bob's note (this is what kicks Meridian
+  // back awake on the conversation as a `staff_note` signal).
   await insertActivity(ins, {
     conversationId: LIAM_CONV_ID,
     type: 'agent_wake.scheduled',
     payload: {
-      trigger: 'supervisor',
+      trigger: 'staff_note',
       noteId: 'not0liam02',
       authorUserId: BOB_USER_ID,
       reason: 'staff replied to outstanding consultation',

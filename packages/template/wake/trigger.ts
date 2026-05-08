@@ -25,27 +25,11 @@ import type { WakeTrigger, WakeTriggerKind } from './events'
  * context to thread through. Each renderer reads only the fields its trigger
  * variant depends on.
  */
-/**
- * Classification of a supervisor wake. Computed by the messaging module's
- * `classifySupervisorTrigger` (it owns the internal-note schema) and threaded
- * through `RenderRefs` so the renderer + tool filter can branch consistently
- * without the capability layer reaching into messaging internals.
- *
- * - `ask_staff_answer`: staff is replying to an `ask_staff` tool post from
- *   THIS agent. Customer-facing tools stay available so the agent can relay
- *   the answer.
- * - `coaching`: staff-initiated feedback. Customer-facing tools are stripped
- *   so the agent treats the note as a learning event, not a reply trigger.
- */
-export type SupervisorKind = 'ask_staff_answer' | 'coaching'
-
 export interface RenderRefs {
   contactId?: string
   channelInstanceId?: string
   assignee?: string
   currentAgentId?: string
-  /** Set on supervisor wakes only; ignored by other trigger renderers. */
-  supervisorKind?: SupervisorKind
 }
 
 export interface TriggerSpec {
@@ -73,36 +57,23 @@ function renderApprovalResumed(trigger: WakeTrigger, _refs: RenderRefs): string 
     : `Your previous action was rejected: ${trigger.note ?? '(no note)'}. Choose a different approach.`
 }
 
-function renderSupervisor(trigger: WakeTrigger, refs: RenderRefs): string {
-  if (trigger.trigger !== 'supervisor') return ''
+function describeAssignee(assignee: string | undefined): string {
+  if (!assignee) return 'someone else ((unknown))'
+  if (assignee.startsWith('user:')) return `staff member ${assignee}`
+  if (assignee.startsWith('agent:')) return `another agent (${assignee})`
+  return `someone else (${assignee})`
+}
+
+function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
+  if (trigger.trigger !== 'staff_note') return ''
   const base = trigger.mentionedAgentId
     ? `Staff @-mentioned you in an internal note. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
     : `Staff added an internal note. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
-  // Peer-wake guard: if you are NOT the conversation assignee, the human or
-  // agent who is must drive the customer-facing reply. Treat the staff note
-  // as coaching/consultation only — internalise it (memory, learnings),
-  // do not call reply / send_card / send_file / book_slot in this turn.
   const youOwn = refs.assignee === `agent:${refs.currentAgentId}`
   if (!youOwn) {
-    const ownerHint = refs.assignee?.startsWith('user:')
-      ? `staff member ${refs.assignee}`
-      : refs.assignee?.startsWith('agent:')
-        ? `another agent (${refs.assignee})`
-        : `someone else (${refs.assignee ?? '(unknown)'})`
-    return `${base} You are NOT the conversation assignee — ${ownerHint} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. Do NOT call reply / send_card / send_file / book_slot — the assignee is in charge of customer-facing replies here.`
+    return `${base} You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. Do NOT call reply / send_card / send_file / book_slot — the assignee is in charge of customer-facing replies here.`
   }
-  // Assignee-wake, staff-answering-your-question branch: the messaging
-  // classifier reports this is a direct reply to an `add_note` (with mentions)
-  // agent made. The customer-facing tool catalog stays open in
-  // `wake/build-config/conversation.ts` for this kind so the agent can
-  // relay the answer.
-  if (refs.supervisorKind === 'ask_staff_answer') {
-    return `${base} First, run \`cat ${convoFolder(refs)}/INTERNAL-NOTES.md\` to read the staff answer. Then send the customer-facing reply now (reply / send_card / send_file / book_slot as appropriate). Only if you still have follow-up questions after reading, call \`add_note\` with \`mentions\` populated instead of guessing.`
-  }
-  // Assignee-wake, coaching branch (default): customer-facing tools are
-  // stripped at the harness layer (`audience: 'customer'` filter). The read
-  // directive is sentence 1 so the model cannot treat it as optional.
-  return `${base} Customer-facing tools are stripped on this wake — this is staff coaching, NOT a request to send another customer reply. First, run \`cat ${convoFolder(refs)}/INTERNAL-NOTES.md\` to read the note. Then capture any durable lesson in /agents/<your-id>/MEMORY.md (or the contact's MEMORY.md if it is contact-specific) by appending with \`echo\`. Only if the note is genuinely ambiguous after reading, call \`add_note\` with \`mentions\` populated to ask for clarification.`
+  return `${base} Decide what the note asks for and act — see \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -174,7 +145,7 @@ function renderChangeDecided(trigger: WakeTrigger, _refs: RenderRefs): string {
 const REGISTRY: Record<WakeTriggerKind, TriggerSpec> = {
   inbound_message: { lane: 'conversation', logPrefix: 'wake:conv', render: renderInboundMessage },
   approval_resumed: { lane: 'conversation', logPrefix: 'wake:conv', render: renderApprovalResumed },
-  supervisor: { lane: 'conversation', logPrefix: 'wake:conv', render: renderSupervisor },
+  staff_note: { lane: 'conversation', logPrefix: 'wake:conv', render: renderStaffNote },
   scheduled_followup: { lane: 'conversation', logPrefix: 'wake:conv', render: renderScheduledFollowup },
   manual: { lane: 'conversation', logPrefix: 'wake:conv', render: renderManual },
   operator_thread: { lane: 'standalone', logPrefix: 'wake:solo', render: renderOperatorThread },

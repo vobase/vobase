@@ -8,7 +8,7 @@
  *
  * Writer: `agentsMaterializerFactory` in `modules/agents/agent.ts`.
  * Readers: per-module AGENTS.md contributors (e.g. messaging's
- *   supervisor-coaching block, standalone customer-tools-stripped block).
+ *   staff-note block, standalone customer-tools-stripped block).
  */
 
 import type { IndexContributorContext } from '@vobase/core'
@@ -17,13 +17,9 @@ import type { WakeTrigger } from './events'
 
 export type LaneName = 'conversation' | 'standalone'
 
-export type SupervisorKind = 'coaching' | 'ask_staff_answer'
-
 export interface WakeAgentsMdScratch {
   lane: LaneName
   triggerKind: WakeTrigger['trigger']
-  /** Set only when `triggerKind === 'supervisor'` (conversation lane). */
-  supervisorKind?: SupervisorKind
 }
 
 /**

@@ -57,7 +57,6 @@ export const rememberTool = defineAgentTool({
     'Commit a lesson to durable memory. Routes through change-proposals: auto-write or queue for review based on confidence × resource sensitivity. Use after consuming a learning candidate, or any time you want to make a fact stick.',
   schema: RememberInputSchema,
   errorCode: 'REMEMBER_ERROR',
-  audience: 'internal',
   lane: 'both',
   prompt: [
     'Use to commit lasting facts: agent rules ("always do X"), per-customer facts (preferences, history), per-staff facts (tone, expertise).',

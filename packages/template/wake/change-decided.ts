@@ -120,7 +120,7 @@ export function createChangeDecidedWakeHandler(
         data: {
           organizationId: data.organizationId,
           conversationId: data.conversationId,
-          // No inbound message — sentinel mirrors supervisor wake's pattern.
+          // No inbound message — sentinel mirrors staff-note wake's pattern.
           messageId: '',
           contactId: conv.contactId,
         },

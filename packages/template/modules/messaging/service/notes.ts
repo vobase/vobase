@@ -7,7 +7,7 @@
  * import surface).
  *
  * Post-commit fan-out (Slice 1 of trigger-driven-capabilities): when a STAFF-
- * authored note is added, the service enqueues one supervisor wake per agent
+ * authored note is added, the service enqueues one staff-note wake per agent
  * explicitly `@-mentioned` in the body. Notes without an `@-mention` do not
  * wake any agent — the agent's working memory should only update when staff
  * pings the agent directly. Agent-authored notes never fan out (HARD
@@ -15,7 +15,7 @@
  *
  * Learning-loop triage (Slice 2): staff-authored notes with NO @-mention
  * emit a `coaching_note` signal to `learning:triage` so the loop can observe
- * direct coaching without a supervisor wake being required.
+ * direct coaching without a staff-note wake being required.
  */
 
 import { internalNotes } from '@modules/messaging/schema'
@@ -40,13 +40,13 @@ type NotesDb = {
 }
 
 /**
- * Narrow port: produces one supervisor wake job per call. Decoupled from the
+ * Narrow port: produces one staff-note wake job per call. Decoupled from the
  * concrete `WakeScheduler`/`pg-boss` to keep notes.ts agents-module-free.
  * Wired in `modules/messaging/module.ts::init` to `ctx.jobs.send` against
- * `MESSAGING_SUPERVISOR_TO_WAKE_JOB`.
+ * `MESSAGING_STAFF_NOTE_TO_WAKE_JOB`.
  */
-export interface SupervisorScheduler {
-  enqueueSupervisor(opts: {
+export interface StaffNoteScheduler {
+  enqueueStaffNote(opts: {
     conversationId: string
     noteId: string
     authorUserId: string
@@ -67,17 +67,17 @@ export interface NoteTriageScheduler {
 }
 
 /**
- * pg-boss singleton key for supervisor wakes. Each `(conversation, note,
+ * pg-boss singleton key for staff-note wakes. Each `(conversation, note,
  * mentionedAgent | 'self')` tuple gets a unique key so retries dedup but
  * distinct peer wakes never merge. Producer (`module.ts::init`) and tests
  * import this so the format is asserted, not duplicated.
  */
-export function buildSupervisorSingletonKey(opts: {
+export function buildStaffNoteSingletonKey(opts: {
   conversationId: string
   noteId: string
   mentionedAgentId?: string
 }): string {
-  return `supervisor:${opts.conversationId}:${opts.noteId}:${opts.mentionedAgentId ?? 'self'}`
+  return `staff_note:${opts.conversationId}:${opts.noteId}:${opts.mentionedAgentId ?? 'self'}`
 }
 
 /**
@@ -96,8 +96,8 @@ export interface NotesService {
 
 export interface NotesServiceDeps {
   db: unknown
-  /** Optional supervisor wake scheduler. When omitted, addNote skips fan-out. */
-  scheduler?: SupervisorScheduler | null
+  /** Optional staff-note wake scheduler. When omitted, addNote skips fan-out. */
+  scheduler?: StaffNoteScheduler | null
   /** Optional conversation reader for assignee resolution. When omitted, addNote skips fan-out. */
   conversations?: ConversationsReader | null
   /**
@@ -132,7 +132,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
     // Post-commit fan-out — staff-authored only (HARD ping-pong filter).
     // Skipped when fan-out wiring isn't installed (e.g. unit-test contexts).
     if (input.author.kind !== 'agent' && scheduler && conversationsReader) {
-      void runSupervisorFanOut({
+      void runStaffNoteFanOut({
         scheduler,
         triageScheduler,
         conversations: conversationsReader,
@@ -141,7 +141,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
         mentions: input.mentions,
         authorUserId: input.author.id,
       }).catch((err) => {
-        console.error('[messaging/notes] supervisor fan-out failed (non-fatal):', err)
+        console.error('[messaging/notes] staff-note fan-out failed (non-fatal):', err)
       })
     }
 
@@ -163,15 +163,15 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
 /**
  * Best-effort fan-out: one wake per `@-mentioned` agent. Plain notes with no
  * `@-mention` do not wake anyone — the agent's working memory only updates when
- * staff explicitly pings the agent. Each `enqueueSupervisor` call is wrapped
+ * staff explicitly pings the agent. Each `enqueueStaffNote` call is wrapped
  * in its own try/catch so a single bad enqueue cannot starve the remaining
  * wakes.
  *
  * For notes with NO @-mention, emits a `coaching_note` learning-triage signal
  * when a triage scheduler is wired (non-fatal).
  */
-async function runSupervisorFanOut(opts: {
-  scheduler: SupervisorScheduler
+async function runStaffNoteFanOut(opts: {
+  scheduler: StaffNoteScheduler
   triageScheduler: NoteTriageScheduler | null
   conversations: ConversationsReader
   note: InternalNote
@@ -223,13 +223,13 @@ async function runSupervisorFanOut(opts: {
 
   for (const mentionedId of mentionedAgentIds) {
     try {
-      await scheduler.enqueueSupervisor({
+      await scheduler.enqueueStaffNote({
         ...common,
         mentionedAgentId: mentionedId,
         assigneeAgentId: assigneeAgentId ?? undefined,
       })
     } catch (err) {
-      console.error('[messaging/notes] supervisor wake enqueue failed:', err)
+      console.error('[messaging/notes] staff-note wake enqueue failed:', err)
     }
   }
 }
@@ -259,35 +259,4 @@ export async function addNote(input: AddNoteInput): Promise<InternalNote> {
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listNotes(conversationId: string): Promise<InternalNote[]> {
   return current().listNotes(conversationId)
-}
-
-/**
- * Classify a supervisor wake's triggering note relative to the current
- * agent's recent activity on the same conversation.
- *
- * Returns:
- *   - `ask_staff_answer` — the note immediately preceding the trigger was
- *     posted by THIS agent and explicitly @-mentioned someone (i.e. it was
- *     an `add_note` with `mentions` from this agent). The current note is therefore a
- *     direct answer to the agent's question; the wake should NOT strip
- *     customer-facing tools.
- *   - `coaching` — anything else (no prior note, prior note by staff, prior
- *     note by another agent, or prior note by this agent without a mention).
- *     This is staff-initiated feedback; the wake should default to
- *     read-and-internalise without sending another customer reply.
- *
- * Lives in messaging because the classification is purely a function of
- * note authorship + mentions — no wake-builder primitive needed.
- */
-export async function classifySupervisorTrigger(opts: {
-  conversationId: string
-  triggerNoteId: string
-  agentId: string
-}): Promise<{ kind: 'ask_staff_answer' | 'coaching' }> {
-  const notes = await listNotes(opts.conversationId)
-  const idx = notes.findIndex((n) => n.id === opts.triggerNoteId)
-  const prior = idx > 0 ? notes[idx - 1] : null
-  const isAskStaffAnswer =
-    !!prior && prior.authorType === 'agent' && prior.authorId === opts.agentId && prior.mentions.length > 0
-  return { kind: isAskStaffAnswer ? 'ask_staff_answer' : 'coaching' }
 }

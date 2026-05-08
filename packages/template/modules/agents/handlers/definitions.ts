@@ -26,7 +26,7 @@ import type { WakeAudienceTier } from '@vobase/core'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-import type { LaneName, SupervisorKind } from '~/wake/agents-md-scratch'
+import type { LaneName } from '~/wake/agents-md-scratch'
 import type { WakeContext } from '~/wake/context'
 
 const createBody = z.object({
@@ -46,10 +46,9 @@ const updateBody = z.object({
 })
 
 /**
- * Lane-preview query. `lane` + `triggerKind` are sufficient for every
- * variant except conversation/supervisor, where `supervisorKind` selects
- * coaching vs ask-staff-answer. Defaults to a conversation/inbound_message
- * preview to match the historical (pre-lane-switcher) behaviour.
+ * Lane-preview query. `lane` + `triggerKind` are sufficient. Defaults to a
+ * conversation/inbound_message preview to match the historical
+ * (pre-lane-switcher) behaviour.
  */
 const previewQuery = z
   .object({
@@ -57,7 +56,7 @@ const previewQuery = z
     triggerKind: z
       .enum([
         'inbound_message',
-        'supervisor',
+        'staff_note',
         'approval_resumed',
         'scheduled_followup',
         'manual',
@@ -65,7 +64,6 @@ const previewQuery = z
         'heartbeat',
       ])
       .default('inbound_message'),
-    supervisorKind: z.enum(['coaching', 'ask_staff_answer']).optional(),
   })
   .superRefine((q, ctx) => {
     // Lane × triggerKind compatibility — silent coercion would mask UI bugs
@@ -78,9 +76,6 @@ const previewQuery = z
     if (q.lane === 'conversation' && standaloneKinds.includes(q.triggerKind)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'triggerKind not valid for conversation lane' })
     }
-    if (q.supervisorKind && q.triggerKind !== 'supervisor') {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'supervisorKind only applies when triggerKind=supervisor' })
-    }
   })
 
 type PreviewQuery = z.infer<typeof previewQuery>
@@ -89,7 +84,7 @@ type PreviewQuery = z.infer<typeof previewQuery>
  * Render the AGENTS.md the agent would see for a given lane variant. Builds
  * a synthetic `WakeContext` with the lane-filtered tool catalogue and the
  * boot-time AGENTS.md contributors so module-side lane-aware blocks (e.g.
- * messaging's supervisor-coaching prose) appear in the right cases.
+ * messaging's staff-note prose) appear in the right cases.
  *
  * Drive / staff / auth handles are stubbed because the AGENTS.md
  * materializer never reads them — only the MESSAGES.md / PROFILE.md
@@ -101,16 +96,11 @@ async function renderPreviewAgentsMd(input: {
   organizationId: string
   lane: LaneName
   triggerKind: PreviewQuery['triggerKind']
-  supervisorKind?: SupervisorKind
 }): Promise<string> {
   const contributions = getAgentContributions()
 
-  // Mirrors `wake/conversation.ts` + `wake/standalone.ts`. Coaching wakes
-  // also strip `audience: 'customer'` tools so the preview shows what the
-  // harness actually surfaces under that condition.
-  const laneTools = contributions.tools.filter((t) => t.lane === input.lane || t.lane === 'both')
-  const previewTools =
-    input.supervisorKind === 'coaching' ? laneTools.filter((t) => t.audience !== 'customer') : laneTools
+  // Mirrors `wake/conversation.ts` + `wake/standalone.ts`.
+  const previewTools = contributions.tools.filter((t) => t.lane === input.lane || t.lane === 'both')
 
   const audienceTier: WakeAudienceTier =
     input.lane === 'conversation' && input.triggerKind === 'inbound_message' ? 'contact' : 'staff'
@@ -128,7 +118,6 @@ async function renderPreviewAgentsMd(input: {
     agentsMdContributors: contributions.agentsMd,
     lane: input.lane,
     triggerKind: input.triggerKind,
-    supervisorKind: input.supervisorKind,
     audienceTier,
   }
 
@@ -195,13 +184,12 @@ const app = new Hono<OrganizationEnv>()
       try {
         const row = await getById(c.req.param('id'))
         if (row.organizationId !== c.get('organizationId')) return c.json({ error: 'not_found' }, 404)
-        const { lane, triggerKind, supervisorKind } = c.req.valid('query')
+        const { lane, triggerKind } = c.req.valid('query')
         const rendered = await renderPreviewAgentsMd({
           agentDefinition: row,
           organizationId: c.get('organizationId'),
           lane,
           triggerKind,
-          supervisorKind,
         })
         const preamble = rendered.replace(/\n## Instructions\n[\s\S]*$/, '\n')
         return c.json({ preamble })

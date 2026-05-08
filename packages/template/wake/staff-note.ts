@@ -1,18 +1,18 @@
 /**
- * Supervisor wake handler — processes `messaging:supervisor-to-wake` jobs
+ * Staff-note wake handler — processes `messaging:staff-note-to-wake` jobs
  * fired by `addNote` post-commit fan-out.
  *
- * One payload shape: every supervisor wake targets an explicitly @-mentioned
- * agent. The handler boots that agent with the supervisor trigger so it can
- * react to the staff note. The conversation assignee may be a different
- * agent, the mentioned agent itself (self-mention), or no agent at all
- * (staff-owned thread).
+ * One payload shape: every staff-note wake targets an explicitly @-mentioned
+ * agent. The handler boots that agent with the staff_note trigger so it can
+ * react to the note. The conversation assignee may be a different agent, the
+ * mentioned agent itself (self-mention), or no agent at all (staff-owned
+ * thread).
  *
  * Legacy payloads (older queue rows where `mentionedAgentId` is undefined)
  * fall back to `assigneeAgentId` / the live conversation assignee so a
  * version skew during deploy doesn't drop in-flight jobs.
  *
- * Mirrors the structure of `wake/handler.ts` (conversation-lane inbound→wake) so
+ * Mirrors the structure of `wake/inbound.ts` (conversation-lane inbound→wake) so
  * adding new triggers stays mechanical: parse payload → resolve agent →
  * build config with the explicit trigger → hand to `createHarness`.
  */
@@ -31,13 +31,13 @@ import { conversationWakeConfig } from './conversation'
 import type { WakeTrigger } from './events'
 
 /**
- * Job name + payload for the supervisor fan-out queue. Producer:
+ * Job name + payload for the staff-note fan-out queue. Producer:
  * `modules/messaging/service/notes.ts::addNote` post-commit. Consumer:
- * `createSupervisorWakeHandler` below (registered in `runtime/bootstrap.ts`).
+ * `createStaffNoteWakeHandler` below (registered in `runtime/bootstrap.ts`).
  */
-export const MESSAGING_SUPERVISOR_TO_WAKE_JOB = 'messaging:supervisor-to-wake'
+export const MESSAGING_STAFF_NOTE_TO_WAKE_JOB = 'messaging:staff-note-to-wake'
 
-export const SupervisorWakePayloadSchema = z.object({
+export const StaffNoteWakePayloadSchema = z.object({
   organizationId: z.string(),
   conversationId: z.string(),
   noteId: z.string(),
@@ -52,7 +52,7 @@ export const SupervisorWakePayloadSchema = z.object({
   assigneeAgentId: z.string().optional(),
 })
 
-export type SupervisorWakePayload = z.infer<typeof SupervisorWakePayloadSchema>
+export type StaffNoteWakePayload = z.infer<typeof StaffNoteWakePayloadSchema>
 
 export interface WakeHandlerDeps {
   realtime: RealtimeService
@@ -61,10 +61,10 @@ export interface WakeHandlerDeps {
   jobs: ScopedScheduler
 }
 
-export function createSupervisorWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions<WakeContext>) {
-  return async function handleSupervisorWake(rawData: unknown): Promise<void> {
-    const data = rawData as SupervisorWakePayload
-    console.log('[wake:conv] handling supervisor→wake', {
+export function createStaffNoteWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions<WakeContext>) {
+  return async function handleStaffNoteWake(rawData: unknown): Promise<void> {
+    const data = rawData as StaffNoteWakePayload
+    console.log('[wake:conv] handling staff-note→wake', {
       conv: data.conversationId,
       note: data.noteId,
       mentioned: data.mentionedAgentId ?? null,
@@ -87,7 +87,7 @@ export function createSupervisorWakeHandler(deps: WakeHandlerDeps, contributions
     const resolvedAgentId = data.mentionedAgentId ?? data.assigneeAgentId ?? fallbackAssigneeAgentId ?? null
 
     if (!resolvedAgentId) {
-      console.log('[wake:conv] skipping — no agent resolves for supervisor wake', {
+      console.log('[wake:conv] skipping — no agent resolves for staff-note wake', {
         conv: data.conversationId,
         assignee: conv.assignee,
       })
@@ -102,11 +102,11 @@ export function createSupervisorWakeHandler(deps: WakeHandlerDeps, contributions
       return
     }
 
-    // Synthesize the supervisor trigger; pass it through `triggerOverride`
+    // Synthesize the staff_note trigger; pass it through `triggerOverride`
     // so the renderer recognises the `mentionedAgentId` arm and the wake
-    // boots on the supervisor variant rather than a defaulted inbound trigger.
+    // boots on the staff_note variant rather than a defaulted inbound trigger.
     const triggerOverride: WakeTrigger = {
-      trigger: 'supervisor',
+      trigger: 'staff_note',
       conversationId: data.conversationId,
       noteId: data.noteId,
       authorUserId: data.authorUserId,
@@ -118,7 +118,7 @@ export function createSupervisorWakeHandler(deps: WakeHandlerDeps, contributions
         data: {
           organizationId: data.organizationId,
           conversationId: data.conversationId,
-          // The supervisor wake has no inbound message; pick a stable
+          // The staff-note wake has no inbound message; pick a stable
           // sentinel so the legacy `messageIds` field on the inbound trigger
           // never leaks. The override below replaces the trigger entirely.
           messageId: '',
@@ -133,7 +133,7 @@ export function createSupervisorWakeHandler(deps: WakeHandlerDeps, contributions
       })
       await createHarness<WakeTrigger>(config)
     } catch (err) {
-      console.error('[wake:conv] createHarness (supervisor) failed:', err)
+      console.error('[wake:conv] createHarness (staff_note) failed:', err)
     }
   }
 }

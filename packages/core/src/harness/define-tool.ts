@@ -30,8 +30,6 @@ export interface DefineAgentToolOpts<TSchemaShape extends TSchema, TOk> {
   idempotent?: boolean
   /** Forwarded to `AgentTool` — per-tool concurrency cap (default 1). */
   maxConcurrent?: number
-  /** Forwarded to `AgentTool` — `'customer'` for customer-visible side effects, `'internal'` (default) otherwise. */
-  audience?: AgentTool['audience']
   /** Tool-specific prose for the AGENTS.md `## Tool guidance` block. */
   prompt?: string
   /**
@@ -53,7 +51,6 @@ export function defineAgentTool<TSchemaShape extends TSchema, TOk>(
     ...(opts.requiresApproval ? { requiresApproval: true } : {}),
     ...(opts.idempotent ? { idempotent: true } : {}),
     ...(typeof opts.maxConcurrent === 'number' ? { maxConcurrent: opts.maxConcurrent } : {}),
-    ...(opts.audience ? { audience: opts.audience } : {}),
     ...(opts.prompt ? { prompt: opts.prompt } : {}),
     async execute(args, ctx: ToolContext): Promise<ToolResult<TOk>> {
       if (!Value.Check(opts.schema, args)) {

@@ -22,18 +22,56 @@ export const AGENT_SKILL_RESOURCE = { module: 'agents', type: 'learned_skill' } 
 export const AGENT_MEMORY_RESOURCE = { module: 'agents', type: 'agent_memory' } as const
 
 /**
- * Insert a `learned_skills` row tied to the originating proposal. Agent id is
+ * Upsert a `learned_skills` row tied to the originating proposal. Agent id is
  * extracted from the wake's `agent_start` event, falling back to the conversation
  * assignee when the event is unavailable. Skill rows with `agentId = null` float
  * at organization scope.
+ *
+ * Rewrite semantics: when `(orgId, agentId, name)` already exists, the existing
+ * row is updated in place rather than rejected on the unique constraint. The
+ * proposal's `mode` decides how the body merges:
+ * - `replace` (or default for skills) — overwrite the body
+ * - `append` — concatenate the new body onto the existing one
  */
 export const agentSkillMaterializer: Materializer = async (proposal, tx) => {
-  const body = assertMarkdownPatch(proposal.payload).body
+  const patch = assertMarkdownPatch(proposal.payload)
   const skillName = proposal.resourceId
   if (!skillName) {
     throw validation({ resourceId: proposal.resourceId }, 'agent_skill: resourceId (skill name) required')
   }
   const agentId = proposal.conversationId ? await resolveAgentId(tx, proposal.conversationId) : null
+
+  const existingRows = (await tx
+    .select({ id: learnedSkills.id, body: learnedSkills.body })
+    .from(learnedSkills)
+    .where(
+      and(
+        eq(learnedSkills.organizationId, proposal.organizationId),
+        agentId ? eq(learnedSkills.agentId, agentId) : sql`${learnedSkills.agentId} IS NULL`,
+        eq(learnedSkills.name, skillName),
+      ),
+    )
+    .limit(1)) as Array<{ id: string; body: string }>
+  const existing = existingRows[0]
+
+  if (existing) {
+    const nextBody = patch.mode === 'append' ? `${existing.body}\n${patch.body}` : patch.body
+    await tx
+      .update(learnedSkills)
+      .set({
+        body: nextBody,
+        description: proposal.rationale ?? skillName,
+        parentProposalId: proposal.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(learnedSkills.id, existing.id))
+    return {
+      resultId: existing.id,
+      before: { body: existing.body },
+      after: { id: existing.id, agentId, name: skillName, body: nextBody, parentProposalId: proposal.id },
+    } satisfies MaterializeResult
+  }
+
   const skillId = nanoid(10)
   await tx
     .insert(learnedSkills)
@@ -43,7 +81,7 @@ export const agentSkillMaterializer: Materializer = async (proposal, tx) => {
       agentId,
       name: skillName,
       description: proposal.rationale ?? skillName,
-      body,
+      body: patch.body,
       parentProposalId: proposal.id,
     })
     .returning()
@@ -51,7 +89,7 @@ export const agentSkillMaterializer: Materializer = async (proposal, tx) => {
   return {
     resultId: skillId,
     before: null,
-    after: { id: skillId, agentId, name: skillName, body, parentProposalId: proposal.id },
+    after: { id: skillId, agentId, name: skillName, body: patch.body, parentProposalId: proposal.id },
   } satisfies MaterializeResult
 }
 
