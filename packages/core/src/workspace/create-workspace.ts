@@ -70,11 +70,6 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
   // Snapshot AFTER eager writes — this is the baseline DirtyTracker diffs against.
   const initialSnapshot = await snapshotFs(innerFs)
 
-  for (const m of mats.getOnRead()) {
-    const resolve = m.materialize.bind(m)
-    innerFs.writeFileLazy(m.path, async () => resolve(opts.ctx))
-  }
-
   const customCommands = opts.buildVobaseCommand ? [opts.buildVobaseCommand()] : undefined
 
   const bash = new Bash({

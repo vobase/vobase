@@ -232,13 +232,14 @@ export interface FrozenSnapshotViolationEvent extends GovernanceEventBase {
 
 // ─── Side-load + materializers ──────────────────────────────────────────────
 
-export type SideLoadKind =
-  | 'working_memory'
-  | 'pending_approvals'
-  | 'delivery_status'
-  | 'internal_notes_delta'
-  | 'drive_hint'
-  | 'custom'
+/**
+ * Side-load taxonomy. The originally-planned named kinds (working_memory,
+ * pending_approvals, delivery_status, internal_notes_delta, drive_hint) were
+ * never wired up — every actual contributor uses `'custom'`. Narrowing the
+ * type to what's exercised. If the side-load renderer grows kind-aware
+ * routing later, add the kinds back when their consumers exist.
+ */
+export type SideLoadKind = 'custom'
 
 export interface SideLoadItem {
   kind: SideLoadKind
@@ -257,7 +258,14 @@ export interface SideLoadCtx {
 
 export type SideLoadContributor = (ctx: SideLoadCtx) => Promise<SideLoadItem[]>
 
-export type MaterializerPhase = 'frozen' | 'side-load' | 'on-read'
+/**
+ * Materializer execution timing. The harness only ever runs `'frozen'` —
+ * materializers fire once at agent_start, not mid-wake. The 'side-load' and
+ * 'on-read' values described a future capability that was never wired up;
+ * narrowing the type to what's actually exercised. If a future feature wants
+ * other phases, add them back with a real call site.
+ */
+export type MaterializerPhase = 'frozen'
 
 export interface MaterializerCtx {
   organizationId: string

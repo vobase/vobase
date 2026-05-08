@@ -233,7 +233,7 @@ interface ModuleLike {
   jobs?: readonly JobLike[]
 }
 
-const VALID_PHASES = new Set(['frozen', 'side-load', 'on-read'])
+const VALID_PHASES = new Set(['frozen'])
 
 function trackUnique(seen: Map<string, string>, kind: string, moduleName: string, name: unknown): void {
   if (typeof name !== 'string' || name.length === 0) {
