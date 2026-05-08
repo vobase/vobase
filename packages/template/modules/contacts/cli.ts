@@ -129,12 +129,12 @@ export const contactsProposeChangeVerb = defineCliVerb({
     'Customer-asked profile updates (email, phone, name, segments, attributes) MUST go through this verb — `/contacts/<id>/PROFILE.md` is read-only at the workspace level, so bash-edits will be rejected. Run e.g. `vobase contacts propose-change --id <contactId> --field email --to "new@example.com" --rationale "Customer asked to update on this channel"`. (`--kind field_set` is the default; pass `--kind markdown_patch --body "..."` for prose appends.) For canonical columns use the bare name (`--field phone`, `--field email`, `--field displayName`); the `attributes.<key>` namespace is only for free-form keys without a dedicated column.',
     '',
     'Inspect the returned `status` before replying:',
-    '- `auto_applied` / `applied` → the change is live. Tell the customer it is done (e.g. "All set — your phone number is updated").',
-    '- `pending` → a gated field touched (`displayName`, `email`); the change is queued for our team to review. Tell the customer it is logged for review.',
+    '- `auto_applied` / `applied` → the change is live. Tell the customer it is done (e.g. "All set — your segments are updated").',
+    '- `pending` → a high-sensitivity field touched (`displayName`, `email`, `phone`, anything tenant-marked sensitive); the change is queued for our team to review. Tell the customer it is logged for review and our team will confirm shortly. Do NOT say "done" / "updated" / "all set".',
     '',
     'If the verb returns `ok: false` with `errorCode: pending_conflict`, this contact already has an earlier pending proposal awaiting staff review. Do NOT retry, and do NOT pretend the change went through. Tell the customer their previous request is still under review by our team and ask whether they want to wait for that decision before submitting another change.',
     '',
-    'If the verb returns `ok: false` with `errorCode: unique_conflict`, the value the customer asked for (e.g. an email or phone) is already used by another contact in this organization. Do NOT retry, and do NOT pretend the change went through. Tell the customer that value is already on file under a different account and ask them to confirm or provide a different one.',
+    "If the verb returns `ok: false` with `errorCode: unique_conflict`, the value can't be set on this account. Do NOT retry, do NOT pretend the change went through, and do NOT tell the customer the value belongs to another contact (treat that as confidential). Just say we couldn't update to that value — ask the customer to double-check it or send a different one.",
     '',
     'Always pass a one-sentence `--rationale` summarising what the customer asked — it renders verbatim in the staff /changes inbox.',
   ].join('\n'),
@@ -163,6 +163,17 @@ export const contactsProposeChangeVerb = defineCliVerb({
               kind: 'field_set',
               fields: { [effectiveField]: { from: parseScalar(input.from), to: parseScalar(input.to) } },
             } as const)
+      // Confidence default depends on principal. Manual CLI calls run by
+      // staff/admin (`apikey` / `user`) are an explicit decision and default
+      // to 1.0 (auto-apply unless the resource is `critical`). Agent-origin
+      // calls without an explicit `--confidence` default to 0.85 so:
+      //   - low/medium fields (memory, segments)        → auto-apply
+      //   - high fields (email, phone, displayName)     → pending staff review
+      //   - critical fields (none on contact today)     → pending
+      // The agent can still bypass review by passing `--confidence 0.95` when
+      // it has a learned skill or staff memory authorizing direct writes.
+      const effectiveConfidence =
+        input.confidence !== undefined ? input.confidence : ctx.principal.kind === 'agent' ? 0.85 : undefined
       const result = await insertProposal({
         organizationId: ctx.organizationId,
         resourceModule: CONTACT_RESOURCE.module,
@@ -171,7 +182,7 @@ export const contactsProposeChangeVerb = defineCliVerb({
         payload,
         changedBy: ctx.principal.id,
         changedByKind: principalToChangedByKind(ctx.principal.kind),
-        confidence: input.confidence,
+        confidence: effectiveConfidence,
         rationale: input.rationale,
         expectedOutcome: input.expectedOutcome,
         // Forward the wake's conversationId so `insertProposal` fires the
@@ -205,11 +216,15 @@ export const contactsProposeChangeVerb = defineCliVerb({
       // value instead of seeing a raw `Failed query` stack from drizzle.
       const pg = (err as { cause?: { code?: string; constraint?: string; detail?: string } } | undefined)?.cause
       if (pg?.code === '23505') {
+        // Deliberately neutral: don't echo `pg.detail` to the agent — it
+        // contains the conflicting row's value and would leak existence of
+        // another customer with that email/phone. Constraint name is enough
+        // for the agent to decide which field to ask the customer to redo.
         return {
           ok: false as const,
-          error: `Another contact in this organization already uses that value (${pg.constraint ?? 'unique constraint'}).`,
+          error: 'That value cannot be set on this contact. Ask the customer to verify or provide a different one.',
           errorCode: 'unique_conflict',
-          data: { constraint: pg.constraint, detail: pg.detail },
+          data: { constraint: pg.constraint },
         }
       }
       return {
