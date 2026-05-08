@@ -3,6 +3,7 @@ import { buildChangeDecidedSingletonKey, CHANGES_DECIDED_TO_WAKE_JOB } from '~/w
 import handlers from './handlers'
 import {
   type ChangeDecidedScheduler,
+  type ChangeTriageScheduler,
   createChangeProposalsService,
   installChangeProposalsService,
 } from './service/proposals'
@@ -29,8 +30,16 @@ const changes: ModuleDef = {
         })
       },
     }
+
+    // Learning-triage bridge: rejected agent proposals emit `rejection` signals.
+    const triageScheduler: ChangeTriageScheduler = {
+      publish: async (name, payload) => {
+        await ctx.jobs.send(name, payload)
+      },
+    }
+
     installChangeProposalsService(
-      createChangeProposalsService({ db: ctx.db, realtime: ctx.realtime, decidedScheduler }),
+      createChangeProposalsService({ db: ctx.db, realtime: ctx.realtime, decidedScheduler, triageScheduler }),
     )
   },
 }

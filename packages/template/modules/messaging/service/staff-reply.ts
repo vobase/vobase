@@ -13,6 +13,11 @@
  * inbound (Step 12 / Principle 8). Failures warn-log + drop the offending
  * attachment; the message still posts. There is no idempotency check on
  * this path because staff replies have no `channelExternalId`.
+ *
+ * Post-commit learning signal (Slice 2): after a genuine staff reply, if the
+ * conversation is currently assigned to an agent, a `staff_takeover` signal
+ * is emitted to `learning:triage` (fire-and-forget, non-fatal). The scheduler
+ * is optional — when not installed the enqueue is silently skipped.
  */
 
 import { sendOutbound, throwIfFailed } from '@modules/channels/service/outbound'
@@ -20,6 +25,7 @@ import { filesServiceFor } from '@modules/drive/service/files'
 import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { find as findStaff } from '@modules/team/service/staff'
 
+import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import type { Message } from '../schema'
 import { get as getConversation } from './conversations'
 import { appendStaffTextMessage } from './messages'
@@ -36,6 +42,25 @@ export interface SendStaffReplyInput {
     mimeType: string
     sizeBytes: number
   }>
+}
+
+/**
+ * Narrow port: publishes one learning-triage job per call. Decoupled from
+ * concrete pg-boss so staff-reply.ts stays test-friendly. Wired in
+ * `modules/messaging/module.ts::init`.
+ */
+export interface StaffReplyTriageScheduler {
+  publish(name: string, payload: LearningTriageJobPayload): Promise<void>
+}
+
+let _triageScheduler: StaffReplyTriageScheduler | null = null
+
+export function installStaffReplyTriageScheduler(svc: StaffReplyTriageScheduler): void {
+  _triageScheduler = svc
+}
+
+export function __resetStaffReplyTriageSchedulerForTests(): void {
+  _triageScheduler = null
 }
 
 function hasBracketedPrefix(body: string): boolean {
@@ -56,9 +81,11 @@ async function prefixWithStaffName(staffUserId: string, body: string): Promise<s
 export async function sendStaffReply(input: SendStaffReplyInput): Promise<{ messageId: string; message: Message }> {
   const body = await prefixWithStaffName(input.staffUserId, input.body)
 
+  // Resolve conversation once — used by both attachments path and triage enqueue.
+  const conv = await getConversation(input.conversationId)
+
   const attachmentRefs: MessageAttachmentRef[] = []
   if (input.attachments && input.attachments.length > 0) {
-    const conv = await getConversation(input.conversationId)
     const drive = filesServiceFor(input.organizationId)
     for (const att of input.attachments) {
       try {
@@ -107,5 +134,26 @@ export async function sendStaffReply(input: SendStaffReplyInput): Promise<{ mess
     payload: { text: body },
   })
   throwIfFailed(result, 'staff_reply')
+
+  // Post-commit learning signal — fire-and-forget, non-fatal.
+  if (_triageScheduler) {
+    const assigneeAgentId = conv.assignee.startsWith('agent:') ? conv.assignee.slice('agent:'.length) : null
+    if (assigneeAgentId) {
+      const scheduler = _triageScheduler
+      void Promise.resolve()
+        .then(() =>
+          scheduler.publish(LEARNING_TRIAGE_JOB, {
+            organizationId: input.organizationId,
+            agentId: assigneeAgentId,
+            conversationId: input.conversationId,
+            signal: { kind: 'staff_takeover', messageId: message.id, body: input.body },
+          }),
+        )
+        .catch((err) => {
+          console.warn('[staff-reply] triage enqueue failed:', err)
+        })
+    }
+  }
+
   return { messageId: message.id, message }
 }

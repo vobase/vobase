@@ -88,6 +88,7 @@ const NOOP_CONTRIBUTIONS: AgentContributions = {
 let db: TestDbHandle
 
 const NOOP_REALTIME = { notify: () => {}, subscribe: () => () => {} }
+const NOOP_JOBS = { send: async (_name: string, _data: unknown) => 'noop', cancel: async (_id: string) => {} }
 
 beforeAll(async () => {
   await resetAndSeedDb()
@@ -143,7 +144,7 @@ describe('standaloneWakeConfig (real PG)', () => {
       agentId: MERIGPT_AGENT_ID,
       agentDefinition: await getAgentDefinition(MERIGPT_AGENT_ID),
       contributions: NOOP_CONTRIBUTIONS,
-      deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER },
+      deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER, jobs: NOOP_JOBS },
     })
 
     // Synthetic id: prefixed so journal queries can distinguish standalone-
@@ -223,7 +224,7 @@ describe('standaloneWakeConfig (real PG)', () => {
       agentId: MERIGPT_AGENT_ID,
       agentDefinition: await getAgentDefinition(MERIGPT_AGENT_ID),
       contributions: NOOP_CONTRIBUTIONS,
-      deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER },
+      deps: { db: db.db, realtime: { notify: () => {} } as never, logger: NOOP_LOGGER, jobs: NOOP_JOBS },
     })
 
     expect(config.conversationId).toBe('heartbeat-sch_smoke')

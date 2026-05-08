@@ -39,12 +39,13 @@ import {
 } from './build-base'
 import type { WakeContext } from './context'
 import type { WakeTrigger } from './events'
-import type { LlmEmitter } from './llm'
 import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
-import { createLearningProposalObserver } from './observers/learning-proposals'
-import { createMemoryDistillListener } from './observers/memory-distill'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
+import { enqueueSelfReflection } from './self-reflection'
+
+export type { SelfReflectionCtx } from './self-reflection'
+
 import { resolvePlatformHint } from './platform-hints'
 import { buildFrozenPrompt } from './prompt'
 import { resolveSessionContext } from './session-context'
@@ -228,24 +229,15 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     logger: deps.logger,
   })
 
-  const emitEventHandle: LlmEmitter = {}
-  const memoryDistillListener = createMemoryDistillListener({
-    target: { kind: 'contact', contactId: data.contactId },
-    agentId,
-    useLlm: false,
-    emitter: emitEventHandle,
-    db: deps.db,
-    logger: deps.logger,
-  })
-
-  const learningProposalListener = createLearningProposalObserver({
-    organizationId: data.organizationId,
-    agentId,
-    conversationId,
-    logger: deps.logger,
-    agentName: agentDefinition.name,
-    authLookup,
-  })
+  // Self-reflection signal: on agent_end enqueue a triage job so the learning
+  // pipeline can decide whether anything in this wake is worth capturing.
+  const selfReflectionListener: OnEventListener<WakeTrigger> = async (event) => {
+    if (event.type !== 'agent_end') return
+    await enqueueSelfReflection(
+      { jobs: deps.jobs, organizationId: data.organizationId, agentId, conversationId },
+      event,
+    )
+  }
 
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
@@ -294,12 +286,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
       capability,
       laneTools,
       contributions,
-      coreListeners: [
-        sseListener,
-        workspaceSyncListener as OnEventListener<WakeTrigger>,
-        memoryDistillListener as OnEventListener<WakeTrigger>,
-        learningProposalListener as OnEventListener<WakeTrigger>,
-      ],
+      coreListeners: [sseListener, workspaceSyncListener as OnEventListener<WakeTrigger>, selfReflectionListener],
       toolFilter: supervisorKind === 'coaching' ? (t) => t.audience !== 'customer' : undefined,
     }),
     materializers: wakeMaterializers,
@@ -326,10 +313,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     journalAppend: buildJournalAdapter(),
     loadMessageHistory: history.loadMessageHistory,
     onTurnEndSnapshot: history.onTurnEndSnapshot,
-
-    onPublishReady: (publish) => {
-      emitEventHandle.emit = publish
-    },
 
     maxTurns: 10,
     logger: deps.logger,

@@ -47,12 +47,60 @@ export interface AgentScore {
   createdAt: Date
 }
 
+/**
+ * Triage-emitted "is this worth the agent's attention?" candidate.
+ *
+ * Surfaces in the next wake's side-load (origin conversation full detail; other
+ * conversations abbreviated). Agent decides via `remember` / `dismiss_candidate`.
+ * 7-day TTL: `pending` rows older than `LEARN_CANDIDATE_EXPIRY_DAYS` flip to
+ * `expired` via `wake/learning/expiry-cron.ts`.
+ */
+export type LearningCandidateStatus = 'pending' | 'consumed' | 'dismissed' | 'expired'
+
+export type LearningSignalKind =
+  | 'staff_takeover'
+  | 'coexistence_echo'
+  | 'coaching_note'
+  | 'rejection'
+  | 'self_reflection'
+
+export interface LearningCandidate {
+  id: string
+  organizationId: string
+  agentId: string
+  conversationId: string
+  signalKind: LearningSignalKind
+  signalRef: string
+  triageConfidence: number
+  scopeHint: string | null
+  summary: string
+  context: string
+  status: LearningCandidateStatus
+  consumedByProposalId: string | null
+  dismissedReason: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
 // ─── Tables ─────────────────────────────────────────────────────────────────
 
 import { DEFAULT_CHAT_MODEL } from '@modules/agents/lib/models'
 import { nanoidPrimaryKey } from '@vobase/core/schema'
+import type { InferSelectModel } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, integer, jsonb, numeric, real, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  real,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 import { agentsPgSchema } from '~/runtime'
 
@@ -219,3 +267,57 @@ export const agentScores = agentsPgSchema.table(
   },
   (t) => [index('idx_scores_conv').on(t.conversationId, t.wakeTurnIndex)],
 )
+
+/**
+ * Triage-emitted candidates for the agent-driven learning loop. The triage
+ * job (cheap-model gpt_mini) decides "worth the agent's attention?"; rows
+ * that survive surface in the next wake's side-load. Agent acts via
+ * `remember` (consumes → proposal) or `dismiss_candidate` (audit). Pending
+ * rows older than `LEARN_CANDIDATE_EXPIRY_DAYS` flip to `expired` via the
+ * daily cron.
+ *
+ * Cross-agent isolation: every read filters `agent_id`. MeriGPT never sees
+ * Sentinel's pending candidates.
+ */
+export const learningCandidates = agentsPgSchema.table(
+  'learning_candidates',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    agentId: text('agent_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
+    signalKind: text('signal_kind', {
+      enum: ['staff_takeover', 'coexistence_echo', 'coaching_note', 'rejection', 'self_reflection'],
+    }).notNull(),
+    signalRef: text('signal_ref').notNull(),
+    triageConfidence: doublePrecision('triage_confidence').notNull(),
+    scopeHint: text('scope_hint'),
+    summary: text('summary').notNull(),
+    context: text('context').notNull(),
+    status: text('status', { enum: ['pending', 'consumed', 'dismissed', 'expired'] })
+      .notNull()
+      .default('pending'),
+    consumedByProposalId: text('consumed_by_proposal_id'),
+    dismissedReason: text('dismissed_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index('idx_learning_candidates_pending')
+      .on(t.organizationId, t.agentId, t.conversationId, t.status)
+      .where(sql`status = 'pending'`),
+    index('idx_learning_candidates_status_age').on(t.status, t.createdAt),
+    check('learning_candidates_status_check', sql`status IN ('pending','consumed','dismissed','expired')`),
+    check(
+      'learning_candidates_signal_kind_check',
+      sql`signal_kind IN ('staff_takeover','coexistence_echo','coaching_note','rejection','self_reflection')`,
+    ),
+  ],
+)
+
+type _LearningCandidateAssert = InferSelectModel<typeof learningCandidates> extends LearningCandidate ? true : never
+const _learningCandidateOk: _LearningCandidateAssert = true
+void _learningCandidateOk

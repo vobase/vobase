@@ -9,6 +9,10 @@
  *
  * Echo detection: `event.metadata.echo === true` (set by parseWhatsAppEchoes).
  * Echoes persist with role='staff' and never open the 24h window or wake agents.
+ *
+ * Post-commit learning signal (Slice 2): echo events emit a `coexistence_echo`
+ * signal to `learning:triage` when the conversation is assigned to an agent
+ * (fire-and-forget, non-fatal). Skipped when jobs are not installed.
  */
 
 import type { ChannelInstance } from '@modules/channels/schema'
@@ -22,8 +26,9 @@ import { seedOnInbound } from '@modules/messaging/service/sessions'
 import type { ChannelEvent, MessageReceivedEvent, ReactionEvent, StatusUpdateEvent } from '@vobase/core'
 
 import { AGENTS_WAKE_JOB } from '~/wake/inbound'
+import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import { get as registryGet } from './registry'
-import { requireJobs } from './state'
+import { getJobs, requireJobs } from './state'
 
 export interface InboundDispatchResult {
   externalMessageId: string
@@ -168,6 +173,26 @@ export async function dispatchInbound(
         messageId: result.message.id,
         contactId: contact.id,
       })
+    }
+
+    // Post-commit learning signal for echoes — fire-and-forget, non-fatal.
+    if (isEcho) {
+      const assignee = result.conversation.assignee
+      const assigneeAgentId = assignee?.startsWith('agent:') ? assignee.slice('agent:'.length) : null
+      if (assigneeAgentId) {
+        const triageJobs = getJobs()
+        if (triageJobs) {
+          const triagePayload: LearningTriageJobPayload = {
+            organizationId: instance.organizationId,
+            agentId: assigneeAgentId,
+            conversationId: result.conversation.id,
+            signal: { kind: 'coexistence_echo', messageId: result.message.id, body: event.content ?? '' },
+          }
+          void triageJobs.send(LEARNING_TRIAGE_JOB, triagePayload).catch((err) => {
+            console.warn('[channels/inbound] triage enqueue failed (coexistence_echo):', err)
+          })
+        }
+      }
     }
 
     results.push({

@@ -9,6 +9,7 @@ import {
   resolveAttributeSensitivities,
 } from './service/attribute-definitions'
 import { CONTACT_RESOURCE, contactChangeMaterializer } from './service/changes'
+import { CONTACT_MEMORY_RESOURCE, contactMemoryChangeMaterializer } from './service/contact-memory-changes'
 import { createContactsService, installContactsService } from './service/contacts'
 import * as web from './web'
 
@@ -32,6 +33,13 @@ const contacts: ModuleDef = {
       promptHint: 'fields on the contact record — name, contact details, segments, marketing prefs',
       resolveAttributeSensitivities,
       materialize: contactChangeMaterializer,
+    })
+    registerChangeMaterializer({
+      resourceModule: CONTACT_MEMORY_RESOURCE.module,
+      resourceType: CONTACT_MEMORY_RESOURCE.type,
+      sensitivity: 'medium',
+      promptHint: 'per-customer fact about this specific contact (preferences, history, account state)',
+      materialize: contactMemoryChangeMaterializer,
     })
     ctx.cli.registerAll(contactsVerbs)
   },

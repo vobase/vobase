@@ -17,6 +17,7 @@ import {
   type ConversationsReader,
   createNotesService,
   installNotesService,
+  type NoteTriageScheduler,
   type SupervisorScheduler,
 } from './service/notes'
 import {
@@ -27,6 +28,7 @@ import {
 import { createReactionsService, installReactionsService } from './service/reactions'
 import { createSessionsService, installSessionsService } from './service/sessions'
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
+import { installStaffReplyTriageScheduler, type StaffReplyTriageScheduler } from './service/staff-reply'
 import { convReassignVerb } from './verbs/conv-reassign'
 import * as web from './web'
 
@@ -83,13 +85,22 @@ const messaging: ModuleDef = {
       },
     }
 
+    // Shared triage scheduler satisfies both NoteTriageScheduler and StaffReplyTriageScheduler.
+    const triageScheduler: NoteTriageScheduler & StaffReplyTriageScheduler = {
+      publish: async (name, payload) => {
+        await ctx.jobs.send(name, payload)
+      },
+    }
+
     installNotesService(
       createNotesService({
         db: ctx.db,
         scheduler: supervisorScheduler,
         conversations: conversationsReader,
+        triageScheduler,
       }),
     )
+    installStaffReplyTriageScheduler(triageScheduler)
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
     installSessionsService(createSessionsService({ db: ctx.db }))
     installReactionsService(createReactionsService({ db: ctx.db }))

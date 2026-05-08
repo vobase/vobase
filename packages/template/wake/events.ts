@@ -164,7 +164,7 @@ export type LlmTask =
   | 'scorer.faithfulness'
   | 'moderation'
   | 'memory.distill'
-  | 'learn.propose'
+  | 'learn.triage'
   | 'drive.caption.image'
   | 'drive.caption.video'
   | 'drive.extract.pdf'

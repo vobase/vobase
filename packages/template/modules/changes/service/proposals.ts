@@ -13,6 +13,7 @@ import { nanoid } from 'nanoid'
 
 import type { RealtimeService } from '~/runtime'
 import type { AgentEvent } from '~/wake/events'
+import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import {
   type ChangedByKind,
   type ChangeHistoryRow,
@@ -24,6 +25,15 @@ import {
 } from '../schema'
 import { summarizeLifecycleEvent } from './lifecycle-summary'
 import { effectiveSensitivity, routeStatus, type Sensitivity } from './sensitivity'
+
+/**
+ * Narrow port: publishes one learning-triage job per call. Decoupled from
+ * concrete pg-boss so proposals.ts stays test-friendly. Wired in
+ * `modules/changes/module.ts::init`.
+ */
+export interface ChangeTriageScheduler {
+  publish(name: string, payload: LearningTriageJobPayload): Promise<void>
+}
 
 /** History-listing filter — `status: 'all'` or undefined includes every decided variant. */
 export interface ListHistoryOptions {
@@ -260,6 +270,11 @@ export interface ChangeProposalsServiceDeps {
    * via `modules/changes/module.ts::init`).
    */
   decidedScheduler?: ChangeDecidedScheduler | null
+  /**
+   * Optional learning-triage scheduler. When provided, agent-authored proposals
+   * that are rejected emit a `rejection` signal (non-fatal, fire-and-forget).
+   */
+  triageScheduler?: ChangeTriageScheduler | null
 }
 
 export interface ChangeProposalsService {
@@ -280,6 +295,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
   const db = deps.db as DrizzleHandle
   let realtime: RealtimeService | null = deps.realtime ?? null
   const decidedScheduler: ChangeDecidedScheduler | null = deps.decidedScheduler ?? null
+  const triageScheduler: ChangeTriageScheduler | null = deps.triageScheduler ?? null
 
   /** Synthetic conversation ids (operator-..., heartbeat-...) belong to the
    *  standalone lane and have no customer to acknowledge — skip the wake. */
@@ -313,6 +329,34 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     } catch (err) {
       console.error('[changes/proposals] enqueueChangeDecided failed (proposal still decided):', err)
     }
+  }
+
+  /**
+   * Fire-and-forget `rejection` signal to learning:triage. Only emitted when:
+   *   - A triage scheduler is wired
+   *   - The proposal was authored by an agent (`proposedByKind === 'agent'`)
+   *   - The proposal has a `conversationId` (standalone proposals are not observable)
+   */
+  function fireRejectionTriage(proposal: ChangeProposalRow): void {
+    if (!triageScheduler) return
+    if (proposal.proposedByKind !== 'agent') return
+    // Skip synthetic conversationIds (operator-/heartbeat-) — those don't have a
+    // customer-facing thread, and the side-load contributor would silently drop
+    // any candidate written against them. Don't burn a gpt_mini call.
+    if (!isCustomerConversationId(proposal.conversationId)) return
+    const rawProposedBy = proposal.proposedById ?? ''
+    const agentId = rawProposedBy.startsWith('agent:') ? rawProposedBy.slice('agent:'.length) : rawProposedBy
+    if (!agentId) return
+    void triageScheduler
+      .publish(LEARNING_TRIAGE_JOB, {
+        organizationId: proposal.organizationId,
+        agentId,
+        conversationId: proposal.conversationId,
+        signal: { kind: 'rejection', proposalId: proposal.id, body: proposal.rationale ?? proposal.decidedNote ?? '' },
+      })
+      .catch((err) => {
+        console.warn('[changes/proposals] triage enqueue failed (rejection):', err)
+      })
   }
 
   function fireNotify(
@@ -485,6 +529,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
       const reason = note ?? 'staff_rejected'
       await applyRejection(id, result, decidedByUserId, reason)
       fireNotify(result, 'rejected')
+      fireRejectionTriage(result)
       // Only surface staff-authored notes to the customer-facing wake. The
       // synthetic `staff_rejected` reason is just the absence of a note;
       // suppress so the agent doesn't quote it.
@@ -497,6 +542,7 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     if (!scan.ok) {
       await applyRejection(id, result, decidedByUserId, 'threat_scan')
       fireNotify(result, 'rejected')
+      fireRejectionTriage(result)
       // Threat-scan rejections never carry a staff note; the wake renderer
       // will fall back to a generic "we couldn't apply that" reply.
       await fireChangeDecidedWake(result, 'rejected', decidedByUserId, null)

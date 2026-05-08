@@ -24,6 +24,7 @@ import type {
   HarnessLogger,
   OnEventListener,
   OnToolResultListener,
+  ScopedScheduler,
   WorkspaceMaterializer,
 } from '@vobase/core'
 import { IndexFileBuilder, journalAppend } from '@vobase/core'
@@ -69,6 +70,7 @@ export interface BaseWakeDeps {
   db: ScopedDb
   realtime: RealtimeService
   logger: HarnessLogger
+  jobs: ScopedScheduler
 }
 
 /**

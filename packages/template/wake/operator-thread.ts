@@ -13,7 +13,7 @@
 
 import { operatorThreadMessages, operatorThreads } from '@modules/agents/schema'
 import { getById as getAgentDefinition } from '@modules/agents/service/agent-definitions'
-import type { AgentContributions, HarnessLogger } from '@vobase/core'
+import type { AgentContributions, HarnessLogger, ScopedScheduler } from '@vobase/core'
 import { createHarness } from '@vobase/core'
 import { desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
@@ -38,6 +38,7 @@ export interface OperatorThreadHandlerDeps {
   realtime: RealtimeService
   db: ScopedDb
   logger: HarnessLogger
+  jobs: ScopedScheduler
 }
 
 export function createOperatorThreadWakeHandler(

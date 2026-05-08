@@ -29,10 +29,9 @@ const app = new Hono().post(
     const data = c.req.valid('json')
     try {
       const result = await decide(id, data)
-      // Staff-signal bridge: a rejection-with-note surfaces in the conversation
-      // timeline as an `internal_note` so detectStaffSignals() picks it up on the
-      // approval_resumed wake and memoryDistill can later materialise it as an
-      // anti-lesson. Best-effort — swallow so a note write can never block a decide.
+      // Rejection-with-note surfaces in the conversation timeline as an
+      // `internal_note` for audit and supervisor context.
+      // Best-effort — swallow so a note write can never block a decide.
       if (data.decision === 'rejected' && data.note?.trim()) {
         await persistRejectionNote(result.approval, data.decidedByUserId, data.note).catch(() => undefined)
       }

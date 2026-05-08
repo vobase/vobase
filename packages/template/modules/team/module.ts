@@ -9,6 +9,7 @@ import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
 import { createStaffService, installStaffService } from './service/staff'
+import { STAFF_MEMORY_RESOURCE, staffMemoryChangeMaterializer } from './service/staff-memory-changes'
 import { createTeamDescriptionService, installTeamDescriptionService } from './service/team-descriptions'
 import { teamGetVerb } from './verbs/team-get'
 import { teamListVerb } from './verbs/team-list'
@@ -38,6 +39,14 @@ const team: ModuleDef = {
       promptHint:
         'staff profile — title, availability, capacity, expertise. Identity fields (displayName, email) always pending review.',
       materialize: staffChangeMaterializer,
+    })
+    registerChangeMaterializer({
+      resourceModule: STAFF_MEMORY_RESOURCE.module,
+      resourceType: STAFF_MEMORY_RESOURCE.type,
+      sensitivity: 'medium',
+      promptHint:
+        'per-staff-member fact (specialties, working hours, preferred tone). resourceId is `${agentId}:${staffId}`.',
+      materialize: staffMemoryChangeMaterializer,
     })
     ctx.cli.registerAll([teamListVerb, teamGetVerb])
   },

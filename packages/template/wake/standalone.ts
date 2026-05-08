@@ -36,7 +36,6 @@ import type { WakeConfig } from './conversation'
 import type { WakeTrigger } from './events'
 import { createModel, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
-import { createLearningProposalObserver } from './observers/learning-proposals'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
 import { buildFrozenPrompt } from './prompt'
 import { resolveTriggerSpec } from './trigger'
@@ -162,15 +161,6 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     logger: deps.logger,
   })
 
-  const learningProposalListener = createLearningProposalObserver({
-    organizationId: data.organizationId,
-    agentId,
-    conversationId: null,
-    logger: deps.logger,
-    agentName: agentDefinition.name,
-    authLookup,
-  })
-
   const history = await setupMessageHistory({ db: deps.db, agentId, conversationId })
 
   const trigger: WakeTrigger = buildStandaloneTrigger(data)
@@ -249,7 +239,6 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
       coreListeners: [
         sseListener,
         workspaceSyncListener as OnEventListener<WakeTrigger>,
-        learningProposalListener as OnEventListener<WakeTrigger>,
         ...(operatorThreadBridgeListener ? [operatorThreadBridgeListener] : []),
       ],
     }),

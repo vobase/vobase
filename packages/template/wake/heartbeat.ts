@@ -9,7 +9,7 @@
 
 import { getById as getAgentDefinition } from '@modules/agents/service/agent-definitions'
 import type { HeartbeatTrigger } from '@modules/schedules/jobs'
-import type { AgentContributions, HarnessLogger } from '@vobase/core'
+import type { AgentContributions, HarnessLogger, ScopedScheduler } from '@vobase/core'
 import { createHarness } from '@vobase/core'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
@@ -21,6 +21,7 @@ export interface HeartbeatHandlerDeps {
   realtime: RealtimeService
   db: ScopedDb
   logger: HarnessLogger
+  jobs: ScopedScheduler
 }
 
 /**

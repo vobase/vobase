@@ -53,7 +53,12 @@ describe('createHeartbeatEmitter', () => {
     installAgentDefinitionsService({
       getById: () => Promise.reject(new Error('agent not found')),
     } as unknown as AgentDefinitionsService)
-    const deps = { realtime: { notify: () => {} } as never, db: {} as never, logger: NOOP_LOGGER }
+    const deps = {
+      realtime: { notify: () => {} } as never,
+      db: {} as never,
+      logger: NOOP_LOGGER,
+      jobs: { send: async () => 'noop', cancel: async () => {} },
+    }
     const emit = createHeartbeatEmitter(deps, NOOP_CONTRIBUTIONS)
     await expect(emit(TRIGGER)).resolves.toBeUndefined()
   })
@@ -68,7 +73,12 @@ describe('createHeartbeatEmitter', () => {
         return Promise.reject(new Error('stop here'))
       },
     } as unknown as AgentDefinitionsService)
-    const deps = { realtime: { notify: () => {} } as never, db: {} as never, logger: NOOP_LOGGER }
+    const deps = {
+      realtime: { notify: () => {} } as never,
+      db: {} as never,
+      logger: NOOP_LOGGER,
+      jobs: { send: async () => 'noop', cancel: async () => {} },
+    }
     const emit = createHeartbeatEmitter(deps, NOOP_CONTRIBUTIONS)
     await emit(TRIGGER)
     expect(lookupCount).toBe(1)

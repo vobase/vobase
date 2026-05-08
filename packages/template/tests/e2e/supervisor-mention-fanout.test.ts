@@ -111,6 +111,7 @@ const NOOP_LOGGER: HarnessLogger = {
 }
 
 const NOOP_REALTIME = { notify: () => {}, subscribe: () => () => {} }
+const NOOP_JOBS = { send: async (_name: string, _data: unknown) => 'noop', cancel: async (_id: string) => {} }
 
 const STAFF_USER_ID = 'usr-staff-test'
 
@@ -380,7 +381,7 @@ describe('supervisor mention fan-out', () => {
         agentId: MERIDIAN_AGENT_ID,
         agentDefinition: meridianDef,
         contributions,
-        deps: { db: db.db, realtime: NOOP_REALTIME, logger: NOOP_LOGGER },
+        deps: { db: db.db, realtime: NOOP_REALTIME, logger: NOOP_LOGGER, jobs: NOOP_JOBS },
         triggerOverride: {
           trigger: 'supervisor',
           conversationId: priyaConvId,
@@ -483,7 +484,7 @@ describe('supervisor mention fan-out', () => {
         agentId: MERIDIAN_AGENT_ID,
         agentDefinition: meridianDef,
         contributions,
-        deps: { db: db.db, realtime: NOOP_REALTIME, logger: NOOP_LOGGER },
+        deps: { db: db.db, realtime: NOOP_REALTIME, logger: NOOP_LOGGER, jobs: NOOP_JOBS },
         triggerOverride,
       })
 

@@ -756,8 +756,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-30: supervisor wake fires off Bob's note (this is what kicks Meridian
-  // back awake on the conversation; staff_signals.detectStaffSignals picks
-  // this up as a `supervisor` signal).
+  // back awake on the conversation as a `supervisor` signal).
   await insertActivity(ins, {
     conversationId: LIAM_CONV_ID,
     type: 'agent_wake.scheduled',

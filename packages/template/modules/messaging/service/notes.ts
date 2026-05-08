@@ -1,8 +1,7 @@
 /**
  * messaging internal notes — staff/agent scratchpad on the conversation timeline.
- * `detectStaffSignals()` reads these rows on `approval_resumed` wakes.
  *
- * Factory-DI service. `createNotesService({ db, scheduler?, conversations? })`
+ * Factory-DI service. `createNotesService({ db, scheduler?, conversations?, triageScheduler? })`
  * returns the bound API; `installNotesService(svc)` wires the module-scoped
  * handle used by the free-function wrappers below (which preserve the existing
  * import surface).
@@ -13,11 +12,16 @@
  * wake any agent — the agent's working memory should only update when staff
  * pings the agent directly. Agent-authored notes never fan out (HARD
  * ping-pong filter, Risk #1).
+ *
+ * Learning-loop triage (Slice 2): staff-authored notes with NO @-mention
+ * emit a `coaching_note` signal to `learning:triage` so the loop can observe
+ * direct coaching without a supervisor wake being required.
  */
 
 import { internalNotes } from '@modules/messaging/schema'
 import { asc, eq } from 'drizzle-orm'
 
+import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import type { InternalNote } from '../schema'
 import { resolveAgentMentionsInBody } from './agent-mentions'
 import type { AddNoteInput } from './types'
@@ -55,6 +59,14 @@ export interface SupervisorScheduler {
 }
 
 /**
+ * Narrow port: enqueues one `learning:triage` job per call. Decoupled from
+ * concrete pg-boss so notes.ts stays test-friendly.
+ */
+export interface NoteTriageScheduler {
+  publish(name: string, payload: LearningTriageJobPayload): Promise<void>
+}
+
+/**
  * pg-boss singleton key for supervisor wakes. Each `(conversation, note,
  * mentionedAgent | 'self')` tuple gets a unique key so retries dedup but
  * distinct peer wakes never merge. Producer (`module.ts::init`) and tests
@@ -88,12 +100,18 @@ export interface NotesServiceDeps {
   scheduler?: SupervisorScheduler | null
   /** Optional conversation reader for assignee resolution. When omitted, addNote skips fan-out. */
   conversations?: ConversationsReader | null
+  /**
+   * Optional learning-triage scheduler. When provided, staff-authored notes
+   * with no @-mention emit a `coaching_note` signal (non-fatal, fire-and-forget).
+   */
+  triageScheduler?: NoteTriageScheduler | null
 }
 
 export function createNotesService(deps: NotesServiceDeps): NotesService {
   const db = deps.db as NotesDb
   const scheduler = deps.scheduler ?? null
   const conversationsReader = deps.conversations ?? null
+  const triageScheduler = deps.triageScheduler ?? null
 
   async function addNote(input: AddNoteInput): Promise<InternalNote> {
     const rows = await db
@@ -116,6 +134,7 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
     if (input.author.kind !== 'agent' && scheduler && conversationsReader) {
       void runSupervisorFanOut({
         scheduler,
+        triageScheduler,
         conversations: conversationsReader,
         note: row,
         body: input.body,
@@ -147,16 +166,20 @@ export function createNotesService(deps: NotesServiceDeps): NotesService {
  * staff explicitly pings the agent. Each `enqueueSupervisor` call is wrapped
  * in its own try/catch so a single bad enqueue cannot starve the remaining
  * wakes.
+ *
+ * For notes with NO @-mention, emits a `coaching_note` learning-triage signal
+ * when a triage scheduler is wired (non-fatal).
  */
 async function runSupervisorFanOut(opts: {
   scheduler: SupervisorScheduler
+  triageScheduler: NoteTriageScheduler | null
   conversations: ConversationsReader
   note: InternalNote
   body: string
   mentions: string[] | undefined
   authorUserId: string
 }): Promise<void> {
-  const { scheduler, conversations, note, body, mentions, authorUserId } = opts
+  const { scheduler, triageScheduler, conversations, note, body, mentions, authorUserId } = opts
 
   const [mentionedAgentIds, assigneeAgentId] = await Promise.all([
     resolveAgentMentionsInBody({
@@ -173,7 +196,23 @@ async function runSupervisorFanOut(opts: {
     }),
   ])
 
-  if (mentionedAgentIds.length === 0) return
+  if (mentionedAgentIds.length === 0) {
+    // No @-mention → emit coaching_note signal for the learning loop.
+    // The assignee agent is the relevant agent; if unassigned, skip.
+    if (triageScheduler && assigneeAgentId) {
+      try {
+        await triageScheduler.publish(LEARNING_TRIAGE_JOB, {
+          organizationId: note.organizationId,
+          agentId: assigneeAgentId,
+          conversationId: note.conversationId,
+          signal: { kind: 'coaching_note', noteId: note.id, body: note.body },
+        })
+      } catch (err) {
+        console.warn('[messaging/notes] triage enqueue failed (coaching_note):', err)
+      }
+    }
+    return
+  }
 
   const common = {
     conversationId: note.conversationId,

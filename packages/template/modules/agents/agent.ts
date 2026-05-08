@@ -17,13 +17,16 @@
  * each owning module (messaging/contacts/schedules), not here.
  */
 
-import type { IndexContributor, RoHintFn } from '@vobase/core'
+import type { AgentTool, IndexContributor, RoHintFn, SideLoadContributor } from '@vobase/core'
 import { defineIndexContributor, generateAgentsMd, isVerbVisible } from '@vobase/core'
 
 import { buildWakeAgentsMdScratch } from '~/wake/agents-md-scratch'
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
 import { getCliRegistry } from './service/cli-registry'
+import { learningCandidatesSideLoadContributor } from './service/learning-candidates-sideload'
+import { dismissCandidateTool } from './tools/dismiss-candidate'
+import { rememberTool } from './tools/remember'
 
 /**
  * Helpdesk-flavoured AGENTS.md preamble. Replaces core's generic
@@ -214,8 +217,14 @@ export const agentsMaterializerFactory: WakeMaterializerFactory = (ctx) => {
   ]
 }
 
+export const agentsTools: readonly AgentTool[] = [rememberTool, dismissCandidateTool]
+
+export const agentsSideLoad: readonly SideLoadContributor[] = [learningCandidatesSideLoadContributor]
+
 export const agentsAgent = {
   agentsMd: [...agentsAgentsMdContributors],
   materializers: [agentsMaterializerFactory],
   roHints: [...agentsRoHints],
+  tools: [...agentsTools],
+  sideLoad: [...agentsSideLoad],
 }

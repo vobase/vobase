@@ -165,4 +165,57 @@ describe('smb_message_echoes dispatch path', () => {
     const wakeJobs = sentJobs.filter((j) => j.name === 'agents:wake')
     expect(wakeJobs.length).toBeGreaterThanOrEqual(1)
   })
+
+  it('echo event enqueues coexistence_echo triage signal when conversation assigned to an agent', async () => {
+    sentJobs.length = 0
+    const echoMsgId = `echo-triage-${Date.now()}`
+    // Use a unique phone number so this creates a fresh conversation with the agent assignee.
+    const uniquePhone = `whatsapp:+6570001${Date.now() % 10000}`
+
+    await dispatchInbound(
+      [
+        makeMessageEvent({
+          messageId: echoMsgId,
+          from: uniquePhone,
+          content: 'Staff reply via WA Business App',
+          metadata: { echo: true, echoSource: 'business_app', direction: 'outbound' },
+        }),
+      ],
+      INSTANCE,
+      { defaultAssignee: 'agent:test-bot-1' },
+    )
+
+    // fire-and-forget — flush microtasks
+    await new Promise((r) => setTimeout(r, 10))
+
+    const triageJobs = sentJobs.filter((j) => j.name === 'learning:triage')
+    expect(triageJobs).toHaveLength(1)
+    const payload = triageJobs[0]?.data as Record<string, unknown>
+    expect((payload?.signal as Record<string, unknown>)?.kind).toBe('coexistence_echo')
+    expect(payload?.agentId).toBe('test-bot-1')
+  })
+
+  it('echo event does NOT enqueue coexistence_echo triage when conversation is unassigned', async () => {
+    sentJobs.length = 0
+    const echoMsgId = `echo-notriage-${Date.now()}`
+    // Use a unique phone number to ensure a fresh conversation with no agent assignee.
+    const uniquePhone = `whatsapp:+6570002${Date.now() % 10000}`
+
+    await dispatchInbound(
+      [
+        makeMessageEvent({
+          messageId: echoMsgId,
+          from: uniquePhone,
+          metadata: { echo: true, echoSource: 'business_app', direction: 'outbound' },
+        }),
+      ],
+      INSTANCE,
+      { defaultAssignee: null },
+    )
+
+    await new Promise((r) => setTimeout(r, 10))
+
+    const triageJobs = sentJobs.filter((j) => j.name === 'learning:triage')
+    expect(triageJobs).toHaveLength(0)
+  })
 })

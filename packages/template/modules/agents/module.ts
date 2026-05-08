@@ -3,6 +3,7 @@ import { registerDriveOverlay } from '@modules/drive/service/overlays'
 import { createCostService, installCostService, setApprovalGateDb } from '@vobase/core'
 
 import type { ModuleDef } from '~/runtime'
+import { LEARNING_CANDIDATE_EXPIRY_CRON, LEARNING_CANDIDATE_EXPIRY_JOB } from '~/wake/learning/expiry-cron'
 import { agentsAgent } from './agent'
 import { agentsVerbs } from './cli'
 import { EXPIRE_APPROVALS_CRON, EXPIRE_APPROVALS_JOB, jobs } from './jobs'
@@ -17,6 +18,7 @@ import {
 } from './service/changes'
 import { setCliRegistry } from './service/cli-registry'
 import { agentSkillsOverlay } from './service/drive-overlay'
+import { createLearningCandidatesService, installLearningCandidatesService } from './service/learning-candidates'
 import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
 import { createAgentsState, installAgentsState } from './service/state'
 import { createThreadsService, installThreadsService } from './service/threads'
@@ -38,6 +40,7 @@ const agents: ModuleDef = {
     installStaffMemoryService(createStaffMemoryService({ db: ctx.db, realtime: ctx.realtime }))
     installThreadsService(createThreadsService({ db: ctx.db, notify: (payload) => ctx.realtime.notify(payload) }))
     installAgentsState(createAgentsState({ jobs: ctx.jobs }))
+    installLearningCandidatesService(createLearningCandidatesService({ db: ctx.db, realtime: ctx.realtime }))
     setApprovalGateDb(ctx.db)
     registerDriveOverlay(agentSkillsOverlay)
     registerChangeMaterializer({
@@ -58,6 +61,9 @@ const agents: ModuleDef = {
     })
     void ctx.jobs.schedule?.(EXPIRE_APPROVALS_JOB, EXPIRE_APPROVALS_CRON, undefined, {
       singletonKey: EXPIRE_APPROVALS_JOB,
+    })
+    void ctx.jobs.schedule?.(LEARNING_CANDIDATE_EXPIRY_JOB, LEARNING_CANDIDATE_EXPIRY_CRON, undefined, {
+      singletonKey: LEARNING_CANDIDATE_EXPIRY_JOB,
     })
     ctx.cli.registerAll(agentsVerbs)
   },

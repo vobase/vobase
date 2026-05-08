@@ -43,6 +43,8 @@ import type { Sql } from 'postgres'
 import { CHANGES_DECIDED_TO_WAKE_JOB, createChangeDecidedWakeHandler } from '~/wake/change-decided'
 import { createHeartbeatEmitter } from '~/wake/heartbeat'
 import { AGENTS_WAKE_JOB, createWakeHandler } from '~/wake/inbound'
+import { learningCandidateExpiryJob } from '~/wake/learning/expiry-cron'
+import { installTriageDeps, learningTriageJob } from '~/wake/learning/triage-job'
 import { createOperatorThreadWakeHandler, OPERATOR_THREAD_TO_WAKE_JOB } from '~/wake/operator-thread'
 import { createSupervisorWakeHandler, MESSAGING_SUPERVISOR_TO_WAKE_JOB } from '~/wake/supervisor'
 import type { RealtimeService, ScopedDb } from './index'
@@ -257,6 +259,15 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     jobHandlers.set(job.name, job.handler)
   }
 
+  // Learning-loop jobs: triage consumer + daily expiry cron. These are wake-level
+  // concerns registered here (not inside a module's jobs array) because they depend
+  // on the wake/learning layer rather than any single module.
+  // The expiry cron is scheduled inside agents module init (via ctx.jobs.schedule?)
+  // alongside EXPIRE_APPROVALS_CRON — see modules/agents/module.ts.
+  installTriageDeps({ db })
+  jobHandlers.set(learningTriageJob.name, learningTriageJob.handler)
+  jobHandlers.set(learningCandidateExpiryJob.name, learningCandidateExpiryJob.handler)
+
   app.route('/api/sse', createSseRoute(realtime))
 
   // Serve built frontend (Vite outputs to dist/web at the project root). In dev
@@ -281,14 +292,14 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const agentContributions = collectAgentContributions(sortedModules)
   setAgentContributions(agentContributions)
   const wakeLogger = createLogger({ format: 'console', prefix: '[wake]', silent: ['debug', 'info'] })
-  jobHandlers.set(AGENTS_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions))
+  jobHandlers.set(AGENTS_WAKE_JOB, createWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions))
 
   // Operator-thread wakes: staff posts a message in `operator_threads`, the
   // chat surface enqueues this job, and the consumer drives a standalone-lane
   // wake via `standaloneWakeConfig`.
   jobHandlers.set(
     OPERATOR_THREAD_TO_WAKE_JOB,
-    createOperatorThreadWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
+    createOperatorThreadWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions),
   )
 
   // Supervisor wakes: staff posts an internal note. `addNote` post-commit
@@ -296,7 +307,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // without an `@-mention` wake nobody. Agent-authored notes never fan out.
   jobHandlers.set(
     MESSAGING_SUPERVISOR_TO_WAKE_JOB,
-    createSupervisorWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
+    createSupervisorWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions),
   )
 
   // Change-decided wakes: staff approved/rejected a proposal that was created
@@ -307,12 +318,12 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // are filtered upstream — the producer skips them.
   jobHandlers.set(
     CHANGES_DECIDED_TO_WAKE_JOB,
-    createChangeDecidedWakeHandler({ realtime, db, logger: wakeLogger }, agentContributions),
+    createChangeDecidedWakeHandler({ realtime, db, logger: wakeLogger, jobs }, agentContributions),
   )
 
   // Heartbeat wakes: schedules cron-tick fires `HeartbeatTrigger`s into the
   // emitter installed below. Each tick = one standalone-lane wake.
-  setHeartbeatEmitter(createHeartbeatEmitter({ realtime, db, logger: wakeLogger }, agentContributions))
+  setHeartbeatEmitter(createHeartbeatEmitter({ realtime, db, logger: wakeLogger, jobs }, agentContributions))
 
   return app
 }

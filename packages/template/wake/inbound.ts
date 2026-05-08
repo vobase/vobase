@@ -16,7 +16,7 @@
 import { getById as getAgentDefinition } from '@modules/agents/service/agent-definitions'
 import type { Conversation } from '@modules/messaging/schema'
 import { get as getConversation } from '@modules/messaging/service/conversations'
-import type { AgentContributions, HarnessLogger } from '@vobase/core'
+import type { AgentContributions, HarnessLogger, ScopedScheduler } from '@vobase/core'
 import { createHarness } from '@vobase/core'
 import { z } from 'zod'
 
@@ -58,6 +58,7 @@ export interface WakeHandlerDeps {
   realtime: RealtimeService
   db: ScopedDb
   logger: HarnessLogger
+  jobs: ScopedScheduler
 }
 
 export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions<WakeContext>) {
