@@ -223,7 +223,7 @@ export function createAuth(db: ScopedDb) {
       const orgSlug = process.env.VITE_PLATFORM_TENANT_SLUG?.trim() || 'workspace'
       const newOrgId = createNanoid()()
       try {
-        await dbAny.insert(authOrganization).values({ id: newOrgId, name: orgName, slug: 'workspace' })
+        await dbAny.insert(authOrganization).values({ id: newOrgId, name: orgName, slug: orgSlug })
         soleOrg = { id: newOrgId }
         logger.info({ email: user.email, organizationId: newOrgId }, '[auth] Bootstrapped first organization')
       } catch (err) {
