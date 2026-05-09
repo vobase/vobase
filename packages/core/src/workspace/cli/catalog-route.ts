@@ -17,26 +17,32 @@
  * spec — it eliminates the second round-trip on etag drift.
  */
 
+import type { Context, Env } from 'hono'
 import { Hono } from 'hono'
 
-import type { CliVerbRegistry } from './registry'
+import type { AudienceTier, CliVerbRegistry } from './registry'
 
-export interface CatalogRouteOpts {
+export interface CatalogRouteOpts<TEnv extends Env = Env> {
   registry: CliVerbRegistry
+  /** Derive the caller's audience tier from the request context. Defaults to `'admin'`. */
+  getAudience?: (c: Context<TEnv>) => AudienceTier
+  /** Latest published CLI version, surfaced to clients so older CLIs can warn-once. */
+  clientLatestVersion?: string
 }
 
-export function createCatalogRoute(opts: CatalogRouteOpts): Hono {
-  const app = new Hono()
+export function createCatalogRoute<TEnv extends Env = Env>(opts: CatalogRouteOpts<TEnv>): Hono<TEnv> {
+  const app = new Hono<TEnv>()
   app.get('/verbs', (c) => {
-    const catalog = opts.registry.catalog()
+    const tier: AudienceTier = opts.getAudience?.(c) ?? 'admin'
+    const catalog = opts.registry.catalogFor(tier)
+    const body: Record<string, unknown> = { verbs: catalog.verbs, etag: catalog.etag }
+    if (opts.clientLatestVersion !== undefined) body.clientLatestVersion = opts.clientLatestVersion
     const ifNoneMatch = c.req.header('If-None-Match')
-    if (ifNoneMatch) {
-      if (ifNoneMatch === catalog.etag) {
-        return new Response(null, { status: 304, headers: { ETag: catalog.etag } })
-      }
-      return c.json(catalog, 412, { ETag: catalog.etag })
+    if (ifNoneMatch === catalog.etag) {
+      return new Response(null, { status: 304, headers: { ETag: catalog.etag } })
     }
-    return c.json(catalog, 200, { ETag: catalog.etag })
+    const status = ifNoneMatch ? 412 : 200
+    return c.json(body, status, { ETag: catalog.etag })
   })
   return app
 }

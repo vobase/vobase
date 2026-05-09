@@ -18,6 +18,39 @@ function makeRegistry(): CliVerbRegistry {
   return r
 }
 
+/** Registry with verbs at different audience tiers. */
+function makeMultiTierRegistry(): CliVerbRegistry {
+  const r = new CliVerbRegistry()
+  r.register(
+    defineCliVerb({
+      name: 'public verb',
+      description: 'contact-visible',
+      input: z.object({}),
+      body: async () => ({ ok: true as const, data: null }),
+      audience: 'contact',
+    }),
+  )
+  r.register(
+    defineCliVerb({
+      name: 'staff verb',
+      description: 'staff-only',
+      input: z.object({}),
+      body: async () => ({ ok: true as const, data: null }),
+      audience: 'staff',
+    }),
+  )
+  r.register(
+    defineCliVerb({
+      name: 'admin verb',
+      description: 'admin-only',
+      input: z.object({}),
+      body: async () => ({ ok: true as const, data: null }),
+      // audience defaults to 'admin'
+    }),
+  )
+  return r
+}
+
 describe('createCatalogRoute', () => {
   it('returns 200 with body and ETag header on first request', async () => {
     const app = createCatalogRoute({ registry: makeRegistry() })
@@ -67,5 +100,37 @@ describe('createCatalogRoute', () => {
     const body = (await res.json()) as { verbs: { name: string }[]; etag: string }
     expect(body.verbs.map((v) => v.name)).toEqual(['contacts list', 'contacts show'])
     expect(body.etag).not.toBe(beforeEtag)
+  })
+})
+
+describe('createCatalogRoute audience filtering', () => {
+  it('contact tier returns fewer verbs than admin tier', async () => {
+    const registry = makeMultiTierRegistry()
+    const contactApp = createCatalogRoute({
+      registry,
+      getAudience: (): 'contact' => 'contact',
+    })
+    const adminApp = createCatalogRoute({
+      registry,
+      getAudience: (): 'admin' => 'admin',
+    })
+    const contactBody = (await (await contactApp.request('/verbs')).json()) as { verbs: unknown[] }
+    const adminBody = (await (await adminApp.request('/verbs')).json()) as { verbs: unknown[] }
+    expect(contactBody.verbs.length).toBeLessThan(adminBody.verbs.length)
+  })
+
+  it('includes clientLatestVersion in response body when wired', async () => {
+    const app = createCatalogRoute({
+      registry: makeRegistry(),
+      clientLatestVersion: '0.7.0',
+    })
+    const body = (await (await app.request('/verbs')).json()) as { clientLatestVersion?: string }
+    expect(body.clientLatestVersion).toBe('0.7.0')
+  })
+
+  it('omits clientLatestVersion when opts does not include it', async () => {
+    const app = createCatalogRoute({ registry: makeRegistry() })
+    const body = (await (await app.request('/verbs')).json()) as Record<string, unknown>
+    expect(Object.hasOwn(body, 'clientLatestVersion')).toBe(false)
   })
 })

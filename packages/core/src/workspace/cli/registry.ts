@@ -76,7 +76,9 @@ export class CliVerbRegistry {
   private readonly verbs = new Map<string, CliVerbDef<any, any>>()
   // biome-ignore lint/suspicious/noExplicitAny: parallel index for O(1) HTTP-route lookup.
   private readonly byRoute = new Map<string, CliVerbDef<any, any>>()
-  private cachedCatalog: Catalog | null = null
+  private cachedList: readonly CliVerbDef[] | null = null
+  /** Per-tier memoised filtered catalogs. Max 3 entries (one per AudienceTier). */
+  private readonly cachedTierCatalogs = new Map<AudienceTier, Catalog>()
 
   /** Register a verb. Throws on duplicate name. */
   register<TInput, TOutput>(verb: CliVerbDef<TInput, TOutput>): void {
@@ -90,7 +92,8 @@ export class CliVerbRegistry {
     const stored = { ...verb, name, route }
     this.verbs.set(name, stored)
     this.byRoute.set(route, stored)
-    this.cachedCatalog = null
+    this.cachedList = null
+    this.cachedTierCatalogs.clear()
   }
 
   /** Register a heterogeneous set of verbs in one call (mirrors register's semantics). */
@@ -111,7 +114,9 @@ export class CliVerbRegistry {
 
   /** All verbs sorted by name, for catalog rendering and help. */
   list(): readonly CliVerbDef[] {
-    return [...this.verbs.values()].sort((a, b) => a.name.localeCompare(b.name))
+    if (this.cachedList) return this.cachedList
+    this.cachedList = [...this.verbs.values()].sort((a, b) => a.name.localeCompare(b.name))
+    return this.cachedList
   }
 
   /** Number of registered verbs. */
@@ -119,24 +124,35 @@ export class CliVerbRegistry {
     return this.verbs.size
   }
 
-  /**
-   * Build the catalog payload + deterministic etag. Cached after first call —
-   * the registry is immutable post-boot, so the catalog endpoint can call
-   * this on every request without re-running zod→JSON-Schema conversion.
-   */
+  /** Unfiltered admin-tier catalog. Memoised via `catalogFor('admin')`. */
   catalog(): Catalog {
-    if (this.cachedCatalog) return this.cachedCatalog
-    const verbs: CatalogVerb[] = this.list().map((v) => ({
-      name: v.name,
-      description: v.description,
-      inputSchema: zodToJsonSchemaSafe(v.inputSchema),
-      route: v.route as string,
-      formatHint: v.formatHint,
-      rolesAllowed: v.rolesAllowed,
-      audience: v.audience,
-    }))
-    this.cachedCatalog = { verbs, etag: computeEtag(verbs) }
-    return this.cachedCatalog
+    return this.catalogFor('admin')
+  }
+
+  /**
+   * Build a tier-filtered catalog. A verb is included iff its `audience` is
+   * visible to the given tier (contact ≤ staff ≤ admin). Results are memoised
+   * in a private Map (max 3 entries, one per tier); the cache is cleared
+   * whenever `register()` is called.
+   */
+  catalogFor(tier: AudienceTier): Catalog {
+    const cached = this.cachedTierCatalogs.get(tier)
+    if (cached) return cached
+    const tierRank = TIER_ORDER[tier]
+    const verbs: CatalogVerb[] = this.list()
+      .filter((v) => TIER_ORDER[v.audience ?? 'admin'] <= tierRank)
+      .map((v) => ({
+        name: v.name,
+        description: v.description,
+        inputSchema: zodToJsonSchemaSafe(v.inputSchema),
+        route: v.route as string,
+        formatHint: v.formatHint,
+        rolesAllowed: v.rolesAllowed,
+        audience: v.audience,
+      }))
+    const result: Catalog = { verbs, etag: computeEtag(verbs) }
+    this.cachedTierCatalogs.set(tier, result)
+    return result
   }
 
   /**

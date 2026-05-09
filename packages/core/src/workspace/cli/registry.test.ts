@@ -158,6 +158,70 @@ describe('CliVerbRegistry', () => {
   })
 })
 
+describe('CliVerbRegistry.catalogFor', () => {
+  function makeVerbAudience(name: string, audience: 'contact' | 'staff' | 'admin') {
+    return defineCliVerb({
+      name,
+      description: `${audience} verb`,
+      input: z.object({}),
+      body: async () => ({ ok: true as const, data: null }),
+      audience,
+    })
+  }
+
+  function makeMultiTierRegistry() {
+    const r = new CliVerbRegistry()
+    r.register(makeVerbAudience('verb contact', 'contact'))
+    r.register(makeVerbAudience('verb staff', 'staff'))
+    r.register(makeVerbAudience('verb admin', 'admin'))
+    return r
+  }
+
+  it('catalogFor contact returns only contact-audience verbs', () => {
+    const r = makeMultiTierRegistry()
+    const c = r.catalogFor('contact')
+    expect(c.verbs.map((v) => v.name)).toEqual(['verb contact'])
+  })
+
+  it('catalogFor staff returns contact and staff verbs', () => {
+    const r = makeMultiTierRegistry()
+    const c = r.catalogFor('staff')
+    expect(c.verbs.map((v) => v.name)).toEqual(['verb contact', 'verb staff'])
+  })
+
+  it('catalogFor admin returns all verbs (untagged default is admin)', () => {
+    const r = makeMultiTierRegistry()
+    // Also add an untagged verb — its default audience is 'admin'.
+    r.register(
+      defineCliVerb({
+        name: 'verb untagged',
+        description: 'no audience tag',
+        input: z.object({}),
+        body: async () => ({ ok: true as const, data: null }),
+      }),
+    )
+    const c = r.catalogFor('admin')
+    expect(c.verbs.map((v) => v.name)).toEqual(['verb admin', 'verb contact', 'verb staff', 'verb untagged'])
+  })
+
+  it('two consecutive catalogFor calls for the same tier return identical etags (memoisation)', () => {
+    const r = makeMultiTierRegistry()
+    const first = r.catalogFor('staff')
+    const second = r.catalogFor('staff')
+    expect(first.etag).toBe(second.etag)
+    expect(first).toBe(second)
+  })
+
+  it('cache is invalidated after register — new catalogFor produces a fresh etag', () => {
+    const r = makeMultiTierRegistry()
+    const before = r.catalogFor('staff')
+    r.register(makeVerbAudience('verb staff 2', 'staff'))
+    const after = r.catalogFor('staff')
+    expect(after.etag).not.toBe(before.etag)
+    expect(after.verbs.map((v) => v.name)).toContain('verb staff 2')
+  })
+})
+
 describe('defineCliVerb', () => {
   it('rejects empty names', () => {
     expect(() =>
