@@ -1,5 +1,9 @@
 # @vobase/cli
 
+## Beta
+
+The 0.7.x line is a beta release. See [CHANGELOG.md](./CHANGELOG.md) for behavior changes.
+
 `vobase` is the standalone, catalog-driven CLI for any vobase deployment.
 
 The binary has zero static knowledge of verbs. On the first command it asks

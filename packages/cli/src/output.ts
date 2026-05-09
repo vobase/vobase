@@ -23,6 +23,18 @@ export interface FormatOpts {
   hint?: string
 }
 
+export interface JsonFlags {
+  json?: boolean
+  'no-json'?: boolean
+}
+
+// Precedence: --json wins over --no-json wins over auto-JSON-on-non-TTY.
+export function shouldAutoJson(flags: JsonFlags): boolean {
+  if (flags.json === true) return true
+  if (flags['no-json'] === true) return false
+  return !process.stdout.isTTY
+}
+
 export function formatResult(value: unknown, opts: FormatOpts): string {
   if (opts.format === 'json') return jsonPretty(value)
   return formatHuman(value, opts.hint)

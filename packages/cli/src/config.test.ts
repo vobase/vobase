@@ -4,7 +4,36 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'bun:test'
 
-import { configPath, loadConfig, resolveConfigName, writeConfig } from './config'
+import { ConfigSchema, configPath, loadConfig, resolveConfigName, writeConfig } from './config'
+
+const BASE_CONFIG = {
+  url: 'https://acme.vobase.app',
+  apiKey: 'vbt_abc',
+  organizationId: 'org_1',
+  principal: { id: 'usr_1' },
+} as const
+
+describe('ConfigSchema version field', () => {
+  it('parses a v0 config (no version field) successfully', () => {
+    const result = ConfigSchema.safeParse(BASE_CONFIG)
+    expect(result.success).toBe(true)
+  })
+
+  it('parses a v1 config (version: 1) successfully', () => {
+    const result = ConfigSchema.safeParse({ ...BASE_CONFIG, version: 1 })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.version).toBe(1)
+  })
+
+  it('rejects a config with version: 2 (forward-incompat)', () => {
+    const result = ConfigSchema.safeParse({ ...BASE_CONFIG, version: 2 })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const msg = result.error.message
+      expect(msg).toMatch(/invalid_literal|invalid_type|invalid_value|expected 1/i)
+    }
+  })
+})
 
 function makeHome(): string {
   return mkdtempSync(join(tmpdir(), 'vobase-cli-test-'))

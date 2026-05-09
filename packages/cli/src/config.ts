@@ -28,6 +28,8 @@ export const ConfigSchema = z.object({
     email: z.string().email().optional(),
     name: z.string().optional(),
   }),
+  /** Forward-compat discriminator. Absence (v0) or `1` (v1) both parse. */
+  version: z.literal(1).optional(),
 })
 
 export type Config = z.infer<typeof ConfigSchema>

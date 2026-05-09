@@ -1,6 +1,54 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it } from 'bun:test'
 
-import { formatRelative, formatResult } from './output'
+import { formatRelative, formatResult, shouldAutoJson } from './output'
+
+describe('shouldAutoJson', () => {
+  let originalIsTTY: boolean | undefined
+
+  afterEach(() => {
+    Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, configurable: true })
+  })
+
+  function setTTY(value: boolean | undefined) {
+    originalIsTTY = process.stdout.isTTY
+    Object.defineProperty(process.stdout, 'isTTY', { value, configurable: true })
+  }
+
+  it('TTY + no flags → false', () => {
+    setTTY(true)
+    expect(shouldAutoJson({})).toBe(false)
+  })
+
+  it('non-TTY + no flags → true', () => {
+    setTTY(false)
+    expect(shouldAutoJson({})).toBe(true)
+  })
+
+  it('--json + TTY → true', () => {
+    setTTY(true)
+    expect(shouldAutoJson({ json: true })).toBe(true)
+  })
+
+  it('--json + non-TTY → true', () => {
+    setTTY(false)
+    expect(shouldAutoJson({ json: true })).toBe(true)
+  })
+
+  it('--no-json + non-TTY → false (override wins)', () => {
+    setTTY(false)
+    expect(shouldAutoJson({ 'no-json': true })).toBe(false)
+  })
+
+  it('--no-json + TTY → false', () => {
+    setTTY(true)
+    expect(shouldAutoJson({ 'no-json': true })).toBe(false)
+  })
+
+  it('--json + --no-json → true (json wins)', () => {
+    setTTY(true)
+    expect(shouldAutoJson({ json: true, 'no-json': true })).toBe(true)
+  })
+})
 
 describe('formatResult json mode', () => {
   it('emits raw JSON regardless of hint', () => {
