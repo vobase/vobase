@@ -1,4 +1,9 @@
 #!/usr/bin/env bun
+if (typeof Bun === 'undefined') {
+  process.stderr.write('vobase requires Bun >=1.3.13. Install: curl -fsSL https://bun.sh/install | bash\n')
+  process.exit(127)
+}
+
 /**
  * `vobase` CLI entry point. cac handles global flags (--config / --json /
  * --refresh / --help); verbs are catalog-driven and never registered with
@@ -11,11 +16,17 @@ import { CatalogClient } from '../src/catalog'
 import { login, logout, whoami } from '../src/commands/auth'
 import { loadConfig, resolveConfigName } from '../src/config'
 import { renderGlobalHelp, renderGroupHelp } from '../src/help'
+import { shouldAutoJson } from '../src/output'
 import { resolve as resolveVerb } from '../src/resolver'
+import { maybeWarnVersionSkew } from '../src/version-warning'
+
+// Keep in sync with package.json `version`. A colocated test asserts they match.
+const CLI_VERSION = '0.7.0'
 
 interface CliFlags {
   config?: string
   json?: boolean
+  'no-json'?: boolean
   refresh?: boolean
   help?: boolean
   url?: string
@@ -70,6 +81,8 @@ async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
     return 1
   }
 
+  maybeWarnVersionSkew({ installed: CLI_VERSION, latest: catalog.clientLatestVersion })
+
   if (verb.length === 0 || flags.help) {
     if (verb.length > 0) {
       process.stdout.write(renderGroupHelp(catalog, verb[0]))
@@ -84,7 +97,7 @@ async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
     catalog,
     baseUrl: config.url,
     apiKey: config.apiKey,
-    format: flags.json ? 'json' : 'human',
+    format: shouldAutoJson({ json: flags.json, 'no-json': flags['no-json'] }) ? 'json' : 'human',
     flags: flags as unknown as Record<string, unknown>,
   })
 
@@ -102,6 +115,7 @@ cli
   .command('[...verb]', 'Run a vobase verb (catalog-driven)')
   .option('--config <name>', "Use ~/.vobase/<name>.json (default: 'config'); also VOBASE_CONFIG")
   .option('--json', 'Output raw JSON instead of human-readable format')
+  .option('--no-json', 'Force human-readable output even when stdout is not a TTY')
   .option('--refresh', 'Force-refetch the verb catalog')
   .option('--help', 'Show catalog-driven help (verb groups + verbs)')
   .option('--url <url>', 'Tenant base URL (auth login only)')

@@ -32,6 +32,8 @@ export interface CatalogVerb {
 export interface Catalog {
   verbs: readonly CatalogVerb[]
   etag: string
+  /** When set, the server is advertising the latest published CLI version. The CLI may surface a one-line stderr warning if the local binary is older. */
+  clientLatestVersion?: string
 }
 
 export interface CatalogClientOpts {
@@ -180,5 +182,9 @@ function assertCatalog(value: unknown): Catalog {
   const obj = value as Record<string, unknown>
   if (!Array.isArray(obj.verbs)) throw new Error('Verb catalog response missing `verbs` array')
   if (typeof obj.etag !== 'string') throw new Error('Verb catalog response missing `etag` string')
-  return { verbs: obj.verbs as readonly CatalogVerb[], etag: obj.etag }
+  return {
+    verbs: obj.verbs as readonly CatalogVerb[],
+    etag: obj.etag,
+    ...(typeof obj.clientLatestVersion === 'string' ? { clientLatestVersion: obj.clientLatestVersion } : {}),
+  }
 }
