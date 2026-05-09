@@ -21,7 +21,7 @@ import { resolve as resolveVerb } from '../src/resolver'
 import { maybeWarnVersionSkew } from '../src/version-warning'
 
 // Keep in sync with package.json `version`. A colocated test asserts they match.
-const CLI_VERSION = '0.7.0'
+const CLI_VERSION = '0.6.2'
 
 interface CliFlags {
   config?: string
