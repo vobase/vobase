@@ -20,6 +20,7 @@ import { createWhoamiRoute } from '@auth/whoami'
 import { setAgentContributions } from '@modules/agents/service/agent-contributions'
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
 import {
+  type AudienceTier,
   bootModules,
   CliVerbRegistry,
   collectAgentContributions,
@@ -236,7 +237,24 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // Mount the catalog first so its specific GET wins over the dispatcher's
   // POST `/*` glob.
   app.use('/api/cli/*', createRequireApiKey(db))
-  app.route('/api/cli', createCatalogRoute({ registry: cli }))
+
+  // Latest published CLI version — included in catalog responses so old CLIs
+  // can warn-once about an available upgrade.
+  const CLI_LATEST_VERSION = '0.7.0'
+
+  app.route(
+    '/api/cli',
+    createCatalogRoute<ApiKeyEnv>({
+      registry: cli,
+      // 'contact' is defense in depth — middleware blocks anonymous with 401 first.
+      getAudience: (c): AudienceTier => {
+        const p = c.var.apiPrincipal
+        if (!p) return 'contact'
+        return p.role === 'admin' ? 'admin' : 'staff'
+      },
+      clientLatestVersion: CLI_LATEST_VERSION,
+    }),
+  )
   app.route(
     '/api/cli',
     createCliDispatchRoute<ApiKeyEnv>({
