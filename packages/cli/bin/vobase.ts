@@ -12,6 +12,7 @@ if (typeof Bun === 'undefined') {
 
 import { cac } from 'cac'
 
+import pkg from '../package.json' with { type: 'json' }
 import { CatalogClient } from '../src/catalog'
 import { login, logout, whoami } from '../src/commands/auth'
 import { loadConfig, resolveConfigName } from '../src/config'
@@ -20,8 +21,7 @@ import { shouldAutoJson } from '../src/output'
 import { resolve as resolveVerb } from '../src/resolver'
 import { maybeWarnVersionSkew } from '../src/version-warning'
 
-// Keep in sync with package.json `version`. A colocated test asserts they match.
-const CLI_VERSION = '0.6.2'
+const CLI_VERSION: string = pkg.version
 
 interface CliFlags {
   config?: string

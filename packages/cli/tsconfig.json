@@ -6,6 +6,6 @@
     "types": ["bun"],
     "lib": ["ES2023"]
   },
-  "include": ["src", "bin"],
+  "include": ["src", "bin", "package.json"],
   "composite": true
 }
