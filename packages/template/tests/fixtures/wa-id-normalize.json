@@ -3,7 +3,10 @@
   "valid": [
     { "input": "6587654321", "output": "6587654321", "case": "unprefixed digits" },
     { "input": "+6587654321", "output": "6587654321", "case": "+ prefix stripped" },
-    { "input": " 6587654321 ", "output": "6587654321", "case": "whitespace trimmed" }
+    { "input": " 6587654321 ", "output": "6587654321", "case": "whitespace trimmed" },
+    { "input": "1234567", "output": "1234567", "case": "exact-min (7 digits)" },
+    { "input": "123456789012345", "output": "123456789012345", "case": "exact-max (15 digits)" },
+    { "input": "+6591234567", "output": "6591234567", "case": "real Singapore number (65 91 prefix)" }
   ],
   "invalid": [
     { "input": "06587654321", "case": "leading zero rejected" },
