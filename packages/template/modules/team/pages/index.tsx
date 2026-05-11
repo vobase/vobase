@@ -218,6 +218,17 @@ export function StaffListPage() {
         enableSorting: false,
       },
       {
+        id: 'whatsappPhoneE164',
+        accessorKey: 'whatsappPhoneE164',
+        header: ({ column }) => <DataTableColumnHeader column={column} label="WhatsApp" />,
+        cell: ({ row }) => (
+          <span className="font-mono text-muted-foreground text-xs">{row.original.whatsappPhoneE164 ?? '—'}</span>
+        ),
+        meta: { label: 'WhatsApp', variant: 'text', placeholder: 'Search number…' },
+        enableColumnFilter: true,
+        enableSorting: true,
+      },
+      {
         id: 'capacity',
         accessorKey: 'capacity',
         header: ({ column }) => <DataTableColumnHeader column={column} label="Capacity" />,
