@@ -22,12 +22,11 @@
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { isManagedConfig } from '@modules/channels/adapters/whatsapp/factory'
+import { claimAndBootstrap } from '@modules/channels/managed/bootstrap'
 import { getInstance, listInstances, removeInstance, upsertManagedInstance } from '@modules/channels/service/instances'
 import {
   fetchSandboxAvailability,
   fetchWebhookEndpointStatus,
-  type HandshakeAllocation,
-  handshakeWithPlatform,
   PlatformHandshakeError,
   registerWebhookWithPlatform,
   releaseWithPlatform,
@@ -135,15 +134,37 @@ const app = new Hono<OrganizationEnv>()
       // `readExistingClaim`, vault store overwrites in place, row gets recreated.
     }
 
-    let allocation: HandshakeAllocation
+    // Delegate the 4-step sequence (handshake → vault → upsert → webhook
+    // register) to `claimAndBootstrap` so the orchestration lives in one
+    // place and is unit-testable without HTTP. The handler stays thin:
+    // bind handler-only context (db, webhook URL, verify-token derivation),
+    // map `PlatformHandshakeError` to HTTP status, return the response.
+    const webhookUrl = tenantWebhookUrl(channelInstanceId)
+    const verifyToken = deriveVerifyToken({
+      tenantSlug: tenantId,
+      environment,
+      provider: 'whatsapp',
+      betterAuthSecret,
+    })
+
     try {
-      allocation = await handshakeWithPlatform({
-        platformBaseUrl,
-        tenantId,
-        tenantHmacSecret,
+      const result = await claimAndBootstrap({
+        tenantSlug: tenantId,
         environment,
         channelInstanceId,
+        platformBaseUrl,
+        hmacSecret: tenantHmacSecret,
+        kind: 'sandbox',
+        vault,
+        upsertInstance: (input) => upsertManagedInstance(getInstalledDb(), input),
+        organizationId,
+        webhookUrl,
+        verifyToken,
       })
+      const webhook = result.webhookOk
+        ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)
+        : ({ ok: false, detail: result.webhookDetail ?? 'unknown' } as const)
+      return c.json({ status: 'claimed', instance: result.instance, webhook }, 201)
     } catch (err) {
       if (err instanceof PlatformHandshakeError && err.code === 'pool_exhausted') {
         return c.json({ error: 'pool_exhausted' }, 503)
@@ -153,82 +174,6 @@ const app = new Hono<OrganizationEnv>()
       }
       throw err
     }
-
-    // Persist the previous pair if the platform surfaced one — booting into
-    // a pool slot mid-rotation means inbound webhooks signed with the older
-    // pair must still verify until `previousValidUntil` elapses.
-    const previous =
-      allocation.routineSecretPrevious && allocation.rotationKeyPrevious && allocation.previousValidUntil
-        ? {
-            routineSecret: allocation.routineSecretPrevious,
-            rotationKey: allocation.rotationKeyPrevious,
-            keyVersion: Math.max(0, allocation.keyVersion - 1),
-            validUntil: new Date(allocation.previousValidUntil),
-          }
-        : null
-
-    await vault.storeSecret('vobase-platform', {
-      current: {
-        routineSecret: allocation.routineSecret,
-        rotationKey: allocation.rotationKey,
-        keyVersion: allocation.keyVersion,
-      },
-      previous,
-    })
-
-    const { instance } = await upsertManagedInstance(getInstalledDb(), {
-      id: channelInstanceId,
-      organizationId,
-      channel: 'whatsapp',
-      platformChannelId: allocation.platformChannelId,
-      displayName: `Platform sandbox (${environment})`,
-      config: {
-        mode: 'managed',
-        // `organizationId` lives in config too because the WhatsApp adapter's
-        // `isManagedConfig` predicate reads it from `config` (the registry
-        // only passes `(name, config, instanceId)`). Without it the predicate
-        // fails and the factory falls into the explicit-config branch,
-        // demanding accessToken/appSecret/verifyToken from env.
-        organizationId,
-        platformChannelId: allocation.platformChannelId,
-        platformBaseUrl,
-        displayPhoneNumber: allocation.displayPhoneNumber,
-        phoneNumberId: allocation.phoneNumberId,
-        wabaId: allocation.wabaId,
-        environment,
-      },
-    })
-
-    // Webhook self-register synchronously — the server is already listening
-    // (we're inside an HTTP handler), so the platform's challenge GET against
-    // our public URL hits a live route. Failure is non-fatal: the claim row
-    // and vault are persisted, and the UI surfaces a "Re-verify" button on
-    // the row that re-runs `POST /managed/:id/webhook/re-verify`.
-    const webhookUrl = tenantWebhookUrl(instance.id)
-    const verifyToken = deriveVerifyToken({
-      tenantSlug: tenantId,
-      environment,
-      provider: 'whatsapp',
-      betterAuthSecret,
-    })
-    let webhook: { ok: true; registeredAt: string } | { ok: false; detail: string }
-    try {
-      const r = await registerWebhookWithPlatform({
-        platformBaseUrl,
-        tenantId,
-        tenantHmacSecret,
-        environment,
-        provider: 'whatsapp',
-        channelInstanceId: instance.id,
-        webhookUrl,
-        verifyToken,
-      })
-      webhook = { ok: true, registeredAt: r.registeredAt }
-    } catch (err) {
-      webhook = { ok: false, detail: err instanceof Error ? err.message : 'unknown' }
-    }
-
-    return c.json({ status: 'claimed', instance, webhook }, 201)
   })
 
   .delete('/managed/:instanceId', async (c) => {
