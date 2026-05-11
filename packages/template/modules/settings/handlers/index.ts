@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import apiKeysHandlers from './api-keys'
 import notificationsHandlers from './notifications'
+import orgSettingsHandlers from './org-settings'
 
 const profileSchema = z.object({
   displayName: z.string().optional(),
@@ -21,6 +22,7 @@ const app = new Hono()
   .get('/health', (c) => c.json({ module: 'settings', status: 'ok' }))
   .route('/', notificationsHandlers)
   .route('/', apiKeysHandlers)
+  .route('/org-settings', orgSettingsHandlers)
   .post('/profile', zValidator('json', profileSchema, invalidBody), (c) => ok(c))
 
 export default app

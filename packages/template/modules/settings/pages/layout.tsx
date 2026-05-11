@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
 import type { ApiKeySummaryDto, CreatedApiKeyDto } from '@modules/settings/handlers/api-keys'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { NotificationsValues } from '@modules/settings/pages/schemas'
@@ -18,6 +19,7 @@ import { useTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { settingsClient } from '@/lib/api-client'
 
 const THEME_OPTIONS = [
@@ -188,6 +190,75 @@ function NotificationsSection() {
   )
 }
 
+function OperatorAgentSection() {
+  const qc = useQueryClient()
+  const { data: agents = [], isLoading: agentsLoading } = useAgentDefinitions()
+
+  const { data: setting } = useQuery({
+    queryKey: ['settings', 'org-settings', 'defaultOperatorAgentId'],
+    queryFn: async (): Promise<{ key: string; value: string | null }> => {
+      const r = await settingsClient['org-settings'][':key'].$get({ param: { key: 'defaultOperatorAgentId' } })
+      if (!r.ok) throw new Error(`org-settings.get failed: ${r.status}`)
+      return (await r.json()) as { key: string; value: string | null }
+    },
+  })
+
+  const setMut = useMutation({
+    mutationFn: async (value: string | null): Promise<void> => {
+      const r = await settingsClient['org-settings'][':key'].$put({
+        param: { key: 'defaultOperatorAgentId' },
+        json: { value },
+      })
+      if (!r.ok) throw new Error(`org-settings.put failed: ${r.status}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', 'org-settings', 'defaultOperatorAgentId'] })
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Save failed'),
+  })
+
+  const currentValue = setting?.value ?? ''
+
+  return (
+    <InfoSection
+      title="Operator agent"
+      description="Configure the agent that handles staff-initiated conversations via the notification channel."
+    >
+      <InfoCard>
+        <InfoRow label="Default operator agent" className="items-center">
+          <div className="space-y-1">
+            {agentsLoading ? (
+              <span className="text-muted-foreground text-sm">Loading agents…</span>
+            ) : (
+              <Select
+                value={currentValue}
+                onValueChange={(v) => setMut.mutate(v === '__auto__' ? null : v)}
+                disabled={setMut.isPending}
+              >
+                <SelectTrigger className="w-[280px]">
+                  <SelectValue placeholder="Auto (first enabled)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__auto__">Auto (first enabled)</SelectItem>
+                  {agents.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                      {!a.enabled && <span className="ml-1 text-muted-foreground text-xs">(disabled)</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <p className="text-muted-foreground text-xs">
+              When a staff member texts the notification number outside any conversation, this agent answers.
+            </p>
+          </div>
+        </InfoRow>
+      </InfoCard>
+    </InfoSection>
+  )
+}
+
 function ApiKeysSection() {
   const qc = useQueryClient()
   const [name, setName] = useState('')
@@ -321,6 +392,7 @@ export function SettingsPage() {
         <div className="mx-auto w-full max-w-4xl space-y-8">
           <AppearanceSection />
           <NotificationsSection />
+          <OperatorAgentSection />
           <ApiKeysSection />
         </div>
       </PageBody>
