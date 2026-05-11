@@ -1,8 +1,12 @@
 /**
  * Generic claim sheet for any platform-managed channel kind (sandbox,
  * notification, …). The `kind` prop pins which managed-channels registry
- * entry the sheet operates against; the API endpoints (`availability`,
- * `claim`) are mounted per-kind under `channelsClient.managed.<kind>`.
+ * entry the sheet operates against. Today, the tenant's managed endpoints
+ * (`availability`, `claim`) are mounted at `channelsClient.whatsapp.managed`
+ * for both kinds; the per-kind dispatch happens server-side via the
+ * `kind` claim payload (US-021). When a future kind needs a different
+ * client path, extend `KIND_CLIENTS` below — the typed mapping keeps the
+ * Hono RPC client sound without `as unknown` casts.
  *
  * Slice 3 introduces this generic — `ConnectNotificationSheet` was its
  * single-kind ancestor.
@@ -17,7 +21,12 @@ import { Status } from '@/components/ui/status'
 import { channelsClient } from '@/lib/api-client'
 
 interface AvailabilityResponse {
-  poolAvailable: number
+  /**
+   * Free slots in the platform pool for this kind. Server side names this
+   * `sandboxPoolAvailable` for legacy reasons; the field is generic across
+   * kinds today (notification + sandbox share the count).
+   */
+  sandboxPoolAvailable: number
   configured: boolean
   error?: string
 }
@@ -61,23 +70,39 @@ const KIND_COPY: Record<ManagedChannelKind, KindCopy> = {
   },
 }
 
+/**
+ * Per-kind RPC client mapping. Both kinds route through the same
+ * `whatsapp.managed.{availability,claim}` endpoints today; the server-side
+ * `kind` argument lives in the claim payload. Splitting this map per kind
+ * preserves the path-level type safety of the Hono RPC client (no
+ * `as unknown` casts) while keeping the door open for future per-kind
+ * route splits — extend the map, not the call sites.
+ */
+const KIND_CLIENTS: Record<
+  ManagedChannelKind,
+  {
+    availability: typeof channelsClient.whatsapp.managed.availability
+    claim: typeof channelsClient.whatsapp.managed.claim
+  }
+> = {
+  sandbox: {
+    availability: channelsClient.whatsapp.managed.availability,
+    claim: channelsClient.whatsapp.managed.claim,
+  },
+  notification: {
+    availability: channelsClient.whatsapp.managed.availability,
+    claim: channelsClient.whatsapp.managed.claim,
+  },
+}
+
 async function fetchAvailability(kind: ManagedChannelKind): Promise<AvailabilityResponse> {
-  // The two managed endpoints share the same shape; cast the dynamic accessor
-  // through `unknown` so the typed RPC client stays sound without per-kind
-  // overloads.
-  const client = (
-    channelsClient.managed as unknown as Record<string, { availability: { $get: () => Promise<Response> } }>
-  )[kind]
-  const r = await client.availability.$get()
+  const r = await KIND_CLIENTS[kind].availability.$get()
   if (!r.ok && r.status !== 502) throw new Error(`availability failed (${r.status})`)
   return (await r.json()) as AvailabilityResponse
 }
 
 async function postClaim(kind: ManagedChannelKind): Promise<ClaimSuccessResponse> {
-  const client = (channelsClient.managed as unknown as Record<string, { claim: { $post: () => Promise<Response> } }>)[
-    kind
-  ]
-  const r = await client.claim.$post()
+  const r = await KIND_CLIENTS[kind].claim.$post()
   const body = (await r.json()) as ClaimSuccessResponse | ClaimErrorResponse
   if (!r.ok) {
     const err = body as ClaimErrorResponse
@@ -89,6 +114,12 @@ async function postClaim(kind: ManagedChannelKind): Promise<ClaimSuccessResponse
     throw new Error(err.detail ?? err.error ?? `claim failed (${r.status})`)
   }
   return body as ClaimSuccessResponse
+}
+
+/** Pick the Status indicator variant for a pool availability snapshot. */
+function statusVariant(available: number, configured: boolean): 'success' | 'warning' {
+  if (!configured) return 'warning'
+  return available > 0 ? 'success' : 'warning'
 }
 
 interface ConnectManagedChannelSheetProps {
@@ -127,7 +158,7 @@ export function ConnectManagedChannelSheet({ open, kind, onOpenChange, onConnect
   })
 
   const configured = availability.data?.configured ?? false
-  const available = availability.data?.poolAvailable ?? 0
+  const available = availability.data?.sandboxPoolAvailable ?? 0
 
   return (
     <Sheet
@@ -150,7 +181,7 @@ export function ConnectManagedChannelSheet({ open, kind, onOpenChange, onConnect
           {availability.isLoading && <Status variant="info" label="Checking pool availability…" />}
           {availability.data && (
             <Status
-              variant={!configured ? 'warning' : available > 0 ? 'success' : 'warning'}
+              variant={statusVariant(available, configured)}
               label={
                 !configured
                   ? 'Platform integration not configured'
