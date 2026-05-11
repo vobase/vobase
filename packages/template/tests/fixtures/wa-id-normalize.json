@@ -1,0 +1,15 @@
+{
+  "_note": "PARITY CONTRACT: this file is mirrored byte-for-byte in vobase template. Both phone.test.ts in either repo read from this fixture. Drift here = wire contract drift; bump @contract platform-tenant-v1 if you edit.",
+  "valid": [
+    { "input": "6587654321", "output": "6587654321", "case": "unprefixed digits" },
+    { "input": "+6587654321", "output": "6587654321", "case": "+ prefix stripped" },
+    { "input": " 6587654321 ", "output": "6587654321", "case": "whitespace trimmed" }
+  ],
+  "invalid": [
+    { "input": "06587654321", "case": "leading zero rejected" },
+    { "input": "12345", "case": "too short rejected" },
+    { "input": "12345678901234567", "case": "too long rejected" },
+    { "input": "abc12345678", "case": "non-digit rejected" },
+    { "input": "", "case": "empty string rejected" }
+  ]
+}
