@@ -29,9 +29,11 @@ export interface JsonFlags {
 }
 
 // Precedence: --json wins over --no-json wins over auto-JSON-on-non-TTY.
+// cac collapses both flags onto `flags.json` (true / false); the
+// `flags['no-json']` arm is the legacy shape for callers not going through cac.
 export function shouldAutoJson(flags: JsonFlags): boolean {
   if (flags.json === true) return true
-  if (flags['no-json'] === true) return false
+  if (flags.json === false || flags['no-json'] === true) return false
   return !process.stdout.isTTY
 }
 
@@ -135,6 +137,14 @@ function renderTable(value: unknown, cols: readonly string[]): string {
 }
 
 function renderLines(value: unknown, field: string): string {
+  // Single object → emit the named field verbatim (no JSON wrapper). Lets
+  // verbs like `messaging notes` (which return `{ conversationId, content }`)
+  // render `content` as raw markdown under `--no-json`.
+  if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>
+    if (field in obj) return `${stringifyCell(obj[field])}\n`
+    return jsonPretty(value)
+  }
   if (!Array.isArray(value)) return jsonPretty(value)
   if (value.length === 0) return '(no items)\n'
   return `${value.map((row) => stringifyCell((row as Record<string, unknown>)[field])).join('\n')}\n`
