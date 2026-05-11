@@ -41,11 +41,6 @@ export const SYNC_STAFF_LINK_CRON = '0 3 * * *'
 /** Per §7.6: 7 retries, ~24h horizon (exponential backoff handles the spread). */
 export const SYNC_STAFF_LINK_RETRY_LIMIT = 7
 
-export interface SyncStaffLinksOptions {
-  /** When true, compute the delta + log it but skip write calls. */
-  dryRun?: boolean
-}
-
 export interface SyncStaffLinkError {
   phase: 'upsert' | 'delete' | 'list'
   /** E.164 with leading `+` for upsert/delete; empty string for list. */
@@ -53,75 +48,73 @@ export interface SyncStaffLinkError {
   message: string
 }
 
-export interface SyncStaffLinksResult {
-  orgId: string
-  /** Number of upserts the diff identified (whether or not they were applied). */
-  toUpsert: number
-  /** Number of deletes the diff identified. */
-  toDelete: number
-  applied: { upserted: number; deleted: number }
-  errors: SyncStaffLinkError[]
-  /** When the org has no notification channel, the reconciler is a no-op. */
-  skipped?: 'no_notification_channel' | 'platform_not_configured'
-}
-
-export interface SyncStaffLinksContext {
-  orgId: string
-  /**
-   * Per-call overrides for the platform-side credentials. Defaults to the
-   * env-baked values (production path). Tests supply these inline.
-   */
-  platformBaseUrl?: string
-  tenantId?: string
-  tenantHmacSecret?: string
-  environment?: 'production' | 'staging'
-}
-
-export interface SyncStaffLinksDeps {
-  /** List staff for an org. Defaults to the installed staff service. */
-  listStaff?: (orgId: string) => Promise<StaffProfile[]>
-  /** Resolve the org's notification-tier channel. */
-  findNotificationChannel?: (orgId: string) => Promise<ChannelInstance | null>
-  /** Platform staff-link CRUD. Defaults to the env-bound handshake helpers. */
-  staffLinksApi?: {
-    list: (input: {
-      platformBaseUrl: string
-      tenantId: string
-      tenantHmacSecret: string
-      channelInstanceId?: string
-    }) => Promise<StaffLinkRow[]>
-    upsert: (input: {
-      platformBaseUrl: string
-      tenantId: string
-      tenantHmacSecret: string
-      environment: 'production' | 'staging'
-      channelInstanceId: string
-      staffUserId: string
-      staffPhoneE164: string
-    }) => Promise<{ linked: true; staffPhoneE164: string }>
-    delete: (input: {
-      platformBaseUrl: string
-      tenantId: string
-      tenantHmacSecret: string
-      environment: 'production' | 'staging'
-      staffPhoneE164: string
-    }) => Promise<{ removed: boolean }>
-  }
-}
-
-interface PlatformCreds {
+export interface PlatformCreds {
   platformBaseUrl: string
   tenantId: string
   tenantHmacSecret: string
   environment: 'production' | 'staging'
 }
 
-function readPlatformCreds(override: SyncStaffLinksContext): PlatformCreds | null {
-  const platformBaseUrl = override.platformBaseUrl ?? process.env.VITE_PLATFORM_URL ?? ''
-  const tenantId = override.tenantId ?? process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
-  const tenantHmacSecret = override.tenantHmacSecret ?? process.env.PLATFORM_HMAC_SECRET ?? ''
-  const environment: 'production' | 'staging' =
-    override.environment ?? (process.env.NODE_ENV === 'production' ? 'production' : 'staging')
+export interface StaffLinksApi {
+  list: (input: {
+    platformBaseUrl: string
+    tenantId: string
+    tenantHmacSecret: string
+    channelInstanceId?: string
+  }) => Promise<StaffLinkRow[]>
+  upsert: (input: {
+    platformBaseUrl: string
+    tenantId: string
+    tenantHmacSecret: string
+    environment: 'production' | 'staging'
+    channelInstanceId: string
+    staffUserId: string
+    staffPhoneE164: string
+  }) => Promise<{ linked: true; staffPhoneE164: string }>
+  delete: (input: {
+    platformBaseUrl: string
+    tenantId: string
+    tenantHmacSecret: string
+    environment: 'production' | 'staging'
+    staffPhoneE164: string
+  }) => Promise<{ removed: boolean }>
+}
+
+export interface SyncStaffLinksOptions {
+  /**
+   * Platform credentials. Required at production call-sites (cron + enqueue);
+   * optional in tests where `staffLinksApi` is injected to bypass the platform.
+   */
+  creds?: PlatformCreds
+  /** When true, compute the delta + log it but skip write calls. */
+  dryRun?: boolean
+  // ─── Injection points (used by unit + integration tests) ──────────────────
+  /** List staff for an org. Defaults to the installed staff service. */
+  listStaff?: (orgId: string) => Promise<StaffProfile[]>
+  /** Resolve the org's notification-tier channel. */
+  findNotificationChannel?: (orgId: string) => Promise<ChannelInstance | null>
+  /** Platform staff-link CRUD. Defaults to the env-bound handshake helpers. */
+  staffLinksApi?: StaffLinksApi
+  /** Override the env-based platform-creds reader (tests). */
+  readPlatformCreds?: () => PlatformCreds | null
+}
+
+export type SyncStaffLinksResult =
+  | { kind: 'skipped'; orgId: string; reason: 'no_notification_channel' | 'platform_not_configured' }
+  | {
+      kind: 'applied'
+      orgId: string
+      toUpsert: number
+      toDelete: number
+      applied: { upserted: number; deleted: number }
+      errors: SyncStaffLinkError[]
+    }
+
+function defaultReadPlatformCreds(): PlatformCreds | null {
+  const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
+  const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+  const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+  const environment: 'production' | 'staging' = process.env.NODE_ENV === 'production' ? 'production' : 'staging'
   if (!platformBaseUrl || !tenantId || !tenantHmacSecret) return null
   return { platformBaseUrl, tenantId, tenantHmacSecret, environment }
 }
@@ -137,38 +130,30 @@ function readPlatformCreds(override: SyncStaffLinksContext): PlatformCreds | nul
  * walk — partial progress is committed and the job retries the remainder.
  */
 export async function syncStaffLinks(
-  ctx: SyncStaffLinksContext,
-  opts: SyncStaffLinksOptions = {},
-  deps: SyncStaffLinksDeps = {},
+  orgId: string,
+  options: SyncStaffLinksOptions = {},
 ): Promise<SyncStaffLinksResult> {
-  const listStaffFn = deps.listStaff ?? listStaff
-  const findChannelFn = deps.findNotificationChannel ?? findNotificationChannel
-  const api = deps.staffLinksApi ?? defaultStaffLinks
+  const listStaffFn = options.listStaff ?? listStaff
+  const findChannelFn = options.findNotificationChannel ?? findNotificationChannel
+  const api = options.staffLinksApi ?? defaultStaffLinks
+  const readCreds = options.readPlatformCreds ?? defaultReadPlatformCreds
 
-  const result: SyncStaffLinksResult = {
-    orgId: ctx.orgId,
-    toUpsert: 0,
-    toDelete: 0,
-    applied: { upserted: 0, deleted: 0 },
-    errors: [],
-  }
+  const errors: SyncStaffLinkError[] = []
 
-  const channel = await findChannelFn(ctx.orgId)
+  const channel = await findChannelFn(orgId)
   if (!channel) {
-    result.skipped = 'no_notification_channel'
-    return result
+    return { kind: 'skipped', orgId, reason: 'no_notification_channel' }
   }
 
-  const creds = readPlatformCreds(ctx)
+  const creds = options.creds ?? readCreds()
   if (!creds) {
-    result.skipped = 'platform_not_configured'
-    return result
+    return { kind: 'skipped', orgId, reason: 'platform_not_configured' }
   }
 
   // Tenant-side: staff with a populated WhatsApp phone. Normalize once so
   // the diff compares canonical wa_ids (no leading `+`, no whitespace) on
   // both sides — matches what the platform stores.
-  const staff = await listStaffFn(ctx.orgId)
+  const staff = await listStaffFn(orgId)
   const tenantByWaId = new Map<string, { userId: string; staffPhoneE164: string }>()
   for (const profile of staff) {
     if (!profile.whatsappPhoneE164) continue
@@ -177,7 +162,7 @@ export async function syncStaffLinks(
       tenantByWaId.set(waId, { userId: profile.userId, staffPhoneE164: profile.whatsappPhoneE164 })
     } catch (err) {
       // Malformed phone in the DB — surface as a per-row error and skip.
-      result.errors.push({
+      errors.push({
         phase: 'upsert',
         staffPhoneE164: profile.whatsappPhoneE164,
         message: err instanceof Error ? err.message : 'invalid wa_id',
@@ -197,12 +182,19 @@ export async function syncStaffLinks(
       channelInstanceId: channel.id,
     })
   } catch (err) {
-    result.errors.push({
+    errors.push({
       phase: 'list',
       staffPhoneE164: '',
       message: err instanceof Error ? err.message : 'list failed',
     })
-    return result
+    return {
+      kind: 'applied',
+      orgId,
+      toUpsert: 0,
+      toDelete: 0,
+      applied: { upserted: 0, deleted: 0 },
+      errors,
+    }
   }
 
   const platformByWaId = new Map<string, StaffLinkRow>()
@@ -214,7 +206,7 @@ export async function syncStaffLinks(
       platformByWaId.set(waId, row)
     } catch {
       // Unparseable platform-side row — surface and skip.
-      result.errors.push({
+      errors.push({
         phase: 'delete',
         staffPhoneE164: row.staffPhoneE164,
         message: 'platform returned unparseable staff_phone_e164',
@@ -239,56 +231,106 @@ export async function syncStaffLinks(
     if (!tenantByWaId.has(waId)) deletes.push(row)
   }
 
-  result.toUpsert = upserts.length
-  result.toDelete = deletes.length
+  if (options.dryRun) {
+    return {
+      kind: 'applied',
+      orgId,
+      toUpsert: upserts.length,
+      toDelete: deletes.length,
+      applied: { upserted: 0, deleted: 0 },
+      errors,
+    }
+  }
 
-  if (opts.dryRun) return result
+  // Apply upserts + deletes in parallel — they target the same platform
+  // endpoint, but the platform stays behind the per-job singleton-rate-limit
+  // (R9-E) so worst-case fanout is bounded by job concurrency.
+  const channelInstanceId = channel.id
+  const [upsertOutcomes, deleteOutcomes] = await Promise.all([
+    Promise.all(
+      upserts.map((u) =>
+        api
+          .upsert({
+            platformBaseUrl: creds.platformBaseUrl,
+            tenantId: creds.tenantId,
+            tenantHmacSecret: creds.tenantHmacSecret,
+            environment: creds.environment,
+            channelInstanceId,
+            staffUserId: u.userId,
+            staffPhoneE164: u.staffPhoneE164,
+          })
+          .then(() => ({ ok: true as const }))
+          .catch((err: unknown) => ({ ok: false as const, err, row: u })),
+      ),
+    ),
+    Promise.all(
+      deletes.map((d) =>
+        api
+          .delete({
+            platformBaseUrl: creds.platformBaseUrl,
+            tenantId: creds.tenantId,
+            tenantHmacSecret: creds.tenantHmacSecret,
+            environment: creds.environment,
+            // Platform-stored value may be either form; pass through as-is so the
+            // delete helper's own `toWaId` normalization stays the single source.
+            staffPhoneE164: d.staffPhoneE164,
+          })
+          .then(() => ({ ok: true as const }))
+          .catch((err: unknown) => ({ ok: false as const, err, row: d })),
+      ),
+    ),
+  ])
 
-  for (const u of upserts) {
-    try {
-      await api.upsert({
-        platformBaseUrl: creds.platformBaseUrl,
-        tenantId: creds.tenantId,
-        tenantHmacSecret: creds.tenantHmacSecret,
-        environment: creds.environment,
-        channelInstanceId: channel.id,
-        staffUserId: u.userId,
-        staffPhoneE164: u.staffPhoneE164,
-      })
-      result.applied.upserted += 1
-    } catch (err) {
-      result.errors.push({
+  let upserted = 0
+  for (let i = 0; i < upsertOutcomes.length; i += 1) {
+    const outcome = upsertOutcomes[i]
+    if (!outcome) continue
+    if (outcome.ok) {
+      upserted += 1
+    } else {
+      const u = outcome.row
+      errors.push({
         phase: 'upsert',
         staffPhoneE164: u.staffPhoneE164,
         message:
-          err instanceof PlatformHandshakeError ? err.message : err instanceof Error ? err.message : 'upsert failed',
+          outcome.err instanceof PlatformHandshakeError
+            ? outcome.err.message
+            : outcome.err instanceof Error
+              ? outcome.err.message
+              : 'upsert failed',
       })
     }
   }
 
-  for (const d of deletes) {
-    try {
-      await api.delete({
-        platformBaseUrl: creds.platformBaseUrl,
-        tenantId: creds.tenantId,
-        tenantHmacSecret: creds.tenantHmacSecret,
-        environment: creds.environment,
-        // Platform-stored value may be either form; pass through as-is so the
-        // delete helper's own `toWaId` normalization stays the single source.
-        staffPhoneE164: d.staffPhoneE164,
-      })
-      result.applied.deleted += 1
-    } catch (err) {
-      result.errors.push({
+  let deleted = 0
+  for (let i = 0; i < deleteOutcomes.length; i += 1) {
+    const outcome = deleteOutcomes[i]
+    if (!outcome) continue
+    if (outcome.ok) {
+      deleted += 1
+    } else {
+      const d = outcome.row
+      errors.push({
         phase: 'delete',
         staffPhoneE164: d.staffPhoneE164,
         message:
-          err instanceof PlatformHandshakeError ? err.message : err instanceof Error ? err.message : 'delete failed',
+          outcome.err instanceof PlatformHandshakeError
+            ? outcome.err.message
+            : outcome.err instanceof Error
+              ? outcome.err.message
+              : 'delete failed',
       })
     }
   }
 
-  return result
+  return {
+    kind: 'applied',
+    orgId,
+    toUpsert: upserts.length,
+    toDelete: deletes.length,
+    applied: { upserted, deleted },
+    errors,
+  }
 }
 
 // ─── Enqueue (job side) ─────────────────────────────────────────────────────

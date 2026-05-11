@@ -9,7 +9,7 @@ import { describe, expect, it } from 'bun:test'
 
 import type { ChannelInstance } from '../../channels/schema'
 import type { StaffProfile } from '../schema'
-import { type SyncStaffLinksDeps, syncStaffLinks } from './staff-link-sync'
+import { type SyncStaffLinksOptions, syncStaffLinks } from './staff-link-sync'
 
 const ORG_ID = 'org-test-001'
 const CHANNEL_INSTANCE_ID = 'ch-notif-001'
@@ -63,16 +63,19 @@ interface StubCalls {
   listCalls: number
 }
 
-function buildDeps(opts: {
+function buildOptions(opts: {
   staff: StaffProfile[]
   platform: Array<{ staffUserId: string; staffPhoneE164: string }>
   channel?: ChannelInstance | null
   listFails?: boolean
   upsertFailsFor?: string
   deleteFailsFor?: string
-}): { deps: SyncStaffLinksDeps; calls: StubCalls } {
+  /** Set to false to fall through to env-based reader (for unconfigured-creds test). */
+  withCreds?: boolean
+}): { options: SyncStaffLinksOptions; calls: StubCalls } {
   const calls: StubCalls = { upsert: [], delete: [], listCalls: 0 }
-  const deps: SyncStaffLinksDeps = {
+  const withCreds = opts.withCreds ?? true
+  const options: SyncStaffLinksOptions = {
     listStaff: async (_orgId) => opts.staff,
     findNotificationChannel: async (_orgId) => (opts.channel === undefined ? makeChannel() : opts.channel),
     staffLinksApi: {
@@ -98,24 +101,26 @@ function buildDeps(opts: {
       },
     },
   }
-  return { deps, calls }
-}
-
-const baseCtx = {
-  orgId: ORG_ID,
-  platformBaseUrl: PLATFORM_URL,
-  tenantId: TENANT_ID,
-  tenantHmacSecret: HMAC,
-  environment: 'staging' as const,
+  if (withCreds) {
+    options.creds = {
+      platformBaseUrl: PLATFORM_URL,
+      tenantId: TENANT_ID,
+      tenantHmacSecret: HMAC,
+      environment: 'staging',
+    }
+  }
+  return { options, calls }
 }
 
 describe('syncStaffLinks() — diff/apply', () => {
   it('no-op when tenant set equals platform set', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
       platform: [{ staffUserId: 'u-1', staffPhoneE164: '6591111111' }],
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    expect(result.kind).toBe('applied')
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(0)
     expect(result.toDelete).toBe(0)
     expect(result.applied.upserted).toBe(0)
@@ -127,11 +132,12 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('upsert-needed: tenant has 1 phone not on platform', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
       platform: [],
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(1)
     expect(result.toDelete).toBe(0)
     expect(result.applied.upserted).toBe(1)
@@ -140,11 +146,12 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('delete-needed: platform has 1 link not in tenant set', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [],
       platform: [{ staffUserId: 'u-orphan', staffPhoneE164: '6599999999' }],
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(0)
     expect(result.toDelete).toBe(1)
     expect(result.applied.deleted).toBe(1)
@@ -153,11 +160,12 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('mixed: one upsert + one delete', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-new', whatsappPhoneE164: '+6512345678' })],
       platform: [{ staffUserId: 'u-gone', staffPhoneE164: '6587654321' }],
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(1)
     expect(result.toDelete).toBe(1)
     expect(result.applied).toEqual({ upserted: 1, deleted: 1 })
@@ -169,22 +177,24 @@ describe('syncStaffLinks() — diff/apply', () => {
     // Out-of-order PATCH safety: when phone bookkeeping swaps owners on the
     // same number, the reconciler issues an upsert to re-bind the platform
     // row's `staffUserId`.
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-new-owner', whatsappPhoneE164: '+6511111111' })],
       platform: [{ staffUserId: 'u-old-owner', staffPhoneE164: '6511111111' }],
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(1)
     expect(result.toDelete).toBe(0)
     expect(calls.upsert).toEqual([{ staffUserId: 'u-new-owner', staffPhoneE164: '+6511111111' }])
   })
 
   it('dryRun: computes diff without writing', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
       platform: [{ staffUserId: 'u-2', staffPhoneE164: '6592222222' }],
     })
-    const result = await syncStaffLinks(baseCtx, { dryRun: true }, deps)
+    const result = await syncStaffLinks(ORG_ID, { ...options, dryRun: true })
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(1)
     expect(result.toDelete).toBe(1)
     expect(result.applied).toEqual({ upserted: 0, deleted: 0 })
@@ -193,9 +203,9 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('per-row upsert error: continues, accumulates in errors', async () => {
-    // Two upserts, the first one errors. The reconciler must still attempt
-    // the second so partial progress lands.
-    const { deps, calls } = buildDeps({
+    // Two upserts, one errors. The reconciler must still attempt the other so
+    // partial progress lands.
+    const { options, calls } = buildOptions({
       staff: [
         makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6511111111' }),
         makeProfile({ userId: 'u-2', whatsappPhoneE164: '+6522222222' }),
@@ -203,7 +213,8 @@ describe('syncStaffLinks() — diff/apply', () => {
       platform: [],
       upsertFailsFor: '+6511111111',
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toUpsert).toBe(2)
     expect(result.applied.upserted).toBe(1)
     expect(result.errors.length).toBe(1)
@@ -213,7 +224,7 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('per-row delete error: continues, accumulates in errors', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [],
       platform: [
         { staffUserId: 'u-1', staffPhoneE164: '6511111111' },
@@ -221,7 +232,8 @@ describe('syncStaffLinks() — diff/apply', () => {
       ],
       deleteFailsFor: '6511111111',
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.toDelete).toBe(2)
     expect(result.applied.deleted).toBe(1)
     expect(result.errors.length).toBe(1)
@@ -230,12 +242,13 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('platform list failure aborts with single error', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
       platform: [],
       listFails: true,
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.errors.length).toBe(1)
     expect(result.errors[0]?.phase).toBe('list')
     expect(calls.upsert.length).toBe(0)
@@ -243,20 +256,23 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('no notification channel → skipped, no platform calls', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
       platform: [],
       channel: null,
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
-    expect(result.skipped).toBe('no_notification_channel')
+    const result = await syncStaffLinks(ORG_ID, options)
+    expect(result.kind).toBe('skipped')
+    if (result.kind !== 'skipped') throw new Error('expected skipped')
+    expect(result.reason).toBe('no_notification_channel')
     expect(calls.listCalls).toBe(0)
   })
 
   it('platform creds missing → skipped, no platform calls', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
       platform: [],
+      withCreds: false,
     })
     const prevUrl = process.env.VITE_PLATFORM_URL
     const prevTenant = process.env.VITE_PLATFORM_TENANT_SLUG
@@ -265,12 +281,10 @@ describe('syncStaffLinks() — diff/apply', () => {
     delete process.env.VITE_PLATFORM_TENANT_SLUG
     delete process.env.PLATFORM_HMAC_SECRET
     try {
-      const result = await syncStaffLinks(
-        { orgId: ORG_ID }, // no override creds → falls through to env
-        {},
-        deps,
-      )
-      expect(result.skipped).toBe('platform_not_configured')
+      const result = await syncStaffLinks(ORG_ID, options)
+      expect(result.kind).toBe('skipped')
+      if (result.kind !== 'skipped') throw new Error('expected skipped')
+      expect(result.reason).toBe('platform_not_configured')
       expect(calls.listCalls).toBe(0)
     } finally {
       if (prevUrl !== undefined) process.env.VITE_PLATFORM_URL = prevUrl
@@ -280,14 +294,15 @@ describe('syncStaffLinks() — diff/apply', () => {
   })
 
   it('malformed tenant phone surfaces as upsert-phase error', async () => {
-    const { deps, calls } = buildDeps({
+    const { options, calls } = buildOptions({
       staff: [
         makeProfile({ userId: 'u-good', whatsappPhoneE164: '+6591111111' }),
         makeProfile({ userId: 'u-bad', whatsappPhoneE164: '+0invalid' }),
       ],
       platform: [],
     })
-    const result = await syncStaffLinks(baseCtx, {}, deps)
+    const result = await syncStaffLinks(ORG_ID, options)
+    if (result.kind !== 'applied') throw new Error('expected applied')
     // The good one still syncs.
     expect(result.applied.upserted).toBe(1)
     expect(calls.upsert).toEqual([{ staffUserId: 'u-good', staffPhoneE164: '+6591111111' }])

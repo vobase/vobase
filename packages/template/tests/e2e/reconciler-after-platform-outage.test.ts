@@ -194,22 +194,22 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
     const stub = buildPlatformStub(stubState)
     restoreFetch = patchFetch(stub)
 
-    const ctx = {
-      orgId: ORG_ID,
-      platformBaseUrl: BASE_URL,
-      tenantId: TENANT_ID,
-      tenantHmacSecret: HMAC,
-      environment: 'staging' as const,
-    }
-    const deps = {
+    const options = {
+      creds: {
+        platformBaseUrl: BASE_URL,
+        tenantId: TENANT_ID,
+        tenantHmacSecret: HMAC,
+        environment: 'staging' as const,
+      },
       listStaff: async () => [makeProfile()],
       findNotificationChannel: async () => makeChannel(),
     }
 
     // ─── Attempt 1: outage in effect ─────────────────────────────────────────
-    const first = await syncStaffLinks(ctx, {}, deps)
+    const first = await syncStaffLinks(ORG_ID, options)
 
     // The reconciler couldn't compute the diff — list failed.
+    if (first.kind !== 'applied') throw new Error('expected applied')
     expect(first.errors.length).toBe(1)
     expect(first.errors[0]?.phase).toBe('list')
     expect(first.applied.upserted).toBe(0)
@@ -228,8 +228,9 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
     stubState.outage = false
 
     // ─── Attempt 2: pg-boss retry fires after backoff ────────────────────────
-    const second = await syncStaffLinks(ctx, {}, deps)
+    const second = await syncStaffLinks(ORG_ID, options)
 
+    if (second.kind !== 'applied') throw new Error('expected applied')
     expect(second.errors).toEqual([])
     expect(second.toUpsert).toBe(1)
     expect(second.toDelete).toBe(0)
@@ -252,25 +253,26 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
     restoreFetch = patchFetch(stub)
     stubState.outage = false
 
-    const ctx = {
-      orgId: ORG_ID,
-      platformBaseUrl: BASE_URL,
-      tenantId: TENANT_ID,
-      tenantHmacSecret: HMAC,
-      environment: 'staging' as const,
-    }
-    const deps = {
+    const options = {
+      creds: {
+        platformBaseUrl: BASE_URL,
+        tenantId: TENANT_ID,
+        tenantHmacSecret: HMAC,
+        environment: 'staging' as const,
+      },
       listStaff: async () => [makeProfile()],
       findNotificationChannel: async () => makeChannel(),
     }
 
     // First run: converge.
-    const first = await syncStaffLinks(ctx, {}, deps)
+    const first = await syncStaffLinks(ORG_ID, options)
+    if (first.kind !== 'applied') throw new Error('expected applied')
     expect(first.applied.upserted).toBe(1)
     expect(stubState.upsertCalls).toBe(1)
 
     // Second run on converged state: no writes, just the listing GET.
-    const second = await syncStaffLinks(ctx, {}, deps)
+    const second = await syncStaffLinks(ORG_ID, options)
+    if (second.kind !== 'applied') throw new Error('expected applied')
     expect(second.errors).toEqual([])
     expect(second.toUpsert).toBe(0)
     expect(second.toDelete).toBe(0)

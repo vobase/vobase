@@ -187,51 +187,45 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
     restoreFetch = patchFetch(app)
 
     // Reconcile orgA — same phone, different channel.
-    const resultA = await syncStaffLinks(
-      {
-        orgId: ORG_A,
+    const resultA = await syncStaffLinks(ORG_A, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async (orgId) => {
-          expect(orgId).toBe(ORG_A)
-          return [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)]
-        },
-        findNotificationChannel: async (orgId) => {
-          expect(orgId).toBe(ORG_A)
-          return makeChannel(ORG_A, ORG_A_CHANNEL_ID)
-        },
+      listStaff: async (orgId) => {
+        expect(orgId).toBe(ORG_A)
+        return [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)]
       },
-    )
+      findNotificationChannel: async (orgId) => {
+        expect(orgId).toBe(ORG_A)
+        return makeChannel(ORG_A, ORG_A_CHANNEL_ID)
+      },
+    })
+    if (resultA.kind !== 'applied') throw new Error('expected applied')
     expect(resultA.applied.upserted).toBe(1)
     expect(resultA.applied.deleted).toBe(0)
     expect(resultA.errors).toEqual([])
 
     // Reconcile orgB — same phone, different staff user, different channel.
-    const resultB = await syncStaffLinks(
-      {
-        orgId: ORG_B,
+    const resultB = await syncStaffLinks(ORG_B, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async (orgId) => {
-          expect(orgId).toBe(ORG_B)
-          return [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)]
-        },
-        findNotificationChannel: async (orgId) => {
-          expect(orgId).toBe(ORG_B)
-          return makeChannel(ORG_B, ORG_B_CHANNEL_ID)
-        },
+      listStaff: async (orgId) => {
+        expect(orgId).toBe(ORG_B)
+        return [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)]
       },
-    )
+      findNotificationChannel: async (orgId) => {
+        expect(orgId).toBe(ORG_B)
+        return makeChannel(ORG_B, ORG_B_CHANNEL_ID)
+      },
+    })
+    if (resultB.kind !== 'applied') throw new Error('expected applied')
     expect(resultB.applied.upserted).toBe(1)
     expect(resultB.applied.deleted).toBe(0)
     expect(resultB.errors).toEqual([])
@@ -266,34 +260,26 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
     restoreFetch = patchFetch(app)
 
     // Seed: reconcile both orgs.
-    await syncStaffLinks(
-      {
-        orgId: ORG_A,
+    await syncStaffLinks(ORG_A, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async () => [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)],
-        findNotificationChannel: async () => makeChannel(ORG_A, ORG_A_CHANNEL_ID),
-      },
-    )
-    await syncStaffLinks(
-      {
-        orgId: ORG_B,
+      listStaff: async () => [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)],
+      findNotificationChannel: async () => makeChannel(ORG_A, ORG_A_CHANNEL_ID),
+    })
+    await syncStaffLinks(ORG_B, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async () => [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)],
-        findNotificationChannel: async () => makeChannel(ORG_B, ORG_B_CHANNEL_ID),
-      },
-    )
+      listStaff: async () => [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)],
+      findNotificationChannel: async () => makeChannel(ORG_B, ORG_B_CHANNEL_ID),
+    })
 
     // Inbound from `+6591234567` lands on orgA's channel webhook — resolver
     // would look up `(channelInstanceId=ORG_A_CHANNEL_ID, staffPhoneE164=...)`

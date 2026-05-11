@@ -51,7 +51,7 @@ export function createTeamJobs(opts: SyncStaffLinkJobOptions = {}): JobDef[] {
       name: SYNC_STAFF_LINK_JOB,
       handler: async (data) => {
         const payload = data as SyncStaffLinkJobPayload
-        await syncStaffLinks({ orgId: payload.orgId })
+        await syncStaffLinks(payload.orgId)
       },
     },
     {

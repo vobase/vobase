@@ -159,21 +159,18 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
     const { app, state } = buildPlatformStub([])
     restoreFetch = patchFetch(app)
 
-    const result = await syncStaffLinks(
-      {
-        orgId: ORG_ID,
+    const result = await syncStaffLinks(ORG_ID, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async () => [makeProfile('u-1', '+6591111111')],
-        findNotificationChannel: async () => makeChannel(),
-      },
-    )
+      listStaff: async () => [makeProfile('u-1', '+6591111111')],
+      findNotificationChannel: async () => makeChannel(),
+    })
 
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.applied.upserted).toBe(1)
     expect(result.applied.deleted).toBe(0)
     expect(state.links).toHaveLength(1)
@@ -193,21 +190,18 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
     ])
     restoreFetch = patchFetch(app)
 
-    const result = await syncStaffLinks(
-      {
-        orgId: ORG_ID,
+    const result = await syncStaffLinks(ORG_ID, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async () => [],
-        findNotificationChannel: async () => makeChannel(),
-      },
-    )
+      listStaff: async () => [],
+      findNotificationChannel: async () => makeChannel(),
+    })
 
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.applied.deleted).toBe(1)
     expect(result.applied.upserted).toBe(0)
     expect(state.links).toHaveLength(0)
@@ -224,21 +218,18 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
     ])
     restoreFetch = patchFetch(app)
 
-    const result = await syncStaffLinks(
-      {
-        orgId: ORG_ID,
+    const result = await syncStaffLinks(ORG_ID, {
+      creds: {
         platformBaseUrl: BASE_URL,
         tenantId: TENANT_ID,
         tenantHmacSecret: HMAC,
         environment: 'staging',
       },
-      {},
-      {
-        listStaff: async () => [makeProfile('u-1', '+6591111111')],
-        findNotificationChannel: async () => makeChannel(),
-      },
-    )
+      listStaff: async () => [makeProfile('u-1', '+6591111111')],
+      findNotificationChannel: async () => makeChannel(),
+    })
 
+    if (result.kind !== 'applied') throw new Error('expected applied')
     expect(result.applied.upserted).toBe(0)
     expect(result.applied.deleted).toBe(0)
     expect(result.errors).toEqual([])
