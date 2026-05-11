@@ -8,7 +8,7 @@
 /** @contract platform-tenant-v1 */
 
 import { staffProfiles } from '@modules/team/schema'
-import { isNotNull, sql } from 'drizzle-orm'
+import { isNotNull } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 
@@ -42,6 +42,3 @@ export async function listOrgsWithStaffPhones(): Promise<string[]> {
   // Stable ordering keeps cron logs comparable across runs.
   return rows.map((r) => r.organizationId).sort((a, b) => a.localeCompare(b))
 }
-
-/** Test helper — sql tag re-export keeps drizzle off the call site. */
-void sql

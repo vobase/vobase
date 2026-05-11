@@ -23,6 +23,7 @@ import { addNote } from '@modules/messaging/service/notes'
 import { getOrgSetting } from '@modules/settings/service/org-settings'
 import { staffProfiles } from '@modules/team/schema'
 import { claimPing } from '@modules/team/service/pending-mention-pings'
+import { logger } from '@vobase/core'
 import { and, asc, desc, eq } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
@@ -95,7 +96,7 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
       })
       return { ok: true, branch: 'ask_staff_answer' }
     } catch (err) {
-      console.warn('[inbound-router] ask_staff_answer addNote failed', err)
+      logger.warn({ err }, '[inbound-router] ask_staff_answer addNote failed')
       return { ok: true, branch: 'ask_staff_answer', warning: 'addNote_failed' }
     }
   }
