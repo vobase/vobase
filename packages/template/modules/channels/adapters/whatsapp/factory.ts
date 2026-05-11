@@ -12,7 +12,7 @@
  * via the 2-key signed transport. Secrets come from the integrations vault.
  */
 
-import { findKind } from '@modules/channels/managed/registry'
+import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
 import { getVaultFor } from '@modules/integrations/service/registry'
 import type { VaultProvider } from '@modules/integrations/service/vault'
 import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
@@ -59,8 +59,11 @@ interface ManagedConfig {
    * (`modules/channels/managed/registry.ts`). Written by `claimAndBootstrap`;
    * absent on rows created before US-011 (sandbox-only world — fall back to
    * `'sandbox'` and the vault provider stays `'vobase-platform'`).
+   *
+   * Widened in Slice 3 to include `'notification'`; future kinds plug in via
+   * the registry without touching this discriminator.
    */
-  kind?: 'sandbox'
+  kind?: ManagedChannelKind
 }
 
 export function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig & Record<string, unknown> {
@@ -107,11 +110,14 @@ export async function createWhatsAppAdapterFromConfig(
 import type { VaultRotation } from '@modules/integrations/service/vault'
 
 /**
- * Module-level cache of decrypted vault rotations, keyed by organizationId.
- * The registry creates a new adapter per dispatch (`registry.get(...)`), so
- * caching inside the closure would never hit. Module-scope keeps the read at
- * O(1) per dispatch with a bounded TTL so a `vault.rotate(...)` propagates
- * within seconds.
+ * Module-level cache of decrypted vault rotations, keyed by
+ * `${organizationId}:${vaultProvider}` so the customer-WA secret
+ * (`vobase-platform`) and the notification secret
+ * (`vobase-platform-notification`) coexist on the same org without
+ * overwriting one another. The registry creates a new adapter per dispatch
+ * (`registry.get(...)`), so caching inside the closure would never hit.
+ * Module-scope keeps the read at O(1) per dispatch with a bounded TTL so a
+ * `vault.rotate(...)` propagates within seconds.
  */
 const ROTATION_CACHE_TTL_MS = 60_000
 interface RotationCacheEntry {
@@ -120,6 +126,17 @@ interface RotationCacheEntry {
   inflight: Promise<VaultRotation> | null
 }
 const rotationCache = new Map<string, RotationCacheEntry>()
+
+/**
+ * Compose the rotation-cache key. Slice 2 keyed the cache by `organizationId`
+ * alone, which collides as soon as a second `vaultProvider` lands on the
+ * same org — the second `loadRotation` would return the first provider's
+ * material. Including the provider in the key keeps both tiers cached
+ * side-by-side without clobbering one another.
+ */
+function rotationCacheKey(organizationId: string, vaultProvider: VaultProvider): string {
+  return `${organizationId}:${vaultProvider}`
+}
 
 export function __resetManagedRotationCacheForTests(): void {
   rotationCache.clear()
@@ -144,24 +161,25 @@ function resolveVaultProvider(config: ManagedConfig): VaultProvider {
 // biome-ignore lint/suspicious/useAwait: signature kept Promise-returning so callers don't need to branch on cache hit vs miss
 async function loadRotation(organizationId: string, vaultProvider: VaultProvider): Promise<VaultRotation> {
   const now = Date.now()
-  const entry = rotationCache.get(organizationId)
+  const cacheKey = rotationCacheKey(organizationId, vaultProvider)
+  const entry = rotationCache.get(cacheKey)
   if (entry?.inflight) return entry.inflight
   if (entry && entry.expiresAt > now) return entry.rotation
 
   const vault = getVaultFor(organizationId)
   const inflight = vault.readSecret(vaultProvider).then((rotation) => {
     if (!rotation) {
-      rotationCache.delete(organizationId)
+      rotationCache.delete(cacheKey)
       throw new Error(`whatsapp adapter (managed): no '${vaultProvider}' secret in vault — handshake must run first`)
     }
-    rotationCache.set(organizationId, {
+    rotationCache.set(cacheKey, {
       rotation,
       expiresAt: Date.now() + ROTATION_CACHE_TTL_MS,
       inflight: null,
     })
     return rotation
   })
-  rotationCache.set(organizationId, {
+  rotationCache.set(cacheKey, {
     rotation:
       entry?.rotation ??
       ({ current: { routineSecret: '', rotationKey: '', keyVersion: 0 }, previous: null } as VaultRotation),
@@ -188,8 +206,9 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
   // within the TTL window pay only an in-memory cache hit.
   await loadRotation(config.organizationId, vaultProvider)
 
+  const cacheKey = rotationCacheKey(config.organizationId, vaultProvider)
   function readCachedRotation(): VaultRotation {
-    const entry = rotationCache.get(config.organizationId)
+    const entry = rotationCache.get(cacheKey)
     if (!entry || entry.expiresAt === 0) {
       throw new Error('whatsapp adapter (managed): vault not yet loaded — outbound called before handshake completed')
     }
