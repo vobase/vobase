@@ -24,6 +24,7 @@
     "check:shadcn-overrides": "bun run scripts/check-shadcn-overrides.ts",
     "check:trust-defaults": "bun run scripts/check-trust-defaults.ts",
     "check:error-shape": "bun run scripts/check-error-shape.ts",
+    "check:contract": "bun run scripts/check-contract.ts",
     "test": "bun test",
     "test:e2e": "bun test tests/e2e",
     "test:smoke": "for f in tests/smoke/*.ts; do bun run \"$f\" || exit 1; done",
