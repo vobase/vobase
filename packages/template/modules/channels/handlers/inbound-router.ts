@@ -130,14 +130,23 @@ const app = new Hono()
     } catch {
       return c.json({ ok: true, branch: 'unparseable_body' })
     }
-    if (entry.inboundDispatch === 'staff_reply') {
-      const result = await dispatchStaffReply({ db, organizationId: instance.organizationId, payload })
-      return c.json(result)
+    switch (entry.inboundDispatch) {
+      case 'staff_reply': {
+        const result = await dispatchStaffReply({ db, organizationId: instance.organizationId, payload })
+        return c.json(result)
+      }
+      case 'customer':
+        // Reserved — sandbox-tier inbound today routes via the customer-WA
+        // webhook router (`handlers/webhook.ts`). Return a clear hint rather
+        // than silently dropping the payload.
+        return c.json({ error: 'wrong_router', detail: 'inboundDispatch=customer' }, 410)
+      default: {
+        // Exhaustive check — if a future `InboundDispatch` variant lands, this
+        // line stops compiling until the new case is handled above.
+        const _exhaustive: never = entry.inboundDispatch
+        return c.json({ error: 'wrong_router', detail: `inboundDispatch=${_exhaustive as string}` }, 410)
+      }
     }
-    // `'customer'` is reserved for sandbox-tier inbound which today routes via
-    // the customer-WA webhook router (`handlers/webhook.ts`) — return a clear
-    // hint rather than silently dropping the payload.
-    return c.json({ error: 'wrong_router', detail: `inboundDispatch=${entry.inboundDispatch}` }, 410)
   })
 
 export default app

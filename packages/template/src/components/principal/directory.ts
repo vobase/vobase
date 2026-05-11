@@ -19,9 +19,10 @@ import { useMemo } from 'react'
 
 export type PrincipalKind = 'agent' | 'staff' | 'contact'
 
-// Must stay in sync with `OFFLINE_THRESHOLD_MS` in
-// `modules/team/service/mention-notify.ts` — server uses the same window to
-// decide when to fan a WhatsApp ping for an offline mention recipient.
+// Must stay in sync with `PRESENCE_THRESHOLD_MS` in `runtime/presence.ts` —
+// frontend bundle can't reach into `~/runtime/*` (check:bundle gate), so the
+// value is duplicated here. Server-side `mention-notify.ts` imports the
+// canonical constant from `runtime/presence`.
 const PRESENCE_THRESHOLD_MS = 2 * 60 * 1000
 
 export interface AgentMeta {

@@ -26,12 +26,8 @@ import { recordPing } from '@modules/team/service/pending-mention-pings'
 import { find as findStaff } from '@modules/team/service/staff'
 import { logger } from '@vobase/core'
 
+import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
 import type { StaffProfile } from '../schema'
-
-// Must stay in sync with `PRESENCE_THRESHOLD_MS` in
-// `src/components/principal/directory.ts` — frontend renders the online dot on
-// the same window so a hovered staff card matches the fan-out decision here.
-const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000
 
 interface MentionNotifyDeps {
   db: unknown
@@ -52,7 +48,7 @@ function parseStaffMention(raw: string): string | null {
 
 function isOffline(lastSeenAt: Date | null): boolean {
   if (!lastSeenAt) return true
-  return Date.now() - new Date(lastSeenAt).getTime() > OFFLINE_THRESHOLD_MS
+  return Date.now() - new Date(lastSeenAt).getTime() > PRESENCE_THRESHOLD_MS
 }
 
 function buildNotificationText(note: InternalNote): string {
