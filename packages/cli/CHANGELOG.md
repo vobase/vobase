@@ -1,5 +1,26 @@
 # @vobase/cli
 
+## 0.40.0
+
+### Minor Changes
+
+- [`dac00a7`](https://github.com/vobase/vobase/commit/dac00a740f88ea9058a51ae785147073807adb4b) Thanks [@mdluo](https://github.com/mdluo)! - feat(cli): local-first hybrid config lookup with `--local` flag
+
+  `vobase` now resolves configs in the same shape as `git`/`gh`/`kubectl`: walks from `cwd` looking for `./.vobase/<name>.json`, halts at the repo root (a `.git` sibling) or `$HOME`, and falls back to `~/.vobase/<name>.json`. Closest match wins, so an agency operator can `cd client-acme && vobase ...` to target that tenant without `--config` flags.
+
+  - `vobase auth login --local` writes to `<cwd>/.vobase/<name>.json` (0600) instead of `~/.vobase/`. Pair with a project-level `.gitignore` entry for `.vobase/` (added to template + repo root).
+  - The catalog cache co-locates with whichever config was loaded (`./.vobase/foo.json` → `./.vobase/foo.cache.json`).
+  - New exports: `findConfigPath`, `localConfigPath`. `loadConfig` accepts a `cwd` opt; `writeConfig` accepts `local: true` + `cwd`. `CatalogClient` accepts `configFilePath` so the cache derives from the resolved path.
+  - Error message updated to surface both tiers and point at `--local`.
+
+### Patch Changes
+
+- [`996e675`](https://github.com/vobase/vobase/commit/996e6759ccf6df9a9b83b23cf440c43967e53a2d) Thanks [@mdluo](https://github.com/mdluo)! - fix(cli/output): honor `--no-json` by checking `flags.json === false`
+
+  cac collapses `--json` and `--no-json` onto the same `flags.json` boolean — `--json` sets it `true`, `--no-json` sets it `false`. `shouldAutoJson` previously only checked `flags.json === true` and `flags['no-json'] === true`, so `--no-json` slipped through to the non-TTY auto-JSON fallback and emitted JSON anyway when piped. Now `flags.json === false` short-circuits to human format.
+
+  Also fixes `renderLines` to handle single-object inputs (named-field extraction) so verbs like `messaging notes` return raw markdown under `--no-json` instead of falling through to JSON.
+
 ## 0.38.0
 
 ### Minor Changes
