@@ -13,11 +13,13 @@ import { handleAnonymousSession } from './anonymous-session'
 import { handleCardReply } from './card-reply'
 import { handleInbound } from './inbound'
 import instances from './instances'
+import { handleTyping } from './typing'
 
 const app = new Hono()
   .post('/anonymous-session', handleAnonymousSession)
   .post('/inbound', handleInbound)
   .post('/card-reply', handleCardReply)
+  .post('/typing', handleTyping)
   .route('/instances', instances)
 
 export default app

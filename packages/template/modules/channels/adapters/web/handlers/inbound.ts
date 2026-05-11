@@ -4,6 +4,7 @@ import { requireJobs } from '@modules/channels/service/state'
 import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { extractEchoMetadata } from '@modules/messaging/service/echo-metadata'
+import { notifyConversation } from '@modules/messaging/service/staff-ops'
 import type { Context } from 'hono'
 
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
@@ -67,6 +68,12 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
     metadata: isEcho ? echoMeta : undefined,
     role: isEcho ? 'staff' : undefined,
   })
+
+  // Fan out SSE so the staff inbox + public chat refresh immediately —
+  // before the wake fires its own notifies on `tool_execution_end`. Without
+  // this, new customer messages don't appear in the inbox until the agent
+  // replies (which can be several seconds later).
+  await notifyConversation(result.conversation.id).catch(() => undefined)
 
   // Echoes never wake the agent — staff-authored, not customer-driven.
   if (!isEcho && result.isNew) {

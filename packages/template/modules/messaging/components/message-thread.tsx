@@ -16,13 +16,12 @@ import {
   ZapIcon,
 } from 'lucide-react'
 import type React from 'react'
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
 
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
-import { MessageResponse } from '@/components/ai-elements/message'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task'
-import { MessageCard } from '@/components/message-card'
+import { DateDivider, type MessageRowKind, MessageRow as SharedMessageRow } from '@/components/message-row'
 import { Principal as PrincipalNode } from '@/components/principal'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
@@ -77,6 +76,11 @@ export function MessageThread({
   contactId = null,
 }: MessageThreadProps) {
   const directory = usePrincipalDirectory()
+  const messagesById = useMemo(() => {
+    const m = new Map<string, DisplayMessage>()
+    for (const msg of messages) m.set(msg.id, msg)
+    return m
+  }, [messages])
   const items: TimelineItem[] = [
     ...messages.map((m) => ({ kind: 'message' as const, at: new Date(m.createdAt), msg: m })),
     ...notes.map((n) => ({ kind: 'note' as const, at: new Date(n.createdAt), note: n })),
@@ -85,7 +89,7 @@ export function MessageThread({
 
   return (
     <Conversation className="min-h-0 flex-1">
-      <ConversationContent className="gap-3">
+      <ConversationContent className="gap-3 pb-12">
         {items.map((item, idx) => {
           const prev = idx > 0 ? items[idx - 1] : null
           const showDivider = !prev || prev.at.toDateString() !== item.at.toDateString()
@@ -103,7 +107,7 @@ export function MessageThread({
               {item.kind === 'message' && (
                 <MessageRow
                   msg={item.msg}
-                  messages={messages}
+                  messagesById={messagesById}
                   directory={directory}
                   currentUserId={currentUserId}
                   assignee={assignee}
@@ -120,28 +124,12 @@ export function MessageThread({
 
 // ─── Date divider ────────────────────────────────────────────────────
 
-const DATE_DIVIDER_FMT = new Intl.DateTimeFormat(undefined, {
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-})
-
-function DateDivider({ at }: { at: Date }) {
-  const label = DATE_DIVIDER_FMT.format(at)
-  return (
-    <div className="flex items-center gap-3 py-1">
-      <div className="flex-1 border-t" />
-      <span className="font-medium text-muted-foreground/60 text-xs uppercase tracking-wide">{label}</span>
-      <div className="flex-1 border-t" />
-    </div>
-  )
-}
-
 // ─── Message row ─────────────────────────────────────────────────────
 
 interface MessageRowProps {
   msg: DisplayMessage
-  messages: DisplayMessage[]
+  /** Pre-built id → message map for O(1) parent lookups on card_reply rows. */
+  messagesById: Map<string, DisplayMessage>
   directory: PrincipalDirectory
   currentUserId: string | null
   /** Conversation assignee snapshot — used to identify which agent owns role==='agent' messages. */
@@ -173,51 +161,57 @@ function messagePrincipal(
   return null
 }
 
-function MessageRow({ msg, messages, directory, currentUserId, assignee, contactId }: MessageRowProps) {
+function MessageRow({ msg, messagesById, directory, currentUserId, assignee, contactId }: MessageRowProps) {
   const principal = messagePrincipal(msg, directory, assignee, contactId)
   // "Mine" on right: the row was written by the currently-logged-in staff.
   // Messages don't track per-row senderId yet, so we treat any `role === 'staff'`
   // row as mine when a staff user is signed in.
   const isMine = Boolean(currentUserId) && msg.role === 'staff'
-  const kind: PrincipalKind | 'customer' = msg.role === 'customer' ? 'customer' : (principal?.kind ?? 'staff')
+  const kind: MessageRowKind = msg.role === 'customer' ? 'customer' : (principal?.kind ?? 'staff')
 
   const taskPayload = isTaskPayload(msg.content) ? msg.content : null
-  const parent = msg.kind === 'card_reply' ? messages.find((m) => m.id === msg.parentMessageId) : undefined
+  const parent = msg.parentMessageId ? messagesById.get(msg.parentMessageId) : undefined
   const failureReason =
     typeof msg.content === 'object' && msg.content !== null
       ? (msg.content as { failureReason?: unknown }).failureReason
       : undefined
 
+  const authorLabel = principal ? (
+    <PrincipalNode id={principal.token} variant="simple" className="text-foreground/80" />
+  ) : null
+
+  const bubbleHeader = msg.reasoning ? (
+    <Reasoning defaultOpen={false}>
+      <ReasoningTrigger />
+      <ReasoningContent>{msg.reasoning}</ReasoningContent>
+    </Reasoning>
+  ) : null
+
+  const bodyOverride = taskPayload ? (
+    <Task>
+      <TaskTrigger title={taskPayload.title} />
+      <TaskContent>
+        {taskPayload.items.map((task) => (
+          <TaskItem key={task.id}>{task.label}</TaskItem>
+        ))}
+      </TaskContent>
+    </Task>
+  ) : undefined
+
   return (
-    <Bubble
+    <SharedMessageRow
+      msg={msg}
+      parent={parent}
+      authorKind={kind}
+      authorLabel={authorLabel}
       isMine={isMine}
-      principal={principal}
-      kind={kind}
-      timestamp={msg.createdAt}
-      status={msg.status}
-      failureReason={typeof failureReason === 'string' ? failureReason : null}
-    >
-      {msg.reasoning && (
-        <Reasoning defaultOpen={false}>
-          <ReasoningTrigger />
-          <ReasoningContent>{msg.reasoning}</ReasoningContent>
-        </Reasoning>
-      )}
-      {taskPayload ? (
-        <Task>
-          <TaskTrigger title={taskPayload.title} />
-          <TaskContent>
-            {taskPayload.items.map((task) => (
-              <TaskItem key={task.id}>{task.label}</TaskItem>
-            ))}
-          </TaskContent>
-        </Task>
-      ) : msg.kind === 'text' ? (
-        <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
-      ) : (
-        <MessageCard message={msg} parentMessage={parent} readOnly />
-      )}
-    </Bubble>
+      scope="staff"
+      trailingHeader={
+        <DeliveryStatus status={msg.status} failureReason={typeof failureReason === 'string' ? failureReason : null} />
+      }
+      bubbleHeader={bubbleHeader}
+      bodyOverride={bodyOverride}
+    />
   )
 }
 

@@ -16,15 +16,18 @@
  * Slash commands:
  *   - `/reset` — discard the stored token and mint a fresh anonymous session.
  */
+import { useConversationTyping } from '@modules/messaging/hooks/use-conversation-typing'
 import type { Message } from '@modules/messaging/schema'
 import { createFileRoute, useParams } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
-import { MessageCard } from '@/components/message-card'
+import { DateDivider, type MessageRowKind, MessageRow as SharedMessageRow } from '@/components/message-row'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { useSse } from '@/hooks/use-sse'
 import { cn } from '@/lib/utils'
 
 type Layout = 'iframe' | 'standalone'
@@ -39,6 +42,7 @@ interface InboundResponse {
 interface PublicInstance {
   id: string
   displayName: string | null
+  agentName: string | null
   starters: string[]
 }
 
@@ -87,12 +91,58 @@ async function mintAnonymousToken(): Promise<string> {
   return data.token
 }
 
-function MessageRow({ msg }: { msg: Message }) {
+function publicDisplayName(role: Message['role'], agentName: string | null): string {
+  switch (role) {
+    case 'customer':
+      return 'You'
+    case 'agent':
+      return agentName || 'Assistant'
+    case 'staff':
+      return 'Support'
+    default:
+      return 'System'
+  }
+}
+
+function MessageRow({
+  msg,
+  parent,
+  agentName,
+  optimistic,
+  onOptimisticReply,
+}: {
+  msg: Message
+  parent?: Message
+  /** Name to display for agent-authored rows. Falls back to "Assistant" if absent. */
+  agentName: string | null
+  optimistic?: boolean
+  onOptimisticReply?: (btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => void
+}) {
   const isCustomer = msg.role === 'customer'
+  const authorKind: MessageRowKind = isCustomer ? 'customer' : msg.role === 'agent' ? 'agent' : 'staff'
+  const displayName = publicDisplayName(msg.role, agentName)
   return (
-    <div className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
-      <div className="max-w-[80%]">
-        <MessageCard message={msg} />
+    <SharedMessageRow
+      msg={msg}
+      parent={parent}
+      authorKind={authorKind}
+      authorLabel={<span className="font-medium text-foreground/80">{displayName}</span>}
+      isMine={isCustomer}
+      scope="public"
+      optimistic={optimistic}
+      onCardOptimisticReply={onOptimisticReply}
+    />
+  )
+}
+
+function TypingLine({ label, isIframe }: { label: string; isIframe: boolean }) {
+  // Floating strip ABOVE the input form — absolute positioning keeps it
+  // off the flex layout, so the scroll area's height (and therefore the
+  // visible message stack) never shifts when the indicator appears.
+  return (
+    <div className="pointer-events-none absolute -top-7 right-0 left-0 z-10 px-4">
+      <div className={cn('mx-auto', isIframe ? 'max-w-full' : 'max-w-2xl')}>
+        <Shimmer className="text-muted-foreground text-xs">{label}</Shimmer>
       </div>
     </div>
   )
@@ -106,6 +156,7 @@ export function ChatPage() {
   const [token, setToken] = useState<string | null>(urlToken)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [optimistic, setOptimistic] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -141,13 +192,18 @@ export function ChatPage() {
     }
   }, [channelInstanceId, urlToken])
 
-  // Fetch public instance metadata (name + starters) — unauthenticated.
+  // Fetch public instance metadata (name + starters + agent name) — unauthenticated.
+  // Re-runs when conversationId is set/changes so the agent name reflects the
+  // actual assignee of the live conversation, not just the channel default.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
+        const qs = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ''
         // biome-ignore lint/plugin/no-raw-fetch: public anonymous endpoint; typed RPC requires session
-        const res = await fetch(`/api/channels/adapters/web/instances/${encodeURIComponent(channelInstanceId)}/public`)
+        const res = await fetch(
+          `/api/channels/adapters/web/instances/${encodeURIComponent(channelInstanceId)}/public${qs}`,
+        )
         if (!res.ok) return
         const data = (await res.json()) as PublicInstance
         if (!cancelled) setInstance(data)
@@ -158,7 +214,7 @@ export function ChatPage() {
     return () => {
       cancelled = true
     }
-  }, [channelInstanceId])
+  }, [channelInstanceId, conversationId])
 
   const refresh = useCallback(
     async (id: string) => {
@@ -178,15 +234,20 @@ export function ChatPage() {
     [token],
   )
 
-  // Initial fetch + SSE invalidation.
   useEffect(() => {
     if (!conversationId || !ready) return
     void refresh(conversationId)
-    const es = new EventSource('/api/sse')
-    const onInvalidate = (e: MessageEvent) => {
+  }, [conversationId, ready, refresh])
+
+  useSse(
+    (evt) => {
+      if (evt.event !== 'invalidate' || !conversationId) return
       try {
-        const payload = JSON.parse(e.data) as { table?: string; id?: string }
+        const payload = JSON.parse(evt.data) as { table?: string; id?: string; action?: string }
         if (payload.table === 'messages' || payload.table === 'conversations') {
+          // `typing.*` shares the `conversations` table — but the typing
+          // presence hook handles those separately; skip the message refresh.
+          if (payload.action?.startsWith('typing.')) return
           void refresh(conversationId)
           return
         }
@@ -194,22 +255,20 @@ export function ChatPage() {
           void refresh(conversationId)
         }
       } catch {
-        /* ignore */
+        /* ignore malformed events */
       }
-    }
-    es.addEventListener('invalidate', onInvalidate)
-    return () => {
-      es.removeEventListener('invalidate', onInvalidate)
-      es.close()
-    }
-  }, [conversationId, ready, refresh])
+    },
+    Boolean(conversationId && ready),
+  )
 
-  // Autoscroll on new messages.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll only on message count
+  const staffTyping = useConversationTyping(conversationId, 'staff')
+
+  // Autoscroll on new messages or optimistic bubbles.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll-on-list-growth, not full deps
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages.length])
+  }, [messages.length, optimistic.length])
 
   const reset = useCallback(async () => {
     setResetting(true)
@@ -233,6 +292,27 @@ export function ChatPage() {
     }
   }, [channelInstanceId, urlToken])
 
+  const pushOptimistic = useCallback(
+    (kind: 'text' | 'card_reply', content: unknown) => {
+      const stub: Message = {
+        id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        conversationId: conversationId ?? 'pending',
+        organizationId: '',
+        role: 'customer',
+        kind,
+        content,
+        parentMessageId: null,
+        channelExternalId: null,
+        status: null,
+        attachments: [],
+        metadata: {},
+        createdAt: new Date(),
+      }
+      setOptimistic((cur) => [...cur, stub])
+    },
+    [conversationId],
+  )
+
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
@@ -243,6 +323,7 @@ export function ChatPage() {
         return
       }
       setSending(true)
+      pushOptimistic('text', { text: trimmed })
       setError(null)
       setNotice(null)
       try {
@@ -267,8 +348,35 @@ export function ChatPage() {
         setSending(false)
       }
     },
-    [channelInstanceId, token, refresh, reset],
+    [channelInstanceId, token, refresh, reset, pushOptimistic],
   )
+
+  const onCardOptimisticReply = useCallback(
+    (btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => {
+      pushOptimistic('card_reply', btn)
+    },
+    [pushOptimistic],
+  )
+
+  // Customer-side typing beacon — symmetric to the staff inbox composer.
+  // Throttled to one POST per 2s while the user is actively typing; the
+  // inbox listens for the resulting SSE event and renders the indicator
+  // above its own composer.
+  const lastTypingEmitRef = useRef(0)
+  const emitTyping = useCallback(() => {
+    if (!conversationId || !token) return
+    const now = Date.now()
+    if (now - lastTypingEmitRef.current < 2000) return
+    lastTypingEmitRef.current = now
+    // biome-ignore lint/plugin/no-raw-fetch: anonymous chat session uses bearer token via authFetchInit; typed RPC requires session
+    void fetch(
+      '/api/channels/adapters/web/typing',
+      authFetchInit(token, {
+        method: 'POST',
+        body: JSON.stringify({ conversationId }),
+      }),
+    ).catch(() => undefined)
+  }, [conversationId, token])
 
   const onSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
@@ -293,6 +401,84 @@ export function ChatPage() {
   const botName = instance?.displayName || 'Chat'
   const starters = instance?.starters ?? []
   const showStarters = messages.length === 0 && starters.length > 0 && !sending
+
+  // Drop optimistic entries once their real counterpart lands. Reducer-style
+  // setState returns the same reference when nothing changed so React bails
+  // on the rerender — no infinite loop, no separate `optimistic` memo.
+  useEffect(() => {
+    setOptimistic((cur) => {
+      if (cur.length === 0) return cur
+      const matched = (opt: Message): boolean => {
+        if (opt.kind === 'text') {
+          const t = (opt.content as { text?: string }).text
+          return messages.some(
+            (m) => m.role === 'customer' && m.kind === 'text' && (m.content as { text?: string }).text === t,
+          )
+        }
+        if (opt.kind === 'card_reply') {
+          const v = (opt.content as { buttonId?: string }).buttonId
+          return messages.some(
+            (m) =>
+              m.role === 'customer' && m.kind === 'card_reply' && (m.content as { buttonId?: string }).buttonId === v,
+          )
+        }
+        return false
+      }
+      const next = cur.filter((o) => !matched(o))
+      return next.length === cur.length ? cur : next
+    })
+  }, [messages])
+
+  const agentThinking = useMemo(() => {
+    if (sending) return true
+    if (optimistic.length > 0) return true
+    const lastCustomer = messages.findLast((m) => m.role === 'customer')
+    if (!lastCustomer) return false
+    // Staff replies count as a response too — otherwise the shimmer sticks
+    // forever after a human handoff. Treat any non-customer non-system message
+    // as "the other side answered".
+    const lastResponse = messages.findLast((m) => m.role === 'agent' || m.role === 'staff')
+    if (!lastResponse) return true
+    return new Date(lastCustomer.createdAt) > new Date(lastResponse.createdAt)
+  }, [messages, sending, optimistic.length])
+
+  const indicatorLabel =
+    staffTyping && staffTyping.expiresAt > Date.now()
+      ? `${staffTyping.name} is typing…`
+      : agentThinking && instance?.agentName
+        ? `${instance.agentName} is thinking…`
+        : null
+
+  const timelineRows = useMemo(() => {
+    // Map<id, Message> avoids the O(N²) `messages.find(parentId)` lookup for
+    // every card_reply when threads grow long.
+    const byId = new Map<string, Message>()
+    for (const m of messages) byId.set(m.id, m)
+    const rows: React.ReactNode[] = []
+    let lastDateKey: string | null = null
+    const emit = (m: Message, isOptimistic: boolean) => {
+      const d = new Date(m.createdAt)
+      const key = d.toDateString()
+      if (key !== lastDateKey) {
+        rows.push(<DateDivider key={`div-${m.id}`} at={d} />)
+        lastDateKey = key
+      }
+      const parent = m.parentMessageId ? byId.get(m.parentMessageId) : undefined
+      rows.push(
+        <MessageRow
+          key={m.id}
+          msg={m}
+          parent={parent}
+          agentName={instance?.agentName ?? null}
+          optimistic={isOptimistic}
+          onOptimisticReply={isOptimistic ? undefined : onCardOptimisticReply}
+        />,
+      )
+    }
+    for (const m of messages) emit(m, false)
+    for (const m of optimistic) emit(m, true)
+    return rows
+  }, [messages, optimistic, instance?.agentName, onCardOptimisticReply])
 
   if (!ready) {
     return (
@@ -324,7 +510,7 @@ export function ChatPage() {
         </header>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-12">
         <div
           className={cn(
             'mx-auto flex flex-col gap-3',
@@ -332,7 +518,7 @@ export function ChatPage() {
             messages.length === 0 && 'h-full items-center justify-center',
           )}
         >
-          {messages.length === 0 ? (
+          {messages.length === 0 && optimistic.length === 0 ? (
             <div className="flex max-w-md flex-col items-center gap-2 rounded-lg border border-border bg-card px-4 py-8 text-center">
               <div
                 className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground"
@@ -344,7 +530,7 @@ export function ChatPage() {
               <div className="text-muted-foreground text-xs">Ask me anything to get started.</div>
             </div>
           ) : (
-            messages.map((m) => <MessageRow key={m.id} msg={m} />)
+            timelineRows
           )}
         </div>
       </div>
@@ -370,25 +556,31 @@ export function ChatPage() {
         <div className="border-border border-t bg-muted px-4 py-2 text-muted-foreground text-xs">{notice}</div>
       )}
 
-      <form
-        onSubmit={onSubmit}
-        className={cn('flex shrink-0 gap-2 border-border border-t bg-card', isIframe ? 'p-3' : 'px-6 py-5')}
-      >
-        <div className={cn('mx-auto flex w-full gap-2', isIframe ? 'max-w-full' : 'max-w-2xl')}>
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Type a message…  (Shift+Enter for newline · /reset to start over)"
-            rows={3}
-            className="flex-1 resize-none text-sm"
-            disabled={sending || resetting}
-          />
-          <Button type="submit" disabled={sending || resetting || !draft.trim()} className="self-end">
-            {sending ? 'Sending…' : 'Send'}
-          </Button>
-        </div>
-      </form>
+      <div className="relative shrink-0">
+        {indicatorLabel && <TypingLine label={indicatorLabel} isIframe={isIframe} />}
+        <form
+          onSubmit={onSubmit}
+          className={cn('flex gap-2 border-border border-t bg-card', isIframe ? 'p-3' : 'px-6 py-5')}
+        >
+          <div className={cn('mx-auto flex w-full gap-2', isIframe ? 'max-w-full' : 'max-w-2xl')}>
+            <Textarea
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                if (e.target.value.trim().length > 0) emitTyping()
+              }}
+              onKeyDown={onKeyDown}
+              placeholder="Type a message…  (Shift+Enter for newline · /reset to start over)"
+              rows={3}
+              className="flex-1 resize-none text-sm"
+              disabled={sending || resetting}
+            />
+            <Button type="submit" disabled={sending || resetting || !draft.trim()} className="self-end">
+              {sending ? 'Sending…' : 'Send'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

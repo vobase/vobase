@@ -7,7 +7,9 @@
  * `getInstanceDefaultAssignee` for the inbound handler.
  */
 
+import { agentDefinitions } from '@modules/agents/schema'
 import { channelInstances } from '@modules/channels/schema'
+import { conversations } from '@modules/messaging/schema'
 import { and, eq } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
@@ -28,6 +30,12 @@ export interface WebInstance {
 export interface PublicWebInstance {
   id: string
   displayName: string | null
+  /**
+   * Display name of the agent assigned to this web instance, if any.
+   * Surfaces in the chat widget ("MeriGPT is thinking…") so end-users
+   * see the assistant identity rather than the channel name.
+   */
+  agentName: string | null
   starters: string[]
 }
 
@@ -67,7 +75,16 @@ function toInstance(r: Row): WebInstance {
 
 export interface WebInstancesService {
   list(organizationId: string): Promise<WebInstance[]>
-  getPublic(id: string): Promise<PublicWebInstance | null>
+  /**
+   * Returns chat-widget metadata for the public `/chat/:id` page.
+   *
+   * When `conversationId` is supplied, `agentName` reflects the agent
+   * currently assigned to that conversation (`conversations.assignee` of
+   * `agent:<id>`). Without it, falls back to the channel instance's
+   * `defaultAssignee` config — useful pre-conversation, before the first
+   * inbound has minted a thread.
+   */
+  getPublic(id: string, conversationId?: string): Promise<PublicWebInstance | null>
   getDefaultAssignee(id: string): Promise<string | null>
   create(input: CreateWebInstanceInput): Promise<WebInstance>
   update(id: string, organizationId: string, patch: UpdateWebInstanceInput): Promise<WebInstance>
@@ -87,17 +104,46 @@ export function createWebInstancesService(deps: { db: ScopedDb }): WebInstancesS
     return rows.map(toInstance).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
 
-  async function getPublic(id: string): Promise<PublicWebInstance | null> {
-    const rows = await db
-      .select()
-      .from(channelInstances)
-      .where(and(eq(channelInstances.id, id), eq(channelInstances.channel, 'web')))
-    const row = rows[0]
+  async function getPublic(id: string, conversationId?: string): Promise<PublicWebInstance | null> {
+    // Channel-instance lookup is required; conversation lookup is optional and
+    // independent — fire both in parallel so the public chat-link metadata
+    // endpoint stays a single round-trip when a conversation is known.
+    const [instanceRows, convRows] = await Promise.all([
+      db
+        .select()
+        .from(channelInstances)
+        .where(and(eq(channelInstances.id, id), eq(channelInstances.channel, 'web'))),
+      conversationId
+        ? db
+            .select({ assignee: conversations.assignee })
+            .from(conversations)
+            .where(eq(conversations.id, conversationId))
+            .limit(1)
+        : Promise.resolve([] as Array<{ assignee: string }>),
+    ])
+    const row = instanceRows[0]
     if (!row) return null
     const inst = toInstance(row)
+
+    // Prefer the live conversation's assignee; fall back to the channel
+    // instance's `defaultAssignee` when no conversation exists yet or the
+    // assignee is a human/unset.
+    const assignee = convRows[0]?.assignee
+    const agentId = assignee?.startsWith('agent:') ? assignee.slice('agent:'.length) : inst.defaultAssignee
+
+    let agentName: string | null = null
+    if (agentId) {
+      const agentRows = await db
+        .select({ name: agentDefinitions.name })
+        .from(agentDefinitions)
+        .where(eq(agentDefinitions.id, agentId))
+        .limit(1)
+      agentName = agentRows[0]?.name ?? null
+    }
     return {
       id: inst.id,
       displayName: inst.displayName,
+      agentName,
       starters: inst.starters.length > 0 ? inst.starters : [...DEFAULT_STARTERS],
     }
   }
@@ -199,8 +245,8 @@ export async function listInstances(organizationId: string): Promise<WebInstance
   return current().list(organizationId)
 }
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
-export async function getPublicInstance(id: string): Promise<PublicWebInstance | null> {
-  return current().getPublic(id)
+export async function getPublicInstance(id: string, conversationId?: string): Promise<PublicWebInstance | null> {
+  return current().getPublic(id, conversationId)
 }
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function getInstanceDefaultAssignee(id: string): Promise<string | null> {

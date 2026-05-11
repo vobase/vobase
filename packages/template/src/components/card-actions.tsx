@@ -31,6 +31,12 @@ interface CardActionsProps {
    * usage where taps must post replies).
    */
   readOnly?: boolean
+  /**
+   * Fired before the card-reply POST so the chat surface can render an
+   * optimistic outgoing bubble. The web chat passes this so the tap feels
+   * instant instead of waiting on the SSE roundtrip.
+   */
+  onOptimisticReply?: (btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => void
 }
 
 export interface CardReplyPayload {
@@ -63,10 +69,12 @@ const buttonStyleMap: Record<string, string> = {
   default: 'border border-border bg-background hover:bg-muted text-foreground',
 }
 
-export function CardActions({ messageId, buttons, readOnly = false }: CardActionsProps) {
+export function CardActions({ messageId, buttons, readOnly = false, onOptimisticReply }: CardActionsProps) {
   const mutation = useMutation({
-    mutationFn: (btn: ButtonElement) =>
-      postCardReply({ messageId, buttonId: btn.id, buttonValue: btn.value ?? btn.id, buttonLabel: btn.label }),
+    mutationFn: (btn: ButtonElement) => {
+      onOptimisticReply?.({ buttonId: btn.id, buttonValue: btn.value ?? btn.id, buttonLabel: btn.label })
+      return postCardReply({ messageId, buttonId: btn.id, buttonValue: btn.value ?? btn.id, buttonLabel: btn.label })
+    },
   })
 
   const pendingId = mutation.isPending ? (mutation.variables as ButtonElement | undefined)?.id : null

@@ -75,11 +75,13 @@ function CardChildNode({
   messageId,
   conversationId,
   readOnly,
+  onOptimisticReply,
 }: {
   child: CardChild
   messageId: string
   conversationId: string
   readOnly?: boolean
+  onOptimisticReply?: (btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => void
 }) {
   switch (child.type) {
     case 'text':
@@ -118,6 +120,7 @@ function CardChildNode({
           conversationId={conversationId}
           buttons={child.children ?? []}
           readOnly={readOnly}
+          onOptimisticReply={onOptimisticReply}
         />
       )
 
@@ -138,9 +141,14 @@ function CardChildNode({
   }
 }
 
-function renderCard(card: CardElement, message: Message, readOnly?: boolean) {
+function renderCard(
+  card: CardElement,
+  message: Message,
+  readOnly?: boolean,
+  onOptimisticReply?: (btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => void,
+) {
   return (
-    <div className="min-w-[220px] max-w-full space-y-2 rounded-lg border border-border bg-card p-3">
+    <div className="min-w-[280px] max-w-full space-y-3 rounded-lg border border-border bg-card p-4">
       {card.title && <p className="font-semibold text-foreground text-sm">{card.title}</p>}
       {card.children?.map((child, i) => (
         <CardChildNode
@@ -150,6 +158,7 @@ function renderCard(card: CardElement, message: Message, readOnly?: boolean) {
           messageId={message.id}
           conversationId={message.conversationId}
           readOnly={readOnly}
+          onOptimisticReply={onOptimisticReply}
         />
       ))}
     </div>
@@ -160,6 +169,7 @@ export function MessageCard({
   message,
   parentMessage,
   readOnly = false,
+  onOptimisticReply,
 }: {
   message: Message
   parentMessage?: Message
@@ -169,6 +179,12 @@ export function MessageCard({
    * default false.
    */
   readOnly?: boolean
+  /**
+   * Fires before the card-reply POST so the surrounding chat surface can
+   * render an optimistic outgoing bubble. Only the customer-facing web chat
+   * passes this — the staff inbox renders cards read-only.
+   */
+  onOptimisticReply?: (btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => void
 }) {
   const bubbleBase = cn('max-w-full break-words rounded-lg px-3 py-2 text-sm')
 
@@ -188,7 +204,7 @@ export function MessageCard({
 
   if (message.kind === 'card') {
     const content = message.content as CardContent
-    if (content.card) return renderCard(content.card, message, readOnly)
+    if (content.card) return renderCard(content.card, message, readOnly, onOptimisticReply)
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
         <pre className="max-h-32 overflow-auto text-muted-foreground text-xs">

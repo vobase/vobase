@@ -1,15 +1,23 @@
 import { useSendNote } from '@modules/messaging/hooks/use-send-note'
 import { useStaffReply } from '@modules/messaging/hooks/use-staff-reply'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { PromptInput, PromptInputFooter, PromptInputSubmit } from '@/components/ai-elements/prompt-input'
 import { usePrincipalDirectory } from '@/components/principal'
 import { InputGroupTextarea } from '@/components/ui/input-group'
 import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
+import { messagingClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { MentionPopover } from './mention-popover'
 import { findMentions } from './mentions'
+
+/**
+ * Throttle window for the typing-presence beacon. We re-emit every ~2s while
+ * the staff member is actively typing; the public chat treats each event as
+ * valid for ~3s, so the indicator stays smooth without flooding pg_notify.
+ */
+const TYPING_THROTTLE_MS = 2000
 
 interface ComposerProps {
   conversationId: string
@@ -29,6 +37,18 @@ export function Composer({ conversationId }: ComposerProps) {
 
   const staffReply = useStaffReply(conversationId)
   const sendNote = useSendNote(conversationId, currentUserId)
+
+  // Throttled typing-presence beacon. Fires at most once per
+  // TYPING_THROTTLE_MS while the staff member is actively typing in the
+  // reply lane (notes are internal-only, no customer-facing indicator).
+  // Failures are non-fatal — typing presence is a UX nicety, not journaled.
+  const lastTypingEmitRef = useRef(0)
+  const emitTyping = useCallback(() => {
+    const now = Date.now()
+    if (now - lastTypingEmitRef.current < TYPING_THROTTLE_MS) return
+    lastTypingEmitRef.current = now
+    void messagingClient.conversations[':id'].typing.$post({ param: { id: conversationId } }).catch(() => undefined)
+  }, [conversationId])
 
   useEffect(() => {
     if (mode === 'reply') replyRef.current?.focus()
@@ -110,7 +130,10 @@ export function Composer({ conversationId }: ComposerProps) {
           ref={activeRef}
           name="message"
           value={text}
-          onChange={(e) => setText(e.currentTarget.value)}
+          onChange={(e) => {
+            setText(e.currentTarget.value)
+            if (isReply && e.currentTarget.value.trim().length > 0) emitTyping()
+          }}
           onKeyDown={onTabKey}
           placeholder={isReply ? 'Reply to customer…' : 'Internal note — type @ to mention staff or agents…'}
           className="field-sizing-content max-h-48 min-h-10 py-2"

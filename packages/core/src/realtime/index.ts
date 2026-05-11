@@ -13,6 +13,13 @@ export interface RealtimePayload {
   action?: string
   tab?: string
   prevTab?: string
+  /**
+   * Actor identity for transient signals such as `action: 'typing'` —
+   * lets recipients render `${userName} is typing…` without a second
+   * lookup. Pure passthrough; the core service does not interpret it.
+   */
+  userId?: string
+  userName?: string
 }
 
 /** Minimal interface satisfied by both VobaseDb and Drizzle transaction handles. */

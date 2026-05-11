@@ -11,7 +11,8 @@ import { Hono } from 'hono'
 
 const app = new Hono().get('/:id/public', async (c) => {
   const id = c.req.param('id')
-  const pub = await getPublicInstance(id)
+  const conversationId = c.req.query('conversationId') || undefined
+  const pub = await getPublicInstance(id, conversationId)
   if (!pub) return c.json({ error: 'not_found' }, 404)
   return c.json(pub)
 })

@@ -6,6 +6,7 @@
  * installed instance to preserve the existing import surface.
  */
 
+import { TYPING_ACTIONS, type TypingActor } from '@modules/messaging/lib/typing-actions'
 import { conversations } from '@modules/messaging/schema'
 import { eq, sql } from 'drizzle-orm'
 
@@ -17,6 +18,14 @@ export interface StaffOpsService {
   getConversation(id: string): Promise<Conversation | null>
   reassignConversation(id: string, assignee: string): Promise<Conversation>
   notifyConversation(id: string): Promise<void>
+  /**
+   * Broadcast a transient typing-presence signal for this conversation. The
+   * `actor` is encoded in the `action` field as `typing.<actor>` so each side
+   * can filter out its own beacons (a customer chat ignores `typing.customer`
+   * events, the staff inbox ignores `typing.staff`). Not persisted — receivers
+   * show an indicator for ~3s then clear.
+   */
+  notifyTyping(id: string, userId: string, userName: string, actor: TypingActor): Promise<void>
 }
 
 export interface StaffOpsServiceDeps {
@@ -51,7 +60,18 @@ export function createStaffOpsService(deps: StaffOpsServiceDeps): StaffOpsServic
     await (db as { execute: Function }).execute(sql`SELECT pg_notify('vobase_events', ${payload})`)
   }
 
-  return { getConversation, reassignConversation, notifyConversation }
+  async function notifyTyping(id: string, userId: string, userName: string, actor: TypingActor): Promise<void> {
+    const payload = JSON.stringify({
+      table: 'conversations',
+      id,
+      action: TYPING_ACTIONS[actor],
+      userId,
+      userName,
+    })
+    await (db as { execute: Function }).execute(sql`SELECT pg_notify('vobase_events', ${payload})`)
+  }
+
+  return { getConversation, reassignConversation, notifyConversation, notifyTyping }
 }
 
 let _currentStaffOpsService: StaffOpsService | null = null
@@ -85,4 +105,10 @@ export async function reassignConversation(id: string, assignee: string): Promis
 export async function notifyConversation(id: string): Promise<void> {
   if (!_currentStaffOpsService) return
   return _currentStaffOpsService.notifyConversation(id)
+}
+
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function notifyTyping(id: string, userId: string, userName: string, actor: TypingActor): Promise<void> {
+  if (!_currentStaffOpsService) return
+  return _currentStaffOpsService.notifyTyping(id, userId, userName, actor)
 }

@@ -1,6 +1,7 @@
 import type { Contact } from '@modules/contacts/schema'
 import { deriveContactName } from '@modules/messaging/components/contact'
 import { useActivity } from '@modules/messaging/hooks/use-activity'
+import { useConversationTyping } from '@modules/messaging/hooks/use-conversation-typing'
 import { useLifecycle } from '@modules/messaging/hooks/use-lifecycle'
 import { useNotes } from '@modules/messaging/hooks/use-notes'
 import { useReassign } from '@modules/messaging/hooks/use-reassign'
@@ -11,6 +12,7 @@ import { CheckIcon, ChevronLeft, PanelRightOpenIcon, RefreshCcwIcon, RotateCcwIc
 import { useQueryState } from 'nuqs'
 import { useEffect, useMemo } from 'react'
 
+import { Shimmer } from '@/components/ai-elements/shimmer'
 import { Button } from '@/components/ui/button'
 import { useCurrentUserId } from '@/hooks/use-current-user'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
@@ -272,7 +274,27 @@ export function ConversationDetail() {
         assignee={activeConv?.assignee ?? null}
         contactId={contactId}
       />
-      {activeConvId && <Composer conversationId={activeConvId} />}
+      {activeConvId && (
+        <div className="relative shrink-0">
+          <ConversationTypingIndicator conversationId={activeConvId} />
+          <Composer conversationId={activeConvId} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Renders the customer-typing indicator as a floating strip above the
+ * composer. Absolute positioning keeps it from pushing the message thread
+ * up when the indicator appears/disappears.
+ */
+function ConversationTypingIndicator({ conversationId }: { conversationId: string }) {
+  const presence = useConversationTyping(conversationId, 'customer')
+  if (!presence || presence.expiresAt <= Date.now()) return null
+  return (
+    <div className="pointer-events-none absolute -top-7 right-0 left-0 z-10 px-5">
+      <Shimmer className="text-muted-foreground text-xs">{`${presence.name} is typing…`}</Shimmer>
     </div>
   )
 }

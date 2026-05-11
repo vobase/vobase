@@ -17,6 +17,7 @@ import reassign from './reassign'
 import reply from './reply'
 import resolve from './resolve'
 import snooze from './snooze'
+import typing from './typing'
 
 const app = new Hono<OrganizationEnv>()
   .use('*', requireOrganization)
@@ -73,5 +74,6 @@ const app = new Hono<OrganizationEnv>()
   .route('/conversations', reply)
   .route('/conversations', snooze)
   .route('/conversations', resolve)
+  .route('/conversations', typing)
 
 export default app
