@@ -24,6 +24,8 @@ export interface UpsertStaffInput {
   attributes?: Record<string, AttributeValue>
   profile?: string
   memory?: string
+  /** Personal WhatsApp phone in E.164 (`+`-prefixed). Mirrored to platform staff-links. */
+  whatsappPhoneE164?: string | null
 }
 
 export interface UpdateStaffInput {
@@ -36,6 +38,8 @@ export interface UpdateStaffInput {
   availability?: Availability
   profile?: string
   memory?: string
+  /** Personal WhatsApp phone in E.164 (`+`-prefixed). Mirrored to platform staff-links. */
+  whatsappPhoneE164?: string | null
 }
 
 interface StaffDeps {
@@ -96,6 +100,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (input.attributes !== undefined) values.attributes = input.attributes
     if (input.profile !== undefined) values.profile = input.profile
     if (input.memory !== undefined) values.memory = input.memory
+    if (input.whatsappPhoneE164 !== undefined) values.whatsappPhoneE164 = input.whatsappPhoneE164
 
     const update: Record<string, unknown> = { ...values }
     delete update.userId
@@ -122,6 +127,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (patch.availability !== undefined) set.availability = patch.availability
     if (patch.profile !== undefined) set.profile = patch.profile
     if (patch.memory !== undefined) set.memory = patch.memory
+    if (patch.whatsappPhoneE164 !== undefined) set.whatsappPhoneE164 = patch.whatsappPhoneE164
     const rows = (await db
       .update(staffProfiles)
       .set(set)
