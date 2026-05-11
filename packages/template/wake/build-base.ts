@@ -14,6 +14,7 @@ import { list as listContacts } from '@modules/contacts/service/contacts'
 import * as messagingModule from '@modules/messaging/agent'
 import type { Conversation } from '@modules/messaging/schema'
 import { list as listConversations } from '@modules/messaging/service/conversations'
+import { appendJournalEvent } from '@modules/messaging/service/journal'
 import * as schedulesModule from '@modules/schedules/agent'
 import { schedules as schedulesService } from '@modules/schedules/service/schedules'
 import { staff as teamStaff } from '@modules/team/service'
@@ -27,7 +28,7 @@ import type {
   ScopedScheduler,
   WorkspaceMaterializer,
 } from '@vobase/core'
-import { IndexFileBuilder, journalAppend } from '@vobase/core'
+import { IndexFileBuilder } from '@vobase/core'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
 import type { AgentEvent, WakeTrigger } from './events'
@@ -172,7 +173,9 @@ export function buildJournalAdapter(): (ev: unknown) => Promise<void> {
       wakeId?: string
       turnIndex?: number
     }
-    await journalAppend({
+    // The template wrapper extracts non-reserved event fields into the
+    // `payload` jsonb column; core's `journalAppend` would drop them.
+    await appendJournalEvent({
       conversationId: ae.conversationId,
       organizationId: ae.organizationId,
       wakeId: ae.wakeId ?? null,
