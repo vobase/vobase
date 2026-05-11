@@ -24,6 +24,7 @@ import type { InternalNote } from '@modules/messaging/schema'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { recordPing } from '@modules/team/service/pending-mention-pings'
 import { find as findStaff } from '@modules/team/service/staff'
+import { logger } from '@vobase/core'
 
 import type { StaffProfile } from '../schema'
 
@@ -134,7 +135,7 @@ export function createMentionNotifyService(_deps: MentionNotifyDeps): MentionNot
             } catch (err) {
               // Non-fatal — the WA ping went out; the staff may still answer
               // in-app. Log for visibility.
-              console.warn('[team/mention-notify] recordPing failed (non-fatal):', err)
+              logger.warn({ err }, '[team/mention-notify] recordPing failed (non-fatal)')
             }
           }
           result.notified.push(userId)

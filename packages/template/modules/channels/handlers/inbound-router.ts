@@ -20,6 +20,7 @@
  * this router.
  */
 
+import { timingSafeEqual } from 'node:crypto'
 import { isManagedNotifConfig } from '@modules/channels/adapters/whatsapp/factory'
 import {
   sha256Hex,
@@ -70,10 +71,10 @@ const app = new Hono()
       provider: entry.channelName,
       betterAuthSecret,
     })
-    if (token.length !== expected.length) return c.text('Forbidden', 403)
-    let acc = 0
-    for (let i = 0; i < token.length; i++) acc |= token.charCodeAt(i) ^ expected.charCodeAt(i)
-    return acc === 0 ? c.text(challenge) : c.text('Forbidden', 403)
+    const a = Buffer.from(token)
+    const b = Buffer.from(expected)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return c.text('Forbidden', 403)
+    return c.text(challenge)
   })
   .post('/inbound/:channelInstanceId', async (c) => {
     const channelInstanceId = c.req.param('channelInstanceId')
