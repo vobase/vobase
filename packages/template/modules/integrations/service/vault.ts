@@ -17,7 +17,18 @@ import { and, eq } from 'drizzle-orm'
 import type { ScopedDb } from '~/runtime'
 import { integrationSecrets } from '../schema'
 
-export type VaultProvider = 'vobase-platform'
+/**
+ * Vault provider key. Free-form string at the type level so the integrations
+ * layer doesn't have to be touched every time a new managed-channel kind
+ * lands — the source of truth for legal providers is
+ * `modules/channels/managed/registry.ts`, which pins one provider per kind.
+ *
+ * Runtime validation happens at the registry boundary (`findKind(...)`
+ * returns the canonical provider) rather than at the type system; callers
+ * that need to assert a string came from the registry should look the kind
+ * up first and read `.vaultProvider`.
+ */
+export type VaultProvider = string
 
 export interface VaultPair {
   routineSecret: string
