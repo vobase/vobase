@@ -12,6 +12,8 @@ import {
   createWhatsAppAdapterFromConfig,
   WHATSAPP_CAPABILITIES,
   WHATSAPP_CHANNEL_NAME,
+  WHATSAPP_NOTIF_CAPABILITIES,
+  WHATSAPP_NOTIF_CHANNEL_NAME,
 } from './adapters/whatsapp/factory'
 import { runWhatsappSetupJob, WHATSAPP_SETUP_JOB, type WhatsappSetupJobData } from './adapters/whatsapp/jobs/setup'
 import { channelsAgent } from './agent'
@@ -50,6 +52,12 @@ const channels: ModuleDef = {
 
     registerAdapter(WEB_CHANNEL_NAME, createWebAdapter, WEB_CAPABILITIES)
     registerAdapter(WHATSAPP_CHANNEL_NAME, createWhatsAppAdapterFromConfig, WHATSAPP_CAPABILITIES)
+    // Notification-tier WA channel reuses the same factory — the factory's
+    // `isManagedNotifConfig` branch routes the dispatch through the
+    // `'vobase-platform-notification'` vault namespace. Registering under a
+    // distinct channel name lets `findManagedChannel(orgId, 'notification')`
+    // resolve the row independently of the customer-WA channel.
+    registerAdapter(WHATSAPP_NOTIF_CHANNEL_NAME, createWhatsAppAdapterFromConfig, WHATSAPP_NOTIF_CAPABILITIES)
   },
 }
 

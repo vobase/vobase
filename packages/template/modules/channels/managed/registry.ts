@@ -23,6 +23,21 @@ import type { VaultProvider } from '@modules/integrations/service/vault'
 /** Union of all registered channel kinds. Widen when adding a new entry. */
 export type ManagedChannelKind = 'sandbox' | 'notification'
 
+/**
+ * Inbound dispatch discriminator. Each kind tells `handlers/inbound-router.ts`
+ * which downstream branch to take when a verified webhook lands.
+ *
+ *   - `'customer'`     — sandbox tier; inbound is a real customer message
+ *                        and routes through the standard messaging pipeline.
+ *                        (Reserved — sandbox inbound currently flows through
+ *                        the existing customer-WA webhook router, NOT the
+ *                        registry-driven router.)
+ *   - `'staff_reply'`  — notification tier; inbound is a staff WA reply
+ *                        and routes through the operator-thread + ask-staff
+ *                        branches.
+ */
+export type InboundDispatch = 'customer' | 'staff_reply'
+
 export interface ChannelKind {
   readonly kind: ManagedChannelKind
   readonly vaultProvider: VaultProvider
@@ -36,6 +51,22 @@ export interface ChannelKind {
    * Mirrors `claimPath` shape per kind.
    */
   readonly releasePath: string
+  /**
+   * Channel-instance row `channel` discriminator — the value persisted in
+   * `channel_instances.channel`. The inbound router looks up channels by
+   * (orgId, channelName) given a kind.
+   */
+  readonly channelName: string
+  /**
+   * Channel-instance row `role` — `'customer'` for sandbox, `'staff'` for
+   * notification-tier channels.
+   */
+  readonly role: 'customer' | 'staff'
+  /**
+   * Downstream-dispatch tag. The registry-driven inbound router branches on
+   * this without ever switching on `kind` directly.
+   */
+  readonly inboundDispatch: InboundDispatch
   readonly description: string
 }
 
@@ -45,6 +76,9 @@ export const KINDS: readonly ChannelKind[] = [
     vaultProvider: 'vobase-platform',
     claimPath: '/api/managed-whatsapp/sandbox/create',
     releasePath: '/api/managed-whatsapp/tenant/release',
+    channelName: 'whatsapp',
+    role: 'customer',
+    inboundDispatch: 'customer',
     description: 'Pooled platform-managed sandbox WhatsApp number. Tenant fetches secrets via vobase-platform vault.',
   },
   {
@@ -52,6 +86,9 @@ export const KINDS: readonly ChannelKind[] = [
     vaultProvider: 'vobase-platform-notification',
     claimPath: '/api/managed-whatsapp/notification/claim',
     releasePath: '/api/managed-whatsapp/notification/release',
+    channelName: 'whatsapp_notif',
+    role: 'staff',
+    inboundDispatch: 'staff_reply',
     description:
       'Pooled platform-managed staff-notification WhatsApp number. Inbound from linked staff phones dispatches as `staff_reply`.',
   },
@@ -61,4 +98,13 @@ export function findKind(kind: string): ChannelKind {
   const k = KINDS.find((x) => x.kind === kind)
   if (!k) throw new Error(`unknown channel kind: ${kind}`)
   return k
+}
+
+/**
+ * Look up a registry entry by its persisted `channelName` (the value stored
+ * in `channel_instances.channel`). The inbound router uses this to translate
+ * a row's channel discriminator back into the registry's dispatch metadata.
+ */
+export function findByChannelName(channelName: string): ChannelKind | null {
+  return KINDS.find((x) => x.channelName === channelName) ?? null
 }
