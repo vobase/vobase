@@ -54,26 +54,32 @@ function convoFolder(refs: RenderRefs): string {
  * available via the cue's "full thread in …" pointer.
  */
 const MAX_CUE_BODY_BYTES = 4096
+const TRUNCATION_MARKER = '\n…[truncated — see the full thread in the file pointer below]'
+const TRUNCATION_MARKER_BYTES = Buffer.byteLength(TRUNCATION_MARKER, 'utf8')
 
-/** Trim `body` to ≤ maxBytes (UTF-8), cutting on a line boundary when possible. */
+/** Trim `body` to ≤ maxBytes (UTF-8 including the marker), cutting on a line boundary when possible. */
 function truncateForCue(body: string, maxBytes = MAX_CUE_BODY_BYTES): string {
   const trimmed = body.trim()
   if (Buffer.byteLength(trimmed, 'utf8') <= maxBytes) return trimmed
+  // Reserve room for the marker so the returned string is guaranteed ≤ maxBytes.
+  const budget = maxBytes - TRUNCATION_MARKER_BYTES
   const lines = trimmed.split('\n')
   const kept: string[] = []
   let bytes = 0
   for (const line of lines) {
-    const lineBytes = Buffer.byteLength(line, 'utf8') + 1 // +1 for the newline
-    if (bytes + lineBytes > maxBytes) break
+    const lineBytes = Buffer.byteLength(line, 'utf8')
+    // First line costs just its bytes; subsequent lines add a separator newline (matches `kept.join('\n')` size).
+    const needed = bytes === 0 ? lineBytes : bytes + 1 + lineBytes
+    if (needed > budget) break
     kept.push(line)
-    bytes += lineBytes
+    bytes = needed
   }
   // No line fit: hard byte slice on the first line so the agent still sees something meaningful.
   if (kept.length === 0) {
-    const buf = Buffer.from(trimmed, 'utf8').subarray(0, maxBytes)
-    return `${buf.toString('utf8')}\n…[truncated — see the full thread in the file pointer below]`
+    const buf = Buffer.from(trimmed, 'utf8').subarray(0, budget)
+    return `${buf.toString('utf8')}${TRUNCATION_MARKER}`
   }
-  return `${kept.join('\n')}\n…[truncated — see the full thread in the file pointer below]`
+  return `${kept.join('\n')}${TRUNCATION_MARKER}`
 }
 
 /**

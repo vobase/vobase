@@ -306,7 +306,7 @@ describe('cue body truncation', () => {
     currentAgentId: 'agt0mer0v1',
   }
 
-  it('caps the inlined body and appends a truncation marker when body exceeds 4KB', () => {
+  it('caps the inlined body within 4KB (marker reserved) and appends a truncation marker', () => {
     // 6KB of repeated lines so the cap (4KB) trips on a line boundary.
     const line = `${'x'.repeat(120)}\n`
     const longBody = line.repeat(50) // ~6KB
@@ -323,8 +323,30 @@ describe('cue body truncation', () => {
     )
     expect(text).toContain('[truncated')
     expect(text).toContain('INTERNAL-NOTES.md')
-    // The truncated cue must still fit in a generous budget: 4KB body + cue chrome (< 1KB).
-    expect(Buffer.byteLength(text, 'utf8')).toBeLessThan(6000)
+    // The quoted body section (truncateForCue output + `> ` per line by quoteBody) is bounded by 4KB
+    // plus ~2 bytes per line of blockquote prefix. Extract from the first quoted line to the trailing pointer.
+    const quoteStart = text.indexOf('\n\n> ') + 2
+    const quoteEnd = text.indexOf('\n\nFull thread in ')
+    const quotedSection = text.slice(quoteStart, quoteEnd)
+    expect(Buffer.byteLength(quotedSection, 'utf8')).toBeLessThanOrEqual(4096 + 200)
+  })
+
+  it('returns the pre-fix cue byte-for-byte when body is absent (back-compat guard)', () => {
+    // Locked text — any change here is a back-compat break that downstream hash/snapshot
+    // logic or test fixtures might silently fail against.
+    const text = cap.render(
+      {
+        trigger: 'staff_note',
+        conversationId: 'cnv0marcus',
+        noteId: 'note0001',
+        authorUserId: 'usr0alice',
+        mentionedAgentId: 'agt0mer0v1',
+      },
+      refs,
+    )
+    expect(text).toBe(
+      'Staff @-mentioned you in an internal note. Read /contacts/ct0marcus/ch0web/INTERNAL-NOTES.md for context. Decide what the note asks for and act — see `## Staff note (this wake)` in AGENTS.md for the routing table.',
+    )
   })
 
   it('does not truncate when body fits under the cap', () => {
