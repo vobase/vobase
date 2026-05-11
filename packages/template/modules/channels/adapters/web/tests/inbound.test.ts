@@ -98,6 +98,7 @@ function makeContactsServiceStub(): ContactsService {
     get: notImplemented as ContactsService['get'],
     getByPhone: notImplemented as ContactsService['getByPhone'],
     getByEmail: notImplemented as ContactsService['getByEmail'],
+    getByExternalKey: notImplemented as ContactsService['getByExternalKey'],
     create: notImplemented as ContactsService['create'],
     update: notImplemented as ContactsService['update'],
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
