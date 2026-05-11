@@ -15,7 +15,11 @@ import { nanoid } from 'nanoid'
 
 import { agentMessages, threads } from '../schemas/harness'
 
-export type MessageHistoryDb = PostgresJsDatabase<Record<string, unknown>>
+// drizzle-orm rc.2 narrowed PostgresJsDatabase's type-param constraint from
+// `Record<string, unknown>` to `AnyRelations` (with `EmptyRelations` as the
+// default). Use the default rather than spelling it out so the type stays
+// portable across drizzle-orm major-version boundaries.
+export type MessageHistoryDb = PostgresJsDatabase
 
 export interface ResolveThreadOpts {
   agentId: string
