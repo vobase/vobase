@@ -19,3 +19,5 @@ drizzle/
 schema.generated.ts
 .claude/*.lock
 openspec/
+# Project-local vobase CLI configs (`vobase auth login --local`) — holds an API key.
+.vobase/

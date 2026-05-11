@@ -17,6 +17,14 @@ export interface AuthLoginOpts {
   url?: string
   token?: string
   home?: string
+  /**
+   * When true, write the resulting config to `<cwd>/.vobase/<name>.json`
+   * (project-local) instead of `~/.vobase/<name>.json` (home tier). Pair with
+   * `cwd` to anchor the local path; defaults to `process.cwd()`.
+   */
+  local?: boolean
+  /** Working directory used to anchor `local: true` writes. */
+  cwd?: string
   /** Override fetch for tests. */
   fetcher?: typeof fetch
   /** Override the browser-launcher (e.g., disable in tests). Default uses `open`. */
@@ -113,6 +121,8 @@ export async function login(opts: AuthLoginOpts): Promise<AuthCommandResult> {
   return await completeLogin({
     configName,
     home: opts.home,
+    local: opts.local,
+    cwd: opts.cwd,
     baseUrl: ready.baseUrl ?? baseUrl,
     apiKey: ready.apiKey,
     stdout,
@@ -160,6 +170,8 @@ async function loginWithToken(opts: {
   url: string
   token: string
   home?: string
+  local?: boolean
+  cwd?: string
   fetcher?: typeof fetch
   stdout: (s: string) => void
   stderr: (s: string) => void
@@ -167,6 +179,8 @@ async function loginWithToken(opts: {
   return await completeLogin({
     configName: opts.configName,
     home: opts.home,
+    local: opts.local,
+    cwd: opts.cwd,
     baseUrl: opts.url,
     apiKey: opts.token,
     stdout: opts.stdout,
@@ -178,6 +192,8 @@ async function loginWithToken(opts: {
 async function completeLogin(opts: {
   configName: string
   home?: string
+  local?: boolean
+  cwd?: string
   baseUrl: string
   apiKey: string
   stdout: (s: string) => void
@@ -205,7 +221,12 @@ async function completeLogin(opts: {
       email: verify.data.principal.email,
     },
   }
-  const path = await writeConfig(config, { name: opts.configName, home: opts.home })
+  const path = await writeConfig(config, {
+    name: opts.configName,
+    home: opts.home,
+    local: opts.local,
+    cwd: opts.cwd,
+  })
   opts.stdout(`Logged in as ${verify.data.principal.email ?? verify.data.principal.id}.\n`)
   opts.stdout(`Config written to ${path}\n`)
   return { ok: true, output: '', exitCode: 0 }

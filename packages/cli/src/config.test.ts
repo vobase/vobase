@@ -1,10 +1,18 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'bun:test'
 
-import { ConfigSchema, configPath, loadConfig, resolveConfigName, writeConfig } from './config'
+import {
+  ConfigSchema,
+  configPath,
+  findConfigPath,
+  loadConfig,
+  localConfigPath,
+  resolveConfigName,
+  writeConfig,
+} from './config'
 
 const BASE_CONFIG = {
   url: 'https://acme.vobase.app',
@@ -110,5 +118,95 @@ describe('writeConfig', () => {
     const stats = await stat(path)
     // Mode is masked with 0o777 — we only care about the user/group/other rwx bits.
     expect(stats.mode & 0o777).toBe(0o600)
+  })
+
+  it('local: true writes to <cwd>/.vobase/<name>.json', async () => {
+    const cwd = makeHome() // reuse helper — just need an isolated temp dir
+    const path = await writeConfig(
+      {
+        url: 'https://acme.vobase.app',
+        apiKey: 'vbt_local',
+        organizationId: 'org_1',
+        principal: { id: 'usr_1' },
+      },
+      { local: true, cwd, name: 'acme' },
+    )
+    expect(path).toBe(join(cwd, '.vobase', 'acme.json'))
+    expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
+})
+
+describe('localConfigPath', () => {
+  it('joins <dir>/.vobase/<name>.json', () => {
+    expect(localConfigPath('acme', '/repo/client-acme')).toBe('/repo/client-acme/.vobase/acme.json')
+  })
+})
+
+describe('findConfigPath — hybrid lookup', () => {
+  function setupTwoTier() {
+    const home = makeHome()
+    const repo = mkdtempSync(join(tmpdir(), 'vobase-cli-repo-'))
+    mkdirSync(join(repo, '.git'), { recursive: true })
+    const sub = join(repo, 'packages', 'app')
+    mkdirSync(sub, { recursive: true })
+    return { home, repo, sub }
+  }
+
+  it('returns null when neither tier has the config', async () => {
+    const { home, sub } = setupTwoTier()
+    expect(await findConfigPath({ home, cwd: sub, flag: 'acme' })).toBeNull()
+  })
+
+  it('falls back to home when no local config exists', async () => {
+    const { home, sub } = setupTwoTier()
+    const homePath = await writeConfig(
+      { url: 'https://acme.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { home, name: 'acme' },
+    )
+    expect(await findConfigPath({ home, cwd: sub, flag: 'acme' })).toBe(homePath)
+  })
+
+  it('local config in cwd wins over home', async () => {
+    const { home, repo, sub } = setupTwoTier()
+    await writeConfig(
+      { url: 'https://acme-home.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { home, name: 'acme' },
+    )
+    const localPath = await writeConfig(
+      { url: 'https://acme-local.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { local: true, cwd: repo, name: 'acme' },
+    )
+    // From a subdirectory of the repo, the walk should still find the repo-root local.
+    expect(await findConfigPath({ home, cwd: sub, flag: 'acme' })).toBe(localPath)
+  })
+
+  it('walks up from cwd to find local config at the closest ancestor', async () => {
+    const { home, repo, sub } = setupTwoTier()
+    const localPath = await writeConfig(
+      { url: 'https://acme.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { local: true, cwd: repo, name: 'acme' },
+    )
+    expect(await findConfigPath({ home, cwd: sub, flag: 'acme' })).toBe(localPath)
+  })
+
+  it('local walk halts at .git (does not climb past the repo root)', async () => {
+    const { home, repo, sub } = setupTwoTier()
+    const parentDir = join(repo, '..')
+    await writeConfig(
+      { url: 'https://acme.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { local: true, cwd: parentDir, name: 'acme' },
+    )
+    expect(await findConfigPath({ home, cwd: sub, flag: 'acme' })).toBeNull()
+  })
+
+  it('loadConfig reads through findConfigPath end-to-end', async () => {
+    const { home, repo, sub } = setupTwoTier()
+    await writeConfig(
+      { url: 'https://acme-local.vobase.app', apiKey: 'vbt_local', organizationId: 'o', principal: { id: 'u' } },
+      { local: true, cwd: repo, name: 'acme' },
+    )
+    const cfg = await loadConfig({ home, cwd: sub, flag: 'acme' })
+    expect(cfg?.url).toBe('https://acme-local.vobase.app')
+    expect(cfg?.apiKey).toBe('vbt_local')
   })
 })

@@ -15,7 +15,7 @@ import { cac } from 'cac'
 import pkg from '../package.json' with { type: 'json' }
 import { CatalogClient } from '../src/catalog'
 import { login, logout, whoami } from '../src/commands/auth'
-import { loadConfig, resolveConfigName } from '../src/config'
+import { findConfigPath, loadConfig, resolveConfigName } from '../src/config'
 import { renderGlobalHelp, renderGroupHelp } from '../src/help'
 import { shouldAutoJson } from '../src/output'
 import { resolve as resolveVerb } from '../src/resolver'
@@ -31,12 +31,13 @@ interface CliFlags {
   help?: boolean
   url?: string
   token?: string
+  local?: boolean
 }
 
 async function runAuth(sub: string, flags: CliFlags): Promise<number> {
   const configName = resolveConfigName({ flag: flags.config })
   if (sub === 'login') {
-    const r = await login({ configName, url: flags.url, token: flags.token })
+    const r = await login({ configName, url: flags.url, token: flags.token, local: flags.local })
     return r.exitCode
   }
   if (sub === 'whoami') {
@@ -58,6 +59,9 @@ async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
     return await runAuth(verb[1], flags)
   }
 
+  // Capture the path so the catalog cache co-locates with whichever tier
+  // we resolved (local → local cache, home → home cache).
+  const configFilePath = await findConfigPath({ flag: flags.config })
   const config = await loadConfig({ flag: flags.config })
   if (!config) {
     if (flags.help && verb.length === 0) {
@@ -65,12 +69,18 @@ async function run(verb: readonly string[], flags: CliFlags): Promise<number> {
       return 0
     }
     process.stderr.write(
-      `vobase: no config found at ~/.vobase/${configName}.json. Run 'vobase auth login --url <tenant>' to set one up.\n`,
+      `vobase: no config '${configName}' found in ./.vobase/ (walking up to repo root) or ~/.vobase/. ` +
+        `Run 'vobase auth login --url <tenant>' to set one up (add --local for a project-local config).\n`,
     )
     return 2
   }
 
-  const client = new CatalogClient({ configName, baseUrl: config.url, apiKey: config.apiKey })
+  const client = new CatalogClient({
+    configName,
+    baseUrl: config.url,
+    apiKey: config.apiKey,
+    configFilePath: configFilePath ?? undefined,
+  })
 
   let catalog: Awaited<ReturnType<CatalogClient['load']>>
   try {
@@ -113,13 +123,17 @@ const cli = cac('vobase')
 
 cli
   .command('[...verb]', 'Run a vobase verb (catalog-driven)')
-  .option('--config <name>', "Use ~/.vobase/<name>.json (default: 'config'); also VOBASE_CONFIG")
+  .option(
+    '--config <name>',
+    "Config name (default: 'config'); resolves ./.vobase/<name>.json then ~/.vobase/<name>.json. Also VOBASE_CONFIG",
+  )
   .option('--json', 'Output raw JSON instead of human-readable format')
   .option('--no-json', 'Force human-readable output even when stdout is not a TTY')
   .option('--refresh', 'Force-refetch the verb catalog')
   .option('--help', 'Show catalog-driven help (verb groups + verbs)')
   .option('--url <url>', 'Tenant base URL (auth login only)')
   .option('--token <key>', 'API key for headless login (auth login only)')
+  .option('--local', 'Write the config to ./.vobase/<name>.json instead of ~/.vobase/ (auth login only)')
   // Verb-specific flags (e.g. --limit, --scope) are catalog-driven and
   // forwarded to the resolver via flags[name]; cac must not reject them.
   .allowUnknownOptions()

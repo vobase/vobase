@@ -46,6 +46,8 @@ export interface CatalogClientOpts {
   home?: string
   /** Override cache TTL for tests (default 5 min). */
   cacheTtlMs?: number
+  /** When set, the cache co-locates next to it; otherwise falls back to `~/.vobase/<name>.cache.json`. */
+  configFilePath?: string
 }
 
 /** Default fresh-cache window — past this the client revalidates with `If-None-Match`. */
@@ -65,7 +67,9 @@ export class CatalogClient {
 
   /** Disk path of the cached catalog for this config. */
   cachePath(): string {
-    // Place cache next to the config: ~/.vobase/<name>.cache.json
+    if (this.opts.configFilePath) {
+      return this.opts.configFilePath.replace(/\.json$/u, '.cache.json')
+    }
     const configFile = configPath(this.opts.configName, this.opts.home)
     const dir = configFile.replace(/[^/]+$/u, '').replace(/\/$/u, '')
     return join(dir, `${this.opts.configName}.cache.json`)

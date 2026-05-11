@@ -9,7 +9,16 @@
 
 export type { Catalog, CatalogVerb } from './catalog'
 export { CatalogClient } from './catalog'
-export { type Config, ConfigSchema, configPath, loadConfig, resolveConfigName, writeConfig } from './config'
+export {
+  type Config,
+  ConfigSchema,
+  configPath,
+  findConfigPath,
+  loadConfig,
+  localConfigPath,
+  resolveConfigName,
+  writeConfig,
+} from './config'
 export { renderGlobalHelp, renderGroupHelp } from './help'
 export { type Format, formatRelative, formatResult } from './output'
 export { matchVerb, parseArgs, type ResolveOpts, type ResolveResult, resolve } from './resolver'
