@@ -149,6 +149,13 @@ export function StaffDetailPage() {
                   <InfoRow label="Languages">
                     <TagList items={staff.languages} />
                   </InfoRow>
+                  <InfoRow label="WhatsApp">
+                    {staff.whatsappPhoneE164 ? (
+                      <span className="font-mono">{staff.whatsappPhoneE164}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </InfoRow>
                 </InfoCard>
               </InfoSection>
 
