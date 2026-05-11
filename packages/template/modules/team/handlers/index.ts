@@ -1,19 +1,25 @@
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
+  find as findStaff,
   get as getStaff,
   list as listStaff,
   remove as removeStaff,
   update as updateStaff,
   upsert as upsertStaff,
 } from '@modules/team/service/staff'
+import { syncStaffLinksEnqueue } from '@modules/team/service/staff-link-sync'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
+import type { StaffProfile } from '../schema'
 import attributeHandlers from './attributes'
 import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'
 import mentionHandlers from './mentions'
+
+/** Accept `+E164` only (digits, leading `+`, 8-16 chars total). Empty/null clears. */
+const whatsappPhoneE164Schema = z.string().regex(/^\+[1-9]\d{6,14}$/, 'whatsappPhoneE164 must be E.164 with leading +')
 
 const availability = z.enum(['active', 'busy', 'off', 'inactive'])
 
@@ -28,6 +34,7 @@ const upsertStaffBody = z.object({
   availability: availability.optional(),
   profile: z.string().max(4000).optional(),
   memory: z.string().max(8000).optional(),
+  whatsappPhoneE164: whatsappPhoneE164Schema.nullable().optional(),
 })
 
 const updateStaffBody = z.object({
@@ -40,7 +47,21 @@ const updateStaffBody = z.object({
   availability: availability.optional(),
   profile: z.string().max(4000).optional(),
   memory: z.string().max(8000).optional(),
+  whatsappPhoneE164: whatsappPhoneE164Schema.nullable().optional(),
 })
+
+/**
+ * Returns `true` when the inbound patch's `whatsappPhoneE164` differs from
+ * the existing row's value — the trigger for enqueueing a staff-link sync.
+ * A patch that omits the field, or sets it to the same value, returns
+ * `false` so no work is enqueued.
+ */
+function phoneChangedAfterWrite(before: StaffProfile | null, patch: { whatsappPhoneE164?: string | null }): boolean {
+  if (!('whatsappPhoneE164' in patch)) return false
+  const next = patch.whatsappPhoneE164 ?? null
+  const prev = before?.whatsappPhoneE164 ?? null
+  return next !== prev
+}
 
 const app = new Hono<OrganizationEnv>()
   .use('*', requireOrganization)
@@ -62,7 +83,15 @@ const app = new Hono<OrganizationEnv>()
     }),
     async (c) => {
       const data = c.req.valid('json')
-      const row = await upsertStaff({ organizationId: c.get('organizationId'), ...data })
+      const organizationId = c.get('organizationId')
+      const before = await findStaff(data.userId)
+      const row = await upsertStaff({ organizationId, ...data })
+      // Fire-and-forget enqueue per §4.3 — the platform call happens in
+      // the background via the `team:sync-staff-link` pg-boss job, with
+      // singletonKey coalescing PATCH bursts (R9-E).
+      if (phoneChangedAfterWrite(before, data)) {
+        await syncStaffLinksEnqueue(organizationId)
+      }
       return c.json(row)
     },
   )
@@ -83,8 +112,16 @@ const app = new Hono<OrganizationEnv>()
     }),
     async (c) => {
       const data = c.req.valid('json')
+      const userId = c.req.param('userId')
+      const before = await findStaff(userId)
       try {
-        const row = await updateStaff(c.req.param('userId'), data)
+        const row = await updateStaff(userId, data)
+        if (phoneChangedAfterWrite(before, data)) {
+          // Enqueue the reconciler; the actual platform `staffLinks.upsert`
+          // / `staffLinks.delete` call happens inside the pg-boss handler.
+          // No inline `upsertStaffLinkOnPlatform` call here per US-024.
+          await syncStaffLinksEnqueue(row.organizationId)
+        }
         return c.json(row)
       } catch {
         return c.json({ error: 'not_found' }, 404)
@@ -92,8 +129,16 @@ const app = new Hono<OrganizationEnv>()
     },
   )
   .delete('/staff/:userId', async (c) => {
-    await removeStaff(c.req.param('userId'))
-    return c.json({ ok: true, userId: c.req.param('userId') })
+    const userId = c.req.param('userId')
+    const before = await findStaff(userId)
+    await removeStaff(userId)
+    if (before?.whatsappPhoneE164) {
+      // Removing the staff row deletes its tenant-side phone binding too;
+      // the reconciler will translate that into a platform-side delete on
+      // its next run.
+      await syncStaffLinksEnqueue(before.organizationId)
+    }
+    return c.json({ ok: true, userId })
   })
 
 export default app
