@@ -4,7 +4,24 @@ These files implement the tenant↔platform wire contract. Changes here usually 
 
 | File | Purpose | §-Reference | Version |
 |------|---------|-------------|---------|
-| `modules/integrations/service/handshake.ts` | Outbound v2 HMAC handshake to platform | §3.12 (platform proxy invariant) | v1 |
+| `modules/integrations/service/handshake.ts` | Outbound v2 HMAC handshake to platform | §3.12 (platform proxy invariant) | v2 |
 | `modules/channels/adapters/whatsapp/managed-transport.ts` | Managed WhatsApp send + inbound verifier | §10 (managed-channels) | v1 |
-| `modules/integrations/service/vault.ts` | Encrypted secret storage for tenant integrations | §11 (oauth-proxy) | v1 |
+| `modules/integrations/service/vault.ts` | Encrypted secret storage for tenant integrations | §11 (oauth-proxy) | v2 |
 | `modules/integrations/service/verify-token.ts` | JWT verifier for platform-issued integration tokens | §11 | v1 |
+| `modules/channels/managed/registry.ts` | Channel-kind registry + parameterized dispatch | §4.1 | v2 |
+| `modules/channels/managed/bootstrap.ts` | Registry-driven channel bootstrap | §4.1 | v2 |
+| `modules/channels/adapters/whatsapp/factory.ts` | Registry-driven vault provider + rotation cache key | §4.1 | v2 |
+
+## Changelog
+
+### v1 → v2 (Slice 3 — notification kind landing)
+
+- `modules/channels/managed/registry.ts`: `KINDS` gains a `notification` entry alongside `sandbox`.
+- `modules/integrations/service/vault.ts`: `VaultProvider` relaxed to `string`; runtime validation via the registry.
+- `modules/integrations/service/handshake.ts`: parameterized `claim(kind)`, `release(kind)`, `staffLinks.{upsert,delete,list}` replace the legacy `*Notification*` helpers.
+- `modules/channels/adapters/whatsapp/factory.ts`: `loadRotation` consults the registry; new `rotationCacheKey(orgId, vaultProvider)` fixes the bare-orgId multi-provider cache-collision bug.
+- `modules/channels/managed/bootstrap.ts`: `claimAndBootstrap` is registry-driven.
+- New `modules/channels/handlers/inbound-router.ts` mounts `/api/channels/managed/inbound/:channelInstanceId`; dispatches via the registry's `inboundDispatch` field; staff-reply branch uses `pending-mention-pings` + operator-thread fallback per §7.8.
+
+Platform side bumps to `'v2'` in lockstep (vobase-platform commit `9379ea9`).
+
