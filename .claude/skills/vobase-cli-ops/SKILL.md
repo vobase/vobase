@@ -14,7 +14,18 @@ When the user asks "how do I make the agent cite our new SLA?" or "the agent sho
 
 ## Setup — pick a tenant + authenticate
 
-Each `~/.vobase/<name>.json` file is one tenant. Switch via `--config <name>` or `VOBASE_CONFIG=<name>`. The catalog cache lives at `~/.vobase/<name>.cache.json` (auto-invalidates on etag drift; force with `--refresh`).
+Each `<name>.json` file is one tenant. Switch via `--config <name>` or `VOBASE_CONFIG=<name>`. The catalog cache (`<name>.cache.json`) lives next to the config it was loaded from (auto-invalidates on etag drift; force with `--refresh`).
+
+### Where configs live: local-first hybrid lookup
+
+Same shape as `git`/`gh`/`kubectl`. The CLI walks for the config in this order:
+
+1. `./.vobase/<name>.json` walking up from `cwd`, stopping at the **repo root** (a `.git` sibling) or `$HOME` — whichever comes first. **Closest wins.**
+2. `~/.vobase/<name>.json` — fallback for the single-tenant operator who doesn't want per-checkout configs.
+
+Use **`vobase auth login --local`** to write to `./.vobase/<name>.json` instead of the home tier. This is the right move for an agency operator with N client repos: `cd client-acme && vobase ...` automatically hits ACME's tenant; `cd client-globex && vobase ...` hits Globex. No `--config` flags needed at the call site.
+
+Both `.gitignore` files in the canonical template ignore `.vobase/` so an accidental commit can't leak the API key.
 
 ### Three auth paths, fastest first
 
@@ -33,8 +44,12 @@ vobase auth login --url=https://tenant.vobase.app
 **3. Programmatic (for E2E scripts) — dev-login + cli-grant flow:**
 ```bash
 # (dev-only; bypasses OTP. Available locally and in dev deployments.)
+# Pick the email by which TIER you need:
+#   alice@meridian.test → owner role → admin tier (sees admin verbs incl. `agents debug *`)
+#   alice@meridian.dev  → member role → staff tier (sees staff + contact verbs only)
+# The seed creates both. For agent-execution debugging you need the .test owner.
 DEV=$(curl -s -i -X POST "$BASE/api/auth/dev-login" \
-  -H "Content-Type: application/json" -d '{"email":"alice@meridian.dev"}')
+  -H "Content-Type: application/json" -d '{"email":"alice@meridian.test"}')
 COOKIE=$(echo "$DEV" | grep -i '^set-cookie:' | head -1 | sed 's/^[Ss]et-[Cc]ookie: //' | cut -d';' -f1)
 
 CODE=$(curl -s -X POST "$BASE/api/auth/cli-grant" | jq -r .code)
@@ -59,16 +74,20 @@ vobase <group> --help         # detail for one group (e.g. `vobase team --help`)
 
 Anonymous calls to `/api/cli/verbs` are blocked at 401. Authenticated members see contact + staff verbs. Admin keys see all verbs including `system`, `install`, `drive cat`.
 
-## The staff-tier verb catalog (verified end-to-end)
+## The verb catalog (verified end-to-end)
 
-These are the 10 staff-tier verbs in the canonical template. **Flag names are the most error-prone part of CLI use** — copy from the table verbatim.
+The verbs below are the canonical-template surface used for operating a live tenant. **Flag names are the most error-prone part of CLI use** — copy from the table verbatim. Audience tier is shown in the last column (only what your role can see in the catalog).
+
+### Staff-tier (visible to member + owner + admin)
 
 | Verb | Required flags | Purpose | Read/Write |
 |---|---|---|---|
 | `team list` | — | Staff directory | read |
 | `team get` | `--user=<userId>` | Single staff member | read |
 | `agents show` | `--id=<agentId>` | Agent definition (instructions, model, working_memory) | read |
-| `messaging show` | `--id=<conversationId>` | Conversation summary + recent activity | read |
+| `messaging show` | `--id=<conversationId>` | Conversation row + activity timeline (assignee/status/change.* events). **Does NOT include message bodies — use `messaging messages` for those.** | read |
+| `messaging messages` | `--id=<conversationId>` (`--limit`, `--since` opt.) | Customer/agent/staff messages with full bodies | read |
+| `messaging notes` | `--id=<conversationId>` | Renders `INTERNAL-NOTES.md` byte-identically to what the agent's bash sandbox sees during a wake | read |
 | `messaging close` | `--id=<conversationId>` (`--reason` optional) | Resolve a conversation | write |
 | `conv reassign` | `--conversationId=<id>` `--to=user:<id>\|agent:<id>\|unassigned` | Hand off conversation | write |
 | `drive search` | `--query=<text>` `--scope=organization` | Hybrid search across drive | read |
@@ -76,11 +95,27 @@ These are the 10 staff-tier verbs in the canonical template. **Flag names are th
 | `drive upload` | `--path=<local-file>` `--scope=organization` `--basePath=/` | Upload a local file into drive | write |
 | `contacts propose-change` | `--id=<contactId>` `--field=<name>` `--to=<value>` `--rationale=...` `--confidence=0.95` | Propose a contact field update | write (proposal) |
 
+### Admin-tier (owner + admin only — agent-execution debug surface)
+
+These are how you debug a live tenant from the CLI alone — no `psql` access required, safe for remote deployments. Walk-up order is `wakes → timeline → llm-io` (broad-to-narrow).
+
+| Verb | Required flags | Purpose |
+|---|---|---|
+| `agents list` | — | Roster of agent definitions |
+| `agents inspect` | `--id=<agentId>` | Instructions + working-memory tail (8KB) + skill allowlist + model |
+| `agents reload` | `--id=<agentId>` | Confirm next wake will see latest definition |
+| `agents debug wakes` | `--conversationId=<id>` (`--limit=20`, `--since` opt.) | Wake-by-wake summary: trigger, started_at, turns, tool_calls, cost, **systemHash** (drift across wakes = frozen-snapshot violation), endReason. First place to look for "did the agent even wake?" / "where did the cost go?" |
+| `agents debug timeline` | `--wakeId=<id>` (`--full` opt.) | Per-wake event timeline (`agent_start`, `tool_dispatch_*`, `tool_execution_*`, `llm_call`, `agent_end`). Reveals "did the agent skip the file read?" / "is it looping?" |
+| `agents debug llm-io` | `--conversationId=<id>` OR `--wakeId=<id>` (`--seq=N:M`, `--role`, `--tool`, `--limit=30`, `--full` opt.) | The LLM I/O log (`harness.messages`): user cues, assistant tool calls with arguments, tool results, model + token + cost per row. The killer verb — shows what the LLM saw and decided. |
+
 ### Critical flag-name gotchas
 
 - `team get` uses `--user`, NOT `--userId`.
-- `messaging show` and `messaging close` use `--id`, NOT `--conversationId`.
+- `messaging show` / `messaging messages` / `messaging notes` / `messaging close` use `--id`, NOT `--conversationId`.
 - `conv reassign` uses `--conversationId`, NOT `--id` (yes, the inverse of messaging — easy to swap).
+- `agents debug wakes` uses `--conversationId`, NOT `--id`.
+- `agents debug timeline` uses `--wakeId` (the 12-char nanoid from `agents debug wakes`).
+- `agents debug llm-io` accepts EITHER `--conversationId` OR `--wakeId`; `--wakeId` auto-derives the conversation and narrows the seq window to that wake's `agent_start..agent_end` time range.
 - `contacts propose-change` uses `--field` + `--to`, NOT `--field=` + `--value=`.
 - `drive propose` uses `--body`, NOT `--content`.
 - `drive upload --path` is the **local source path**; the file lands at `basePath + filename`. `--scope` is required; `--scopeId` required for non-organization scopes.
@@ -205,6 +240,8 @@ const { conversationId } = await res.json()
 
 `WEBHOOK_SECRET` defaults to `'dev-secret'` in dev (override via `CHANNEL_WEB_WEBHOOK_SECRET`). Each inbound creates a contact + conversation if `from` is new.
 
+**Bun + `.env` HMAC footgun.** Bun auto-loads `packages/template/.env`. The shipped `.env` keeps `CHANNEL_WEB_WEBHOOK_SECRET` commented (so dev falls back to `'dev-secret'`), but if anyone uncomments it as `CHANNEL_WEB_WEBHOOK_SECRET=` (empty), every Bun script that uses `process.env.CHANNEL_WEB_WEBHOOK_SECRET ?? 'dev-secret'` will sign with `""` while the server (which uses an `if (configured)` truthy check) signs with `'dev-secret'`. Result: silent 401 on every inbound. **Use `||` not `??`** in scripts, or just test it once with a known-good `curl` to compare. The shared smoke helper at `tests/helpers/changes-smoke.ts` already does this correctly with `||`.
+
 ### Polling for the agent reply
 
 The `messaging.messages` table is the customer-facing surface. Poll for `role='agent'` rows:
@@ -234,34 +271,48 @@ function extractText(content: any): string {
 
 Real LLM wakes take 30-90 seconds. Poll on a 1.5-second interval; cap timeout at 90s.
 
-## DB cheat sheet (when CLI verbs aren't enough)
+## DB cheat sheet (last resort — prefer verbs first)
 
-For ad-hoc inspection use Drizzle Studio: `cd packages/template && bun run db:studio`. For automation:
+**Don't reach for SQL on a remote deployment.** The CLI has admin-tier coverage for every common debug question (see "agent-execution debug surface" above). Use `psql` only for cross-cutting joins or schemas no verb exposes (e.g. `pending_approvals`, `change_proposals`).
+
+For ad-hoc local inspection use Drizzle Studio: `cd packages/template && bun run db:studio`. For automation:
 
 ```sql
 -- Connect: postgres://vobase:vobase@localhost:5432/vobase
 
--- Conversations
+-- Conversations  →  prefer `vobase messaging list` / `messaging show`
 SELECT id, status, assignee, contact_id FROM messaging.conversations LIMIT 10;
--- assignee is a single text column: 'user:<id>' or 'agent:<id>'
+-- assignee: 'user:<id>' or 'agent:<id>' or 'unassigned'
 -- status: 'active' | 'awaiting_approval' | 'resolved' | 'snoozed'
 
--- Messages (content is JSONB)
+-- Messages  →  prefer `vobase messaging messages --id=<convId>`
 SELECT id, role, content->>'text' AS text FROM messaging.messages
 WHERE conversation_id = $1 ORDER BY created_at;
 
--- Drive files (content lives in extracted_text, NOT 'content')
+-- Internal notes  →  prefer `vobase messaging notes --id=<convId>`
+SELECT body, mentions FROM messaging.internal_notes WHERE conversation_id = $1;
+
+-- Drive files (content lives in extracted_text)  →  prefer `vobase drive ls` + `drive cat`
 SELECT id, path, length(extracted_text) FROM drive.files WHERE scope='organization';
 
--- Agents
+-- Agents  →  prefer `vobase agents list` / `agents inspect --id=<id>`
 SELECT id, name, working_memory FROM agents.agent_definitions;
 
--- Contacts
+-- Contacts (no `contacts list` verb — contacts are PII-sensitive; admin-only via DB)
 SELECT id, display_name, attributes FROM contacts.contacts;
 
--- Pending proposals
+-- Pending proposals (no verb yet; queue admin via DB)
 SELECT id, resource_module, resource_type, resource_id, status, payload
 FROM changes.change_proposals WHERE status='pending';
+
+-- Wake journal  →  prefer `vobase agents debug wakes` / `debug timeline`
+SELECT wake_id, type, ts, payload FROM harness.conversation_events
+WHERE conversation_id = $1 ORDER BY ts;
+
+-- LLM I/O log  →  prefer `vobase agents debug llm-io --conversationId=<id>`
+SELECT m.seq, m.payload FROM harness.messages m
+JOIN harness.threads t ON t.id = m.thread_id
+WHERE t.conversation_id = $1 ORDER BY m.seq;
 ```
 
 ## Path-resolution trap, recap
@@ -278,18 +329,23 @@ FROM changes.change_proposals WHERE status='pending';
 |---|---|---|
 | anonymous (no Bearer) | nothing — 401 from middleware | api-key middleware blocks first |
 | member role with API key | `audience: 'contact'` + `'staff'` verbs | `getAudience()` returns `'staff'` |
-| admin role with API key | all verbs including admin-only | `getAudience()` returns `'admin'` |
+| **owner OR admin** role with API key | all verbs including admin-only (`agents debug *`, `drive cat`, `system *`, `install`) | `getAudience()` returns `'admin'` for both roles |
 | agent's bash sandbox | filtered by wake's `audienceTier` (typically `'contact'` for inbound, `'staff'` for staff-note wakes) | `isVerbVisible(verb.audience, wake.audienceTier)` |
+
+**Both `owner` and `admin` get the admin tier.** better-auth's role hierarchy is `owner > admin > member`; the catalog treats both top roles equivalently. (Pre-fix, `owner` was silently filtered down to `staff` and couldn't see admin verbs — a regression caught by dogfooding the debug surface itself.)
 
 ## When a CLI mutation didn't change the agent
 
-Diagnosis order:
+Diagnosis order — all CLI-driven, no `psql` required for steps 1–5:
 
 1. **Did the proposal actually apply?** Check `status` field of the propose response. `auto_written` = applied; `pending` = needs decide; `dropped` = below threshold (raise `--confidence` or check sensitivity routing).
-2. **Did you use the right path?** `--path=/foo.md` not `/drive/foo.md` for `drive propose`. Verify with `SELECT path FROM drive.files WHERE path LIKE '%foo%'`.
-3. **Does the agent's instructions actually reference that file?** `SELECT instructions FROM agents.agent_definitions WHERE id=$1` and look for the literal `cat /drive/<file>` reference. If the agent doesn't `cat` the file, your edit is invisible.
-4. **Are you testing on a fresh conversation?** The agent's contact memory may carry context from prior turns. Send the test inbound from a brand-new `from:` value to get a fresh contact.
-5. **Did the wake actually run?** Check `messaging.messages WHERE conversation_id=$1 AND role='agent'` — if no agent row, the wake failed (look for `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` in env, or check `bun run dev:server` logs).
+2. **Did you use the right path?** `--path=/foo.md` not `/drive/foo.md` for `drive propose`. Verify with `vobase drive ls --scope=organization` (or `vobase drive cat --path=/foo.md`).
+3. **Does the agent's instructions actually reference that file?** `vobase agents inspect --id=<agentId>` returns the full `instructions` field — search it for the literal `cat /drive/<file>` reference. If the agent doesn't `cat` the file, your edit is invisible.
+4. **Did the wake actually run?** `vobase agents debug wakes --conversationId=<id>` — if zero rows, the wake didn't fire (no `OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, conversation not assigned to an agent, pg-boss queue stuck). Check `bun run dev:server` logs.
+5. **Did the wake skip reading the file?** `vobase agents debug timeline --wakeId=<id>` — look for a `bash` `tool_dispatch_started` row before the first `reply`/`send_card` dispatch. If absent, the agent decided without reading the file. Drill in with `vobase agents debug llm-io --wakeId=<id> --tool=bash --full` to see the exact bash command + result.
+6. **What did the LLM actually see and decide?** `vobase agents debug llm-io --wakeId=<id>` — the user-cue text, the assistant's tool-call args, the tool result. The killer view for "agent did the wrong thing" investigations.
+7. **Frozen-snapshot drift across wakes?** Compare `systemHash` columns in `agents debug wakes` for the same agent + conversation. Different hashes between two consecutive wakes = the system prompt changed mid-conversation, breaking the provider prefix cache. Real bug.
+8. **Are you testing on a fresh conversation?** The agent's contact memory may carry context from prior turns. Send the test inbound from a brand-new `from:` value to get a fresh contact.
 
 ## Cleanup discipline for live tests
 
@@ -309,6 +365,39 @@ The test conversations created via `sendInbound` accumulate as cruft. They're ha
 DELETE FROM messaging.conversations WHERE id LIKE 'cnv0...e2e...';  -- match your test pattern
 ```
 
+## Worked example — debug "agent gave the wrong answer" with verbs only
+
+Scenario: a customer asked "are you GST registered?", staff replied via internal note "@MeriGPT yes we are", and the agent's next reply was still "I'll check with billing." The classic "agent skipped the file" failure mode.
+
+```bash
+CONV=zsjl9zl8
+
+# 1. What was actually said (customer + agent + staff text — not just activity events)
+vobase messaging messages --id=$CONV --no-json
+
+# 2. What did staff write to the agent (rendered as the agent's bash sees it)
+vobase messaging notes --id=$CONV --no-json
+
+# 3. Which wakes fired and how much they cost
+vobase agents debug wakes --conversationId=$CONV --no-json
+# → table includes wakeId, trigger, turns, toolCalls, costUsd, systemHash, endReason
+# Pick the staff_note wake (the one that should have read the new note)
+
+WAKE=C0z4jUowpGdp
+
+# 4. Did that wake actually `cat` INTERNAL-NOTES.md before replying?
+vobase agents debug timeline --wakeId=$WAKE --no-json
+# → look for `bash` tool_dispatch_started before any `reply` dispatch
+# If absent → the agent decided without reading; that's the bug
+
+# 5. Confirm what the LLM saw and chose
+vobase agents debug llm-io --wakeId=$WAKE --no-json
+# → seq=N user row shows the wake-cue text (does it inline the note body?)
+# → seq=N+1 assistant shows the tool the LLM picked + its arguments
+```
+
+That walk-through is what you'd run in production with no DB access. Each verb returns a focused slice — composing them top-to-bottom answers the "did the agent see the new note? did it ignore it? what did it decide to do instead?" question without reaching for `psql`.
+
 ## What to do when the user asks how to extend the CLI
 
 If they want a NEW verb (not just to call existing ones), point at the `cli-verb` skill — that one covers `defineCliVerb` registration, `audience` selection, `formatHint`, and module wiring. This skill is for **operating** the CLI, not extending it.
@@ -317,4 +406,5 @@ If they want a NEW verb (not just to call existing ones), point at the `cli-verb
 
 - "Just edit `/drive/BUSINESS.md` directly with `Bun.write`" — bypasses the audit trail and skips materializer re-rendering. Always go through `drive propose` so the change is recorded in `change_history`.
 - "Restart the server to make the agent see the new file" — unnecessary. Drive content is read per-wake from postgres; no restart needed.
-- "Add `vobase contacts list` to the catalog so I can find a contact" — that's an admin verb; non-admin staff can't list contacts (privacy). Use Drizzle Studio for admin-side data inspection or query the DB directly.
+- "Open `psql` to see what the agent did" — only on local dev, and only for what the verbs don't expose. On a remote deployment use `agents debug wakes` → `timeline` → `llm-io`. The verbs are the safe seam; raw `harness.*` SQL is admin-only privilege you don't want to grant to a tenant operator.
+- "Just trust `messaging show` to tell me what the agent said" — `messaging show` returns the *activity* timeline (assignee changes, status changes, change-proposal lifecycle), NOT message bodies. Use `messaging messages --id=<id>` for the actual customer/agent text. Same for notes: the inbox UI shows them card-by-card, but the agent reads them concatenated as `INTERNAL-NOTES.md`. Use `messaging notes --id=<id>` to see exactly what the agent saw.

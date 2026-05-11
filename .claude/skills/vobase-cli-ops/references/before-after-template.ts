@@ -10,11 +10,24 @@
  * Requires:
  *   - bun run dev:server up at $BASE
  *   - postgres reachable at the connection string below
- *   - ~/.vobase/<config>.json with a valid API key (run `vobase auth login` once)
+ *   - ~/.vobase/<config>.json with an OWNER or ADMIN api key (the admin-tier
+ *     `agents debug wakes` verb is dumped after each reply for forensics —
+ *     a member-tier key still runs the test, but the wake dumps will fail)
  *   - OPENAI_API_KEY or ANTHROPIC_API_KEY in the server's env (real LLM wakes)
  *
  * The script preserves data: it captures the original drive file content,
  * runs the test, and restores the original at the end.
+ *
+ * Reading the output:
+ *   - BEFORE/AFTER `agent reply:` is the customer-facing answer (the diff that
+ *     matters)
+ *   - BEFORE/AFTER `wakes:` summary shows trigger, turn count, tool count,
+ *     cost, end reason, systemHash. If the AFTER systemHash differs from
+ *     BEFORE, the drive mutation rebuilt the agent's prompt — consistent.
+ *     If turns/tool counts shifted dramatically, drill in with
+ *       `vobase agents debug timeline --wakeId=<id>`
+ *       `vobase agents debug llm-io --wakeId=<id>`
+ *     to see exactly what the LLM saw and decided.
  */
 import { createHmac } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
@@ -22,12 +35,16 @@ import postgres from 'postgres'
 
 // === EDIT THESE FOR YOUR TENANT ===
 const BASE = 'http://localhost:3000'
-const WEBHOOK_SECRET = 'dev-secret'
+// IMPORTANT: use `||` (not `??`) — Bun auto-loads `.env`, and an uncommented
+// `CHANNEL_WEB_WEBHOOK_SECRET=` (empty value) would override the dev fallback.
+const WEBHOOK_SECRET = process.env.CHANNEL_WEB_WEBHOOK_SECRET || 'dev-secret'
 const ORG_ID = 'mer0tenant'
 const CHANNEL_INSTANCE = 'chi00web00'
-const VOBASE_CONFIG = 'smoke' // ~/.vobase/<this>.json
+const VOBASE_CONFIG = 'smoke' // ~/.vobase/<this>.json — must hold an OWNER or ADMIN api key
 const TARGET_DRIVE_PATH = '/pricing.md' // existing file the agent already cats
-const ADMIN_EMAIL = 'alice@meridian.dev' // for dev-login + cli-grant decide
+// IMPORTANT: must be a seeded org `owner` (admin tier) to call `agents debug *`.
+// `alice@meridian.test` is owner in the canonical seed; `alice@meridian.dev` is member only.
+const ADMIN_EMAIL = 'alice@meridian.test'
 const ADMIN_USER_ID = 'usr0alice0'
 // =================================
 
@@ -102,6 +119,58 @@ function vobase(args: string[]): { stdout: string; stderr: string; code: number 
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', code: r.status ?? 1 }
 }
 
+/**
+ * Forensic dump of every wake fired against `conversationId`. Surfaces:
+ *   - wakeId (use it to drill into `agents debug timeline --wakeId=…` /
+ *     `agents debug llm-io --wakeId=…` if a row looks suspicious)
+ *   - trigger + brief triggerPayloadPreview (which inbound caused the wake)
+ *   - turn count, tool count, cost
+ *   - systemHash (drift across wakes for the same agent + conversation =
+ *     frozen-snapshot violation, real bug)
+ *   - endReason (`complete` / `blocked` / `aborted` / `error`)
+ * Pure side-effect logging; never throws on bad data so it can't mask the
+ * agent-behavior diff that's the actual point of the test.
+ */
+type WakeRow = {
+  wakeId: string
+  trigger: string | null
+  triggerPayloadPreview: string | null
+  startedAt: string
+  turns: number
+  toolCalls: number
+  costUsd: number
+  systemHash: string | null
+  endReason: string | null
+}
+function dumpWakes(label: string, conversationId: string): void {
+  const r = vobase(['--json', 'agents', 'debug', 'wakes', `--conversationId=${conversationId}`])
+  if (r.code !== 0) {
+    console.log(`[${label}] wake dump failed (${r.code}): ${r.stderr.trim().slice(0, 200)}`)
+    return
+  }
+  let rows: WakeRow[]
+  try {
+    rows = JSON.parse(r.stdout) as WakeRow[]
+  } catch {
+    console.log(`[${label}] wake dump returned non-JSON: ${r.stdout.trim().slice(0, 200)}`)
+    return
+  }
+  if (rows.length === 0) {
+    console.log(`[${label}] no wakes recorded for ${conversationId}`)
+    return
+  }
+  console.log(`[${label}] wakes (${rows.length}):`)
+  for (const w of rows) {
+    const hash = w.systemHash ? `${w.systemHash.slice(0, 12)}…` : 'none'
+    const trig = w.trigger ?? '?'
+    const cost = `$${w.costUsd.toFixed(5)}`
+    console.log(
+      `  ${w.wakeId} ${trig.padEnd(18)} turns=${w.turns} tools=${w.toolCalls} cost=${cost} end=${w.endReason ?? '?'} hash=${hash}`,
+    )
+    if (w.triggerPayloadPreview) console.log(`    cue: ${w.triggerPayloadPreview.slice(0, 140)}`)
+  }
+}
+
 async function getDevSessionCookie(email: string): Promise<string> {
   const res = await fetch(`${BASE}/api/auth/dev-login`, {
     method: 'POST',
@@ -143,6 +212,7 @@ console.log(`\n[BEFORE] inbound from ${fromBefore}`)
 const inboundBefore = await sendInbound(fromBefore, inboundQuestion)
 const replyBefore = await waitForAgentReply(inboundBefore.conversationId).catch((e) => `[wake failed: ${e.message}]`)
 console.log(`\n[BEFORE] agent reply:\n${replyBefore}\n`)
+dumpWakes('BEFORE', inboundBefore.conversationId)
 
 // --- MUTATION: append the policy text via drive propose
 const updatedContent = `${originalContent}${policyText}`
@@ -172,6 +242,7 @@ console.log(`\n[AFTER] inbound from ${fromAfter}`)
 const inboundAfter = await sendInbound(fromAfter, inboundQuestion)
 const replyAfter = await waitForAgentReply(inboundAfter.conversationId).catch((e) => `[wake failed: ${e.message}]`)
 console.log(`\n[AFTER] agent reply:\n${replyAfter}\n`)
+dumpWakes('AFTER', inboundAfter.conversationId)
 
 // --- DIFF
 console.log('=== DIFF ===')
