@@ -2,11 +2,11 @@
 /**
  * channels/managed/registry — channel-kind catalog (per §4.1, tenant side).
  *
- * One record per platform-pool kind. Today only `sandbox`. The §4.1 design
- * additionally covers a `notification` kind that lands in Slice 3 — do NOT
- * add it here ahead of time; the registry is the single extension point and
- * adding a kind is what unlocks the rest of the factory + handshake +
- * bootstrap paths consulting it.
+ * One record per platform-pool kind. Slice 2 introduced `sandbox`; Slice 3
+ * adds `notification` for staff-facing managed numbers. The registry is the
+ * single extension point — `handshake.ts`, `factory.ts`, and `bootstrap.ts`
+ * consult it instead of branching on `kind`, so a new kind plugs in via one
+ * record here.
  *
  * BYO WhatsApp is intentionally NOT a registry entry (see §7.3 + §4.8) —
  * it follows a parallel oauth-proxy/whatsapp-setup-job flow.
@@ -20,16 +20,22 @@
 
 import type { VaultProvider } from '@modules/integrations/service/vault'
 
+/** Union of all registered channel kinds. Widen when adding a new entry. */
+export type ManagedChannelKind = 'sandbox' | 'notification'
+
 export interface ChannelKind {
-  readonly kind: 'sandbox' // expand to union when more kinds land
+  readonly kind: ManagedChannelKind
   readonly vaultProvider: VaultProvider
   /**
-   * Platform endpoint path for the claim handshake. Sandbox-only today;
-   * Slice 3's `notification` kind will register a different path here so
-   * `handshake.ts` doesn't need to know about kinds at all — it just asks
-   * the registry for the path.
+   * Platform endpoint path for the claim handshake. Each kind owns its own
+   * path so `handshake.ts` never grows a switch on `kind`.
    */
   readonly claimPath: string
+  /**
+   * Platform endpoint path for the tenant-initiated release of a claim.
+   * Mirrors `claimPath` shape per kind.
+   */
+  readonly releasePath: string
   readonly description: string
 }
 
@@ -38,7 +44,16 @@ export const KINDS: readonly ChannelKind[] = [
     kind: 'sandbox',
     vaultProvider: 'vobase-platform',
     claimPath: '/api/managed-whatsapp/sandbox/create',
+    releasePath: '/api/managed-whatsapp/tenant/release',
     description: 'Pooled platform-managed sandbox WhatsApp number. Tenant fetches secrets via vobase-platform vault.',
+  },
+  {
+    kind: 'notification',
+    vaultProvider: 'vobase-platform-notification',
+    claimPath: '/api/managed-whatsapp/notification/claim',
+    releasePath: '/api/managed-whatsapp/notification/release',
+    description:
+      'Pooled platform-managed staff-notification WhatsApp number. Inbound from linked staff phones dispatches as `staff_reply`.',
   },
 ] as const
 

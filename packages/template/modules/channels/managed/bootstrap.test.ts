@@ -406,7 +406,9 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
         platformBaseUrl: PLATFORM_BASE_URL,
         hmacSecret: HMAC_SECRET,
         // Cast intentionally — exercising the runtime guard on an unknown kind.
-        kind: 'notification' as unknown as 'sandbox',
+        // ('notification' was used here pre-Slice-3 when it didn't exist yet;
+        // it's now a registered kind, so we use an obviously-bogus value.)
+        kind: 'bogus-kind' as unknown as 'sandbox',
         vault,
         upsertInstance,
         organizationId: ORG_ID,
