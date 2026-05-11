@@ -77,6 +77,7 @@ export function StaffDetailPage() {
         languages: values.languages,
         capacity: values.capacity,
         availability: values.availability,
+        whatsappPhoneE164: values.whatsappPhoneE164,
       })
       toast.success('Profile updated')
       setEditOpen(false)

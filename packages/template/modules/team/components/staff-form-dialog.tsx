@@ -30,6 +30,8 @@ export interface StaffFormValues {
   languages: string[]
   capacity: number
   availability: Availability
+  /** E.164 with leading `+`, or null to clear. Used for WhatsApp mention pings. */
+  whatsappPhoneE164: string | null
 }
 
 interface Props {
@@ -55,6 +57,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
   const [languages, setLanguages] = useState('')
   const [capacity, setCapacity] = useState('10')
   const [availability, setAvailability] = useState<Availability>('active')
+  const [whatsappPhone, setWhatsappPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,6 +69,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
     setLanguages(toCsv(staff.languages))
     setCapacity(String(staff.capacity))
     setAvailability(staff.availability)
+    setWhatsappPhone(staff.whatsappPhoneE164 ?? '')
     setError(null)
   }, [open, staff])
 
@@ -76,6 +80,13 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
       setError('Capacity must be between 0 and 1000.')
       return
     }
+    const phoneRaw = whatsappPhone.trim()
+    // Empty → null (clear). Otherwise must match E.164 with leading `+`.
+    const phone: string | null = phoneRaw === '' ? null : phoneRaw
+    if (phone !== null && !/^\+[1-9]\d{6,14}$/.test(phone)) {
+      setError('WhatsApp number must be E.164 with leading + (e.g. +6591234567).')
+      return
+    }
     onSave({
       displayName: displayName.trim(),
       title: title.trim(),
@@ -84,6 +95,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
       languages: fromCsv(languages),
       capacity: cap,
       availability,
+      whatsappPhoneE164: phone,
     })
   }
 
@@ -140,6 +152,19 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
               onChange={(e) => setLanguages(e.target.value)}
               placeholder="en, zh"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="staff-whatsapp-phone">WhatsApp number</Label>
+            <Input
+              id="staff-whatsapp-phone"
+              type="tel"
+              value={whatsappPhone}
+              onChange={(e) => setWhatsappPhone(e.target.value)}
+              placeholder="+6591234567"
+            />
+            <p className="text-muted-foreground text-xs">
+              E.164 with leading <code>+</code>. Required to receive mention-ping notifications via WhatsApp.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

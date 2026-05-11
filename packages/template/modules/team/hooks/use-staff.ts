@@ -47,6 +47,8 @@ export interface UpsertStaffBody {
   availability?: Availability
   profile?: string
   notes?: string
+  /** E.164 with leading `+`, or null to clear. Used for mention-ping WhatsApp routing. */
+  whatsappPhoneE164?: string | null
 }
 
 export function useUpsertStaff() {
