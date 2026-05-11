@@ -23,6 +23,13 @@ import type { VaultProvider } from '@modules/integrations/service/vault'
 export interface ChannelKind {
   readonly kind: 'sandbox' // expand to union when more kinds land
   readonly vaultProvider: VaultProvider
+  /**
+   * Platform endpoint path for the claim handshake. Sandbox-only today;
+   * Slice 3's `notification` kind will register a different path here so
+   * `handshake.ts` doesn't need to know about kinds at all — it just asks
+   * the registry for the path.
+   */
+  readonly claimPath: string
   readonly description: string
 }
 
@@ -30,6 +37,7 @@ export const KINDS: readonly ChannelKind[] = [
   {
     kind: 'sandbox',
     vaultProvider: 'vobase-platform',
+    claimPath: '/api/managed-whatsapp/sandbox/create',
     description: 'Pooled platform-managed sandbox WhatsApp number. Tenant fetches secrets via vobase-platform vault.',
   },
 ] as const
