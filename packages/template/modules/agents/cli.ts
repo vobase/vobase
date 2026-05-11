@@ -12,6 +12,9 @@ import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
 import * as agentDefs from './service/agent-definitions'
+import { debugLlmIoVerb } from './verbs/debug-llm-io'
+import { debugTimelineVerb } from './verbs/debug-timeline'
+import { debugWakesVerb } from './verbs/debug-wakes'
 
 const PROMPT_TAIL_BYTES = 8 * 1024
 
@@ -132,4 +135,12 @@ export const agentsInspectVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-export const agentsVerbs = [agentsListVerb, agentsShowVerb, agentsReloadVerb, agentsInspectVerb] as const
+export const agentsVerbs = [
+  agentsListVerb,
+  agentsShowVerb,
+  agentsReloadVerb,
+  agentsInspectVerb,
+  debugWakesVerb,
+  debugTimelineVerb,
+  debugLlmIoVerb,
+] as const

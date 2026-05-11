@@ -1,18 +1,48 @@
 /**
- * `vobase messaging {list,show,reply,close}` verb registrations.
- *
- * `messaging` is the customer-conversation surface — the high-value verb
- * group an agent (in-process transport) or human supervisor (CLI binary)
- * actually wants. Verbs route through the singleton service
- * exports + staff-reply writer to honor the messaging module's
- * "one-write-path" rule.
+ * `vobase messaging {list,show,messages,notes,reply,close}` verb registrations.
+ * Verbs route through the messaging module's service layer to honor the
+ * one-write-path rule.
  */
 
 import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
+import type { Message } from './schema'
 import * as conversationsSvc from './service/conversations'
+import { list as listMessagesSvc } from './service/messages'
+import { listNotes } from './service/notes'
 import { sendStaffReply } from './service/staff-reply'
+
+// Must stay byte-identical with `renderInternalNotes` in `./agent.ts` so
+// operators read exactly what the agent reads inside its bash sandbox.
+function renderInternalNotesMd(
+  notes: ReadonlyArray<{ authorType: string; authorId: string; createdAt: Date; mentions: string[]; body: string }>,
+): string {
+  if (notes.length === 0) return '# Internal Notes\n\n_No notes yet._\n'
+  const lines = ['# Internal Notes', '']
+  for (const n of notes) {
+    const mentions = n.mentions.length > 0 ? ` (@${n.mentions.join(' @')})` : ''
+    lines.push(`**${n.authorType}:${n.authorId}** (${new Date(n.createdAt).toISOString()})${mentions}:`)
+    lines.push(n.body, '')
+  }
+  return lines.join('\n')
+}
+
+function summarizeMessageContent(m: Message): string {
+  const content = m.content as {
+    text?: string
+    card?: { title?: string }
+    buttonLabel?: string | null
+    buttonValue?: string
+  }
+  if (m.kind === 'text') return (content.text ?? '').replace(/\s+/g, ' ').trim()
+  if (m.kind === 'card') {
+    const title = content.card?.title?.trim()
+    return title ? `[card: ${title}]` : '[card]'
+  }
+  if (m.kind === 'card_reply') return `[card reply: ${content.buttonLabel ?? content.buttonValue ?? ''}]`
+  return `[${m.kind}]`
+}
 
 const ListTabSchema = z.enum(['active', 'later', 'done']).optional()
 
@@ -136,4 +166,80 @@ export const messagingCloseVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-export const messagingVerbs = [messagingListVerb, messagingShowVerb, messagingReplyVerb, messagingCloseVerb] as const
+export const messagingMessagesVerb = defineCliVerb({
+  name: 'messaging messages',
+  description:
+    'List customer/agent/staff messages on a conversation with full bodies. Complements `messaging show` (which returns activity events but no message bodies).',
+  audience: 'staff',
+  input: z.object({
+    id: z.string().min(1),
+    limit: z.number().int().positive().max(500).default(50),
+    since: z.string().datetime().optional(),
+  }),
+  body: async ({ input, ctx }) => {
+    try {
+      const conversation = await conversationsSvc.get(input.id)
+      if (conversation.organizationId !== ctx.organizationId) {
+        return { ok: false as const, error: 'conversation not in this organization', errorCode: 'forbidden' }
+      }
+      const rows = await listMessagesSvc(input.id, {
+        limit: input.limit,
+        since: input.since ? new Date(input.since) : undefined,
+      })
+      return {
+        ok: true as const,
+        data: rows.map((m) => ({
+          id: m.id,
+          role: m.role,
+          kind: m.kind,
+          summary: summarizeMessageContent(m),
+          createdAt: m.createdAt,
+        })),
+      }
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: 'not_found',
+      }
+    }
+  },
+  formatHint: 'table:cols=createdAt,role,kind,summary,id',
+})
+
+export const messagingNotesVerb = defineCliVerb({
+  name: 'messaging notes',
+  description:
+    'Render the conversation’s internal notes the same way the agent sees them inside its bash sandbox (a single concatenated markdown view of INTERNAL-NOTES.md).',
+  audience: 'staff',
+  input: z.object({ id: z.string().min(1) }),
+  body: async ({ input, ctx }) => {
+    try {
+      const conversation = await conversationsSvc.get(input.id)
+      if (conversation.organizationId !== ctx.organizationId) {
+        return { ok: false as const, error: 'conversation not in this organization', errorCode: 'forbidden' }
+      }
+      const notes = await listNotes(input.id)
+      return {
+        ok: true as const,
+        data: { conversationId: input.id, content: renderInternalNotesMd(notes) },
+      }
+    } catch (err) {
+      return {
+        ok: false as const,
+        error: err instanceof Error ? err.message : String(err),
+        errorCode: 'not_found',
+      }
+    }
+  },
+  formatHint: 'lines:field=content',
+})
+
+export const messagingVerbs = [
+  messagingListVerb,
+  messagingShowVerb,
+  messagingMessagesVerb,
+  messagingNotesVerb,
+  messagingReplyVerb,
+  messagingCloseVerb,
+] as const

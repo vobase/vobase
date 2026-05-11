@@ -17,6 +17,7 @@ import {
   installAgentSkillsService,
 } from './service/changes'
 import { setCliRegistry } from './service/cli-registry'
+import { createDebugReadersService, installDebugReadersService } from './service/debug-readers'
 import { agentSkillsOverlay } from './service/drive-overlay'
 import { createLearningCandidatesService, installLearningCandidatesService } from './service/learning-candidates'
 import { createStaffMemoryService, installStaffMemoryService } from './service/staff-memory'
@@ -35,6 +36,7 @@ const agents: ModuleDef = {
     // because every wake harness needs it before any module init runs.
     setCliRegistry(ctx.cli)
     installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db }))
+    installDebugReadersService(createDebugReadersService({ db: ctx.db }))
     installAgentSkillsService(createAgentSkillsService({ db: ctx.db }))
     installCostService(createCostService({ db: ctx.db }))
     installStaffMemoryService(createStaffMemoryService({ db: ctx.db, realtime: ctx.realtime }))
