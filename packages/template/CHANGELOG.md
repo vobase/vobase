@@ -1,5 +1,31 @@
 # @vobase/template
 
+## 3.9.0
+
+### Minor Changes
+
+- [`85ae97c`](https://github.com/vobase/vobase/commit/85ae97c254ba232042e7a447e68f1f1eef5fcfbb) Thanks [@mdluo](https://github.com/mdluo)! - feat(agents,messaging): admin-tier CLI verbs for live-tenant debugging
+
+  Adds a read-only debug surface so operators on remote deployments can diagnose agent behavior without direct DB access:
+
+  - `agents debug wakes --conversationId=<id>` — wake-by-wake summary (trigger, turns, tool calls, cost, `systemHash`, end reason). The `systemHash` column reveals frozen-snapshot drift across wakes.
+  - `agents debug timeline --wakeId=<id> [--full]` — per-wake event timeline from `harness.conversation_events` (turn*start, message*_, tool*dispatch*_, tool*execution*\*, llm_call, agent_end). Truncates content to 200 chars unless `--full`.
+  - `agents debug llm-io [--conversationId|--wakeId] [--seq=N:M] [--role] [--tool] [--limit] [--full]` — dump of `harness.messages` showing what pi-agent-core sent/received: user cues, assistant tool-calls with arguments, tool results, token + cost per row. `--wakeId` auto-derives the conversation and `agent_start..agent_end` time window.
+  - `messaging messages --id=<conv>` — staff-tier verb returning customer/agent/staff message bodies (complements `messaging show` which returns activity events but no bodies).
+  - `messaging notes --id=<conv>` — staff-tier verb that renders `INTERNAL-NOTES.md` byte-identical to the materializer the agent reads inside its bash sandbox.
+
+  All five verbs route through a new `DebugReadersService` (singleton + free-function wrappers, matching the agents-module convention) and respect organization scoping.
+
+### Patch Changes
+
+- [`3d42883`](https://github.com/vobase/vobase/commit/3d42883e2fb3b3a05d034ce90a446a76020a5ffb) Thanks [@mdluo](https://github.com/mdluo)! - fix(wake/build-base): route journal writes through `appendJournalEvent` wrapper
+
+  `buildJournalAdapter` called core's `journalAppend` directly, which only persists the reserved columns and drops every non-reserved AgentEvent field. As a result `agent_start.payload` landed as `null` and downstream debug surfaces couldn't recover `trigger`, `triggerPayload`, `systemHash`, or `agent_end.reason`. The template wrapper at `@modules/messaging/service/journal` auto-extracts those fields into the `payload` jsonb column — now used by every flavour.
+
+- [`632107e`](https://github.com/vobase/vobase/commit/632107ee8c80003be430ad7db62a597c57014414) Thanks [@mdluo](https://github.com/mdluo)! - fix(runtime/bootstrap): map better-auth `owner` role to `admin` audience tier
+
+  `getAudience` only checked `p.role === 'admin'`, so org owners (who outrank admin in better-auth's `owner > admin > member` hierarchy) were demoted to the `staff` audience tier and couldn't see admin-tier CLI verbs in the catalog. Both `owner` and `admin` now map to `'admin'`.
+
 ## 3.8.3
 
 ### Patch Changes
