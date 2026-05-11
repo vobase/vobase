@@ -21,6 +21,7 @@
  */
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
+import { agentDefinitions } from '@modules/agents/schema'
 import { isManagedConfig } from '@modules/channels/adapters/whatsapp/factory'
 import { claimAndBootstrap } from '@modules/channels/managed/bootstrap'
 import { getInstance, listInstances, removeInstance, upsertManagedInstance } from '@modules/channels/service/instances'
@@ -34,6 +35,7 @@ import {
 } from '@modules/integrations/service/handshake'
 import { getInstalledDb, getVaultFor } from '@modules/integrations/service/registry'
 import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
+import { and, asc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 
 interface ManagedConfig {
@@ -147,6 +149,17 @@ const app = new Hono<OrganizationEnv>()
       betterAuthSecret,
     })
 
+    // Pick the org's first enabled AI agent as the channel's default
+    // assignee — so new inbound conversations route to it without operator
+    // setup. Null when the org has no agents yet; webhook handler tolerates
+    // null (skips auto-assignment).
+    const [firstAgent] = await getInstalledDb()
+      .select({ id: agentDefinitions.id })
+      .from(agentDefinitions)
+      .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.enabled, true)))
+      .orderBy(asc(agentDefinitions.createdAt))
+      .limit(1)
+
     try {
       const result = await claimAndBootstrap({
         tenantSlug: tenantId,
@@ -160,6 +173,7 @@ const app = new Hono<OrganizationEnv>()
         organizationId,
         webhookUrl,
         verifyToken,
+        defaultAssignee: firstAgent?.id ?? null,
       })
       const webhook = result.webhookOk
         ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)

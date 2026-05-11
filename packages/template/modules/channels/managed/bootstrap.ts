@@ -87,6 +87,14 @@ export interface ClaimAndBootstrapOpts {
   webhookUrl: string
   /** Verify-token derived from `BETTER_AUTH_SECRET` for the GET hub challenge. */
   verifyToken: string
+  /**
+   * Optional id of the AI agent that should be the channel's default assignee
+   * — written into `channel_instances.config.defaultAssignee` so the inbound
+   * webhook router routes new conversations to this agent. Resolved by the
+   * handler (first enabled `agent_definitions` row) so bootstrap stays
+   * agent-schema-agnostic.
+   */
+  defaultAssignee?: string | null
 }
 
 export interface ClaimAndBootstrapResult {
@@ -176,6 +184,7 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
       wabaId: allocation.wabaId,
       environment: opts.environment,
       kind: opts.kind,
+      ...(opts.defaultAssignee ? { defaultAssignee: opts.defaultAssignee } : {}),
     },
   })
 
