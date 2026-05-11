@@ -1,6 +1,6 @@
 {
   "name": "@vobase/cli",
-  "version": "0.41.0",
+  "version": "0.42.0",
   "license": "MIT",
   "description": "Standalone CLI for any vobase deployment — catalog-driven, tenant-agnostic.",
   "repository": {
