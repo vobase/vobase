@@ -95,21 +95,24 @@ interface HandshakeInput {
   kind?: ManagedChannelKind
 }
 
-interface SignedPlatformPostInput {
+interface SignedPlatformRequestInput {
+  method: 'POST' | 'DELETE' | 'GET'
   platformBaseUrl: string
   tenantId: string
   tenantHmacSecret: string
+  path: string
+  /** Body string for POST/DELETE; undefined for GET (signs empty-body digest). */
+  body?: string
 }
 
 /**
- * Sign + POST a JSON body to a platform path on behalf of `tenantId`. Signs
- * with the v2 2-key contract. Hostname is validated against the env allowlist
- * before the request leaves the process.
+ * Sign + dispatch a request to a platform path on behalf of `tenantId`. One
+ * helper for all three verbs — GET signs an empty-body digest; POST/DELETE
+ * sign their stringified JSON body. Hostname is validated against the env
+ * allowlist before the request leaves the process.
  */
-async function signedPlatformPost(
-  path: string,
-  body: string,
-  input: SignedPlatformPostInput,
+async function signedPlatformRequest(
+  input: SignedPlatformRequestInput,
 ): Promise<{ res: Response; signed: SignedRequest }> {
   if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
     throw new PlatformHandshakeError(
@@ -118,111 +121,30 @@ async function signedPlatformPost(
       'platform_url_not_allowed',
     )
   }
-
-  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
-  const { pathOnly, sortedQuery } = splitPathAndQuery(path)
-  const bodyDigest = sha256Hex(body)
-  const v2Payload = `POST|${pathOnly}|${sortedQuery}|${bodyDigest}`
+  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${input.path}`
+  const { pathOnly, sortedQuery } = splitPathAndQuery(input.path)
+  const bodyForDigest = input.body ?? ''
+  const bodyDigest = sha256Hex(bodyForDigest)
+  const v2Payload = `${input.method}|${pathOnly}|${sortedQuery}|${bodyDigest}`
   const signed = signRequest({
     body: v2Payload,
     routineSecret: input.tenantHmacSecret,
     rotationKey: input.tenantHmacSecret,
     keyVersion: 1,
   })
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': input.tenantId,
-      'X-Vobase-Routine-Sig': signed.routineSignature,
-      'X-Vobase-Rotation-Sig': signed.rotationSignature,
-      'X-Vobase-Key-Version': String(signed.keyVersion),
-      'X-Vobase-Sig-Version': '2',
-      'X-Vobase-Body-Digest': bodyDigest,
-    },
-    body,
-  })
-  return { res, signed }
-}
-
-/**
- * Sign + DELETE a JSON body to a platform path on behalf of `tenantId`.
- * `signedPlatformPost` only does POST; staff-link delete needs DELETE with
- * the same v2 canonical payload shape.
- */
-async function signedPlatformDelete(
-  path: string,
-  body: string,
-  input: SignedPlatformPostInput,
-): Promise<{ res: Response; signed: SignedRequest }> {
-  if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
-    throw new PlatformHandshakeError(
-      `platformBaseUrl '${input.platformBaseUrl}' hostname doesn't match VITE_PLATFORM_URL`,
-      null,
-      'platform_url_not_allowed',
-    )
+  const headers: Record<string, string> = {
+    'X-Tenant-Id': input.tenantId,
+    'X-Vobase-Routine-Sig': signed.routineSignature,
+    'X-Vobase-Rotation-Sig': signed.rotationSignature,
+    'X-Vobase-Key-Version': String(signed.keyVersion),
+    'X-Vobase-Sig-Version': '2',
+    'X-Vobase-Body-Digest': bodyDigest,
   }
-  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
-  const { pathOnly, sortedQuery } = splitPathAndQuery(path)
-  const bodyDigest = sha256Hex(body)
-  const v2Payload = `DELETE|${pathOnly}|${sortedQuery}|${bodyDigest}`
-  const signed = signRequest({
-    body: v2Payload,
-    routineSecret: input.tenantHmacSecret,
-    rotationKey: input.tenantHmacSecret,
-    keyVersion: 1,
-  })
+  if (input.body !== undefined) headers['Content-Type'] = 'application/json'
   const res = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Tenant-Id': input.tenantId,
-      'X-Vobase-Routine-Sig': signed.routineSignature,
-      'X-Vobase-Rotation-Sig': signed.rotationSignature,
-      'X-Vobase-Key-Version': String(signed.keyVersion),
-      'X-Vobase-Sig-Version': '2',
-      'X-Vobase-Body-Digest': bodyDigest,
-    },
-    body,
-  })
-  return { res, signed }
-}
-
-/**
- * Sign + GET a platform path on behalf of `tenantId`. Same v2 canonical
- * payload shape as POST/DELETE with empty body digest.
- */
-async function signedPlatformGet(
-  path: string,
-  input: SignedPlatformPostInput,
-): Promise<{ res: Response; signed: SignedRequest }> {
-  if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {
-    throw new PlatformHandshakeError(
-      `platformBaseUrl '${input.platformBaseUrl}' hostname doesn't match VITE_PLATFORM_URL`,
-      null,
-      'platform_url_not_allowed',
-    )
-  }
-  const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
-  const { pathOnly, sortedQuery } = splitPathAndQuery(path)
-  const bodyDigest = sha256Hex('')
-  const v2Payload = `GET|${pathOnly}|${sortedQuery}|${bodyDigest}`
-  const signed = signRequest({
-    body: v2Payload,
-    routineSecret: input.tenantHmacSecret,
-    rotationKey: input.tenantHmacSecret,
-    keyVersion: 1,
-  })
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'X-Tenant-Id': input.tenantId,
-      'X-Vobase-Routine-Sig': signed.routineSignature,
-      'X-Vobase-Rotation-Sig': signed.rotationSignature,
-      'X-Vobase-Key-Version': String(signed.keyVersion),
-      'X-Vobase-Sig-Version': '2',
-      'X-Vobase-Body-Digest': bodyDigest,
-    },
+    method: input.method,
+    headers,
+    body: input.body,
   })
   return { res, signed }
 }
@@ -241,7 +163,14 @@ export async function claim(kind: ManagedChannelKind, input: HandshakeInput): Pr
     environment: input.environment,
     channelInstanceId: input.channelInstanceId,
   })
-  const { res } = await signedPlatformPost(kindSpec.claimPath, body, input)
+  const { res } = await signedPlatformRequest({
+    method: 'POST',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path: kindSpec.claimPath,
+    body,
+  })
 
   if (!res.ok) {
     let payload: unknown
@@ -272,7 +201,14 @@ export async function release(
 ): Promise<{ released: boolean }> {
   const kindSpec = findKind(kind)
   const body = JSON.stringify({ environment: input.environment })
-  const { res } = await signedPlatformPost(kindSpec.releasePath, body, input)
+  const { res } = await signedPlatformRequest({
+    method: 'POST',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path: kindSpec.releasePath,
+    body,
+  })
   if (!res.ok) {
     throw new PlatformHandshakeError(`platform ${kind} release failed (${res.status})`, res.status)
   }
@@ -365,7 +301,14 @@ export const staffLinks = {
       staffUserId: input.staffUserId,
       staffPhoneE164: toWaId(input.staffPhoneE164),
     })
-    const { res } = await signedPlatformPost('/api/managed-whatsapp/staff-links', body, input)
+    const { res } = await signedPlatformRequest({
+      method: 'POST',
+      platformBaseUrl: input.platformBaseUrl,
+      tenantId: input.tenantId,
+      tenantHmacSecret: input.tenantHmacSecret,
+      path: '/api/managed-whatsapp/staff-links',
+      body,
+    })
     if (!res.ok) {
       let payload: unknown
       try {
@@ -388,7 +331,14 @@ export const staffLinks = {
       environment: input.environment,
       staffPhoneE164: toWaId(input.staffPhoneE164),
     })
-    const { res } = await signedPlatformDelete('/api/managed-whatsapp/staff-links', body, input)
+    const { res } = await signedPlatformRequest({
+      method: 'DELETE',
+      platformBaseUrl: input.platformBaseUrl,
+      tenantId: input.tenantId,
+      tenantHmacSecret: input.tenantHmacSecret,
+      path: '/api/managed-whatsapp/staff-links',
+      body,
+    })
     if (!res.ok) {
       throw new PlatformHandshakeError(`platform staff-link delete failed (${res.status})`, res.status)
     }
@@ -404,7 +354,13 @@ export const staffLinks = {
     if (input.channelInstanceId) params.set('channelInstanceId', input.channelInstanceId)
     const query = params.toString()
     const path = `/api/managed-whatsapp/staff-links${query ? `?${query}` : ''}`
-    const { res } = await signedPlatformGet(path, input)
+    const { res } = await signedPlatformRequest({
+      method: 'GET',
+      platformBaseUrl: input.platformBaseUrl,
+      tenantId: input.tenantId,
+      tenantHmacSecret: input.tenantHmacSecret,
+      path,
+    })
     if (!res.ok) {
       throw new PlatformHandshakeError(`platform staff-link list failed (${res.status})`, res.status)
     }
@@ -445,7 +401,14 @@ export async function registerWebhookWithPlatform(input: {
     webhookUrl: input.webhookUrl,
     verifyToken: input.verifyToken,
   })
-  const { res } = await signedPlatformPost('/api/provisioning/webhook-endpoints/register', body, input)
+  const { res } = await signedPlatformRequest({
+    method: 'POST',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path: '/api/provisioning/webhook-endpoints/register',
+    body,
+  })
   if (!res.ok) {
     let payload: unknown
     try {
@@ -488,7 +451,13 @@ export async function fetchSandboxAvailability(input: {
   tenantId: string
   tenantHmacSecret: string
 }): Promise<{ sandboxPoolAvailable: number; schemaVersion: string }> {
-  const { res } = await signedPlatformGet('/api/managed-whatsapp/health', input)
+  const { res } = await signedPlatformRequest({
+    method: 'GET',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path: '/api/managed-whatsapp/health',
+  })
   if (!res.ok) {
     throw new PlatformHandshakeError(`platform health fetch failed (${res.status})`, res.status)
   }
@@ -528,7 +497,13 @@ export async function fetchWebhookEndpointStatus(input: {
   if (input.channelInstanceId) params.set('channelInstanceId', input.channelInstanceId)
   const query = params.toString()
   const path = `/api/provisioning/webhook-endpoints/status${query ? `?${query}` : ''}`
-  const { res } = await signedPlatformGet(path, input)
+  const { res } = await signedPlatformRequest({
+    method: 'GET',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path,
+  })
   if (!res.ok) {
     throw new PlatformHandshakeError(`platform status fetch failed (${res.status})`, res.status)
   }
