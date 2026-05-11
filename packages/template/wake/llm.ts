@@ -19,7 +19,8 @@
  * bare ids at call sites.
  */
 
-import { getModel, type Model } from '@mariozechner/pi-ai'
+import { getModel, type Model, streamSimple } from '@mariozechner/pi-ai'
+import type { StreamFn } from '@mariozechner/pi-agent-core'
 import {
   type LlmEmitter as CoreLlmEmitter,
   type LlmRequest as CoreLlmRequest,
@@ -112,6 +113,41 @@ export function resolveApiKey(model?: { provider?: string } | null): string | un
 }
 
 export const HARNESS_DEFAULT_MODEL_ID: string = DEFAULT_CHAT_MODEL
+
+/**
+ * StreamFn wrapper that strips empty text blocks from `context.messages`
+ * immediately before delegating to `streamSimple`. The Anthropic Messages API
+ * rejects `{type:'text', text:''}` blocks with `400 messages: text content
+ * blocks must be non-empty`. Claude with extended-thinking + signature mode
+ * can produce assistant turns shaped like
+ * `[{type:'text', text:'', textSignature:'...'}, {type:'tool_use', ...}]` —
+ * harmless on the first call but fatal when the next turn replays history.
+ *
+ * Sanitising at the `streamFn` seam fixes both the within-wake (in-memory
+ * replay) and cross-wake (loaded from `harness.messages`) cases without
+ * touching the harness or pi-ai internals.
+ */
+export function createSanitizingStreamFn(): StreamFn {
+  return ((model, context, options) => {
+    const cleaned = {
+      ...context,
+      messages: context.messages.map((msg) => {
+        const content = (msg as { content?: unknown }).content
+        if (!Array.isArray(content)) return msg
+        const filtered = content.filter((block) => {
+          if (!block || typeof block !== 'object') return true
+          const b = block as { type?: string; text?: unknown }
+          if (b.type === 'text') return typeof b.text === 'string' && b.text.length > 0
+          return true
+        })
+        if (filtered.length === content.length) return msg
+        if (filtered.length === 0) return msg // keep degenerate turns; the broader pipeline drops them
+        return { ...(msg as object), content: filtered }
+      }),
+    }
+    return streamSimple(model, cleaned as Parameters<typeof streamSimple>[1], options)
+  }) as StreamFn
+}
 
 // ---------- llmCall wrapper ----------
 
