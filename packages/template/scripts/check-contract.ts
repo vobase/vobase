@@ -17,34 +17,30 @@
  *
  * Exit code 1 on violation, 0 on clean.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 /** Result of running a git/grep subprocess. */
 export interface SpawnResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+  stdout: string
+  stderr: string
+  exitCode: number
 }
 
 /** Dependency injection type for subprocess calls (enables testing). */
-export type SpawnFn = (cmd: string, args: string[], cwd: string) => SpawnResult;
+export type SpawnFn = (cmd: string, args: string[], cwd: string) => SpawnResult
 
 /** Default implementation using Bun.spawnSync. */
-export function defaultSpawn(
-  cmd: string,
-  args: string[],
-  cwd: string,
-): SpawnResult {
+export function defaultSpawn(cmd: string, args: string[], cwd: string): SpawnResult {
   const proc = Bun.spawnSync([cmd, ...args], {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd,
-  });
+  })
   return {
     stdout: proc.stdout?.toString() ?? '',
     stderr: proc.stderr?.toString() ?? '',
     exitCode: proc.exitCode ?? 1,
-  };
+  }
 }
 
 /**
@@ -63,29 +59,25 @@ export function findContractFiles(repo: string, spawn: SpawnFn): string[] {
       '.',
     ],
     repo,
-  );
+  )
   if (result.exitCode !== 0 && result.stdout.trim() === '') {
-    return [];
+    return []
   }
   return result.stdout
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+    .filter((l) => l.length > 0)
 }
 
 /**
  * Run `git diff origin/main -- <files>` and return the raw diff output.
  * Returns empty string if the git command fails (e.g. no remote).
  */
-export function gitDiffFiles(
-  repo: string,
-  files: string[],
-  spawn: SpawnFn,
-): string {
-  if (files.length === 0) return '';
-  const result = spawn('git', ['diff', 'origin/main', '--', ...files], repo);
-  if (result.exitCode !== 0) return '';
-  return result.stdout;
+export function gitDiffFiles(repo: string, files: string[], spawn: SpawnFn): string {
+  if (files.length === 0) return ''
+  const result = spawn('git', ['diff', 'origin/main', '--', ...files], repo)
+  if (result.exitCode !== 0) return ''
+  return result.stdout
 }
 
 /**
@@ -93,14 +85,14 @@ export function gitDiffFiles(
  * Returns Set of `b/<path>` target paths (relative to repo root).
  */
 export function modifiedFilesFromDiff(diff: string): Set<string> {
-  const modified = new Set<string>();
+  const modified = new Set<string>()
   for (const line of diff.split('\n')) {
     // `+++ b/path/to/file.ts` marks the target file in a unified diff.
     if (line.startsWith('+++ b/')) {
-      modified.add(line.slice(6).trim());
+      modified.add(line.slice(6).trim())
     }
   }
-  return modified;
+  return modified
 }
 
 /**
@@ -108,48 +100,44 @@ export function modifiedFilesFromDiff(diff: string): Set<string> {
  * Returns null if the file doesn't exist or has no parseable constant.
  */
 export function readContractVersion(repo: string): string | null {
-  const versionPath = join(repo, 'contracts/version.ts');
-  if (!existsSync(versionPath)) return null;
-  let text: string;
+  const versionPath = join(repo, 'contracts/version.ts')
+  if (!existsSync(versionPath)) return null
+  let text: string
   try {
-    text = readFileSync(versionPath, 'utf8');
+    text = readFileSync(versionPath, 'utf8')
   } catch {
-    return null;
+    return null
   }
   // Match: export const CONTRACT_VERSION = '1.2.3';
-  const m = /export\s+const\s+\w+\s*=\s*['"]([^'"]+)['"]/.exec(text);
-  return m ? m[1] : null;
+  const m = /export\s+const\s+\w+\s*=\s*['"]([^'"]+)['"]/.exec(text)
+  return m ? m[1] : null
 }
 
 /**
  * Check if `CONTRACTS.md` contains an up-to-date row for the given file
  * at the given version.
  */
-export function contractsMdCoversFile(
-  repo: string,
-  filePath: string,
-  version: string,
-): boolean {
-  const contractsMdPath = join(repo, 'CONTRACTS.md');
-  if (!existsSync(contractsMdPath)) return false;
-  let text: string;
+export function contractsMdCoversFile(repo: string, filePath: string, version: string): boolean {
+  const contractsMdPath = join(repo, 'CONTRACTS.md')
+  if (!existsSync(contractsMdPath)) return false
+  let text: string
   try {
-    text = readFileSync(contractsMdPath, 'utf8');
+    text = readFileSync(contractsMdPath, 'utf8')
   } catch {
-    return false;
+    return false
   }
-  const normalizedPath = filePath.replace(/^\.\//, '');
+  const normalizedPath = filePath.replace(/^\.\//, '')
   for (const line of text.split('\n')) {
     if (line.includes(normalizedPath) && line.includes(version)) {
-      return true;
+      return true
     }
   }
-  return false;
+  return false
 }
 
 export interface ContractViolation {
-  file: string;
-  reason: string;
+  file: string
+  reason: string
 }
 
 /**
@@ -163,68 +151,54 @@ export function checkViolations(
   contractVersion: string | null,
   coversFile: (file: string, version: string) => boolean,
 ): ContractViolation[] {
-  if (modifiedContractFiles.length === 0) return [];
-  if (versionTsModified) return [];
+  if (modifiedContractFiles.length === 0) return []
+  if (versionTsModified) return []
 
-  const violations: ContractViolation[] = [];
+  const violations: ContractViolation[] = []
   for (const file of modifiedContractFiles) {
-    if (
-      contractsMdModified &&
-      contractVersion &&
-      coversFile(file, contractVersion)
-    ) {
-      continue;
+    if (contractsMdModified && contractVersion && coversFile(file, contractVersion)) {
+      continue
     }
     violations.push({
       file,
       reason: contractsMdModified
         ? `CONTRACTS.md was modified but does not cover ${file} at version ${contractVersion ?? 'unknown'}`
         : 'contracts/version.ts was not bumped and CONTRACTS.md was not updated',
-    });
+    })
   }
-  return violations;
+  return violations
 }
 
 async function main(): Promise<number> {
-  const repo = join(import.meta.dir, '..');
+  const repo = join(import.meta.dir, '..')
 
-  const contractVersion = readContractVersion(repo);
+  const contractVersion = readContractVersion(repo)
   if (contractVersion === null) {
-    process.stdout.write(
-      'check:contract: contracts/version.ts not found — nothing to enforce (US-007 pending)\n',
-    );
-    return 0;
+    process.stdout.write('check:contract: contracts/version.ts not found — nothing to enforce (US-007 pending)\n')
+    return 0
   }
 
-  const contractFiles = findContractFiles(repo, defaultSpawn);
+  const contractFiles = findContractFiles(repo, defaultSpawn)
   if (contractFiles.length === 0) {
-    process.stdout.write(
-      'check:contract: no @contract platform-tenant-v1 files found\n',
-    );
-    return 0;
+    process.stdout.write('check:contract: no @contract platform-tenant-v1 files found\n')
+    return 0
   }
 
-  const allFilesToDiff = [
-    ...contractFiles,
-    'contracts/version.ts',
-    'CONTRACTS.md',
-  ];
-  const diff = gitDiffFiles(repo, allFilesToDiff, defaultSpawn);
-  const modified = modifiedFilesFromDiff(diff);
+  const allFilesToDiff = [...contractFiles, 'contracts/version.ts', 'CONTRACTS.md']
+  const diff = gitDiffFiles(repo, allFilesToDiff, defaultSpawn)
+  const modified = modifiedFilesFromDiff(diff)
 
-  const modifiedContractFiles = contractFiles
-    .map((f) => f.replace(/^\.\//, ''))
-    .filter((f) => modified.has(f));
+  const modifiedContractFiles = contractFiles.map((f) => f.replace(/^\.\//, '')).filter((f) => modified.has(f))
 
   if (modifiedContractFiles.length === 0) {
     process.stdout.write(
       `check:contract: ${contractFiles.length} contract file(s) found, none modified vs origin/main\n`,
-    );
-    return 0;
+    )
+    return 0
   }
 
-  const versionTsModified = modified.has('contracts/version.ts');
-  const contractsMdModified = modified.has('CONTRACTS.md');
+  const versionTsModified = modified.has('contracts/version.ts')
+  const contractsMdModified = modified.has('CONTRACTS.md')
 
   const violations = checkViolations(
     modifiedContractFiles,
@@ -232,25 +206,25 @@ async function main(): Promise<number> {
     contractsMdModified,
     contractVersion,
     (file, version) => contractsMdCoversFile(repo, file, version),
-  );
+  )
 
   if (violations.length === 0) {
     process.stdout.write(
       `check:contract: ${modifiedContractFiles.length} contract file(s) modified — version bump or CONTRACTS.md update confirmed\n`,
-    );
-    return 0;
+    )
+    return 0
   }
 
-  process.stderr.write(`check:contract: ${violations.length} violation(s)\n`);
+  process.stderr.write(`check:contract: ${violations.length} violation(s)\n`)
   for (const v of violations) {
-    process.stderr.write(`  ${v.file}: ${v.reason}\n`);
+    process.stderr.write(`  ${v.file}: ${v.reason}\n`)
   }
   process.stderr.write(
     '  Resolution: bump contracts/version.ts OR update CONTRACTS.md to cover every modified contract file.\n',
-  );
-  return 1;
+  )
+  return 1
 }
 
 if (import.meta.main) {
-  process.exit(await main());
+  process.exit(await main())
 }
