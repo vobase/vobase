@@ -294,7 +294,7 @@ export async function syncStaffLinks(
 // ─── Enqueue (job side) ─────────────────────────────────────────────────────
 
 export interface SyncStaffLinkJobQueue {
-  send(name: string, data: unknown, opts?: { singletonKey?: string }): Promise<string>
+  send(name: string, data: unknown, opts?: { singletonKey?: string; singletonHours?: number }): Promise<string>
 }
 
 interface TeamJobsState {
@@ -325,5 +325,12 @@ export async function syncStaffLinksEnqueue(orgId: string): Promise<void> {
     // exercise PATCH without booting the full module ctx.
     return
   }
-  await _state.jobs.send(SYNC_STAFF_LINK_JOB, { orgId }, { singletonKey: `staff-link-sync:${orgId}` })
+  await _state.jobs.send(
+    SYNC_STAFF_LINK_JOB,
+    { orgId },
+    {
+      singletonKey: `staff-link-sync:${orgId}`,
+      singletonHours: SYNC_STAFF_LINK_SINGLETON_HOURS,
+    },
+  )
 }
