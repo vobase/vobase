@@ -4,33 +4,33 @@
  * (no `lastSeenAt` or older than 2 minutes) and opted into WhatsApp
  * notifications, send a WA ping pointing back at the conversation.
  *
+ * Sends through the org's notification-tier WhatsApp channel
+ * (`channels/service/instances::findNotificationChannel`) — not the customer-
+ * facing WhatsApp channel — and dials `staff_profiles.whatsappPhoneE164`
+ * (the staff's personal phone, set via the team settings page).
+ *
+ * On a successful send the service writes a row to `pending_mention_pings`
+ * (TTL ledger) so the inbound notifications handler can correlate the
+ * staff's WA reply back to the originating conversation and route it as
+ * an internal-note ask-staff-answer.
+ *
  * Best-effort: per-mention failures are swallowed so a flaky provider never
  * blocks the note insert. Never throws.
  */
 
-import { createWhatsAppAdapterFromConfig } from '@modules/channels/adapters/whatsapp/factory'
-import { channelInstances } from '@modules/channels/schema'
-import { staffChannelBindings } from '@modules/contacts/schema'
+import { findNotificationChannel } from '@modules/channels/service/instances'
+import { get as channelRegistryGet } from '@modules/channels/service/registry'
 import type { InternalNote } from '@modules/messaging/schema'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
+import { recordPing } from '@modules/team/service/pending-mention-pings'
 import { find as findStaff } from '@modules/team/service/staff'
-import { and, eq } from 'drizzle-orm'
+
+import type { StaffProfile } from '../schema'
 
 // Must stay in sync with `PRESENCE_THRESHOLD_MS` in
 // `src/components/principal/directory.ts` — frontend renders the online dot on
 // the same window so a hovered staff card matches the fan-out decision here.
 const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000
-
-interface ChannelInstanceRow {
-  id: string
-  config: Record<string, unknown> | null
-}
-
-interface StaffBindingRow {
-  userId: string
-  channelInstanceId: string
-  externalIdentifier: string
-}
 
 interface MentionNotifyDeps {
   db: unknown
@@ -59,49 +59,40 @@ function buildNotificationText(note: InternalNote): string {
   return `You were mentioned in a note:\n\n${preview}`
 }
 
-export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNotifyService {
-  const db = deps.db as { select: Function }
+export function createMentionNotifyService(_deps: MentionNotifyDeps): MentionNotifyService {
+  // Preserve "WHEN" semantics — only the WHERE (notification channel + staff
+  // phone) changed. Staff-authored notes do NOT trigger mention fan-out (the
+  // messaging notes handler always calls this, but we early-out below when the
+  // author isn't an agent so no `pendingPing` row is written for
+  // staff-authored notes — there is no agent to wake on reply).
 
-  async function findWhatsappChannel(organizationId: string): Promise<ChannelInstanceRow | null> {
-    const rows = (await db
-      .select({ id: channelInstances.id, config: channelInstances.config })
-      .from(channelInstances)
-      .where(
-        and(
-          eq(channelInstances.organizationId, organizationId),
-          eq(channelInstances.channel, 'whatsapp'),
-          eq(channelInstances.status, 'active'),
-        ),
-      )
-      .limit(1)) as ChannelInstanceRow[]
-    return rows[0] ?? null
-  }
-
-  async function findBinding(userId: string, channelInstanceId: string): Promise<StaffBindingRow | null> {
-    const rows = (await db
-      .select()
-      .from(staffChannelBindings)
-      .where(
-        and(eq(staffChannelBindings.userId, userId), eq(staffChannelBindings.channelInstanceId, channelInstanceId)),
-      )
-      .limit(1)) as StaffBindingRow[]
-    return rows[0] ?? null
-  }
-
-  async function sendWhatsapp(organizationId: string, userId: string, text: string): Promise<boolean> {
-    const channel = await findWhatsappChannel(organizationId)
-    if (!channel) return false
-    const binding = await findBinding(userId, channel.id)
-    if (!binding) return false
-    const adapter = await createWhatsAppAdapterFromConfig(channel.config ?? {}, channel.id)
-    const res = await adapter.send({ to: binding.externalIdentifier, text })
-    return res.success
+  async function sendNotification(
+    organizationId: string,
+    profile: StaffProfile,
+    text: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const channel = await findNotificationChannel(organizationId)
+    if (!channel) return { ok: false, reason: 'no_notification_channel' }
+    if (!profile.whatsappPhoneE164) return { ok: false, reason: 'no_whatsapp_phone' }
+    // Route through the registry — same seam `outbound.ts` uses, so tests
+    // can swap the adapter via `register('whatsapp_notif', stubFactory, ...)`
+    // without touching the integrations vault.
+    const adapter = await channelRegistryGet(channel.channel, channel.config ?? {}, channel.id)
+    if (!adapter) return { ok: false, reason: 'no_adapter_registered' }
+    const res = await adapter.send({ to: profile.whatsappPhoneE164, text })
+    if (!res.success) return { ok: false, reason: 'adapter_error' }
+    return { ok: true }
   }
 
   async function fanOutNoteMentions(note: InternalNote): Promise<FanOutResult> {
     const result: FanOutResult = { notified: [], skipped: [] }
     const staffIds = Array.from(new Set(note.mentions.map(parseStaffMention).filter((x): x is string => Boolean(x))))
     if (staffIds.length === 0) return result
+
+    // Only agent-authored notes spawn a `pendingMentionPings` row (no agent
+    // to wake on reply otherwise). Staff-authored notes still send the WA
+    // ping (preserving today's semantics) but skip the ping ledger.
+    const askingAgentId: string | null = note.authorType === 'agent' ? note.authorId : null
 
     await Promise.all(
       staffIds.map(async (userId) => {
@@ -124,10 +115,27 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
             result.skipped.push({ userId, reason: 'channel_disabled' })
             return
           }
-          const ok = await sendWhatsapp(note.organizationId, userId, buildNotificationText(note))
-          if (!ok) {
-            result.skipped.push({ userId, reason: 'no_binding_or_config' })
+          const send = await sendNotification(note.organizationId, profile, buildNotificationText(note))
+          if (!send.ok) {
+            result.skipped.push({ userId, reason: send.reason })
             return
+          }
+          // Record the ping AFTER a successful WA send. Only when an agent
+          // authored the note — otherwise there's no agent to wake on reply.
+          if (askingAgentId) {
+            try {
+              await recordPing({
+                conversationId: note.conversationId,
+                staffUserId: userId,
+                organizationId: note.organizationId,
+                askingAgentId,
+                originalNoteId: note.id,
+              })
+            } catch (err) {
+              // Non-fatal — the WA ping went out; the staff may still answer
+              // in-app. Log for visibility.
+              console.warn('[team/mention-notify] recordPing failed (non-fatal):', err)
+            }
           }
           result.notified.push(userId)
         } catch (err) {

@@ -8,6 +8,7 @@ import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
 import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
+import { createPendingMentionPingService, installPendingMentionPingService } from './service/pending-mention-pings'
 import { createStaffService, installStaffService } from './service/staff'
 import { STAFF_MEMORY_RESOURCE, staffMemoryChangeMaterializer } from './service/staff-memory-changes'
 import { createTeamDescriptionService, installTeamDescriptionService } from './service/team-descriptions'
@@ -27,6 +28,7 @@ const team: ModuleDef = {
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))
     installMentionNotifyService(createMentionNotifyService({ db: ctx.db }))
+    installPendingMentionPingService(createPendingMentionPingService({ db: ctx.db }))
     registerDriveOverlay(staffCrossAgentMemoryOverlay)
     registerChangeMaterializer({
       resourceModule: STAFF_RESOURCE.module,
