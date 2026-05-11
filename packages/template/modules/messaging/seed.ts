@@ -382,6 +382,66 @@ export async function seed(db: unknown): Promise<void> {
     createdAt: mins(57),
   })
 
+  // ▶ COEXISTENCE_ECHO — customer follows up on SOC 2 specifics. Agent
+  // gives a generic answer without opening /drive/security/soc2-faq.md.
+  // Alice silently replies with the canonical line; the triage job emits
+  // a `coexistence_echo` candidate (see agents/seed.ts → lcd0coe002,
+  // signalRef='msg0mcalice') because the staff message subsumed the
+  // agent's answer rather than overriding a direct refusal.
+  await insertMsg(ins, {
+    id: 'msg0marc003',
+    conversationId: MARCUS_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: 'While we wait on Alice — one more for security: do you have a current SOC 2 Type II report we can share with our infosec team this week? They want it before we sign the MSA.',
+    },
+    channelExternalId: 'web-marcus-03',
+    createdAt: mins(50),
+  })
+  // Agent's generic, citation-free answer — should have run
+  // `cat /drive/security/soc2-faq.md` first. The miss is silent (no
+  // refusal, no escalation) which is exactly what coexistence_echo
+  // catches that staff_takeover misses.
+  await insertMsg(ins, {
+    id: 'msg0marc004',
+    conversationId: MARCUS_CONV_ID,
+    role: 'agent',
+    kind: 'text',
+    content: {
+      text: "Yes — Meridian is SOC 2 Type II. I'll include a copy of the report along with the formal contract pack once Alice signs off on pricing.",
+    },
+    status: 'delivered',
+    createdAt: mins(48),
+  })
+  // Customer pushes back — they need the report NOW, separately from the quote.
+  await insertMsg(ins, {
+    id: 'msg0marc005',
+    conversationId: MARCUS_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: 'Sorry — we actually need the SOC 2 report before infosec will let us schedule the contract review. Is there a way to get it out of band, under MNDA?',
+    },
+    channelExternalId: 'web-marcus-05',
+    createdAt: mins(40),
+  })
+  // ▶ Alice steps in directly with the on-request language from
+  // /drive/security/soc2-faq.md. This message is the signal_ref for
+  // the coexistence_echo learning candidate.
+  await insertMsg(ins, {
+    id: 'msg0mcalice',
+    conversationId: MARCUS_CONV_ID,
+    role: 'staff',
+    kind: 'text',
+    content: {
+      text: 'Hi Marcus — Alice here. Our SOC 2 Type II report is available on request for Enterprise customers under MNDA. I can send the MNDA over today and have the report packet to your infosec team within one business day of signing — separate track from the pricing quote so you stay unblocked. Want me to kick that off?',
+    },
+    channelExternalId: 'web-marcus-alice',
+    status: 'delivered',
+    createdAt: mins(30),
+  })
+
   // ── 4. Elena — active, reassigned to Carol, refund flow with 2 notes + pending ──
   await insertConv(ins, {
     id: ELENA_CONV_ID,
@@ -445,6 +505,19 @@ export async function seed(db: unknown): Promise<void> {
     body: "+1 on Carol's plan. Looping off — I'll draft the comeback-discount copy and hand back once the refund lands.",
     mentions: [],
     createdAt: mins(45),
+  })
+  // ▶ COACHING_NOTE — Carol turns the case into a codifiable rule for
+  // every future refund, not just Elena's. The @-mention to the agent
+  // makes this the canonical signal for the coaching_note triage path
+  // (see agents/seed.ts → lcd0cnt003, signalRef='not0carolele').
+  await insertNote(ins, {
+    id: 'not0carolele',
+    conversationId: ELENA_CONV_ID,
+    authorType: 'staff',
+    authorId: CAROL_USER_ID,
+    body: `@agent:\${MERIGPT_AGENT_ID} — codifying for the future: refunds within **90 days AND ≤ $200 AND no chargeback history** → process directly, quote /drive/refunds/policy.md, no need to page me. Outside that envelope (older, larger, or chargeback flag) → draft the response and route to whoever's on policy duty. The current /drive/BUSINESS.md#Policies line ("14-day money-back") is the floor, not the ceiling — this is the operating rule. Worth a learned_skill, not just a one-off memory.`,
+    mentions: [`agent:\${MERIGPT_AGENT_ID}`],
+    createdAt: mins(35),
   })
   await insertMsg(ins, {
     id: 'msg0elen003',
@@ -571,14 +644,20 @@ export async function seed(db: unknown): Promise<void> {
     ts: mins(1430),
   })
 
-  // ── 6. Sophia — active; Teams plan question, unassigned reply pending ──
+  // ── 6. Sophia — staff_takeover learning signal in action ─────────────
+  // Customer asks a plan-bound retention question. Agent's first reply
+  // is sub-par (asks for repro/workspace info instead of citing
+  // /drive/BUSINESS.md#Products); Bob takes over directly with the right
+  // answer. The takeover message + his coaching note become a
+  // `staff_takeover` candidate via the learning triage job (see
+  // agents/seed.ts → lcd0sft001, signalRef='msg0sopstf1').
   await insertConv(ins, {
     id: SOPHIA_CONV_ID,
     contactId: SOPHIA_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
     status: 'active',
     assignee: `user:${BOB_USER_ID}`,
-    lastMessageAt: mins(95),
+    lastMessageAt: mins(35),
   })
   await insertMsg(ins, {
     id: 'msg0soph001',
@@ -591,6 +670,33 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-sophia-01',
     createdAt: mins(95),
   })
+  // Agent's weak first reply — should have cited /drive/BUSINESS.md#Products
+  // directly. Instead asks for clarification on a question that already has
+  // everything needed. This is the gap Bob will close.
+  await insertMsg(ins, {
+    id: 'msg0soph002',
+    conversationId: SOPHIA_CONV_ID,
+    role: 'agent',
+    kind: 'text',
+    content: {
+      text: "Hi Sophia — happy to look into this. Could you confirm your workspace id and roughly how many users we'd be quoting, so I can give the right answer?",
+    },
+    status: 'delivered',
+    createdAt: mins(85),
+  })
+  // Customer answers the agent's redundant question — the original ask
+  // already implied Teams (8 seats), but the agent didn't read /drive/.
+  await insertMsg(ins, {
+    id: 'msg0soph003',
+    conversationId: SOPHIA_CONV_ID,
+    role: 'customer',
+    kind: 'text',
+    content: {
+      text: "We're on Teams, 8 seats, workspace `nws-q3xpa`. To be clear — the audit log just stops at 90 days. We need 12 months of history for the vendor review next month, not faster queries.",
+    },
+    channelExternalId: 'web-sophia-03',
+    createdAt: mins(78),
+  })
   await insertNote(ins, {
     id: 'not0soph001',
     conversationId: SOPHIA_CONV_ID,
@@ -598,7 +704,7 @@ export async function seed(db: unknown): Promise<void> {
     authorId: MERIGPT_AGENT_ID,
     body: '@bob — Sophia (Teams, 8 seats) is asking about extended audit log retention. Enterprise-only feature per BUSINESS.md. Reassigning so you can quote an upgrade.',
     mentions: [BOB_USER_ID],
-    createdAt: mins(93),
+    createdAt: mins(60),
   })
   await insertActivity(ins, {
     conversationId: SOPHIA_CONV_ID,
@@ -609,7 +715,36 @@ export async function seed(db: unknown): Promise<void> {
       reason: 'enterprise upgrade quote',
       by: MERIGPT_AGENT_ID,
     },
-    ts: mins(92),
+    ts: mins(59),
+  })
+  // ▶ STAFF TAKEOVER — Bob replies directly to the customer, bypassing
+  // the agent. The triage job catches the message-id pattern (assistant
+  // role drops out, staff role enters with customer-facing content) and
+  // emits a `staff_takeover` learning candidate referencing this message.
+  await insertMsg(ins, {
+    id: 'msg0sopstf1',
+    conversationId: SOPHIA_CONV_ID,
+    role: 'staff',
+    kind: 'text',
+    content: {
+      text: 'Hi Sophia — Bob from the integrations team here. Audit-log retention is plan-bound: Teams keeps 90 days, Enterprise keeps 12 months and includes the legal-hold export your vendor review needs. For 8 seats we can size an Enterprise upgrade in one call — happy to walk you through pricing and the SOC 2 packet at the same time. Does Thursday 10am SGT work?',
+    },
+    channelExternalId: 'web-sophia-stf1',
+    status: 'delivered',
+    createdAt: mins(40),
+  })
+  // Bob's coaching note to the agent — points at the actual gap so the
+  // next learning candidate has a clean rationale, not just a takeover
+  // delta. The note is the signal that turns a one-off rescue into a
+  // codified lesson.
+  await insertNote(ins, {
+    id: 'not0sopbob1',
+    conversationId: SOPHIA_CONV_ID,
+    authorType: 'staff',
+    authorId: BOB_USER_ID,
+    body: `@agent:\${MERIGPT_AGENT_ID} — for retention/quota/feature questions on Teams or Pro plans, just \`cat /drive/BUSINESS.md\` (Products section) and answer directly. Don't ask for workspace id unless we need it to run a query. Sophia waited 55 min for a question /drive/ already answered.`,
+    mentions: [`agent:\${MERIGPT_AGENT_ID}`],
+    createdAt: mins(35),
   })
 
   // Priya scenario: earlier snooze that expired, then resolved-then-reopened loop
