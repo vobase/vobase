@@ -6,7 +6,7 @@
  * handlers + tests don't reimplement it.
  */
 
-import { type SignedRequest, signHmac, signRequest } from '@vobase/core'
+import { type SignedRequest, signRequest } from '@vobase/core'
 
 import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
 
@@ -74,11 +74,9 @@ interface SignedPlatformPostInput {
 }
 
 /**
- * Sign + POST a JSON body to a platform path on behalf of `tenantId`. Both the
- * legacy single-key `X-Platform-Signature` header (used by un-upgraded
- * platforms) and the 2-key headers (used by upgraded platforms) are sent so
- * either side can roll forward independently. Hostname is validated against
- * the env allowlist before the request leaves the process.
+ * Sign + POST a JSON body to a platform path on behalf of `tenantId`. Signs
+ * with the v2 2-key contract. Hostname is validated against the env allowlist
+ * before the request leaves the process.
  */
 async function signedPlatformPost(
   path: string,
@@ -108,9 +106,6 @@ async function signedPlatformPost(
     headers: {
       'Content-Type': 'application/json',
       'X-Tenant-Id': input.tenantId,
-      // legacy v1 — keep until platform's MANAGED_REQUIRE_SIG_V2=true rollout finishes
-      'X-Platform-Signature': signHmac(body, input.tenantHmacSecret),
-      // v2 contract
       'X-Vobase-Routine-Sig': signed.routineSignature,
       'X-Vobase-Rotation-Sig': signed.rotationSignature,
       'X-Vobase-Key-Version': String(signed.keyVersion),
@@ -229,10 +224,8 @@ export interface WebhookEndpointStatus {
  * UI to gray out the "claim sandbox" button when no pool slots are free,
  * sparing the user a pointless click that would 503.
  *
- * The platform's `GET /api/managed-whatsapp/health` is signed with the
- * legacy v1 contract (`X-Platform-Signature: signHmac(`GET${path}`, secret)`)
- * since it pre-dates the v2 rollout. We don't bother layering v2 on top —
- * the value here is non-secret pool capacity, not control-plane material.
+ * Signed with the v2 2-key contract (same canonical payload as outbound
+ * transport GET requests).
  */
 export async function fetchSandboxAvailability(input: {
   platformBaseUrl: string
@@ -248,11 +241,24 @@ export async function fetchSandboxAvailability(input: {
   }
   const path = '/api/managed-whatsapp/health'
   const url = `${input.platformBaseUrl.replace(/\/$/, '')}${path}`
+  const { pathOnly, sortedQuery } = splitPathAndQuery(path)
+  const bodyDigest = sha256Hex('')
+  const v2Payload = `GET|${pathOnly}|${sortedQuery}|${bodyDigest}`
+  const signed = signRequest({
+    body: v2Payload,
+    routineSecret: input.tenantHmacSecret,
+    rotationKey: input.tenantHmacSecret,
+    keyVersion: 1,
+  })
   const res = await fetch(url, {
     method: 'GET',
     headers: {
       'X-Tenant-Id': input.tenantId,
-      'X-Platform-Signature': signHmac(`GET${path}`, input.tenantHmacSecret),
+      'X-Vobase-Routine-Sig': signed.routineSignature,
+      'X-Vobase-Rotation-Sig': signed.rotationSignature,
+      'X-Vobase-Key-Version': String(signed.keyVersion),
+      'X-Vobase-Sig-Version': '2',
+      'X-Vobase-Body-Digest': bodyDigest,
     },
   })
   if (!res.ok) {

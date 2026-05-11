@@ -8,15 +8,13 @@
  *
  * Inbound webhooks (forwarded by the platform's per-environment router) carry
  * the same signed-headers contract; the transport's `verifyInboundWebhook`
- * hook (consumed by the WhatsApp adapter) accepts the v2 2-key headers, falls
- * back to the legacy v1 single-key `X-Platform-Signature` while platforms are
- * rolling out, and honors current OR previous-during-grace per the rotation
- * window.
+ * hook (consumed by the WhatsApp adapter) accepts the v2 2-key headers and
+ * honors current OR previous-during-grace per the rotation window.
  */
 
 import type { VaultRotation } from '@modules/integrations/service/vault'
 import type { WhatsAppTransportConfig } from '@vobase/core'
-import { signHmac, signRequest, verifyRequest } from '@vobase/core'
+import { signRequest, verifyRequest } from '@vobase/core'
 
 export type RotationCurrent = VaultRotation['current']
 export type RotationPrevious = VaultRotation['previous']
@@ -69,17 +67,8 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
     baseUrl: proxyBase,
     mediaDownloadUrl: mediaBase,
     signRequest(method: string, path: string): Record<string, string> {
-      // Two signatures attached to every request during rollout:
-      //
-      //   v1 (legacy)  — `${METHOD}${path}` only, in `X-Platform-Signature`.
-      //                  Read by un-upgraded platforms. Drop after platform
-      //                  flips `MANAGED_REQUIRE_SIG_V2=true`.
-      //   v2 (new)     — `${METHOD}|${pathWithoutQuery}|${sortedCanonicalQuery}
-      //                  |${sha256(body)}` in `X-Vobase-Routine-Sig` /
-      //                  `X-Vobase-Rotation-Sig`. Closes SH1 (body unsigned)
-      //                  and SH2 (query string unsigned) — tampering with
-      //                  either now invalidates the rotation signature.
-      //
+      // v2 contract — `${METHOD}|${pathWithoutQuery}|${sortedCanonicalQuery}
+      // |${sha256(body)}` in `X-Vobase-Routine-Sig` / `X-Vobase-Rotation-Sig`.
       // Body is plumbed via a per-request hook on the transport state (see
       // `setPendingBody` below), since the adapter calls `signRequest`
       // immediately before issuing fetch and we have no other channel to the
@@ -88,20 +77,17 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
       const { pathOnly, sortedQuery } = splitPathAndQuery(path)
       const bodyDigest = sha256Hex(pendingBody ?? '')
       const v2Payload = `${method.toUpperCase()}|${pathOnly}|${sortedQuery}|${bodyDigest}`
-      const v1Payload = `${method.toUpperCase()}${path}`
       const v2 = signRequest({
         body: v2Payload,
         routineSecret: cur.routineSecret,
         rotationKey: cur.rotationKey,
         keyVersion: cur.keyVersion,
       })
-      const v1Sig = signHmac(v1Payload, cur.routineSecret)
       // Reset the per-request body buffer so a stale value can't carry over
       // to a follow-up unrelated request that forgot to call setPendingBody.
       pendingBody = null
       return {
         'X-Tenant-Id': input.tenantId,
-        'X-Platform-Signature': v1Sig,
         'X-Vobase-Routine-Sig': v2.routineSignature,
         'X-Vobase-Rotation-Sig': v2.rotationSignature,
         'X-Vobase-Key-Version': String(v2.keyVersion),
@@ -113,15 +99,10 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
       pendingBody = body ?? null
     },
     async verifyInboundWebhook(request: Request): Promise<boolean> {
-      // Inbound managed webhooks come from the platform forwarder. Two
-      // signatures may be present:
-      //   v2 — `X-Vobase-Routine-Sig` + `X-Vobase-Rotation-Sig` + `X-Vobase-Key-Version`
-      //   v1 — legacy `X-Platform-Signature` (HMAC-SHA256 of body with the
-      //        platform-shared secret, which is the SAME value the tenant
-      //        holds as `routineSecret` in the vault during the v1 era).
-      // We accept v2 first; if absent we fall back to v1 so a not-yet-upgraded
-      // platform can still forward. Once all platforms are on v2 the v1
-      // branch can be deleted.
+      // Inbound managed webhooks come from the platform forwarder signed with
+      // the v2 contract: `X-Vobase-Routine-Sig` + `X-Vobase-Rotation-Sig` +
+      // `X-Vobase-Key-Version`. Accepts current OR previous pair during the
+      // rotation grace window.
       if (input.ensureReady) await input.ensureReady()
       const cur = resolve(input.current)
       const prev = resolve(input.previous)
@@ -131,51 +112,29 @@ export function createManagedTransport(input: ManagedTransportInput): WhatsAppTr
       const rotationSig = request.headers.get('X-Vobase-Rotation-Sig')
       const keyVersionRaw = request.headers.get('X-Vobase-Key-Version')
 
-      if (routineSig && rotationSig && keyVersionRaw) {
-        const keyVersion = Number.parseInt(keyVersionRaw, 10)
-        if (!Number.isFinite(keyVersion)) return false
-        // Reconstruct the same canonical v2 payload the platform signed:
-        //   `${METHOD}|${pathOnly}|${sortedCanonicalQuery}|${sha256(body)}`.
-        // The forwarder signs this string (not the raw body) so a tampered
-        // URL or query string invalidates the signature — same contract our
-        // outbound transport uses (see `signRequest` above).
-        const url = new URL(request.url)
-        const { pathOnly, sortedQuery } = splitPathAndQuery(url.pathname + url.search)
-        const bodyDigest = sha256Hex(rawBody)
-        const v2Payload = `${request.method.toUpperCase()}|${pathOnly}|${sortedQuery}|${bodyDigest}`
-        const result = verifyInboundManagedWebhook({
-          signedPayload: v2Payload,
-          routineSignature: routineSig,
-          rotationSignature: rotationSig,
-          keyVersion,
-          current: cur,
-          previous: prev,
-        })
-        return result.ok
-      }
-
-      // v1 fallback (legacy single-key header). The platform signs body with
-      // its tenant HMAC secret; on the tenant side we hold the same secret
-      // as `routineSecret`.
-      const legacySig = request.headers.get('X-Platform-Signature')
-      if (!legacySig) return false
-      const expected = signHmac(rawBody, cur.routineSecret)
-      if (constantTimeEqual(legacySig, expected)) return true
-      if (prev) {
-        const expectedPrev = signHmac(rawBody, prev.routineSecret)
-        return constantTimeEqual(legacySig, expectedPrev)
-      }
-      return false
+      if (!routineSig || !rotationSig || !keyVersionRaw) return false
+      const keyVersion = Number.parseInt(keyVersionRaw, 10)
+      if (!Number.isFinite(keyVersion)) return false
+      // Reconstruct the same canonical v2 payload the platform signed:
+      //   `${METHOD}|${pathOnly}|${sortedCanonicalQuery}|${sha256(body)}`.
+      // The forwarder signs this string (not the raw body) so a tampered
+      // URL or query string invalidates the signature — same contract our
+      // outbound transport uses (see `signRequest` above).
+      const url = new URL(request.url)
+      const { pathOnly, sortedQuery } = splitPathAndQuery(url.pathname + url.search)
+      const bodyDigest = sha256Hex(rawBody)
+      const v2Payload = `${request.method.toUpperCase()}|${pathOnly}|${sortedQuery}|${bodyDigest}`
+      const result = verifyInboundManagedWebhook({
+        signedPayload: v2Payload,
+        routineSignature: routineSig,
+        rotationSignature: rotationSig,
+        keyVersion,
+        current: cur,
+        previous: prev,
+      })
+      return result.ok
     },
   }
-}
-
-/** Hex string equality with constant time when lengths match. */
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let acc = 0
-  for (let i = 0; i < a.length; i++) acc |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return acc === 0
 }
 
 function sha256Hex(s: string): string {

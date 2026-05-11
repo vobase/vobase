@@ -91,8 +91,7 @@ describe('createManagedTransport', () => {
     const v2Payload = `POST|${path}||${emptyDigest}`
     expect(headers['X-Vobase-Routine-Sig']).toBe(signHmac(v2Payload, CURRENT.routineSecret))
     expect(headers['X-Vobase-Rotation-Sig']).toBe(signHmac(v2Payload, CURRENT.rotationKey))
-    // Legacy v1 header (METHOD+path) for un-upgraded platforms.
-    expect(headers['X-Platform-Signature']).toBe(signHmac(`POST${path}`, CURRENT.routineSecret))
+    expect(headers['X-Platform-Signature']).toBeUndefined()
   })
 
   test('signRequest folds setPendingBody into the v2 digest', () => {
@@ -252,36 +251,6 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
     expect(ok).toBe(false)
   })
 
-  test('falls back to v1 legacy header when v2 headers absent', async () => {
-    const t = createManagedTransport({
-      platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
-      tenantId: 't-1',
-      current: CURRENT,
-      previous: null,
-    })
-    const body = '{"hello":"v1"}'
-    const ok = await t.verifyInboundWebhook?.(
-      buildRequest(body, { 'X-Platform-Signature': signHmac(body, CURRENT.routineSecret) }),
-    )
-    expect(ok).toBe(true)
-  })
-
-  test('rejects v1 with wrong secret', async () => {
-    const t = createManagedTransport({
-      platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
-      tenantId: 't-1',
-      current: CURRENT,
-      previous: null,
-    })
-    const body = '{"hello":"v1"}'
-    const ok = await t.verifyInboundWebhook?.(
-      buildRequest(body, { 'X-Platform-Signature': signHmac(body, 'wrong-secret') }),
-    )
-    expect(ok).toBe(false)
-  })
-
   test('rejects when no signature headers at all', async () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
@@ -292,21 +261,6 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
     })
     const ok = await t.verifyInboundWebhook?.(buildRequest('{"a":1}'))
     expect(ok).toBe(false)
-  })
-
-  test('v1 fallback honors previous pair during grace window', async () => {
-    const t = createManagedTransport({
-      platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
-      tenantId: 't-1',
-      current: CURRENT,
-      previous: PREVIOUS,
-    })
-    const body = '{"old":"v1"}'
-    const ok = await t.verifyInboundWebhook?.(
-      buildRequest(body, { 'X-Platform-Signature': signHmac(body, PREVIOUS.routineSecret) }),
-    )
-    expect(ok).toBe(true)
   })
 
   test('thunk-form rotation values are honored', async () => {
