@@ -10,11 +10,15 @@
  * encryption (`{ kekVersion, dekCiphertext, payloadCiphertext, iv, tag }`)
  * stored as base64 — kept opaque-stringly here so a KEK rotation can re-wrap
  * DEKs without touching the schema.
+ *
+ * Per `.omc/architecture/platform-tenant-decoupling.md` §4.5 the `provider`
+ * column carries no CHECK constraint — tenant code is the source of truth for
+ * valid kinds (`'vobase-platform'`, `'vobase-platform-notification'`), and
+ * adding a notification tier should not require a schema migration.
  */
 
 import { nanoidPrimaryKey } from '@vobase/core/schema'
-import { sql } from 'drizzle-orm'
-import { check, index, integer, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { index, integer, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { integrationsPgSchema } from '~/runtime'
 
@@ -45,7 +49,6 @@ export const integrationSecrets = integrationsPgSchema.table(
   (t) => [
     uniqueIndex('uq_integration_secrets_org_provider').on(t.organizationId, t.provider),
     index('idx_integration_secrets_provider').on(t.provider),
-    check('integration_secrets_provider_check', sql`provider IN ('vobase-platform')`),
   ],
 )
 
