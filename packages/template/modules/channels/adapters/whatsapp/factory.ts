@@ -12,7 +12,9 @@
  * via the 2-key signed transport. Secrets come from the integrations vault.
  */
 
+import { findKind } from '@modules/channels/managed/registry'
 import { getVaultFor } from '@modules/integrations/service/registry'
+import type { VaultProvider } from '@modules/integrations/service/vault'
 import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
 import type { ChannelAdapter, ChannelCapabilities } from '@vobase/core'
 import { createWhatsAppAdapter } from '@vobase/core'
@@ -52,6 +54,13 @@ interface ManagedConfig {
   apiVersion?: string
   /** Indicative env label — passed through to verify-token derivation. */
   environment?: 'production' | 'staging' | string
+  /**
+   * Channel-kind discriminator from the managed-channels registry
+   * (`modules/channels/managed/registry.ts`). Written by `claimAndBootstrap`;
+   * absent on rows created before US-011 (sandbox-only world — fall back to
+   * `'sandbox'` and the vault provider stays `'vobase-platform'`).
+   */
+  kind?: 'sandbox'
 }
 
 export function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig & Record<string, unknown> {
@@ -116,18 +125,34 @@ export function __resetManagedRotationCacheForTests(): void {
   rotationCache.clear()
 }
 
+/**
+ * Resolve the vault provider key for a managed-mode config. Reads
+ * `config.kind` (written by `claimAndBootstrap` per US-011) and looks the
+ * provider up in the managed-channels registry. Rows minted before US-011
+ * have no `kind` — fall back to `'sandbox'`, which today still resolves to
+ * `'vobase-platform'` so the migration is byte-stable.
+ *
+ * The whole point of the indirection is that Slice 3's `notification` kind
+ * can register a different provider in the registry without touching this
+ * factory at all.
+ */
+function resolveVaultProvider(config: ManagedConfig): VaultProvider {
+  const kind = config.kind ?? 'sandbox'
+  return findKind(kind).vaultProvider
+}
+
 // biome-ignore lint/suspicious/useAwait: signature kept Promise-returning so callers don't need to branch on cache hit vs miss
-async function loadRotation(organizationId: string): Promise<VaultRotation> {
+async function loadRotation(organizationId: string, vaultProvider: VaultProvider): Promise<VaultRotation> {
   const now = Date.now()
   const entry = rotationCache.get(organizationId)
   if (entry?.inflight) return entry.inflight
   if (entry && entry.expiresAt > now) return entry.rotation
 
   const vault = getVaultFor(organizationId)
-  const inflight = vault.readSecret('vobase-platform').then((rotation) => {
+  const inflight = vault.readSecret(vaultProvider).then((rotation) => {
     if (!rotation) {
       rotationCache.delete(organizationId)
-      throw new Error('whatsapp adapter (managed): no vobase-platform secret in vault — handshake must run first')
+      throw new Error(`whatsapp adapter (managed): no '${vaultProvider}' secret in vault — handshake must run first`)
     }
     rotationCache.set(organizationId, {
       rotation,
@@ -152,11 +177,16 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
     throw new Error('whatsapp adapter (managed): VITE_PLATFORM_TENANT_SLUG env var is required')
   }
 
+  // Consult the managed-channels registry once at adapter construction.
+  // Slice 3's `notification` kind plugs in here without touching this file —
+  // it just registers a new `(kind, vaultProvider)` pair.
+  const vaultProvider = resolveVaultProvider(config)
+
   // Await the initial vault load so that the first outbound dispatch never
   // races the cold load. `loadRotation` deduplicates concurrent calls via the
   // inflight cache entry, so subsequent adapter constructions for the same org
   // within the TTL window pay only an in-memory cache hit.
-  await loadRotation(config.organizationId)
+  await loadRotation(config.organizationId, vaultProvider)
 
   function readCachedRotation(): VaultRotation {
     const entry = rotationCache.get(config.organizationId)
@@ -176,7 +206,7 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
     // via the inflight cache entry) before the verifier resolves the sync
     // thunks ensures the first inbound after a cache miss succeeds.
     ensureReady: async () => {
-      await loadRotation(config.organizationId)
+      await loadRotation(config.organizationId, vaultProvider)
     },
   })
 

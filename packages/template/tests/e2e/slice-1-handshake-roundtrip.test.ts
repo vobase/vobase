@@ -107,18 +107,23 @@ function buildPlatformStub(opts: { secret: string; rejectAuth?: boolean }): Hono
 async function withInProcessFetch(app: Hono, baseUrl: string, fn: () => Promise<void>): Promise<void> {
   const original = globalThis.fetch
 
-  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  // Build a callable that satisfies `typeof globalThis.fetch` — which carries
+  // extra static properties (`preconnect`) on top of the call signature. We
+  // Object.assign the original onto our wrapper to inherit those properties.
+  type FetchFn = typeof globalThis.fetch
+  const wrapper: FetchFn = ((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     if (url.startsWith(baseUrl)) {
       const req = new Request(url, init)
-      return app.fetch(req)
+      return Promise.resolve(app.fetch(req))
     }
     // Any other URL falls through to the real fetch — should never happen in
     // these tests. A deliberate throw would cause confusing failures if the
     // URL is slightly different; the real fetch will just time-out / ECONNREFUSED
     // and surface a clear error instead.
     return original(input, init)
-  }
+  }) as FetchFn
+  globalThis.fetch = Object.assign(wrapper, original) as FetchFn
 
   try {
     await fn()

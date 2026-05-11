@@ -10,6 +10,7 @@
 import { type SignedRequest, signRequest } from '@vobase/core'
 
 import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
+import { findKind } from '../../channels/managed/registry'
 
 export interface HandshakeAllocation {
   platformChannelId: string
@@ -66,6 +67,13 @@ interface HandshakeInput {
   tenantHmacSecret: string
   environment: 'production' | 'staging'
   channelInstanceId: string
+  /**
+   * Channel kind from the managed-channels registry. Determines which
+   * platform endpoint to POST to. Defaults to `'sandbox'` so callers that
+   * predate US-011's registry threading still work — the only kind that
+   * exists today.
+   */
+  kind?: 'sandbox'
 }
 
 interface SignedPlatformPostInput {
@@ -128,7 +136,11 @@ export async function handshakeWithPlatform(input: HandshakeInput): Promise<Hand
     environment: input.environment,
     channelInstanceId: input.channelInstanceId,
   })
-  const { res } = await signedPlatformPost('/api/managed-whatsapp/sandbox/create', body, input)
+  // Registry consult — sandbox is the only kind today, but Slice 3's
+  // `notification` kind will register a different `claimPath` so this file
+  // never grows a switch statement on `kind`.
+  const kindSpec = findKind(input.kind ?? 'sandbox')
+  const { res } = await signedPlatformPost(kindSpec.claimPath, body, input)
 
   if (!res.ok) {
     let payload: unknown
