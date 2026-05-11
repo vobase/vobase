@@ -52,6 +52,13 @@ export interface StaffProfile {
   memory: string
   /** Heartbeat for presence / offline detection (mentions notification flow). */
   lastSeenAt: Date | null
+  /**
+   * Personal WhatsApp phone in E.164 (`+`-prefixed at the API edge; stored as
+   * `+`-prefixed text). Used by `team/service/mention-notify.ts` to ping the
+   * staff member on the org's notification-tier WhatsApp number when an agent
+   * @-mentions them in an internal note.
+   */
+  whatsappPhoneE164: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -92,6 +99,12 @@ export const staffProfiles = teamPgSchema.table(
     profile: text('profile').notNull().default(''),
     memory: text('memory').notNull().default(''),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    /**
+     * Personal WhatsApp phone in E.164 (with leading `+`). Nullable; populated
+     * via the staff settings page. Read by `mention-notify.ts` to dispatch
+     * @-mention pings on the notification-tier WhatsApp channel.
+     */
+    whatsappPhoneE164: text('whatsapp_phone_e164'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -103,6 +116,7 @@ export const staffProfiles = teamPgSchema.table(
     index('idx_staff_profiles_sectors').using('gin', t.sectors),
     index('idx_staff_profiles_expertise').using('gin', t.expertise),
     index('idx_staff_profiles_languages').using('gin', t.languages),
+    index('idx_staff_profiles_whatsapp_phone').on(t.whatsappPhoneE164),
     check('staff_profiles_availability_check', sql`availability IN ('active','busy','off','inactive')`),
     check('staff_profiles_capacity_check', sql`capacity >= 0`),
   ],
@@ -152,6 +166,42 @@ export const staffAttributeDefinitions = teamPgSchema.table(
   ],
 )
 
+/**
+ * TTL ledger for outbound mention pings. Written by `mention-notify.ts` after
+ * a successful WA send; read (atomic `DELETE … RETURNING`) by the inbound
+ * notifications handler when a staff WA reply arrives. Single row per
+ * `(conversationId, staffUserId)` — re-pinging the same staff for the same
+ * conversation refreshes the row.
+ */
+export interface PendingMentionPing {
+  conversationId: string
+  staffUserId: string
+  organizationId: string
+  /** Agent that authored the @-mention note (the one waiting on the answer). */
+  askingAgentId: string
+  /** Note id we're answering — threaded into the reply note's `parentNoteId`. */
+  originalNoteId: string
+  createdAt: Date
+}
+
+export const pendingMentionPings = teamPgSchema.table(
+  'pending_mention_pings',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    conversationId: text('conversation_id').notNull(),
+    staffUserId: text('staff_user_id').notNull(),
+    askingAgentId: text('asking_agent_id').notNull(),
+    originalNoteId: text('original_note_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('idx_pending_pings_staff').on(t.staffUserId, t.organizationId),
+    index('idx_pending_pings_created').on(t.createdAt),
+    uniqueIndex('uq_pending_pings_conv_staff').on(t.conversationId, t.staffUserId),
+  ],
+)
+
 // Compile-time drift guards
 type _StaffProfileAssert =
   InferSelectModel<typeof staffProfiles> extends Omit<
@@ -167,7 +217,11 @@ type _StaffAttrDefAssert =
   InferSelectModel<typeof staffAttributeDefinitions> extends Omit<StaffAttributeDefinition, 'type' | 'options'>
     ? true
     : never
+type _PendingMentionPingAssert =
+  InferSelectModel<typeof pendingMentionPings> extends PendingMentionPing & { id: string } ? true : never
 const _profileOk: _StaffProfileAssert = true
 const _attrDefOk: _StaffAttrDefAssert = true
+const _pendingPingOk: _PendingMentionPingAssert = true
 void _profileOk
 void _attrDefOk
+void _pendingPingOk
