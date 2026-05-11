@@ -55,6 +55,12 @@ export interface StaffNoteScheduler {
     mentionedAgentId?: string
     /** Snapshot of the conversation's agent-assignee id (without `agent:` prefix). */
     assigneeAgentId?: string
+    /**
+     * Verbatim note body, threaded into the wake-trigger payload so the
+     * renderer can inline it (instead of forcing the agent to cat
+     * INTERNAL-NOTES.md before it can decide what to do).
+     */
+    body: string
   }): Promise<void>
 }
 
@@ -219,6 +225,7 @@ async function runStaffNoteFanOut(opts: {
     noteId: note.id,
     authorUserId,
     organizationId: note.organizationId,
+    body,
   }
 
   for (const mentionedId of mentionedAgentIds) {

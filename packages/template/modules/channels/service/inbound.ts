@@ -172,6 +172,12 @@ export async function dispatchInbound(
         conversationId: result.conversation.id,
         messageId: result.message.id,
         contactId: contact.id,
+        trigger: {
+          trigger: 'inbound_message',
+          conversationId: result.conversation.id,
+          messageIds: [result.message.id],
+          body: event.content,
+        },
       })
     }
 

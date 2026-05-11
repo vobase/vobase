@@ -50,6 +50,13 @@ export const StaffNoteWakePayloadSchema = z.object({
   mentionedAgentId: z.string().optional(),
   /** Snapshot of the conversation assignee at fan-out time (without `agent:` prefix). */
   assigneeAgentId: z.string().optional(),
+  /**
+   * Verbatim note body. Threaded into the staff_note WakeTrigger so the
+   * renderer can inline it in the wake cue (otherwise the agent must cat
+   * INTERNAL-NOTES.md before deciding). Optional for back-compat with legacy
+   * queue rows enqueued before this field was added.
+   */
+  body: z.string().optional(),
 })
 
 export type StaffNoteWakePayload = z.infer<typeof StaffNoteWakePayloadSchema>
@@ -111,6 +118,7 @@ export function createStaffNoteWakeHandler(deps: WakeHandlerDeps, contributions:
       noteId: data.noteId,
       authorUserId: data.authorUserId,
       mentionedAgentId: data.mentionedAgentId,
+      body: data.body,
     }
 
     try {

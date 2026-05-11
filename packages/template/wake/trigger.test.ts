@@ -163,7 +163,7 @@ describe('renderChangeDecided', () => {
 describe('renderStaffNote (assignee branch)', () => {
   const cap = resolveTriggerSpec('staff_note')
 
-  it('points at INTERNAL-NOTES and references the AGENTS.md routing table', () => {
+  it('points at INTERNAL-NOTES and references the AGENTS.md routing table when body is absent', () => {
     const text = cap.render(
       {
         trigger: 'staff_note',
@@ -181,6 +181,31 @@ describe('renderStaffNote (assignee branch)', () => {
     )
     expect(text).toContain('INTERNAL-NOTES.md')
     expect(text).toMatch(/routing table|AGENTS\.md/)
+    // No body provided → no blockquote.
+    expect(text).not.toContain('> ')
+  })
+
+  it('inlines the note body as a blockquote when provided', () => {
+    const text = cap.render(
+      {
+        trigger: 'staff_note',
+        conversationId: 'cnv0marcus',
+        noteId: 'note0001',
+        authorUserId: 'usr0alice',
+        mentionedAgentId: 'agt0mer0v1',
+        body: '@MeriGPT yes we are GST registered, UEN 202012345A',
+      },
+      {
+        contactId: 'ct0marcus',
+        channelInstanceId: 'ch0web',
+        assignee: 'agent:agt0mer0v1',
+        currentAgentId: 'agt0mer0v1',
+      },
+    )
+    expect(text).toContain('staff:usr0alice')
+    expect(text).toContain('> @MeriGPT yes we are GST registered, UEN 202012345A')
+    expect(text).toContain('INTERNAL-NOTES.md')
+    expect(text).toMatch(/routing table|AGENTS\.md/)
   })
 
   it('keeps the existing peer-wake guard for non-assignee agents', () => {
@@ -191,6 +216,7 @@ describe('renderStaffNote (assignee branch)', () => {
         noteId: 'note0001',
         authorUserId: 'usr0alice',
         mentionedAgentId: 'agt0atls0v1',
+        body: '@Atlas please confirm the SLA for tier-2 incidents',
       },
       {
         contactId: 'ct0marcus',
@@ -201,5 +227,119 @@ describe('renderStaffNote (assignee branch)', () => {
     )
     expect(text).toContain('You are NOT the conversation assignee')
     expect(text).toContain('Do NOT call reply / send_card / send_file / book_slot')
+    // Body is still inlined in the peer-wake branch.
+    expect(text).toContain('> @Atlas please confirm the SLA for tier-2 incidents')
+  })
+})
+
+describe('renderInboundMessage', () => {
+  const cap = resolveTriggerSpec('inbound_message')
+  const refs = {
+    contactId: 'ct0marcus',
+    channelInstanceId: 'ch0web',
+    assignee: 'agent:agt0mer0v1',
+    currentAgentId: 'agt0mer0v1',
+  }
+
+  it('points at MESSAGES.md when no body is provided', () => {
+    const text = cap.render({ trigger: 'inbound_message', conversationId: 'cnv0marcus', messageIds: ['m1'] }, refs)
+    expect(text).toContain('New customer message(s)')
+    expect(text).toContain('/contacts/ct0marcus/ch0web/MESSAGES.md')
+    expect(text).not.toContain('> ')
+  })
+
+  it('inlines the latest message body as a blockquote when provided', () => {
+    const text = cap.render(
+      {
+        trigger: 'inbound_message',
+        conversationId: 'cnv0marcus',
+        messageIds: ['m1'],
+        body: 'are you GST registered?',
+      },
+      refs,
+    )
+    expect(text).toContain('New customer message:')
+    expect(text).toContain('> are you GST registered?')
+    expect(text).toContain('MESSAGES.md')
+  })
+})
+
+describe('renderCaptionReady', () => {
+  const cap = resolveTriggerSpec('caption_ready')
+  const refs = {
+    contactId: 'ct0marcus',
+    channelInstanceId: 'ch0web',
+    assignee: 'agent:agt0mer0v1',
+    currentAgentId: 'agt0mer0v1',
+  }
+
+  it('falls back to the file id pointer when caption is absent', () => {
+    const text = cap.render({ trigger: 'caption_ready', conversationId: 'cnv0marcus', fileId: 'fil0001' }, refs)
+    expect(text).toContain('Caption ready for file fil0001.')
+    expect(text).toContain('Re-read /contacts/ct0marcus/ch0web/MESSAGES.md')
+    expect(text).not.toContain('> ')
+  })
+
+  it('quotes the caption and uses the file path label when both are provided', () => {
+    const text = cap.render(
+      {
+        trigger: 'caption_ready',
+        conversationId: 'cnv0marcus',
+        fileId: 'fil0001',
+        filePath: '/policies/refunds.pdf',
+        caption: 'Refund policy: 14-day window from purchase date, prorated thereafter.',
+      },
+      refs,
+    )
+    expect(text).toContain('Caption ready for /policies/refunds.pdf:')
+    expect(text).toContain('> Refund policy: 14-day window from purchase date, prorated thereafter.')
+    expect(text).toContain('Re-read /contacts/ct0marcus/ch0web/MESSAGES.md')
+  })
+})
+
+describe('cue body truncation', () => {
+  const cap = resolveTriggerSpec('staff_note')
+  const refs = {
+    contactId: 'ct0marcus',
+    channelInstanceId: 'ch0web',
+    assignee: 'agent:agt0mer0v1',
+    currentAgentId: 'agt0mer0v1',
+  }
+
+  it('caps the inlined body and appends a truncation marker when body exceeds 4KB', () => {
+    // 6KB of repeated lines so the cap (4KB) trips on a line boundary.
+    const line = `${'x'.repeat(120)}\n`
+    const longBody = line.repeat(50) // ~6KB
+    const text = cap.render(
+      {
+        trigger: 'staff_note',
+        conversationId: 'cnv0marcus',
+        noteId: 'note0001',
+        authorUserId: 'usr0alice',
+        mentionedAgentId: 'agt0mer0v1',
+        body: longBody,
+      },
+      refs,
+    )
+    expect(text).toContain('[truncated')
+    expect(text).toContain('INTERNAL-NOTES.md')
+    // The truncated cue must still fit in a generous budget: 4KB body + cue chrome (< 1KB).
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThan(6000)
+  })
+
+  it('does not truncate when body fits under the cap', () => {
+    const text = cap.render(
+      {
+        trigger: 'staff_note',
+        conversationId: 'cnv0marcus',
+        noteId: 'note0001',
+        authorUserId: 'usr0alice',
+        mentionedAgentId: 'agt0mer0v1',
+        body: 'short note',
+      },
+      refs,
+    )
+    expect(text).not.toContain('[truncated')
+    expect(text).toContain('> short note')
   })
 })

@@ -19,7 +19,20 @@ import { z } from 'zod'
  * own the mapping.
  */
 export type WakeTrigger =
-  | { trigger: 'inbound_message'; conversationId: string; messageIds: string[] }
+  | {
+      trigger: 'inbound_message'
+      conversationId: string
+      messageIds: string[]
+      /**
+       * Latest customer message body, inlined into the wake cue so the agent
+       * can decide without first running `cat …/MESSAGES.md`. Optional for
+       * back-compat with legacy queue rows enqueued before the body was
+       * threaded through; the renderer falls back to a pointer-only cue when
+       * absent. Producers set this from the channel event content (or a
+       * synthesized "Customer tapped X" for card-reply taps).
+       */
+      body?: string
+    }
   | {
       trigger: 'approval_resumed'
       conversationId: string
@@ -39,6 +52,14 @@ export type WakeTrigger =
        * `addNote` post-commit fan-out time; never mutated downstream.
        */
       mentionedAgentId?: string
+      /**
+       * Note body, inlined into the wake cue so the agent doesn't have to cat
+       * INTERNAL-NOTES.md just to learn what the latest note says. Optional
+       * for back-compat with legacy queue rows; renderer falls back to a
+       * pointer-only cue when absent. Producer: `messaging/service/notes.ts`
+       * post-commit fan-out (the body it just inserted).
+       */
+      body?: string
     }
   | { trigger: 'scheduled_followup'; conversationId: string; reason: string; scheduledAt: Date; sourceWakeId?: string }
   | { trigger: 'manual'; conversationId: string; reason: string; actorUserId: string }
@@ -51,7 +72,15 @@ export type WakeTrigger =
    * new caption block. Producer: `modules/drive/jobs.ts`'s `forceCaption`
    * branch. See `wake/trigger.ts` for the renderer.
    */
-  | { trigger: 'caption_ready'; conversationId: string; fileId: string }
+  | {
+      trigger: 'caption_ready'
+      conversationId: string
+      fileId: string
+      /** Drive-relative path (e.g. `/policies/refunds.pdf`). Optional for back-compat. */
+      filePath?: string
+      /** Generated caption text. Optional for back-compat with legacy queue rows. */
+      caption?: string
+    }
   /**
    * Staff approved or rejected a change-proposal that was created during this
    * conversation. The wake fires so the agent can acknowledge the decision
@@ -91,6 +120,7 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     trigger: z.literal('inbound_message'),
     conversationId: z.string(),
     messageIds: z.array(z.string()),
+    body: z.string().optional(),
   }),
   z.object({
     trigger: z.literal('approval_resumed'),
@@ -105,6 +135,7 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     noteId: z.string(),
     authorUserId: z.string(),
     mentionedAgentId: z.string().optional(),
+    body: z.string().optional(),
   }),
   z.object({
     trigger: z.literal('scheduled_followup'),
@@ -135,6 +166,8 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     trigger: z.literal('caption_ready'),
     conversationId: z.string(),
     fileId: z.string(),
+    filePath: z.string().optional(),
+    caption: z.string().optional(),
   }),
   z.object({
     trigger: z.literal('change_decided'),

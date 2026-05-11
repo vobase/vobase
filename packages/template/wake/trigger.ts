@@ -46,8 +46,55 @@ function convoFolder(refs: RenderRefs): string {
   return `/contacts/${refs.contactId}/${refs.channelInstanceId}`
 }
 
-function renderInboundMessage(_trigger: WakeTrigger, refs: RenderRefs): string {
-  return `New customer message(s). See ${convoFolder(refs)}/MESSAGES.md for context.`
+/**
+ * Hard cap on the inlined body bytes in a wake cue. Keeps pg-boss payloads and
+ * the rendered user-turn message bounded even for pathological note bodies or
+ * captions. Sized to match the harness's 4KB inline tool-stdout budget so
+ * agents see the same cap everywhere. The full content is always still
+ * available via the cue's "full thread in …" pointer.
+ */
+const MAX_CUE_BODY_BYTES = 4096
+
+/** Trim `body` to ≤ maxBytes (UTF-8), cutting on a line boundary when possible. */
+function truncateForCue(body: string, maxBytes = MAX_CUE_BODY_BYTES): string {
+  const trimmed = body.trim()
+  if (Buffer.byteLength(trimmed, 'utf8') <= maxBytes) return trimmed
+  const lines = trimmed.split('\n')
+  const kept: string[] = []
+  let bytes = 0
+  for (const line of lines) {
+    const lineBytes = Buffer.byteLength(line, 'utf8') + 1 // +1 for the newline
+    if (bytes + lineBytes > maxBytes) break
+    kept.push(line)
+    bytes += lineBytes
+  }
+  // No line fit: hard byte slice on the first line so the agent still sees something meaningful.
+  if (kept.length === 0) {
+    const buf = Buffer.from(trimmed, 'utf8').subarray(0, maxBytes)
+    return `${buf.toString('utf8')}\n…[truncated — see the full thread in the file pointer below]`
+  }
+  return `${kept.join('\n')}\n…[truncated — see the full thread in the file pointer below]`
+}
+
+/**
+ * Render `body` as a markdown blockquote so the cue's provenance is
+ * unambiguous when an LLM reads it. Trims surrounding whitespace, truncates
+ * over-large bodies to keep the cue bounded, and prefixes every line with
+ * `> ` to mirror what `renderOperatorThread` does for operator-thread posts.
+ */
+function quoteBody(body: string): string {
+  return truncateForCue(body)
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n')
+}
+
+function renderInboundMessage(trigger: WakeTrigger, refs: RenderRefs): string {
+  if (trigger.trigger !== 'inbound_message') return ''
+  const pointer = `See ${convoFolder(refs)}/MESSAGES.md for the full thread.`
+  const body = trigger.body?.trim()
+  if (!body) return `New customer message(s). ${pointer}`
+  return `New customer message:\n\n${quoteBody(body)}\n\n${pointer}`
 }
 
 function renderApprovalResumed(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -66,14 +113,17 @@ function describeAssignee(assignee: string | undefined): string {
 
 function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'staff_note') return ''
-  const base = trigger.mentionedAgentId
-    ? `Staff @-mentioned you in an internal note. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
-    : `Staff added an internal note. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
+  const lead = trigger.mentionedAgentId ? `Staff @-mentioned you in an internal note` : `Staff added an internal note`
+  const body = trigger.body?.trim()
+  const pointer = `Full thread in ${convoFolder(refs)}/INTERNAL-NOTES.md.`
+  const noteSection = body
+    ? `${lead} from staff:${trigger.authorUserId}:\n\n${quoteBody(body)}\n\n${pointer}`
+    : `${lead}. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
   const youOwn = refs.assignee === `agent:${refs.currentAgentId}`
   if (!youOwn) {
-    return `${base} You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. Do NOT call reply / send_card / send_file / book_slot — the assignee is in charge of customer-facing replies here.`
+    return `${noteSection} You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. Do NOT call reply / send_card / send_file / book_slot — the assignee is in charge of customer-facing replies here.`
   }
-  return `${base} Decide what the note asks for and act — see \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
+  return `${noteSection} Decide what the note asks for and act — see \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -94,13 +144,7 @@ function renderOperatorThread(trigger: WakeTrigger, _refs: RenderRefs): string {
     // reads the latest user message), but guard so the cue still parses.
     return 'A staff member posted in your operator thread, but the latest message is empty. Acknowledge politely and end the turn.'
   }
-  // Quote the body so the agent sees it as the user request, not as
-  // background context. The blockquote prefix makes provenance unambiguous.
-  const quoted = body
-    .split('\n')
-    .map((line) => `> ${line}`)
-    .join('\n')
-  return `A staff member posted in your operator thread:\n\n${quoted}\n\nRespond or act on this now. If the message implies a write to a workspace file, use bash (or the matching CLI verb) — do not reply "logged for review" without actually performing the write.`
+  return `A staff member posted in your operator thread:\n\n${quoteBody(body)}\n\nRespond or act on this now. If the message implies a write to a workspace file, use bash (or the matching CLI verb) — do not reply "logged for review" without actually performing the write.`
 }
 
 function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -110,7 +154,11 @@ function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
 
 function renderCaptionReady(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'caption_ready') return ''
-  return `Caption ready for file ${trigger.fileId}. Re-read ${convoFolder(refs)}/MESSAGES.md for the updated context.`
+  const fileLabel = trigger.filePath ?? `file ${trigger.fileId}`
+  const pointer = `Re-read ${convoFolder(refs)}/MESSAGES.md for the updated context.`
+  const caption = trigger.caption?.trim()
+  if (!caption) return `Caption ready for ${fileLabel}. ${pointer}`
+  return `Caption ready for ${fileLabel}:\n\n${quoteBody(caption)}\n\n${pointer}`
 }
 
 function renderChangeDecided(trigger: WakeTrigger, _refs: RenderRefs): string {

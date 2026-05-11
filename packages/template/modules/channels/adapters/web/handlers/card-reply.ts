@@ -40,11 +40,22 @@ export async function handleCardReply(c: Context): Promise<Response> {
 
   const conv = await getConversation(reply.conversationId)
 
+  // Synthesize a human-readable cue body for the wake renderer. The card-reply
+  // path doesn't carry a free-text message — the customer tapped a button — so
+  // we surface the label (falling back to the value) so the agent sees what
+  // was tapped without needing to cat MESSAGES.md first.
+  const tapped = buttonLabel?.trim() ? buttonLabel : buttonValue
   await jobs.send(AGENTS_WAKE_JOB, {
     organizationId: reply.organizationId,
     conversationId: reply.conversationId,
     messageId: reply.id,
     contactId: conv.contactId,
+    trigger: {
+      trigger: 'inbound_message',
+      conversationId: reply.conversationId,
+      messageIds: [reply.id],
+      body: `Customer tapped: "${tapped}"`,
+    },
   })
 
   return c.json({

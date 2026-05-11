@@ -66,6 +66,7 @@ const messaging: ModuleDef = {
             authorUserId: opts.authorUserId,
             mentionedAgentId: opts.mentionedAgentId,
             assigneeAgentId: opts.assigneeAgentId,
+            body: opts.body,
           },
           {
             singletonKey: buildStaffNoteSingletonKey({

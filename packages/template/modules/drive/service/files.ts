@@ -869,13 +869,22 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     }
     if (row.extractionKind === 'extracted') {
       // Already-extracted: enqueue an immediate caption_ready wake (no new OCR cost).
+      // The caption + path are already on the row, so inline them into the
+      // trigger so the wake renderer can quote the caption rather than the
+      // agent having to cat MESSAGES.md for it.
       await deps.jobs.send(
         AGENTS_WAKE_JOB,
         {
           organizationId: input.organizationId,
           conversationId: input.conversationId,
           contactId: input.contactId,
-          trigger: { trigger: 'caption_ready', conversationId: input.conversationId, fileId: row.id },
+          trigger: {
+            trigger: 'caption_ready',
+            conversationId: input.conversationId,
+            fileId: row.id,
+            filePath: row.path,
+            caption: row.caption ?? undefined,
+          },
         },
         { singletonKey: `drive:caption-ready:${row.id}` },
       )

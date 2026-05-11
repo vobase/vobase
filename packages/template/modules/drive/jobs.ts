@@ -144,7 +144,11 @@ export async function processFileJobHandler(
   const budget = await checkBudget(db, orgId, projectBudget(row, isForceCaption))
   if (!budget.ok) {
     await markFailed(db, deps.realtime, orgId, row.id, budget.reason)
-    if (isForceCaption && payload.wakeOnComplete) await enqueueCaptionReadyWake(deps, payload, row.id)
+    if (isForceCaption && payload.wakeOnComplete) {
+      // Budget-rejected: no caption generated. Renderer will fall back to the
+      // file-id pointer cue (no inline body) since `caption` is null.
+      await enqueueCaptionReadyWake(deps, payload, { fileId: row.id, filePath: row.path, caption: null })
+    }
     return { kind: 'failed' }
   }
 
@@ -270,7 +274,9 @@ export async function processFileJobHandler(
         processingError: `embedding_unavailable: ${errMessage(err)}`,
       })
       notifyDriveFile(deps.realtime, row.id, 'updated')
-      if (isForceCaption && payload.wakeOnComplete) await enqueueCaptionReadyWake(deps, payload, row.id)
+      if (isForceCaption && payload.wakeOnComplete) {
+        await enqueueCaptionReadyWake(deps, payload, { fileId: row.id, filePath: row.path, caption })
+      }
       return { kind: 'extracted' }
     }
   }
@@ -286,24 +292,39 @@ export async function processFileJobHandler(
   })
   notifyDriveFile(deps.realtime, row.id, 'updated')
 
-  if (isForceCaption && payload.wakeOnComplete) await enqueueCaptionReadyWake(deps, payload, row.id)
+  if (isForceCaption && payload.wakeOnComplete) {
+    await enqueueCaptionReadyWake(deps, payload, { fileId: row.id, filePath: row.path, caption })
+  }
   return { kind: 'extracted' }
 }
 
-async function enqueueCaptionReadyWake(deps: JobDeps, payload: ProcessFilePayload, fileId: string): Promise<void> {
+async function enqueueCaptionReadyWake(
+  deps: JobDeps,
+  payload: ProcessFilePayload,
+  file: { fileId: string; filePath: string; caption: string | null },
+): Promise<void> {
   const wake = payload.wakeOnComplete
   if (!wake) return
   // Producer-side trigger discriminator; the WakeTrigger union is the single
-  // source of truth for the conversation-lane wake bus.
+  // source of truth for the conversation-lane wake bus. The caption + path are
+  // inlined into the trigger so the wake-cue renderer can quote them — the
+  // agent shouldn't have to cat MESSAGES.md just to learn what the new caption
+  // says.
   await deps.jobs.send(
     AGENTS_WAKE_JOB,
     {
       organizationId: payload.organizationId,
       conversationId: wake.conversationId,
       contactId: wake.contactId,
-      trigger: { trigger: 'caption_ready', conversationId: wake.conversationId, fileId },
+      trigger: {
+        trigger: 'caption_ready',
+        conversationId: wake.conversationId,
+        fileId: file.fileId,
+        filePath: file.filePath,
+        caption: file.caption ?? undefined,
+      },
     },
-    { singletonKey: `drive:caption-ready:${fileId}` },
+    { singletonKey: `drive:caption-ready:${file.fileId}` },
   )
 }
 
