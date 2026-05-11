@@ -247,10 +247,11 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     createCatalogRoute<ApiKeyEnv>({
       registry: cli,
       // 'contact' is defense in depth — middleware blocks anonymous with 401 first.
+      // `owner` outranks `admin` in better-auth's hierarchy; both map to admin tier.
       getAudience: (c): AudienceTier => {
         const p = c.var.apiPrincipal
         if (!p) return 'contact'
-        return p.role === 'admin' ? 'admin' : 'staff'
+        return p.role === 'admin' || p.role === 'owner' ? 'admin' : 'staff'
       },
       clientLatestVersion: CLI_LATEST_VERSION,
     }),
