@@ -15,6 +15,7 @@
  *
  * Stateless. No DB write. Rotates only when `BETTER_AUTH_SECRET` rotates.
  */
+/** @contract platform-tenant-v1 */
 
 import { createHmac } from 'node:crypto'
 

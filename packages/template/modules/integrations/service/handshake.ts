@@ -5,6 +5,7 @@
  * keeps `signRequest`, tenant-id headers, and host validation in one place so
  * handlers + tests don't reimplement it.
  */
+/** @contract platform-tenant-v1 */
 
 import { type SignedRequest, signRequest } from '@vobase/core'
 

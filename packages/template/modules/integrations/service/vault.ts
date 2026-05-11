@@ -9,6 +9,7 @@
  * `keyVersion`) mirrors `@vobase/core` `signRequest`/`verifyRequest` so the
  * tenant can sign + verify against the vault without re-deriving anything.
  */
+/** @contract platform-tenant-v1 */
 
 import { decryptSecretEnvelope, encryptSecretEnvelope, type SecretEnvelope } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'

@@ -11,6 +11,7 @@
  * hook (consumed by the WhatsApp adapter) accepts the v2 2-key headers and
  * honors current OR previous-during-grace per the rotation window.
  */
+/** @contract platform-tenant-v1 */
 
 import type { VaultRotation } from '@modules/integrations/service/vault'
 import type { WhatsAppTransportConfig } from '@vobase/core'
