@@ -23,6 +23,7 @@ import { Hono, type MiddlewareHandler } from 'hono'
 import webAdapter from '../adapters/web/handlers'
 import managedWhatsapp from '../adapters/whatsapp/handlers/managed'
 import { getRequireSession } from '../service/state'
+import inboundRouter from './inbound-router'
 import instances from './instances'
 import webhook from './webhook'
 import whatsappSignup from './whatsapp-signup'
@@ -43,5 +44,8 @@ const app = new Hono()
   .route('/adapters/web', webAdapter)
   .route('/whatsapp', managedWhatsapp)
   .route('/whatsapp/signup', whatsappSignup)
+  // Registry-driven managed-channel inbound (notification tier + future
+  // kinds). Public — verified inline via the v2 HMAC transport.
+  .route('/managed', inboundRouter)
 
 export default app
