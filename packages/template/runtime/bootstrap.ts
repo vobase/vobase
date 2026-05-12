@@ -33,6 +33,7 @@ import {
   type ScheduleOpts,
   setJournalDb,
   sortModules,
+  sweepStaleActiveWakes,
 } from '@vobase/core'
 import { Hono } from 'hono'
 import { serveStatic } from 'hono/bun'
@@ -345,6 +346,17 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // Heartbeat wakes: schedules cron-tick fires `HeartbeatTrigger`s into the
   // emitter installed below. Each tick = one standalone-lane wake.
   setHeartbeatEmitter(createHeartbeatEmitter({ realtime, db, logger: wakeLogger, jobs }, agentContributions))
+
+  // `harness.active_wakes` GC for crashed-worker leases. Sweep period must be
+  // < `WAKE_LEASE_MS` so stale leases die in roughly one cycle; cast mirrors
+  // `wake/inbound.ts` (pglite-typed API, postgres-js driver).
+  const ACTIVE_WAKES_SWEEP_MS = 60_000
+  const sweepDb = db as unknown as Parameters<typeof sweepStaleActiveWakes>[0]
+  setInterval(() => {
+    void sweepStaleActiveWakes(sweepDb).catch((err) => {
+      console.warn('[active-wakes] sweepStale failed:', err)
+    })
+  }, ACTIVE_WAKES_SWEEP_MS).unref()
 
   return app
 }

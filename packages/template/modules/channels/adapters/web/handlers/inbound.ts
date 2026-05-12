@@ -8,8 +8,9 @@ import { notifyConversation } from '@modules/messaging/service/staff-ops'
 import type { Context } from 'hono'
 
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
-import { AGENTS_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB, buildInboundWakeSingletonKey } from '~/wake/inbound'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
+import { WEB_DEBOUNCE_WINDOW_MS } from '../adapter'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
 import { getInstanceDefaultAssignee } from '../service/instances'
 
@@ -77,18 +78,25 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
 
   // Echoes never wake the agent — staff-authored, not customer-driven.
   if (!isEcho && result.isNew) {
-    await requireJobs().send(AGENTS_WAKE_JOB, {
-      organizationId: input.organizationId,
-      conversationId: result.conversation.id,
-      messageId: result.message.id,
-      contactId: contact.id,
-      trigger: {
-        trigger: 'inbound_message',
+    await requireJobs().send(
+      AGENTS_WAKE_JOB,
+      {
+        organizationId: input.organizationId,
         conversationId: result.conversation.id,
-        messageIds: [result.message.id],
-        body: input.content,
+        messageId: result.message.id,
+        contactId: contact.id,
+        trigger: {
+          trigger: 'inbound_message',
+          conversationId: result.conversation.id,
+          messageIds: [result.message.id],
+          body: input.content,
+        },
       },
-    })
+      {
+        singletonKey: buildInboundWakeSingletonKey(result.conversation.id),
+        startAfter: new Date(Date.now() + WEB_DEBOUNCE_WINDOW_MS),
+      },
+    )
   }
 
   // Echo: fire-and-forget `coexistence_echo` triage when the conversation is

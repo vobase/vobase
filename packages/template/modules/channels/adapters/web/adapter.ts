@@ -11,6 +11,14 @@ import type { ChannelAdapter, ChannelCapabilities, OutboundMessage, SendResult }
 
 export const WEB_CHANNEL_NAME = 'web'
 
+/**
+ * Trailing-edge debounce window for inbound wakes on the web channel. Each new
+ * customer message within this window resets the scheduler's timer (see
+ * `runtime/bootstrap.ts:131-145`); rapid quick-reply taps coalesce into one
+ * wake that reads the full burst from `messaging.messages` at boot.
+ */
+export const WEB_DEBOUNCE_WINDOW_MS = 1000
+
 export const WEB_CAPABILITIES: ChannelCapabilities = {
   templates: false,
   media: true,
@@ -29,7 +37,7 @@ export function createWebAdapter(_config: Record<string, unknown>, _instanceId: 
     capabilities: WEB_CAPABILITIES,
     deliveryModel: 'realtime',
     contactIdentifierField: 'identifier',
-    debounceWindowMs: 0,
+    debounceWindowMs: WEB_DEBOUNCE_WINDOW_MS,
 
     send(_message: OutboundMessage): Promise<SendResult> {
       // Web channel has no upstream provider — the row-level NOTIFY fired by

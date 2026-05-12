@@ -17,7 +17,9 @@ import { getById as getAgentDefinition } from '@modules/agents/service/agent-def
 import type { Conversation } from '@modules/messaging/schema'
 import { get as getConversation } from '@modules/messaging/service/conversations'
 import type { AgentContributions, HarnessLogger, ScopedScheduler } from '@vobase/core'
-import { createHarness } from '@vobase/core'
+import type { VobaseDb } from '@vobase/core'
+import { acquireActiveWake, createHarness, releaseActiveWake } from '@vobase/core'
+import { nanoid } from 'nanoid'
 import { z } from 'zod'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
@@ -61,6 +63,12 @@ export interface WakeHandlerDeps {
   jobs: ScopedScheduler
 }
 
+/** Must exceed P99 wake duration; stale leases are reclaimed by the next `acquire` (and by `sweepStaleActiveWakes` in `runtime/bootstrap.ts`). */
+export const WAKE_LEASE_MS = 120_000
+
+/** Singleton key for the `agents:wake` job; identical at every producer so the in-process scheduler coalesces a burst into one wake. */
+export const buildInboundWakeSingletonKey = (conversationId: string): string => `agents:wake:${conversationId}`
+
 export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentContributions<WakeContext>) {
   return async function handleInboundToWake(rawData: unknown): Promise<void> {
     const data = rawData as AgentsWakePayload
@@ -100,10 +108,24 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
       return
     }
     const agentId = conv.assignee.slice('agent:'.length)
-    console.log('[wake:conv] booting wake', { agentId, contactId: data.contactId })
+
+    // Cross-process in-flight guard; same cast pattern as core's own
+    // `createDatabase` (`packages/core/src/db/client.ts:64`).
+    const workerId = nanoid(10)
+    const coreDb = deps.db as unknown as VobaseDb
+    const [acquired, agentDefinition] = await Promise.all([
+      acquireActiveWake(coreDb, data.conversationId, workerId, WAKE_LEASE_MS),
+      getAgentDefinition(agentId),
+    ])
+    if (!acquired) {
+      console.log('[wake:conv] skipping — another worker holds the lease', {
+        conv: data.conversationId,
+      })
+      return
+    }
+    console.log('[wake:conv] booting wake', { agentId, contactId: data.contactId, workerId })
 
     try {
-      const agentDefinition = await getAgentDefinition(agentId)
       const config = await conversationWakeConfig({
         data,
         conv,
@@ -115,7 +137,11 @@ export function createWakeHandler(deps: WakeHandlerDeps, contributions: AgentCon
       })
       await createHarness<WakeTrigger>(config)
     } catch (err) {
-      console.error('[wake:conv] createHarness failed:', err)
+      console.error('[wake:conv] wake failed:', err)
+    } finally {
+      await releaseActiveWake(coreDb, data.conversationId, workerId).catch((err) => {
+        console.warn('[wake:conv] releaseActiveWake failed:', err)
+      })
     }
   }
 }

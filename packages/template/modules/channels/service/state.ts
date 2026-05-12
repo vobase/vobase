@@ -8,13 +8,13 @@
 
 import type { Auth } from '@auth'
 import { createRequireRole, createRequireSession } from '@auth/middleware'
-import type { RateLimiter } from '@vobase/core'
+import type { RateLimiter, ScheduleOpts } from '@vobase/core'
 import type { MiddlewareHandler } from 'hono'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
 
 export interface JobQueue {
-  send(name: string, data: unknown): Promise<string>
+  send(name: string, data: unknown, opts?: ScheduleOpts): Promise<string>
 }
 
 interface ChannelsStateDeps {

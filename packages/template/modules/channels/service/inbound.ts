@@ -26,7 +26,7 @@ import { seedOnInbound } from '@modules/messaging/service/sessions'
 import { notifyConversation } from '@modules/messaging/service/staff-ops'
 import type { ChannelEvent, MessageReceivedEvent, ReactionEvent, StatusUpdateEvent } from '@vobase/core'
 
-import { AGENTS_WAKE_JOB } from '~/wake/inbound'
+import { AGENTS_WAKE_JOB, buildInboundWakeSingletonKey } from '~/wake/inbound'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import { get as registryGet } from './registry'
 import { getJobs, requireJobs } from './state'
@@ -175,18 +175,28 @@ export async function dispatchInbound(
 
     // Echoes never wake the agent — they are staff-authored, not customer-driven.
     if (!isEcho && result.isNew) {
-      await jobs.send(AGENTS_WAKE_JOB, {
-        organizationId: instance.organizationId,
-        conversationId: result.conversation.id,
-        messageId: result.message.id,
-        contactId: contact.id,
-        trigger: {
-          trigger: 'inbound_message',
+      // Trailing-edge debounce: singletonKey collisions reset the scheduler
+      // timer so a burst coalesces into one wake (see `buildJobQueue` in
+      // `runtime/bootstrap.ts`).
+      await jobs.send(
+        AGENTS_WAKE_JOB,
+        {
+          organizationId: instance.organizationId,
           conversationId: result.conversation.id,
-          messageIds: [result.message.id],
-          body: event.content,
+          messageId: result.message.id,
+          contactId: contact.id,
+          trigger: {
+            trigger: 'inbound_message',
+            conversationId: result.conversation.id,
+            messageIds: [result.message.id],
+            body: event.content,
+          },
         },
-      })
+        {
+          singletonKey: buildInboundWakeSingletonKey(result.conversation.id),
+          startAfter: new Date(Date.now() + Math.max(0, adapter.debounceWindowMs ?? 0)),
+        },
+      )
     }
 
     // Post-commit learning signal for echoes — fire-and-forget, non-fatal.
