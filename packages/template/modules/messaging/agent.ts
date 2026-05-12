@@ -115,7 +115,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## Staff note (this wake)',
         '',
-        'A staff member left a note. Decide what it asks for — fix an artifact, relay to the customer, or both. Brief bodies (a fact, a correction, yes/no) often answer a prior note of yours, with the customer still waiting on that answer.',
+        'A staff member left a note. Decide what it asks for — fix an artifact, relay to the customer, or both. Brief bodies (a fact, a correction, yes/no) often answer a prior note of yours, with the customer still waiting on that answer; the same fact tends to be durable too, so it usually belongs in a drive doc or memory so the gap does not reappear next wake.',
         '',
         '**Step 1 — read the artifact the note mentions** before doing anything else:',
         '',
@@ -126,7 +126,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
         '| a company doc or policy | `cat /drive/<doc>.md` |',
         '| a staff member | `cat /staff/<id>/MEMORY.md` |',
         '',
-        '**Step 2 — apply the fix or relay:**',
+        '**Step 2 — apply the fix or relay** (more than one often applies — a staff answer is both a thing to send and a thing to remember):',
         '',
         '- Wrong or missing skill → `remember(scope=agents.learned_skill, resourceId=<kebab-name>, body=<rewritten skill>)`',
         '- Company doc needs updating → `vobase drive propose --path=/drive/<doc>.md --body="..."`',
