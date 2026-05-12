@@ -184,10 +184,12 @@ function messagePrincipal(
 
 function MessageRow({ msg, messagesById, directory, currentUserId, assignee, contactId }: MessageRowProps) {
   const principal = messagePrincipal(msg, directory, assignee, contactId)
-  // "Mine" on right: the row was written by the currently-logged-in staff.
-  // Messages don't track per-row senderId yet, so we treat any `role === 'staff'`
-  // row as mine when a staff user is signed in.
-  const isMine = Boolean(currentUserId) && msg.role === 'staff'
+  // "Mine" on right: the row's resolved sender is the currently-logged-in
+  // staff. messagePrincipal() identifies staff senders via the `[<name>]`
+  // body prefix (see staff-reply.ts); rows without a parseable prefix fall
+  // back to staff[0] and won't render as mine for anyone else.
+  const isMine =
+    Boolean(currentUserId) && msg.role === 'staff' && principal?.kind === 'staff' && principal.id === currentUserId
   const kind: MessageRowKind = msg.role === 'customer' ? 'customer' : (principal?.kind ?? 'staff')
 
   const taskPayload = isTaskPayload(msg.content) ? msg.content : null
