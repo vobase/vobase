@@ -14,6 +14,7 @@
 
 import type { Auth } from '@auth'
 import type { ModuleDef as CoreModuleDef, ModuleInitCtx as CoreModuleInitCtx } from '@vobase/core'
+import type { TablesRelationalConfig } from 'drizzle-orm'
 import { pgSchema } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 
@@ -35,13 +36,14 @@ export type { LlmTask, WakeTrigger }
  * record shape the drizzle postgres-js driver infers for a schema-less
  * `drizzle({ client })` call.
  *
- * drizzle 1.0 narrowed `PostgresJsDatabase`'s generic from `Record<string,
- * unknown>` to `TablesRelationalConfig` (= `Record<string,
- * TableRelationalConfig>`). The empty-record default (`Record<string,
- * never>`) is the broadest type that still satisfies the constraint and
- * matches what `drizzle({ client })` infers when called without a schema.
+ * drizzle 1.0 narrowed `PostgresJsDatabase`'s generic to
+ * `TablesRelationalConfig` (= `Record<string, TableRelationalConfig>`).
+ * Aliasing to the constraint itself keeps `ScopedDb` assignable from any
+ * `drizzle({ client })` instance — the factory returns
+ * `PostgresJsDatabase<TablesRelationalConfig>`, which is the widest db
+ * type the module-agnostic contracts layer needs.
  */
-export type Schema = Record<string, never>
+export type Schema = TablesRelationalConfig
 
 /**
  * Organization-filtered drizzle handle. Structurally identical to

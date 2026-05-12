@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import type { TablesRelationalConfig } from 'drizzle-orm'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import { drizzle } from 'drizzle-orm/postgres-js'
 
@@ -27,7 +28,11 @@ describe('ScopedDb contract', () => {
   })
 
   it('Schema matches drizzle postgres-js driver inference for schema-less init', () => {
-    type _SchemaShape = AssertTrue<AssertEqual<Schema, Record<string, unknown>>>
+    // drizzle 1.0 narrowed the postgres-js generic from `Record<string,
+    // unknown>` to `TablesRelationalConfig`; the contracts-layer alias
+    // tracks that exact type so `ScopedDb` is structurally assignable from
+    // any `drizzle({ client })` instance.
+    type _SchemaShape = AssertTrue<AssertEqual<Schema, TablesRelationalConfig>>
     const _shape: _SchemaShape = true
     expect(_shape).toBe(true)
   })
