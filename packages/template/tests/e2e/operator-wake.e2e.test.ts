@@ -33,6 +33,11 @@ import {
   installThreadsService,
   threads as threadsApi,
 } from '@modules/agents/service/threads'
+import {
+  __resetChannelInstancesServiceForTests,
+  createChannelInstancesService,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
 import { contactsTools } from '@modules/contacts/agent'
 import {
   __resetContactsServiceForTests,
@@ -105,6 +110,7 @@ beforeAll(async () => {
   installPendingApprovalsService(createPendingApprovalsService({ db: db.db }))
   installStaffService(createStaffService({ db: db.db }))
   installStaffMemoryService(createStaffMemoryService({ db: db.db, realtime: NOOP_REALTIME }))
+  installChannelInstancesService(createChannelInstancesService({ db: db.db }))
 }, 60_000)
 
 afterAll(async () => {
@@ -118,6 +124,7 @@ afterAll(async () => {
   __resetPendingApprovalsServiceForTests()
   __resetStaffServiceForTests()
   __resetStaffMemoryServiceForTests()
+  __resetChannelInstancesServiceForTests()
   __resetFilesDbForTests()
   if (db) await db.teardown()
 })
