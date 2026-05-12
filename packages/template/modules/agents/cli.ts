@@ -15,6 +15,8 @@ import * as agentDefs from './service/agent-definitions'
 import { debugLlmIoVerb } from './verbs/debug-llm-io'
 import { debugTimelineVerb } from './verbs/debug-timeline'
 import { debugWakesVerb } from './verbs/debug-wakes'
+import { agentsSetInstructionsVerb } from './verbs/set-instructions'
+import { agentsSetWorkingMemoryVerb } from './verbs/set-working-memory'
 
 const PROMPT_TAIL_BYTES = 8 * 1024
 
@@ -140,6 +142,8 @@ export const agentsVerbs = [
   agentsShowVerb,
   agentsReloadVerb,
   agentsInspectVerb,
+  agentsSetInstructionsVerb,
+  agentsSetWorkingMemoryVerb,
   debugWakesVerb,
   debugTimelineVerb,
   debugLlmIoVerb,
