@@ -95,6 +95,8 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
         '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — staff/agent notes.',
         '',
         'Send customer-visible content via `reply` / `send_card` / `send_file` / `book_slot`. Reassign with `vobase conv reassign`. Ask staff a question with `add_note` + `mentions`.',
+        '',
+        'When your wake cue begins with `## Activity since your last reply`, that list is authoritative for what is new to you — including any messages and notes the producer-side debounce coalesced into this one wake. Address every item there, not just the trigger excerpt below it. Treat older context (anything not in that section) as already-seen unless you actively re-read MESSAGES.md / INTERNAL-NOTES.md.',
       ].join('\n')
     },
   }),

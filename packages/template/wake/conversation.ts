@@ -49,6 +49,7 @@ import { resolvePlatformHint } from './platform-hints'
 import { buildFrozenPrompt } from './prompt'
 import { resolveSessionContext } from './session-context'
 import { resolveTriggerSpec } from './trigger'
+import { renderUnreadActivity, snapshotUnreadActivity } from './unread-activity'
 import { buildDefaultReadOnlyConfig, createWorkspace } from './workspace'
 
 export interface ConversationWakeConfigInput {
@@ -207,6 +208,13 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
     conversationId: data.conversationId,
   })
 
+  // Snapshot what's new since the agent's last reply — customer/staff messages
+  // and internal notes from non-self authors. Prepended to every turn's wake
+  // cue so the producer-side debounce never hides the burst from the LLM.
+  // Frozen at wake boot to preserve the frozen-snapshot invariant.
+  const unreadActivity = await snapshotUnreadActivity({ db: deps.db, conversationId, agentId })
+  const unreadPreamble = renderUnreadActivity(unreadActivity, `/contacts/${data.contactId}/${channelInstanceId}`)
+
   const model = createModel(agentDefinition.model)
 
   return {
@@ -228,15 +236,17 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
 
     trigger,
     triggerKind: trigger.trigger,
-    renderTrigger: (t: WakeTrigger | undefined) =>
-      t
+    renderTrigger: (t: WakeTrigger | undefined) => {
+      const cue = t
         ? capability.render(t, {
             contactId: data.contactId,
             channelInstanceId,
             assignee: conv.assignee,
             currentAgentId: agentId,
           })
-        : 'Manual wake.',
+        : 'Manual wake.'
+      return unreadPreamble ? `${unreadPreamble}\n\n${cue}` : cue
+    },
 
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
     runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,
