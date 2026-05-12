@@ -51,6 +51,7 @@ export interface ContactsService {
   getByEmail(organizationId: string, email: string): Promise<Contact | null>
   create(input: CreateContactInput): Promise<Contact>
   update(id: string, patch: UpdateContactInput): Promise<Contact>
+  getByExternalKey(input: { organizationId: string; channel: string; externalKey: string }): Promise<Contact | null>
   upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact>
   resolveStaffByExternal(channelInstanceId: string, externalIdentifier: string): Promise<StaffBinding | null>
   readMemory(id: string): Promise<string>
@@ -287,6 +288,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     getByEmail,
     create,
     update,
+    getByExternalKey: findContactByExternalKey,
     upsertByExternalKey,
     resolveStaffByExternal,
     readMemory,
@@ -337,6 +339,9 @@ export function update(id: string, patch: UpdateContactInput): Promise<Contact> 
 }
 export function upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact> {
   return current().upsertByExternalKey(input)
+}
+export function getByExternalKey(input: { organizationId: string; channel: string; externalKey: string }): Promise<Contact | null> {
+  return current().getByExternalKey(input)
 }
 export function resolveStaffByExternal(
   channelInstanceId: string,

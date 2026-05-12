@@ -94,6 +94,44 @@ async function main(): Promise<void> {
      FOREIGN KEY (audit_log_id) REFERENCES audit.audit_log(id) ON DELETE CASCADE`,
   )
 
+  // ── pg_notify trigger on messaging.messages AFTER INSERT ────────────────
+  // The SSE fanout in runtime/bootstrap.ts subscribes to the 'vobase_events'
+  // LISTEN channel and pushes events to connected browsers. The chat page
+  // re-fetches its conversation when it sees `{table: 'messages'}`. Without
+  // this trigger, the agent's reply only becomes visible after a manual page
+  // refresh. Several other modules notify their own tables in their service
+  // layer (contacts, drive, agents); messaging itself does not, so we plug
+  // the gap at the DB layer where every insert path is covered uniformly.
+  await safeExec(
+    'CREATE FUNCTION messaging.notify_message_insert',
+    `CREATE OR REPLACE FUNCTION messaging.notify_message_insert() RETURNS trigger
+     LANGUAGE plpgsql AS $fn$
+     BEGIN
+       PERFORM pg_notify('vobase_events', json_build_object(
+         'table', 'messages',
+         'id', NEW.id,
+         'action', 'insert'
+       )::text);
+       RETURN NEW;
+     END;
+     $fn$`,
+  )
+  await safeExec(
+    'CREATE TRIGGER trg_messages_notify_insert',
+    `DO $do$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM pg_trigger
+         WHERE tgname = 'trg_messages_notify_insert'
+       ) THEN
+         CREATE TRIGGER trg_messages_notify_insert
+         AFTER INSERT ON messaging.messages
+         FOR EACH ROW EXECUTE FUNCTION messaging.notify_message_insert();
+       END IF;
+     END
+     $do$`,
+  )
+
   process.stdout.write('→ extras applied\n')
   await sql.end()
 }

@@ -37,7 +37,7 @@ import {
 import type { WakeContext } from './context'
 import type { WakeConfig } from './conversation'
 import type { WakeTrigger } from './events'
-import { createModel, resolveApiKey } from './llm'
+import { createModel, createSanitizingStreamFn, resolveApiKey } from './llm'
 import { setupMessageHistory } from './message-history'
 import { createNotificationMirrorObserver } from './observers/notification-mirror'
 import { createWorkspaceSyncListener } from './observers/workspace-sync'
@@ -260,6 +260,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
     },
     model,
     getApiKey: () => resolveApiKey(model),
+    streamFn: createSanitizingStreamFn(),
 
     systemPrompt: frozen.system,
     systemHash: frozen.systemHash,

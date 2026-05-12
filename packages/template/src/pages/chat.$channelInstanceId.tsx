@@ -221,7 +221,7 @@ export function ChatPage() {
       try {
         // biome-ignore lint/plugin/no-raw-fetch: anonymous chat session uses bearer token via authFetchInit; typed RPC requires session
         const res = await fetch(
-          `/api/messaging/conversations/${id}/messages?limit=100`,
+          `/api/channels/adapters/web/conversations/${id}/messages?limit=100`,
           authFetchInit(token, { method: 'GET' }),
         )
         if (!res.ok) return
