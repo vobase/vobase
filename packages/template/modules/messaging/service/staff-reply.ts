@@ -26,6 +26,7 @@ import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { find as findStaff } from '@modules/team/service/staff'
 
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
+import { hasStaffPrefix } from '../lib/staff-prefix'
 import type { Message } from '../schema'
 import { get as getConversation } from './conversations'
 import { appendStaffTextMessage } from './messages'
@@ -63,12 +64,8 @@ export function __resetStaffReplyTriageSchedulerForTests(): void {
   _triageScheduler = null
 }
 
-function hasBracketedPrefix(body: string): boolean {
-  return /^\s*\[[^\]\n]+\]/.test(body)
-}
-
 async function prefixWithStaffName(staffUserId: string, body: string): Promise<string> {
-  if (hasBracketedPrefix(body)) return body
+  if (hasStaffPrefix(body)) return body
   try {
     const staff = await findStaff(staffUserId)
     const name = staff?.displayName?.trim()

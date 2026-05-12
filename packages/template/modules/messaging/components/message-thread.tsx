@@ -26,6 +26,7 @@ import { Principal as PrincipalNode } from '@/components/principal'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { cn } from '@/lib/utils'
+import { extractStaffPrefix } from '../lib/staff-prefix'
 import type { InternalNote, Message } from '../schema'
 import { DeliveryStatus } from './delivery-status'
 import { findMentions } from './mentions'
@@ -138,6 +139,15 @@ interface MessageRowProps {
   contactId: string | null
 }
 
+function extractStaffNameFromBody(msg: DisplayMessage): string | null {
+  if (msg.kind !== 'text') return null
+  const content = msg.content
+  if (typeof content !== 'object' || content === null) return null
+  const text = (content as { text?: unknown }).text
+  if (typeof text !== 'string') return null
+  return extractStaffPrefix(text)
+}
+
 function messagePrincipal(
   msg: DisplayMessage,
   directory: PrincipalDirectory,
@@ -156,7 +166,18 @@ function messagePrincipal(
     }
     return directory.agents[0] ?? null
   }
-  if (msg.role === 'staff') return directory.staff[0] ?? null
+  if (msg.role === 'staff') {
+    // Staff replies are written with a `[<displayName>] <body>` prefix by
+    // `prefixWithStaffName` in `staff-reply.ts` — that prefix is the only
+    // per-row author signal until a sender_id column lands. Match it back to
+    // the directory; fall back to staff[0] for legacy rows without a prefix.
+    const name = extractStaffNameFromBody(msg)
+    if (name) {
+      const match = directory.staff.find((s) => s.name === name)
+      if (match) return match
+    }
+    return directory.staff[0] ?? null
+  }
   if (msg.role === 'customer' && contactId) return directory.resolve(`contact:${contactId}`)
   return null
 }
