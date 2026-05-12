@@ -35,7 +35,7 @@ const agents: ModuleDef = {
     // Journal service is bound bootstrap-tier (`runtime/bootstrap.ts::setJournalDb`)
     // because every wake harness needs it before any module init runs.
     setCliRegistry(ctx.cli)
-    installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db }))
+    installAgentDefinitionsService(createAgentDefinitionsService({ db: ctx.db, realtime: ctx.realtime }))
     installDebugReadersService(createDebugReadersService({ db: ctx.db }))
     installAgentSkillsService(createAgentSkillsService({ db: ctx.db }))
     installCostService(createCostService({ db: ctx.db }))

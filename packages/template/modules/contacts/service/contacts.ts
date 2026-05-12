@@ -143,8 +143,9 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
       contactId = rows[0]?.id ?? null
     }
 
+    let inserted = false
     if (!contactId) {
-      const inserted = (await db
+      const rows = (await db
         .insert(contacts)
         .values({
           organizationId: input.organizationId,
@@ -153,8 +154,9 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
           displayName: input.displayName ?? null,
         })
         .returning({ id: contacts.id })) as Array<{ id: string }>
-      contactId = inserted[0]?.id ?? null
+      contactId = rows[0]?.id ?? null
       if (!contactId) throw new Error('contacts/upsertByExternalKey: insert returned no rows')
+      inserted = true
     }
 
     // Idempotent key insert. If a concurrent inbound for the same
@@ -171,6 +173,14 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
         contactId,
       })
       .onConflictDoNothing()
+
+    if (inserted) {
+      try {
+        realtime.notify({ table: 'contacts', id: contactId, action: 'created' })
+      } catch {
+        // notify is best-effort
+      }
+    }
 
     return (await findContactByExternalKey(input)) ?? get(contactId)
   }
@@ -239,7 +249,13 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error('contacts/create: insert returned no rows')
-    return row as Contact
+    const created = row as Contact
+    try {
+      realtime.notify({ table: 'contacts', id: created.id, action: 'created' })
+    } catch {
+      // notify is best-effort
+    }
+    return created
   }
 
   async function update(id: string, patch: UpdateContactInput): Promise<Contact> {

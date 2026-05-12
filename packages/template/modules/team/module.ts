@@ -32,7 +32,7 @@ const team: ModuleDef = {
   jobs: teamJobs,
   agent: teamAgent,
   init(ctx) {
-    installStaffService(createStaffService({ db: ctx.db }))
+    installStaffService(createStaffService({ db: ctx.db, realtime: ctx.realtime }))
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))

@@ -164,7 +164,7 @@ beforeAll(async () => {
   priyaConvId = (convRows[0] as { id: string }).id
 
   // Wire the service surface — captured scheduler instead of jobs.send.
-  installAgentDefinitionsService(createAgentDefinitionsService({ db: db.db }))
+  installAgentDefinitionsService(createAgentDefinitionsService({ db: db.db, realtime: NOOP_REALTIME }))
   installMessagesService(createMessagesService({ db: db.db }))
   installConversationsService(createConversationsService({ db: db.db, scheduler: null }))
   installAgentMentionsService(createAgentMentionsService({ db: db.db }))
@@ -174,7 +174,7 @@ beforeAll(async () => {
   installContactsService(createContactsService({ db: db.db, realtime: NOOP_REALTIME }))
   installStaffMemoryService(createStaffMemoryService({ db: db.db, realtime: NOOP_REALTIME }))
   installSchedulesService(createSchedulesService({ db: db.db }))
-  installStaffService(createStaffService({ db: db.db }))
+  installStaffService(createStaffService({ db: db.db, realtime: NOOP_REALTIME }))
   installPendingApprovalsService(createPendingApprovalsService({ db: db.db }))
 
   const scheduler: StaffNoteScheduler = {

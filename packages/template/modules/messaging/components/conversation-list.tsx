@@ -9,6 +9,7 @@ import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { PaneHeader } from '@/components/layout/pane-header'
+import { type PrincipalDirectory, usePrincipalDirectory } from '@/components/principal/directory'
 import { Button } from '@/components/ui/button'
 import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { contactsClient } from '@/lib/api-client'
@@ -23,18 +24,18 @@ async function fetchContacts(): Promise<Contact[]> {
   return (await r.json()) as unknown as Contact[]
 }
 
-function deriveOwnershipOptions(convs: Conversation[]): OwnershipOption[] {
+function deriveOwnershipOptions(convs: Conversation[], directory: PrincipalDirectory): OwnershipOption[] {
   const seen = new Map<string, OwnershipOption>()
   for (const c of convs) {
     const a = c.assignee
     if (!a || a === 'unassigned') continue
     if (seen.has(a)) continue
-    if (a.startsWith('agent:')) {
-      seen.set(a, { value: a, label: a.slice(6), kind: 'agent' })
-    } else if (a.startsWith('user:')) {
-      seen.set(a, { value: a, label: a.slice(5), kind: 'staff' })
+    const principal = directory.resolve(a)
+    if (principal && (principal.kind === 'agent' || principal.kind === 'staff')) {
+      seen.set(a, { value: a, label: principal.name, kind: principal.kind })
     } else {
-      seen.set(a, { value: a, label: a, kind: 'staff' })
+      const kind: 'agent' | 'staff' = a.startsWith('agent:') ? 'agent' : 'staff'
+      seen.set(a, { value: a, label: a, kind })
     }
   }
   return Array.from(seen.values())
@@ -96,7 +97,11 @@ function ConversationList() {
     return { filtered, counts, totalContacts }
   }, [conversations, activeFilter, ownerFilter, serverCounts])
 
-  const ownershipOptions = useMemo(() => deriveOwnershipOptions(conversations), [conversations])
+  const directory = usePrincipalDirectory()
+  const ownershipOptions = useMemo(
+    () => deriveOwnershipOptions(conversations, directory),
+    [conversations, directory],
+  )
 
   const selectedIndex = filtered.findIndex((c) => c.contactId === selectedContactId)
 

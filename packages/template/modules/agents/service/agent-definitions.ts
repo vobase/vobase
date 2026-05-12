@@ -11,9 +11,9 @@
  * the agent without requiring an explicit entry in the per-agent `skillAllowlist`
  * column.
  *
- * Factory-DI service. `createAgentDefinitionsService({ db })` returns the
- * bound API; `installAgentDefinitionsService(svc)` wires the module-scoped handle
- * used by the free-function wrappers. `setDb(db)` remains as a compatibility shim.
+ * Factory-DI service. `createAgentDefinitionsService({ db, realtime })` returns
+ * the bound API; `installAgentDefinitionsService(svc)` wires the module-scoped
+ * handle used by the free-function wrappers.
  */
 
 import { DEFAULT_CHAT_MODEL } from '@modules/agents/lib/models'
@@ -21,6 +21,7 @@ import { agentDefinitions } from '@modules/agents/schema'
 import { conversations } from '@modules/messaging/schema'
 import { asc, eq } from 'drizzle-orm'
 
+import type { RealtimeService } from '~/runtime'
 import type { AgentDefinition } from '../schema'
 
 export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
@@ -80,10 +81,20 @@ export interface AgentDefinitionsService {
 
 export interface AgentDefinitionsServiceDeps {
   db: unknown
+  realtime: RealtimeService
 }
 
 export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps): AgentDefinitionsService {
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
+  const realtime = deps.realtime
+
+  function notifyRow(id: string, action: string): void {
+    try {
+      realtime.notify({ table: 'agent_definitions', id, action })
+    } catch {
+      // notify is best-effort
+    }
+  }
 
   async function getById(id: string): Promise<AgentDefinition> {
     const rows = await db.select().from(agentDefinitions).where(eq(agentDefinitions.id, id)).limit(1)
@@ -106,7 +117,9 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error('agents/create: insert returned no rows')
-    return row as AgentDefinition
+    const created = row as AgentDefinition
+    notifyRow(created.id, 'created')
+    return created
   }
 
   async function update(id: string, patch: UpdateAgentInput): Promise<AgentDefinition> {
@@ -124,11 +137,13 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error(`agent definition not found: ${id}`)
+    notifyRow(id, 'updated')
     return row as AgentDefinition
   }
 
   async function remove(id: string): Promise<void> {
     await db.delete(agentDefinitions).where(eq(agentDefinitions.id, id))
+    notifyRow(id, 'removed')
   }
 
   async function list(organizationId: string): Promise<AgentDefinition[]> {
@@ -178,11 +193,6 @@ function current(): AgentDefinitionsService {
     )
   }
   return _currentAgentDefsService
-}
-
-/** Compatibility shim — constructs + installs in one call. */
-export function setDb(db: unknown): void {
-  installAgentDefinitionsService(createAgentDefinitionsService({ db }))
 }
 
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract

@@ -111,6 +111,28 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
+    // Agent definition mutations — the principal directory aggregates these
+    // into every conversation header, assignee filter, and mention popover.
+    // useAgentDefinitions reads ['agents', 'definitions']; invalidating the
+    // ['agents'] prefix also covers the per-agent detail queries.
+    if (payload.table === 'agent_definitions') {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      return
+    }
+
+    // Staff profile mutations — same directory fan-out as agent_definitions.
+    // useStaffList reads ['staff', 'list']; the ['staff'] prefix covers it
+    // plus detail queries. Memory/profile column writes also surface in the
+    // drive overlay (/staff/<id>/MEMORY.md, /staff/<id>/PROFILE.md), so fan
+    // those actions out to ['drive'] as well.
+    if (payload.table === 'staff_profiles') {
+      queryClient.invalidateQueries({ queryKey: ['staff'] })
+      if (payload.action === 'memory_updated' || payload.action === 'profile_updated') {
+        queryClient.invalidateQueries({ queryKey: ['drive'] })
+      }
+      return
+    }
+
     // Learned-skill direct writes (defensive; the change_proposals fan-out above
     // covers the approval flow, but any future direct-write path also lands here).
     if (payload.table === 'learned_skills') {
