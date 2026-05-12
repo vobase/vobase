@@ -221,17 +221,26 @@ export function ChatPage() {
       try {
         // biome-ignore lint/plugin/no-raw-fetch: anonymous chat session uses bearer token via authFetchInit; typed RPC requires session
         const res = await fetch(
-          `/api/messaging/conversations/${id}/messages?limit=100`,
+          `/api/channels/adapters/web/conversations/${encodeURIComponent(id)}/messages?limit=100`,
           authFetchInit(token, { method: 'GET' }),
         )
-        if (!res.ok) return
+        if (!res.ok) {
+          // 403 means the stored conversation belongs to a different anonymous
+          // session (token was rotated). Drop the stale ref so the next send
+          // starts a fresh conversation instead of polling someone else's.
+          if (res.status === 403 || res.status === 404) {
+            window.localStorage.removeItem(storedConvKey(channelInstanceId))
+            setConversationId(null)
+          }
+          return
+        }
         const rows = (await res.json()) as Message[]
         setMessages(rows)
       } catch (err) {
         console.error('[chat] refresh failed', err)
       }
     },
-    [token],
+    [token, channelInstanceId],
   )
 
   useEffect(() => {
@@ -244,14 +253,17 @@ export function ChatPage() {
       if (evt.event !== 'invalidate' || !conversationId) return
       try {
         const payload = JSON.parse(evt.data) as { table?: string; id?: string; action?: string }
-        if (payload.table === 'messages' || payload.table === 'conversations') {
-          // `typing.*` shares the `conversations` table — but the typing
-          // presence hook handles those separately; skip the message refresh.
-          if (payload.action?.startsWith('typing.')) return
-          void refresh(conversationId)
-          return
-        }
-        if (payload.table === 'agent-sessions' && payload.id === conversationId) {
+        if (payload.action?.startsWith('typing.')) return
+        // Org-wide invalidations land here; only refetch when the event
+        // names this conversation. Without this gate, every other
+        // conversation's chatter triggers a refetch of this widget's
+        // transcript.
+        if (payload.id !== conversationId) return
+        if (
+          payload.table === 'messages' ||
+          payload.table === 'conversations' ||
+          payload.table === 'agent-sessions'
+        ) {
           void refresh(conversationId)
         }
       } catch {
@@ -400,7 +412,13 @@ export function ChatPage() {
 
   const botName = instance?.displayName || 'Chat'
   const starters = instance?.starters ?? []
-  const showStarters = messages.length === 0 && starters.length > 0 && !sending
+  // Hide once the user has acted — `sending` covers the in-flight POST and
+  // `optimistic.length` covers the gap between POST success and refresh
+  // landing. Without this, the customer's first message paints the
+  // optimistic bubble while the starters + "thinking…" indicator stack on
+  // top of each other in the strip above the composer.
+  const showStarters =
+    messages.length === 0 && optimistic.length === 0 && starters.length > 0 && !sending
 
   // Drop optimistic entries once their real counterpart lands. Reducer-style
   // setState returns the same reference when nothing changed so React bails

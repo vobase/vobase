@@ -100,6 +100,7 @@ function makeContactsServiceStub(): ContactsService {
     getByEmail: notImplemented as ContactsService['getByEmail'],
     create: notImplemented as ContactsService['create'],
     update: notImplemented as ContactsService['update'],
+    findByExternalKey: notImplemented as ContactsService['findByExternalKey'],
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
     upsertByExternalKey: async (_input: UpsertByExternalKeyInput): Promise<Contact> => {
       calls.push({ method: 'upsertByExternalKey', data: null })

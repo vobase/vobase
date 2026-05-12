@@ -204,6 +204,10 @@ function makeContactsStub(): ContactsService {
       return null
     },
     // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async findByExternalKey() {
+      return null
+    },
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
     async upsertByExternalKey(_: UpsertByExternalKeyInput) {
       throw new Error('not-implemented-in-phase-1')
     },
