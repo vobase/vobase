@@ -125,7 +125,15 @@ const app = new Hono<OrganizationEnv>()
   // secret pair, vault upsert is a no-op, and the row is recreated.
   .post('/managed/claim', async (c) => {
     const organizationId = c.get('organizationId')
-    const environment: 'production' | 'staging' = process.env.NODE_ENV === 'production' ? 'production' : 'staging'
+    // The Dockerfile pins `NODE_ENV=production` for every tenant container
+    // (both production and staging Railway envs), so NODE_ENV can't
+    // distinguish them. The provisioning job stamps `STAGING=true` only on
+    // staging Railway envs (see platform CONTRACTS.md §"Env var value
+    // contracts"); production envs have it unset. Read that instead so the
+    // claim's `(tenant, env, channelInstanceId)` key — and the resulting
+    // platform-pool slot — actually correspond to the deploy environment
+    // the user is sitting in.
+    const environment: 'production' | 'staging' = process.env.STAGING === 'true' ? 'staging' : 'production'
 
     const creds = readPlatformCreds(undefined)
     if (!creds) return c.json({ error: 'platform_not_configured' }, 503)
