@@ -157,6 +157,7 @@ export async function resolve(opts: ResolveOpts): Promise<ResolveResult> {
   let withBody: Record<string, unknown>
   try {
     withBody = await resolveBodyFrom(merged)
+    withBody = await resolveFileFrom(withBody)
   } catch (err) {
     return {
       ok: false,
@@ -243,6 +244,41 @@ async function resolveBodyFrom(input: Record<string, unknown>): Promise<Record<s
   const out: Record<string, unknown> = { ...input, body }
   delete out['body-from']
   delete out.bodyFrom
+  return out
+}
+
+/**
+ * Client-side `--file=<path>` resolution. Reads the local file's bytes, base64-
+ * encodes them, and submits them as `fileBytes` + `filename` (basename). The
+ * server-side verb never reads `--file` from its own filesystem — that's the
+ * point of binary CLI dispatch against a remote tenant. Verbs that need binary
+ * payloads (e.g. `drive upload`) accept `fileBytes: z.string()` +
+ * `filename: z.string()` and decode with `Buffer.from(fileBytes, 'base64')`.
+ *
+ * The agent's in-process transport doesn't hit this resolver, so agent-side
+ * uploads still flow through the verb's own logic.
+ */
+async function resolveFileFrom(input: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const raw = input.file
+  if (raw === undefined) return input
+  if (typeof raw !== 'string' || raw.length === 0) {
+    throw new Error("--file requires a local file path (e.g. '--file=/tmp/upload.pdf')")
+  }
+  const handle = Bun.file(raw)
+  if (!(await handle.exists())) {
+    throw new Error(`--file: cannot read ${raw}: file not found`)
+  }
+  let bytes: ArrayBuffer
+  try {
+    bytes = await handle.arrayBuffer()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(`--file: cannot read ${raw}: ${message}`)
+  }
+  const fileBytes = Buffer.from(bytes).toString('base64')
+  const filename = raw.split('/').pop() ?? raw
+  const out: Record<string, unknown> = { ...input, fileBytes, filename }
+  delete out.file
   return out
 }
 

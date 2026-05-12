@@ -251,4 +251,58 @@ describe('resolve', () => {
       expect(r.exitCode).toBe(1)
     }
   })
+
+  it('reads --file <path> client-side and submits fileBytes (base64) + filename', async () => {
+    const path = `/tmp/vobase-cli-file-from-${Date.now()}.bin`
+    const content = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01, 0xff, 0xfe])
+    await Bun.write(path, content)
+
+    let capturedBody = ''
+    const fetcher = ((_input: unknown, init?: RequestInit) => {
+      capturedBody = (init?.body as string) ?? ''
+      return Promise.resolve(
+        new Response(JSON.stringify({ ok: true, data: { id: 'f1' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    }) as unknown as typeof fetch
+
+    const r = await resolve({
+      argv: ['contacts', 'show', '--file', path, '--scope=organization'],
+      catalog,
+      baseUrl: 'https://x',
+      apiKey: 'k',
+      format: 'human',
+      fetcher,
+    })
+    expect(r.ok).toBe(true)
+
+    const sent = JSON.parse(capturedBody) as Record<string, unknown>
+    expect(sent.file).toBeUndefined()
+    expect(typeof sent.fileBytes).toBe('string')
+    expect(sent.filename).toBe(path.split('/').pop())
+    expect(Buffer.from(sent.fileBytes as string, 'base64').equals(Buffer.from(content))).toBe(true)
+
+    try {
+      await Bun.file(path).delete()
+    } catch {}
+  })
+
+  it('errors when --file points at a missing file', async () => {
+    const r = await resolve({
+      argv: ['contacts', 'show', '--file', '/tmp/definitely-does-not-exist.bin'],
+      catalog,
+      baseUrl: 'https://x',
+      apiKey: 'k',
+      format: 'human',
+      fetcher: fetcherReturning(200, { ok: true, data: null }),
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.output).toContain('--file')
+      expect(r.output).toContain('file not found')
+      expect(r.exitCode).toBe(1)
+    }
+  })
 })
