@@ -15,7 +15,14 @@ import { nanoid } from 'nanoid'
 
 import { agentMessages, threads } from '../schemas/harness'
 
-export type MessageHistoryDb = PostgresJsDatabase<Record<string, unknown>>
+// The agent harness only touches the `agentMessages` and `threads` tables
+// it imports directly, so we don't need to thread a tenant `Schema` generic
+// through this helper. drizzle 1.0 narrowed the database generic from
+// `Record<string, unknown>` to `TablesRelationalConfig` (= `Record<string,
+// TableRelationalConfig>`); leaving the generic at its `EmptyRelations`
+// default satisfies that constraint without leaking schema-specific types
+// to callers.
+export type MessageHistoryDb = PostgresJsDatabase
 
 export interface ResolveThreadOpts {
   agentId: string

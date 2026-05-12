@@ -34,8 +34,14 @@ export type { LlmTask, WakeTrigger }
  * cross-module contracts layer stays module-agnostic and uses the loose
  * record shape the drizzle postgres-js driver infers for a schema-less
  * `drizzle({ client })` call.
+ *
+ * drizzle 1.0 narrowed `PostgresJsDatabase`'s generic from `Record<string,
+ * unknown>` to `TablesRelationalConfig` (= `Record<string,
+ * TableRelationalConfig>`). The empty-record default (`Record<string,
+ * never>`) is the broadest type that still satisfies the constraint and
+ * matches what `drizzle({ client })` infers when called without a schema.
  */
-export type Schema = Record<string, unknown>
+export type Schema = Record<string, never>
 
 /**
  * Organization-filtered drizzle handle. Structurally identical to
