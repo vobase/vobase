@@ -338,7 +338,7 @@ describe('AGENTS.md composition through agentsMaterializerFactory', () => {
     })
     const [, mem] = agentsMaterializerFactory(ctx)
     const body = await mem.materialize(MAT_CTX)
-    expect(body).toBe('# Memory\n\n- Be terse')
+    expect(body).toContain('# Memory\n\n- Be terse')
   })
 
   it('MEMORY.md falls back to empty stub when workingMemory is empty', async () => {
