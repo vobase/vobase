@@ -98,10 +98,7 @@ function ConversationList() {
   }, [conversations, activeFilter, ownerFilter, serverCounts])
 
   const directory = usePrincipalDirectory()
-  const ownershipOptions = useMemo(
-    () => deriveOwnershipOptions(conversations, directory),
-    [conversations, directory],
-  )
+  const ownershipOptions = useMemo(() => deriveOwnershipOptions(conversations, directory), [conversations, directory])
 
   const selectedIndex = filtered.findIndex((c) => c.contactId === selectedContactId)
 

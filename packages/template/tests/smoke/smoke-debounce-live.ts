@@ -37,17 +37,15 @@ if (BURST_GAP_MS * (BURST_SIZE - 1) >= WEB_DEBOUNCE_WINDOW_MS) {
   )
 }
 
-const CHIPS = [
-  'What treatments do you have?',
-  'Show prices',
-  'Treatment durations',
-  'Help me choose',
-  'Package prices',
-]
+const CHIPS = ['What treatments do you have?', 'Show prices', 'Treatment durations', 'Help me choose', 'Package prices']
 
 let conversationId: string | null = null
 
-async function countAgentStarts(sql: Awaited<ReturnType<typeof openSmokeCtx>>['sql'], convId: string, since: Date): Promise<number> {
+async function countAgentStarts(
+  sql: Awaited<ReturnType<typeof openSmokeCtx>>['sql'],
+  convId: string,
+  since: Date,
+): Promise<number> {
   const rows = await sql<{ count: number }[]>`
     SELECT count(*)::int AS count
     FROM harness.conversation_events
@@ -69,7 +67,9 @@ await runSmoke(
         conversationId ??= result.conversationId
         if (i < BURST_SIZE - 1) await new Promise((r) => setTimeout(r, BURST_GAP_MS))
       }
-      console.log(`[smoke:debounce] sent ${BURST_SIZE} msgs in ${Date.now() - burstStart.getTime()}ms — conversation=${conversationId}`)
+      console.log(
+        `[smoke:debounce] sent ${BURST_SIZE} msgs in ${Date.now() - burstStart.getTime()}ms — conversation=${conversationId}`,
+      )
       if (!conversationId) throw new Error('no conversationId from burst')
 
       await pollAssistantTurns({

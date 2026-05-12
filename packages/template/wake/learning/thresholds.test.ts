@@ -6,7 +6,6 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-
 import { models } from '@modules/agents/lib/models'
 
 import { envNumber, loadThresholds } from './thresholds'

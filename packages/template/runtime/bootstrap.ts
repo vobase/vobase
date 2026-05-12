@@ -192,7 +192,10 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const app = new Hono()
   app.use('*', createWidgetCors())
   if (process.env.NODE_ENV !== 'production') {
-    app.use('*', logger((msg: string, ...rest: string[]) => console.debug(msg, ...rest)))
+    app.use(
+      '*',
+      logger((msg: string, ...rest: string[]) => console.debug(msg, ...rest)),
+    )
   }
   app.get('/health', (c) => c.json({ ok: true }))
 

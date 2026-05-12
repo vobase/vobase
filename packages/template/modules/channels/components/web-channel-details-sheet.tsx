@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { channelsClient } from '@/lib/api-client'
-import { chatUrlFor, openInNewTab } from './chat-url'
 import type { ChannelInstanceRow } from './channels-table'
+import { chatUrlFor, openInNewTab } from './chat-url'
 
 interface WebInstance {
   id: string

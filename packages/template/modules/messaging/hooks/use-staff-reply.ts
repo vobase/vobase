@@ -63,9 +63,8 @@ export function useStaffReply(conversationId: string) {
         createdAt: new Date(),
       }
 
-      qc.setQueriesData<Message[]>(
-        { queryKey: ['messages', conversationId] },
-        (rows) => (rows ? [...rows, optimistic] : rows),
+      qc.setQueriesData<Message[]>({ queryKey: ['messages', conversationId] }, (rows) =>
+        rows ? [...rows, optimistic] : rows,
       )
 
       return { previous }

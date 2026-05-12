@@ -103,9 +103,8 @@ export function CliGrantPage() {
       <div className="space-y-1">
         <h1 className="font-semibold text-xl tracking-tight">Authorize CLI</h1>
         <p className="text-muted-foreground text-sm">
-          Mint an API key bound to{' '}
-          <span className="font-medium text-foreground">{user.email ?? 'this account'}</span> for the CLI session
-          waiting in your terminal.
+          Mint an API key bound to <span className="font-medium text-foreground">{user.email ?? 'this account'}</span>{' '}
+          for the CLI session waiting in your terminal.
         </p>
       </div>
       <div className="space-y-2">

@@ -50,8 +50,7 @@ export function useRealtimeInvalidation(): void {
         // (`use-stick-to-bottom`) sees the resize, and the bubble visibly
         // bounces with a one-frame gap. Defer to the mutation's own
         // `onSettled` invalidate for the final reconcile.
-        const staffReplyPending =
-          queryClient.isMutating({ mutationKey: ['staff-reply', payload.id] }) > 0
+        const staffReplyPending = queryClient.isMutating({ mutationKey: ['staff-reply', payload.id] }) > 0
         if (!staffReplyPending) {
           queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
         }

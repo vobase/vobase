@@ -259,11 +259,7 @@ export function ChatPage() {
         // conversation's chatter triggers a refetch of this widget's
         // transcript.
         if (payload.id !== conversationId) return
-        if (
-          payload.table === 'messages' ||
-          payload.table === 'conversations' ||
-          payload.table === 'agent-sessions'
-        ) {
+        if (payload.table === 'messages' || payload.table === 'conversations' || payload.table === 'agent-sessions') {
           void refresh(conversationId)
         }
       } catch {
@@ -417,8 +413,7 @@ export function ChatPage() {
   // landing. Without this, the customer's first message paints the
   // optimistic bubble while the starters + "thinking…" indicator stack on
   // top of each other in the strip above the composer.
-  const showStarters =
-    messages.length === 0 && optimistic.length === 0 && starters.length > 0 && !sending
+  const showStarters = messages.length === 0 && optimistic.length === 0 && starters.length > 0 && !sending
 
   // Drop optimistic entries once their real counterpart lands. Reducer-style
   // setState returns the same reference when nothing changed so React bails

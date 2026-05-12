@@ -91,7 +91,7 @@ export async function snapshotUnreadActivity(input: SnapshotInput): Promise<Unre
         and(
           eq(internalNotes.conversationId, conversationId),
           since ? gt(internalNotes.createdAt, since) : undefined,
-          not(and(eq(internalNotes.authorType, 'agent'), eq(internalNotes.authorId, agentId))!),
+          not(and(eq(internalNotes.authorType, 'agent'), eq(internalNotes.authorId, agentId)) ?? sql`false`),
         ),
       )
       .orderBy(asc(internalNotes.createdAt))
@@ -135,9 +135,10 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
   if (snapshot.messages.length > 0) {
     const customerCount = snapshot.messages.filter((m) => m.role === 'customer').length
     const staffCount = snapshot.messages.length - customerCount
-    const counts = [customerCount > 0 ? `${customerCount} customer` : null, staffCount > 0 ? `${staffCount} staff` : null].filter(
-      Boolean,
-    )
+    const counts = [
+      customerCount > 0 ? `${customerCount} customer` : null,
+      staffCount > 0 ? `${staffCount} staff` : null,
+    ].filter(Boolean)
     lines.push(`**Messages (${counts.join(', ')}):**`)
     for (const m of snapshot.messages) {
       lines.push(`[${formatTs(m.ts)} | ${m.role}]`)
@@ -145,7 +146,9 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
       lines.push('')
     }
     if (snapshot.hasMoreMessages) {
-      lines.push(`*(more older messages exist beyond the ${MAX_MESSAGES}-row cap — read ${folder}/MESSAGES.md for the full thread.)*`)
+      lines.push(
+        `*(more older messages exist beyond the ${MAX_MESSAGES}-row cap — read ${folder}/MESSAGES.md for the full thread.)*`,
+      )
       lines.push('')
     }
   }
