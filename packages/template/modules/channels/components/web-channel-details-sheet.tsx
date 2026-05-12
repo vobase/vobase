@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { channelsClient } from '@/lib/api-client'
+import { chatUrlFor, openInNewTab } from './chat-url'
 import type { ChannelInstanceRow } from './channels-table'
 
 interface WebInstance {
@@ -65,8 +66,7 @@ function SnippetBlock({ snippet, language }: { snippet: string; language: string
 }
 
 function ChatLinkField({ instance }: { instance: WebInstance }) {
-  const apiOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'
-  const chatUrl = `${apiOrigin}/chat/${encodeURIComponent(instance.id)}`
+  const chatUrl = chatUrlFor(instance.id)
   const [copied, setCopied] = useState(false)
 
   async function copy() {
@@ -103,7 +103,7 @@ function ChatLinkField({ instance }: { instance: WebInstance }) {
           type="button"
           variant="outline"
           size="icon"
-          onClick={() => window.open(chatUrl, '_blank', 'noopener,noreferrer')}
+          onClick={() => openInNewTab(chatUrl)}
           aria-label="Open in new tab"
           title="Open in new tab"
         >

@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { channelsClient } from '@/lib/api-client'
+import { chatUrlFor, openInNewTab } from './chat-url'
 import { ManagedLinkQrSheet } from './managed-link-qr-sheet'
 
 interface ChannelRow {
@@ -60,6 +61,16 @@ async function releaseManagedInstance(instanceId: string) {
 function WebRowMenu({ row, onEdit, onDelete, onOpenDetails }: ChannelRowMenuProps) {
   return (
     <div className="flex items-center justify-end gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1.5"
+        onClick={() => openInNewTab(chatUrlFor(row.id))}
+        aria-label="Open web channel in new tab"
+      >
+        <ExternalLink className="size-4" />
+        <span className="text-xs">Open</span>
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="size-8" aria-label="Row actions">
