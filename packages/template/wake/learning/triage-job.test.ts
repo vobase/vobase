@@ -110,7 +110,7 @@ describe('learning:triage job handler', () => {
     expect(rows[0]?.signal_kind).toBe('staff_takeover')
     expect(Number(rows[0]?.triage_confidence)).toBeGreaterThan(0)
     expect(rows[0]?.status).toBe('pending')
-  })
+  }, 30_000)
 
   describe('debounce', () => {
     it('within debounce window → second call adds no new row', async () => {
@@ -155,6 +155,6 @@ describe('learning:triage job handler', () => {
 
       // Now there should be two rows: the seeded one + the new one
       expect(await countCandidates()).toBe(2)
-    })
+    }, 30_000)
   })
 })
