@@ -56,6 +56,7 @@ function readManagedConfig(row: { channel: string; config: Record<string, unknow
 interface PlatformCreds {
   platformBaseUrl: string
   tenantId: string
+  tenantSlug: string
   tenantHmacSecret: string
   betterAuthSecret: string
 }
@@ -68,12 +69,18 @@ function readPlatformCreds(rowPlatformBaseUrl: string | undefined): PlatformCred
   // resolves the tenant row instead of silently dropping to the anonymous
   // {ok:true} branch.
   const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+  // tenantSlug is the human slug — required as the `info` salt for the
+  // webhook verify-token HKDF. Both ends of the hub-challenge derivation
+  // (registration here, GET handler in adapter factory) MUST agree on this
+  // value, so we read it from `VITE_PLATFORM_TENANT_SLUG` (the same env the
+  // factory reads) rather than substituting the nanoid.
+  const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
   const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
   const betterAuthSecret = process.env.BETTER_AUTH_SECRET ?? ''
-  if (!platformBaseUrl || !tenantId || !tenantHmacSecret || !betterAuthSecret) {
+  if (!platformBaseUrl || !tenantId || !tenantSlug || !tenantHmacSecret || !betterAuthSecret) {
     return null
   }
-  return { platformBaseUrl, tenantId, tenantHmacSecret, betterAuthSecret }
+  return { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret }
 }
 
 function tenantWebhookUrl(instanceId: string): string {
@@ -122,7 +129,7 @@ const app = new Hono<OrganizationEnv>()
 
     const creds = readPlatformCreds(undefined)
     if (!creds) return c.json({ error: 'platform_not_configured' }, 503)
-    const { platformBaseUrl, tenantId, tenantHmacSecret, betterAuthSecret } = creds
+    const { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret } = creds
 
     // Stable per-(org, env) channel instance id so re-clicks (multi-tab,
     // post-`db:reset`, mid-flight crash) all converge to the same row.
@@ -148,7 +155,7 @@ const app = new Hono<OrganizationEnv>()
     // map `PlatformHandshakeError` to HTTP status, return the response.
     const webhookUrl = tenantWebhookUrl(channelInstanceId)
     const verifyToken = deriveVerifyToken({
-      tenantSlug: tenantId,
+      tenantSlug,
       environment,
       provider: 'whatsapp',
       betterAuthSecret,
@@ -281,7 +288,7 @@ const app = new Hono<OrganizationEnv>()
     const environment = managed.environment ?? 'production'
     const webhookUrl = tenantWebhookUrl(instanceId)
     const verifyToken = deriveVerifyToken({
-      tenantSlug: creds.tenantId,
+      tenantSlug: creds.tenantSlug,
       environment,
       provider: 'whatsapp',
       betterAuthSecret: creds.betterAuthSecret,
