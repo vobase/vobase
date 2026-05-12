@@ -98,11 +98,11 @@ export function buildTriagePrompt(
 /** Stub-mode predicate. Exported for testing. Considers the configured triage model's provider. */
 export function shouldStubTriage(): boolean {
   if (process.env.BIFROST_API_KEY) return false
-  // Pick the env var that matches the configured triage model's provider.
+  // Pick the env var that matches the configured triage model's provider prefix.
   const t = learningThresholds.triageModel
-  if (t === 'gpt_mini') return !process.env.OPENAI_API_KEY
-  if (t === 'claude_haiku') return !process.env.ANTHROPIC_API_KEY
-  if (t === 'gemini_flash') return !process.env.GOOGLE_API_KEY
+  if (t.startsWith('openai/')) return !process.env.OPENAI_API_KEY
+  if (t.startsWith('anthropic/')) return !process.env.ANTHROPIC_API_KEY
+  if (t.startsWith('google/')) return !process.env.GOOGLE_API_KEY
   return true
 }
 

@@ -7,6 +7,8 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 
+import { models } from '@modules/agents/lib/models'
+
 import { envNumber, loadThresholds } from './thresholds'
 
 // ---------------------------------------------------------------------------
@@ -47,8 +49,8 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('triageModel', () => {
-  it('is exactly the string "gpt_mini"', () => {
-    expect(loadThresholds().triageModel).toBe('gpt_mini')
+  it('is the fully-qualified `models.gpt_mini` id', () => {
+    expect(loadThresholds().triageModel).toBe(models.gpt_mini)
   })
 })
 
