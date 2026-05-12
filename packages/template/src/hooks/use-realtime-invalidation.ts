@@ -42,7 +42,19 @@ export function useRealtimeInvalidation(): void {
       queryClient.invalidateQueries({ queryKey: ['team', 'mentions'] })
       if (payload.id) {
         queryClient.invalidateQueries({ queryKey: ['conversation', payload.id] })
-        queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
+        // Skip the `messages` refetch while the user's own staff-reply
+        // mutation is pending for this conversation. The SSE-driven refetch
+        // would otherwise overwrite the optimistic bubble with the real row
+        // mid-flight: the new `Message.id` re-keys that `<MessageRow>` so
+        // React unmounts the optimistic node, the AI-elements `Conversation`
+        // (`use-stick-to-bottom`) sees the resize, and the bubble visibly
+        // bounces with a one-frame gap. Defer to the mutation's own
+        // `onSettled` invalidate for the final reconcile.
+        const staffReplyPending =
+          queryClient.isMutating({ mutationKey: ['staff-reply', payload.id] }) > 0
+        if (!staffReplyPending) {
+          queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
+        }
         queryClient.invalidateQueries({ queryKey: ['notes', payload.id] })
         queryClient.invalidateQueries({ queryKey: ['activity', payload.id] })
       }

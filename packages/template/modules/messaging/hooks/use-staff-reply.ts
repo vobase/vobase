@@ -14,9 +14,20 @@ import type { Message } from '../schema'
  * affordance; downstream renderers (`MessageThread → SharedMessageRow`) read
  * `role`/`kind`/`content` and don't depend on the status column for layout.
  */
+/**
+ * Stable mutation-key prefix. The realtime invalidation hook checks
+ * `isMutating({ mutationKey: [STAFF_REPLY_MUTATION_KEY, conversationId] })`
+ * to skip its SSE-driven `messages` refetch while a staff reply is in
+ * flight — that refetch would otherwise replace the optimistic row with
+ * the real one mid-mutation, causing the bubble to disappear for one frame
+ * before reappearing under a new React key.
+ */
+export const STAFF_REPLY_MUTATION_KEY = 'staff-reply'
+
 export function useStaffReply(conversationId: string) {
   const qc = useQueryClient()
   return useMutation({
+    mutationKey: [STAFF_REPLY_MUTATION_KEY, conversationId],
     mutationFn: async (body: string) => {
       const r = await messagingClient.conversations[':id'].reply.$post({
         param: { id: conversationId },
