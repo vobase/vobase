@@ -171,11 +171,13 @@ async function handleTriageJob(raw: unknown): Promise<void> {
     agentMemoryHead,
   })
 
-  // ── d) Low signal — drop ───────────────────────────────────────────────────
+  // ── d) Not worth attention — drop ──────────────────────────────────────────
+  // `worth_attention` is the LLM's classification; `confidence` is how sure it
+  // is of that classification (it can be high while voting "drop").
   if (!result.worth_attention) {
     console.info(
-      { signalKind: signal.kind, conversationId, confidence: result.confidence },
-      '[learning:triage] dropped (low signal)',
+      { signalKind: signal.kind, conversationId, worth_attention: false, confidence: result.confidence },
+      '[learning:triage] dropped — triage classified as not worth attention',
     )
     return
   }

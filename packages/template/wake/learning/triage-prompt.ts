@@ -70,8 +70,12 @@ export function buildTriagePrompt(
     'Registered scopes:',
     scopeLines || '(none registered)',
     '',
+    'Signal interpretation by `signalKind`:',
+    '- `self_reflection`: the signal is the journal activity itself. `signalBody` is a generic prompt; base your decision on `journalContext` and what changed during the wake.',
+    '- `staff_takeover` / `coexistence_echo` / `coaching_note` / `rejection`: `signalBody` is the signal (a staff utterance, coaching note, or rejection reason); `journalContext` is supporting context for what surrounded it.',
+    '',
     'Return JSON only matching exactly: {"worth_attention": bool, "scope_hint": string|null, "summary": string (≤200 chars), "context": string (≤800 chars), "confidence": number (0..1)}.',
-    'If the signal is trivial, too short, or a greeting, set worth_attention=false and confidence≤0.2.',
+    '`confidence` is how sure you are of `worth_attention` regardless of which way it goes — a confident "no" is also high confidence.',
     'Do not wrap the JSON in code fences. Do not include any other text.',
   ].join('\n')
 
