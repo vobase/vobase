@@ -62,7 +62,12 @@ interface PlatformCreds {
 
 function readPlatformCreds(rowPlatformBaseUrl: string | undefined): PlatformCreds | null {
   const platformBaseUrl = rowPlatformBaseUrl ?? process.env.VITE_PLATFORM_URL ?? ''
-  const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+  // X-Tenant-Id must be the platform-issued nanoid (tenants.id), not the
+  // human slug. The provisioning job stamps PLATFORM_TENANT_ID alongside
+  // PLATFORM_TENANT_SLUG; we read the id here so platform HMAC verification
+  // resolves the tenant row instead of silently dropping to the anonymous
+  // {ok:true} branch.
+  const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
   const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
   const betterAuthSecret = process.env.BETTER_AUTH_SECRET ?? ''
   if (!platformBaseUrl || !tenantId || !tenantHmacSecret || !betterAuthSecret) {
@@ -89,7 +94,7 @@ const app = new Hono<OrganizationEnv>()
   // are missing — same effect as no-pool: button disabled.
   .get('/managed/availability', async (c) => {
     const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
-    const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+    const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
     const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
     if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {
       return c.json({ sandboxPoolAvailable: 0, configured: false })

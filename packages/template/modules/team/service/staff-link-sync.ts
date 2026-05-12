@@ -112,7 +112,9 @@ export type SyncStaffLinksResult =
 
 function defaultReadPlatformCreds(): PlatformCreds | null {
   const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
-  const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+  // X-Tenant-Id = tenants.id (nanoid), not the slug — see PLATFORM_TENANT_ID
+  // provisioning at modules/provisioning/jobs.ts in vobase-platform.
+  const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
   const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
   const environment: 'production' | 'staging' = process.env.NODE_ENV === 'production' ? 'production' : 'staging'
   if (!platformBaseUrl || !tenantId || !tenantHmacSecret) return null

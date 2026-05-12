@@ -240,8 +240,15 @@ async function loadRotation(organizationId: string, vaultProvider: VaultProvider
 }
 
 async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapter> {
-  const tenantId = process.env.VITE_PLATFORM_TENANT_SLUG
+  // X-Tenant-Id for outbound platform calls = tenants.id (nanoid).
+  // tenantSlug below stays for deriveVerifyToken so both ends of the
+  // WhatsApp webhook verify derivation continue to agree on the slug.
+  const tenantId = process.env.PLATFORM_TENANT_ID
+  const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG
   if (!tenantId) {
+    throw new Error('whatsapp adapter (managed): PLATFORM_TENANT_ID env var is required')
+  }
+  if (!tenantSlug) {
     throw new Error('whatsapp adapter (managed): VITE_PLATFORM_TENANT_SLUG env var is required')
   }
 
@@ -291,7 +298,7 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
   const environment = (config.environment as 'production' | 'staging' | undefined) ?? 'production'
   const webhookVerifyToken = betterAuthSecret
     ? deriveVerifyToken({
-        tenantSlug: tenantId,
+        tenantSlug,
         environment,
         provider: 'whatsapp',
         betterAuthSecret,
