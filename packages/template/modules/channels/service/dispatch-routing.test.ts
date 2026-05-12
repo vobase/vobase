@@ -26,8 +26,8 @@ afterEach(() => {
 })
 
 describe('sessions throw-proxy guard', () => {
-  it('seedOnInbound throws before installSessionsService', async () => {
-    await expect(seedOnInbound('conv-1', 'inst-1')).rejects.toThrow('service not installed')
+  it('seedOnInbound throws before installSessionsService', () => {
+    expect(() => seedOnInbound('conv-1', 'inst-1')).toThrow('service not installed')
   })
 
   it('checkWindow resolves after installSessionsService', async () => {
@@ -42,10 +42,10 @@ describe('sessions throw-proxy guard', () => {
 })
 
 describe('reactions throw-proxy guard', () => {
-  it('upsertReaction throws before installReactionsService', async () => {
-    await expect(
-      upsertReaction({ messageId: 'm', channelInstanceId: 'c', fromExternal: 'f', emoji: '👍' }),
-    ).rejects.toThrow('service not installed')
+  it('upsertReaction throws before installReactionsService', () => {
+    expect(() => upsertReaction({ messageId: 'm', channelInstanceId: 'c', fromExternal: 'f', emoji: '👍' })).toThrow(
+      'service not installed',
+    )
   })
 
   it('removeReaction resolves after installReactionsService', async () => {
