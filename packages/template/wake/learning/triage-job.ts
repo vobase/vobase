@@ -14,6 +14,8 @@
 
 import { agentDefinitions, learningCandidates } from '@modules/agents/schema'
 import { insertCandidate } from '@modules/agents/service/learning-candidates'
+import { contacts } from '@modules/contacts/schema'
+import { conversations } from '@modules/messaging/schema'
 import { conversationEvents, llmCall as coreLlmCall, type JobDef } from '@vobase/core'
 import { and, desc, eq, max } from 'drizzle-orm'
 
@@ -129,36 +131,61 @@ async function handleTriageJob(raw: unknown): Promise<void> {
 
   // ── b) Load context ────────────────────────────────────────────────────────
 
-  // Journal context: last 10 message events for this conversation
-  const journalRows = await db
-    .select({ type: conversationEvents.type, role: conversationEvents.role, content: conversationEvents.content })
-    .from(conversationEvents)
-    .where(eq(conversationEvents.conversationId, conversationId))
-    .orderBy(desc(conversationEvents.ts))
-    .limit(10)
+  // Journal: last 20 events incl. tool-call info so the triage LLM sees what
+  // the agent actually DID, not just text content. Format follows
+  // `[type/role] content | tool=<name> calls=<json…>` with empty fields elided.
+  const [journalRows, agentRows, contactRows] = await Promise.all([
+    db
+      .select({
+        type: conversationEvents.type,
+        role: conversationEvents.role,
+        content: conversationEvents.content,
+        toolName: conversationEvents.toolName,
+        toolCalls: conversationEvents.toolCalls,
+        payload: conversationEvents.payload,
+      })
+      .from(conversationEvents)
+      .where(eq(conversationEvents.conversationId, conversationId))
+      .orderBy(desc(conversationEvents.ts))
+      .limit(20),
+    db
+      .select({
+        name: agentDefinitions.name,
+        instructions: agentDefinitions.instructions,
+        workingMemory: agentDefinitions.workingMemory,
+      })
+      .from(agentDefinitions)
+      .where(eq(agentDefinitions.id, agentId))
+      .limit(1),
+    db
+      .select({ memory: contacts.memory })
+      .from(conversations)
+      .innerJoin(contacts, eq(contacts.id, conversations.contactId))
+      .where(eq(conversations.id, conversationId))
+      .limit(1),
+  ])
 
   const journalContext = journalRows
     .reverse()
-    .map((r) => `[${r.type}${r.role ? `/${r.role}` : ''}] ${r.content ?? ''}`.trimEnd())
+    .map((r) => {
+      const head = `[${r.type}${r.role ? `/${r.role}` : ''}]`
+      const parts: string[] = []
+      if (r.content) parts.push(r.content)
+      if (r.toolName) parts.push(`tool=${r.toolName}`)
+      const callsOrPayload = r.toolCalls ?? r.payload
+      if (callsOrPayload !== null && callsOrPayload !== undefined) {
+        parts.push(`calls=${JSON.stringify(callsOrPayload).slice(0, 240)}`)
+      }
+      return `${head} ${parts.join(' | ')}`.trimEnd()
+    })
     .join('\n')
-    .slice(0, 2000)
-
-  // Agent working memory head
-  const agentRows = await db
-    .select({ name: agentDefinitions.name, workingMemory: agentDefinitions.workingMemory })
-    .from(agentDefinitions)
-    .where(eq(agentDefinitions.id, agentId))
-    .limit(1)
+    .slice(0, 4000)
 
   const agentRow = agentRows[0]
   const agentName = agentRow?.name ?? 'Agent'
+  const agentInstructionsHead = (agentRow?.instructions ?? '').slice(0, 300)
   const agentMemoryHead = (agentRow?.workingMemory ?? '').slice(0, 500)
-
-  // contactMemoryHead: left undefined for slice 2.
-  // Loading it cleanly requires joining conversations -> contacts.memory which
-  // pulls in the contacts service as a cross-module dep. Wire in slice 3 when
-  // contacts service provides a lightweight readMemoryById(contactId) that can be
-  // imported without a full module cycle.
+  const contactMemoryHead = (contactRows[0]?.memory ?? '').slice(0, 500)
 
   // ── c) Build TriageInput and run triage ────────────────────────────────────
   const result = await runTriage(buildLlmCallFn({ organizationId, conversationId }), {
@@ -168,7 +195,9 @@ async function handleTriageJob(raw: unknown): Promise<void> {
     conversationId,
     signal: { kind: signal.kind, body: signal.body, ref: signalRef(signal) },
     journalContext,
+    agentInstructionsHead,
     agentMemoryHead,
+    contactMemoryHead,
   })
 
   // ── d) Not worth attention — drop ──────────────────────────────────────────

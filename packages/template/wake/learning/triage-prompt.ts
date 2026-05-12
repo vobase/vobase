@@ -36,11 +36,13 @@ export interface TriageInput {
   agentName: string
   conversationId?: string
   signal: LearningSignalContext
-  /** Last ~10 messages of journal context, joined with newlines. Empty string if none. */
+  /** Last ~20 conversation events incl. tool-call payloads, joined with newlines. Empty string if none. */
   journalContext?: string
+  /** First ~300 chars of `agent_definitions.instructions` — agent role / system-prompt head. */
+  agentInstructionsHead?: string
   /** First ~500 chars of the agent's working_memory. Empty string if none. */
   agentMemoryHead?: string
-  /** First ~500 chars of the contact's memory blob, when scoped to a contact. */
+  /** First ~500 chars of the contact's memory blob. Empty string if the conversation has no contact memory yet. */
   contactMemoryHead?: string
 }
 
@@ -82,6 +84,7 @@ export function buildTriagePrompt(
   const user = JSON.stringify(
     {
       agentName: input.agentName,
+      agentInstructionsHead: input.agentInstructionsHead ?? '',
       signalKind: input.signal.kind,
       signalBody: input.signal.body,
       signalRef: input.signal.ref ?? null,
