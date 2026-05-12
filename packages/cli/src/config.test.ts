@@ -83,7 +83,7 @@ describe('loadConfig', () => {
         organizationId: 'org_1',
         principal: { id: 'usr_1', email: 'a@b.co', name: 'Carl' },
       },
-      { home, name: 'acme' },
+      { home, homeTier: true, name: 'acme' },
     )
     const result = await loadConfig({ home, flag: 'acme' })
     expect(result?.url).toBe('https://acme.vobase.app')
@@ -106,14 +106,15 @@ describe('loadConfig', () => {
 describe('writeConfig', () => {
   it('writes 0600 permissions', async () => {
     const home = makeHome()
-    const path = await writeConfig(
+    const { path } = await writeConfig(
       {
         url: 'https://acme.vobase.app',
         apiKey: 'vbt_abc',
         organizationId: 'org_1',
         principal: { id: 'usr_1' },
       },
-      { home },
+      // cwd outside any repo so the default tier resolves to home-outside-repo.
+      { home, cwd: home },
     )
     const stats = await stat(path)
     // Mode is masked with 0o777 — we only care about the user/group/other rwx bits.
@@ -122,7 +123,7 @@ describe('writeConfig', () => {
 
   it('local: true writes to <cwd>/.vobase/<name>.json', async () => {
     const cwd = makeHome() // reuse helper — just need an isolated temp dir
-    const path = await writeConfig(
+    const { path, tier } = await writeConfig(
       {
         url: 'https://acme.vobase.app',
         apiKey: 'vbt_local',
@@ -132,7 +133,57 @@ describe('writeConfig', () => {
       { local: true, cwd, name: 'acme' },
     )
     expect(path).toBe(join(cwd, '.vobase', 'acme.json'))
+    expect(tier).toBe('local-explicit')
     expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
+
+  it('homeTier: true forces home-tier even inside a repo checkout', async () => {
+    const home = makeHome()
+    const repo = mkdtempSync(join(tmpdir(), 'vobase-cli-write-repo-'))
+    mkdirSync(join(repo, '.git'), { recursive: true })
+    const sub = join(repo, 'sub')
+    mkdirSync(sub, { recursive: true })
+    const { path, tier } = await writeConfig(
+      { url: 'https://x.test', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { home, cwd: sub, homeTier: true, name: 'acme' },
+    )
+    expect(path).toBe(configPath('acme', home))
+    expect(tier).toBe('home-explicit')
+  })
+
+  it('auto-detects local-in-repo when cwd has a .git ancestor', async () => {
+    const home = makeHome()
+    const repo = mkdtempSync(join(tmpdir(), 'vobase-cli-write-repo-'))
+    mkdirSync(join(repo, '.git'), { recursive: true })
+    const sub = join(repo, 'packages', 'app')
+    mkdirSync(sub, { recursive: true })
+    const { path, tier } = await writeConfig(
+      { url: 'https://x.test', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { home, cwd: sub, name: 'acme' },
+    )
+    expect(path).toBe(join(repo, '.vobase', 'acme.json'))
+    expect(tier).toBe('local-in-repo')
+  })
+
+  it('auto-detects home-outside-repo when cwd has no .git ancestor', async () => {
+    const home = makeHome()
+    const cwd = mkdtempSync(join(tmpdir(), 'vobase-cli-no-repo-'))
+    const { path, tier } = await writeConfig(
+      { url: 'https://x.test', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+      { home, cwd, name: 'acme' },
+    )
+    expect(path).toBe(configPath('acme', home))
+    expect(tier).toBe('home-outside-repo')
+  })
+
+  it('rejects passing both local and homeTier', async () => {
+    const home = makeHome()
+    await expect(
+      writeConfig(
+        { url: 'https://x.test', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
+        { home, cwd: home, local: true, homeTier: true, name: 'acme' },
+      ),
+    ).rejects.toThrow(/mutually exclusive/)
   })
 })
 
@@ -159,9 +210,9 @@ describe('findConfigPath — hybrid lookup', () => {
 
   it('falls back to home when no local config exists', async () => {
     const { home, sub } = setupTwoTier()
-    const homePath = await writeConfig(
+    const { path: homePath } = await writeConfig(
       { url: 'https://acme.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
-      { home, name: 'acme' },
+      { home, homeTier: true, name: 'acme' },
     )
     expect(await findConfigPath({ home, cwd: sub, flag: 'acme' })).toBe(homePath)
   })
@@ -170,9 +221,9 @@ describe('findConfigPath — hybrid lookup', () => {
     const { home, repo, sub } = setupTwoTier()
     await writeConfig(
       { url: 'https://acme-home.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
-      { home, name: 'acme' },
+      { home, homeTier: true, name: 'acme' },
     )
-    const localPath = await writeConfig(
+    const { path: localPath } = await writeConfig(
       { url: 'https://acme-local.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
       { local: true, cwd: repo, name: 'acme' },
     )
@@ -182,7 +233,7 @@ describe('findConfigPath — hybrid lookup', () => {
 
   it('walks up from cwd to find local config at the closest ancestor', async () => {
     const { home, repo, sub } = setupTwoTier()
-    const localPath = await writeConfig(
+    const { path: localPath } = await writeConfig(
       { url: 'https://acme.vobase.app', apiKey: 'k', organizationId: 'o', principal: { id: 'u' } },
       { local: true, cwd: repo, name: 'acme' },
     )

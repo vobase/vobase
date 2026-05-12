@@ -32,12 +32,19 @@ interface CliFlags {
   url?: string
   token?: string
   local?: boolean
+  home?: boolean
 }
 
 async function runAuth(sub: string, flags: CliFlags): Promise<number> {
   const configName = resolveConfigName({ flag: flags.config })
   if (sub === 'login') {
-    const r = await login({ configName, url: flags.url, token: flags.token, local: flags.local })
+    const r = await login({
+      configName,
+      url: flags.url,
+      token: flags.token,
+      local: flags.local,
+      homeTier: flags.home,
+    })
     return r.exitCode
   }
   if (sub === 'whoami') {
@@ -133,7 +140,8 @@ cli
   .option('--help', 'Show catalog-driven help (verb groups + verbs)')
   .option('--url <url>', 'Tenant base URL (auth login only)')
   .option('--token <key>', 'API key for headless login (auth login only)')
-  .option('--local', 'Write the config to ./.vobase/<name>.json instead of ~/.vobase/ (auth login only)')
+  .option('--local', 'Force project-local config write to ./.vobase/<name>.json (auth login only)')
+  .option('--home', 'Force home-tier config write to ~/.vobase/<name>.json (auth login only)')
   // Verb-specific flags (e.g. --limit, --scope) are catalog-driven and
   // forwarded to the resolver via flags[name]; cac must not reject them.
   .allowUnknownOptions()

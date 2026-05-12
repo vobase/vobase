@@ -70,6 +70,7 @@ describe('auth login', () => {
       configName: 'acme',
       url: 'https://x.test',
       home,
+      homeTier: true,
       fetcher,
       pollIntervalMs: 1,
       launchBrowser: (url) => {
@@ -88,6 +89,8 @@ describe('auth login', () => {
     expect(cfg).not.toBeNull()
     expect(cfg?.apiKey).toBe('vbt_secret')
     expect(cfg?.organizationId).toBe('org_1')
+    // Success log includes resolved tier label.
+    expect(writers.out.join('')).toMatch(/Config written to .* \(home-tier: --home\)/u)
   })
 
   it('aborts cleanly when the grant expires while polling', async () => {
@@ -161,6 +164,7 @@ describe('auth login', () => {
       url: 'https://x.test',
       token: 'vbt_provided',
       home,
+      homeTier: true,
       fetcher,
       stdout: writers.stdout,
       stderr: writers.stderr,
@@ -217,6 +221,7 @@ describe('auth whoami', () => {
       url: 'https://x.test',
       token: 'vbt_z',
       home,
+      homeTier: true,
       fetcher,
       stdout: () => {},
       stderr: () => {},
@@ -260,6 +265,7 @@ describe('auth logout', () => {
       url: 'https://x.test',
       token: 'vbt_q',
       home,
+      homeTier: true,
       fetcher,
       stdout: () => {},
       stderr: () => {},

@@ -211,7 +211,7 @@ export async function resolve(opts: ResolveOpts): Promise<ResolveResult> {
  * (`--`, `-`, `--config`, `--json`, `--refresh`, `--help`, `--url`, `--token`)
  * are stripped — they're CLI-level controls, not verb input.
  */
-const RESERVED_FLAGS = new Set(['--', '-', 'config', 'json', 'refresh', 'help', 'url', 'token'])
+const RESERVED_FLAGS = new Set(['--', '-', 'config', 'json', 'refresh', 'help', 'url', 'token', 'local', 'home'])
 
 function mergeFlags(fromArgv: Record<string, unknown>, fromCac: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...fromArgv }

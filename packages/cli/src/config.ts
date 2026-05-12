@@ -150,28 +150,77 @@ export async function loadConfig(opts: LoadConfigOpts = {}): Promise<Config | nu
   return parsed.data
 }
 
+export type WriteConfigTier = 'local-in-repo' | 'home-outside-repo' | 'home-explicit' | 'local-explicit'
+
 export interface WriteConfigOpts {
   name?: string
+  /** Override the homedir used for `~/.vobase/<name>.json` resolution. Tests-only seam. */
   home?: string
   /**
-   * When true, write to `<cwd>/.vobase/<name>.json` (project-local) instead
-   * of the home tier. Default false → `~/.vobase/<name>.json`. Reach for
-   * `local: true` from `vobase auth login --local` so an agency operator can
-   * keep per-checkout API keys without touching `--config <name>`.
+   * Force project-local write to `<cwd>/.vobase/<name>.json`. Overrides the
+   * default in-repo auto-detection. Mutually exclusive with `homeTier`.
    */
   local?: boolean
-  /** When `local: true`, the cwd to anchor the project-local path on. Defaults to `process.cwd()`. */
+  /**
+   * Force home-tier write to `~/.vobase/<name>.json`. Overrides the default
+   * in-repo auto-detection. Mutually exclusive with `local`.
+   */
+  homeTier?: boolean
+  /** When choosing tier, the cwd to anchor on. Defaults to `process.cwd()`. */
   cwd?: string
 }
 
-/** Persist a config file with 0600 permissions. */
-export async function writeConfig(config: Config, opts: WriteConfigOpts = {}): Promise<string> {
+export interface WriteConfigResult {
+  path: string
+  tier: WriteConfigTier
+}
+
+/**
+ * Find the nearest ancestor of `start` (up to `home`) that contains a `.git`
+ * sibling. Returns null if none found before walking past `home` or hitting
+ * the filesystem root. Used to default `vobase auth login` to a project-local
+ * config when invoked from inside a repo checkout.
+ */
+function findRepoRoot(start: string, home: string): string | null {
+  for (const dir of walkUp(start, home)) {
+    if (existsSync(join(dir, '.git'))) return dir
+    if (dir === home) return null
+  }
+  return null
+}
+
+/** Persist a config file with 0600 permissions. Auto-selects local-in-repo vs home tier. */
+export async function writeConfig(config: Config, opts: WriteConfigOpts = {}): Promise<WriteConfigResult> {
+  if (opts.local && opts.homeTier) {
+    throw new Error('writeConfig: --local and --home are mutually exclusive')
+  }
   const name = opts.name ?? 'config'
-  const path = opts.local ? localConfigPath(name, opts.cwd ?? process.cwd()) : configPath(name, opts.home)
+  const home = opts.home ?? homedir()
+  const cwd = opts.cwd ?? process.cwd()
+
+  let tier: WriteConfigTier
+  let path: string
+  if (opts.local) {
+    tier = 'local-explicit'
+    path = localConfigPath(name, cwd)
+  } else if (opts.homeTier) {
+    tier = 'home-explicit'
+    path = configPath(name, home)
+  } else {
+    const repoRoot = findRepoRoot(cwd, home)
+    if (repoRoot) {
+      tier = 'local-in-repo'
+      path = localConfigPath(name, repoRoot)
+    } else {
+      tier = 'home-outside-repo'
+      path = configPath(name, home)
+    }
+  }
+
   const validated = ConfigSchema.parse(config)
   const text = `${JSON.stringify(validated, null, 2)}\n`
   await Bun.write(path, text)
   // Bun.write doesn't accept a mode option yet — chmod after write.
   await chmod(path, 0o600)
-  return path
+  return { path, tier }
 }

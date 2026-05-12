@@ -18,12 +18,15 @@ export interface AuthLoginOpts {
   token?: string
   home?: string
   /**
-   * When true, write the resulting config to `<cwd>/.vobase/<name>.json`
-   * (project-local) instead of `~/.vobase/<name>.json` (home tier). Pair with
-   * `cwd` to anchor the local path; defaults to `process.cwd()`.
+   * Force project-local write to `<cwd>/.vobase/<name>.json`. Default
+   * behavior auto-selects local when run inside a `.git`-rooted checkout,
+   * otherwise falls back to `~/.vobase/<name>.json`. Pass `local: true` to
+   * force local-tier; pass `homeTier: true` to force the old home-default.
    */
   local?: boolean
-  /** Working directory used to anchor `local: true` writes. */
+  /** Force home-tier write to `~/.vobase/<name>.json`. Mutually exclusive with `local`. */
+  homeTier?: boolean
+  /** Working directory used for tier auto-detection + `local: true` writes. */
   cwd?: string
   /** Override fetch for tests. */
   fetcher?: typeof fetch
@@ -70,7 +73,14 @@ export async function login(opts: AuthLoginOpts): Promise<AuthCommandResult> {
       stderr('vobase auth login: --token=<key> also requires --url=<https://...>\n')
       return { ok: false, output: '', exitCode: 2 }
     }
-    return await loginWithToken({ ...opts, configName, url: opts.url, token: opts.token, stdout, stderr })
+    return await loginWithToken({
+      ...opts,
+      configName,
+      url: opts.url,
+      token: opts.token,
+      stdout,
+      stderr,
+    })
   }
 
   if (!opts.url) {
@@ -122,6 +132,7 @@ export async function login(opts: AuthLoginOpts): Promise<AuthCommandResult> {
     configName,
     home: opts.home,
     local: opts.local,
+    homeTier: opts.homeTier,
     cwd: opts.cwd,
     baseUrl: ready.baseUrl ?? baseUrl,
     apiKey: ready.apiKey,
@@ -171,6 +182,7 @@ async function loginWithToken(opts: {
   token: string
   home?: string
   local?: boolean
+  homeTier?: boolean
   cwd?: string
   fetcher?: typeof fetch
   stdout: (s: string) => void
@@ -180,6 +192,7 @@ async function loginWithToken(opts: {
     configName: opts.configName,
     home: opts.home,
     local: opts.local,
+    homeTier: opts.homeTier,
     cwd: opts.cwd,
     baseUrl: opts.url,
     apiKey: opts.token,
@@ -193,6 +206,7 @@ async function completeLogin(opts: {
   configName: string
   home?: string
   local?: boolean
+  homeTier?: boolean
   cwd?: string
   baseUrl: string
   apiKey: string
@@ -221,15 +235,23 @@ async function completeLogin(opts: {
       email: verify.data.principal.email,
     },
   }
-  const path = await writeConfig(config, {
+  const { path, tier } = await writeConfig(config, {
     name: opts.configName,
     home: opts.home,
     local: opts.local,
+    homeTier: opts.homeTier,
     cwd: opts.cwd,
   })
   opts.stdout(`Logged in as ${verify.data.principal.email ?? verify.data.principal.id}.\n`)
-  opts.stdout(`Config written to ${path}\n`)
+  opts.stdout(`Config written to ${path} (${tierLabel(tier)})\n`)
   return { ok: true, output: '', exitCode: 0 }
+}
+
+function tierLabel(tier: 'local-in-repo' | 'home-outside-repo' | 'home-explicit' | 'local-explicit'): string {
+  if (tier === 'local-in-repo') return 'local-tier: in-repo'
+  if (tier === 'home-outside-repo') return 'home-tier: outside repo'
+  if (tier === 'home-explicit') return 'home-tier: --home'
+  return 'local-tier: --local'
 }
 
 export interface AuthWhoamiOpts {
