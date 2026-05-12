@@ -42,6 +42,7 @@ COPY --from=build /app/modules ./modules
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/src ./src
 COPY --from=build /app/db ./db
+COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/dist ./dist
 
 RUN mkdir -p /app/data
