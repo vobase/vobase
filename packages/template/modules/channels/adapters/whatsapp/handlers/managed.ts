@@ -193,7 +193,12 @@ const app = new Hono<OrganizationEnv>()
         organizationId,
         webhookUrl,
         verifyToken,
-        defaultAssignee: firstAgent?.id ?? null,
+        // Canonical principal token `agent:<id>` — matches the format
+        // every other writer uses (seed data, web instance create form),
+        // every reader expects (`<Principal id=…>`, mention rendering,
+        // hover cards), and the `conversations.assignee` column receives
+        // verbatim via `initialAssignee` in `dispatchInbound`.
+        defaultAssignee: firstAgent ? `agent:${firstAgent.id}` : null,
       })
       const webhook = result.webhookOk
         ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)

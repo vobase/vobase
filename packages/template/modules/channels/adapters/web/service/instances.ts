@@ -127,9 +127,17 @@ export function createWebInstancesService(deps: { db: ScopedDb }): WebInstancesS
 
     // Prefer the live conversation's assignee; fall back to the channel
     // instance's `defaultAssignee` when no conversation exists yet or the
-    // assignee is a human/unset.
+    // assignee is a human/unset. Both fields use the canonical
+    // `agent:<id>` principal-token format (matches the seed + claim
+    // writers), so we strip the prefix uniformly before the DB lookup
+    // on bare `agent_definitions.id`.
     const assignee = convRows[0]?.assignee
-    const agentId = assignee?.startsWith('agent:') ? assignee.slice('agent:'.length) : inst.defaultAssignee
+    const assigneeTok = assignee?.startsWith('agent:')
+      ? assignee.slice('agent:'.length)
+      : inst.defaultAssignee?.startsWith('agent:')
+        ? inst.defaultAssignee.slice('agent:'.length)
+        : inst.defaultAssignee
+    const agentId = assigneeTok
 
     let agentName: string | null = null
     if (agentId) {
