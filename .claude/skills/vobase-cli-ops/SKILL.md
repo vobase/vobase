@@ -25,6 +25,8 @@ Same shape as `git`/`gh`/`kubectl`. The CLI walks for the config in this order:
 
 Use **`vobase auth login --local`** to write to `./.vobase/<name>.json` instead of the home tier. This is the right move for an agency operator with N client repos: `cd client-acme && vobase ...` automatically hits ACME's tenant; `cd client-globex && vobase ...` hits Globex. No `--config` flags needed at the call site.
 
+> **Version floor.** `--local` requires `@vobase/cli >= 0.42.x`. Older binaries silently accept the flag (commander.js passes unknown options through) and still write to `~/.vobase/`. Check with `bun pm view @vobase/cli version` vs. `head -1 $(readlink -f $(which vobase))`'s package; upgrade with `bun install -g @vobase/cli@latest`. After the resolved-path logging change (post-0.42.x), `auth login` prints `Config written to <path> (local-tier: in-repo)` so you can see what actually happened.
+
 Both `.gitignore` files in the canonical template ignore `.vobase/` so an accidental commit can't leak the API key.
 
 ### Three auth paths, fastest first
@@ -62,6 +64,12 @@ KEY=$(curl -s "$BASE/api/auth/cli-grant/poll?code=$CODE" | jq -r .apiKey)
 # Save to ~/.vobase/<name>.json with chmod 0600 — see references/programmatic-auth.sh
 ```
 
+### Auth troubleshooting
+
+- **`vobase auth login` opens a 404 page at `/auth/cli-grant?code=...`.** The tenant's frontend is missing the `/_auth/auth/cli-grant` route. The backend (`auth/cli-grant.ts`) mints the URL but the page is a separate frontend route in `src/shell/auth/cli-grant.tsx`. Canonical template ships it from `@vobase/template` post-this-week; old tenants need to backport `src/shell/auth/cli-grant.tsx` + register it in `src/routes.ts` and redeploy. Workaround until the deploy lands: do the device-grant by hand — start grant via `POST /api/auth/cli-grant`, POST the code to `/api/auth/cli-grant/confirm` with a session cookie copied from the prod web UI's DevTools, poll `/api/auth/cli-grant/poll?code=...`, write the resulting `apiKey` to `./.vobase/<name>.json`.
+- **`vobase --config <name> auth whoami` returns `Authentication failed` after a DB reset.** The local config's API key is now stale. Re-run `vobase auth login` (browser device-grant) or `--token=<new-key>`.
+- **`--local` was passed but the config still landed in `~/.vobase/`.** Installed CLI version is below 0.42.x — commander.js silently accepts the unknown flag and the write path is unchanged. Upgrade: `bun install -g @vobase/cli@latest`. Verify: the new `Config written to <path> (local-tier: in-repo)` log line confirms the resolved tier.
+
 ## Discovering verbs
 
 The catalog is **filtered by audience tier** (`contact` < `staff` < `admin`). What you see depends on your role:
@@ -91,8 +99,7 @@ The verbs below are the canonical-template surface used for operating a live ten
 | `messaging close` | `--id=<conversationId>` (`--reason` optional) | Resolve a conversation | write |
 | `conv reassign` | `--conversationId=<id>` `--to=user:<id>\|agent:<id>\|unassigned` | Hand off conversation | write |
 | `drive search` | `--query=<text>` `--scope=organization` | Hybrid search across drive | read |
-| `drive propose` | `--path=/<scope-relative>` `--body=<content>` `--rationale=...` `--confidence=0.95` | Propose a markdown_patch to a drive file | write (proposal) |
-| `drive upload` | `--path=<local-file>` `--scope=organization` `--basePath=/` | Upload a local file into drive | write |
+| `drive propose` | `--path=/<scope-relative>` `--body=<content>` `--rationale=...` `--confidence=0.95` | Propose a markdown_patch to a drive file. **Creates the file if it doesn't exist** — the materializer picks create-vs-patch automatically. This is the primary way to seed/replace any markdown file in `/drive/`. | write (proposal) |
 | `contacts propose-change` | `--id=<contactId>` `--field=<name>` `--to=<value>` `--rationale=...` `--confidence=0.95` | Propose a contact field update | write (proposal) |
 
 ### Admin-tier (owner + admin only — agent-execution debug surface)
@@ -107,6 +114,7 @@ These are how you debug a live tenant from the CLI alone — no `psql` access re
 | `agents debug wakes` | `--conversationId=<id>` (`--limit=20`, `--since` opt.) | Wake-by-wake summary: trigger, started_at, turns, tool_calls, cost, **systemHash** (drift across wakes = frozen-snapshot violation), endReason. First place to look for "did the agent even wake?" / "where did the cost go?" |
 | `agents debug timeline` | `--wakeId=<id>` (`--full` opt.) | Per-wake event timeline (`agent_start`, `tool_dispatch_*`, `tool_execution_*`, `llm_call`, `agent_end`). Reveals "did the agent skip the file read?" / "is it looping?" |
 | `agents debug llm-io` | `--conversationId=<id>` OR `--wakeId=<id>` (`--seq=N:M`, `--role`, `--tool`, `--limit=30`, `--full` opt.) | The LLM I/O log (`harness.messages`): user cues, assistant tool calls with arguments, tool results, model + token + cost per row. The killer verb — shows what the LLM saw and decided. |
+| `drive upload` | `--path=<local-file>` `--scope=organization` `--basePath=/` | **(Currently broken for remote tenants.)** `--path` resolves on the **server's** filesystem, not the operator's, so against a Railway/prod tenant it returns `file not found` for any local path. Only useful in local-dev where operator + server share a disk. **Use `drive propose --body="$(cat file)"` instead** to ship file content from a developer machine. Will be reworked to stream the body over the wire. | write |
 
 ### Critical flag-name gotchas
 
@@ -118,7 +126,7 @@ These are how you debug a live tenant from the CLI alone — no `psql` access re
 - `agents debug llm-io` accepts EITHER `--conversationId` OR `--wakeId`; `--wakeId` auto-derives the conversation and narrows the seq window to that wake's `agent_start..agent_end` time range.
 - `contacts propose-change` uses `--field` + `--to`, NOT `--field=` + `--value=`.
 - `drive propose` uses `--body`, NOT `--content`.
-- `drive upload --path` is the **local source path**; the file lands at `basePath + filename`. `--scope` is required; `--scopeId` required for non-organization scopes.
+- `drive upload --path` resolves on the **server's** filesystem (server-side `Bun.file(input.path)`), not the operator's. Broken for remote tenants — see the verb-table caveat. For remote tenants, ship content via `drive propose --body="$(cat file)"`.
 
 Always run the verb with no args first to see the validation error — it returns the exact missing/wrong field path under `errorCode: "invalid_input"`.
 
@@ -181,10 +189,12 @@ To make the agent cite a new fact:
 |---|---|
 | Agent should reference a new policy / pricing / SLA | `drive propose --path=/<existing-doc>.md --body=<original + new section>` to a file the instructions already tell it to `cat` (typically `/BUSINESS.md` or `/pricing.md`). Adding a brand-new file the instructions don't reference is **invisible to the agent**. |
 | Agent should remember a customer fact | `contacts propose-change --id=<contactId> --field=<attribute> --to=<value>` — the agent's wake reads contact state automatically. |
-| Agent should change tone / behavior universally | Update `agentDefinitions.instructions` directly via DB or admin UI (no current CLI verb for this — use Drizzle Studio: `bun run db:studio`). |
-| Agent should remember a session-level lesson | Update `agentDefinitions.workingMemory` (no current CLI verb). For agent-driven self-update, the agent uses the `remember` tool from inside a wake. |
+| Agent should change tone / behavior universally | `vobase agents set-instructions --id=<agentId> --file=<localPath>` (admin-tier; ships in `@vobase/cli` >= post-this-week). Pre-verb workaround: edit `agent_definitions.instructions` via Drizzle Studio (`bun run db:studio`) — no remote-tenant equivalent. |
+| Agent should remember a session-level lesson | `vobase agents set-working-memory --id=<agentId> --body=<text>` (admin-tier; ships in `@vobase/cli` >= post-this-week). Or have the agent self-update via the `remember` tool from inside a wake. |
 
 **The "add a new file" trap.** If you upload `/drive/foo.md` but the agent's instructions don't tell it to `cat /drive/foo.md`, it won't read the file. Always update an existing file the agent already references.
+
+> **An agent with empty `instructions` reads nothing.** Newly-seeded agents (from the canonical template) ship with `instructions: ""` and `working_memory: ""` — `vobase agents inspect --id=<id>` shows this immediately. With no system prompt, the agent's only behavioral anchors are the wake-cue, module-supplied AGENTS.md fragments, and whatever it discovers via `bash`/`vobase` verbs at wake time. **Proposing `/drive/BUSINESS.md` against such an agent is dead weight** — the file lands in the drive but nothing tells the agent to `cat` it. Set instructions FIRST (with explicit `cat /drive/<file>` calls), then propose drive content. Inspect before assuming the agent has a system prompt.
 
 ## End-to-end agent behavior tests — before/after pattern
 
