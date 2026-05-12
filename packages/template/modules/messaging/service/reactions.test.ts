@@ -8,10 +8,10 @@ let db: TestDbHandle
 const INSTANCE_ID = 'chi0cust00'
 const FROM = 'whatsapp:+6591234567'
 const EMOJI = '👍'
-// Synthetic message id — reactions FK is cross-schema (enforced post-push only),
-// so onConflictDoNothing silently drops a row with an unresolvable FK in test DBs.
-// We test the service behaviour (no throw, idempotency, remove is no-op).
-const SYNTHETIC_MSG_ID = 'msg-test-react'
+// Seeded customer-channel WhatsApp message — message_reactions.message_id
+// has a real FK to messaging.messages, so the test must reference an
+// existing message row.
+const SEEDED_MSG_ID = 'msg0priywa1'
 
 beforeAll(async () => {
   await resetAndSeedDb()
@@ -23,11 +23,11 @@ afterAll(async () => {
 })
 
 describe('createReactionsService', () => {
-  it('upsertReaction does not throw (onConflictDoNothing absorbs missing FK)', async () => {
+  it('upsertReaction inserts a reaction row for a real message', async () => {
     const svc = createReactionsService({ db: db.db })
     await expect(
       svc.upsertReaction({
-        messageId: SYNTHETIC_MSG_ID,
+        messageId: SEEDED_MSG_ID,
         channelInstanceId: INSTANCE_ID,
         fromExternal: FROM,
         emoji: EMOJI,
@@ -35,10 +35,10 @@ describe('createReactionsService', () => {
     ).resolves.toBeUndefined()
   })
 
-  it('upsertReaction is idempotent — duplicate call does not throw', async () => {
+  it('upsertReaction is idempotent — duplicate call does not throw (PK conflict absorbed)', async () => {
     const svc = createReactionsService({ db: db.db })
     const input = {
-      messageId: SYNTHETIC_MSG_ID,
+      messageId: SEEDED_MSG_ID,
       channelInstanceId: INSTANCE_ID,
       fromExternal: FROM,
       emoji: EMOJI,
