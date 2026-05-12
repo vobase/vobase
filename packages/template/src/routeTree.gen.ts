@@ -26,6 +26,7 @@ import { Route as ContactsIndexRouteImport } from './../modules/contacts/pages/i
 import { Route as AgentsIndexRouteImport } from './../modules/agents/pages/index'
 import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
+import { Route as shellAuthCliGrantRouteImport } from './shell/auth/cli-grant'
 import { Route as TeamTeamsRouteImport } from './../modules/team/pages/teams'
 import { Route as TeamAttributesRouteImport } from './../modules/team/pages/attributes'
 import { Route as TeamUserIdRouteImport } from './../modules/team/pages/$userId'
@@ -124,6 +125,11 @@ const shellAuthLoginRoute = shellAuthLoginRouteImport.update({
   path: '/auth/login',
   getParentRoute: () => shellAuthLayoutRoute,
 } as any)
+const shellAuthCliGrantRoute = shellAuthCliGrantRouteImport.update({
+  id: '/auth/cli-grant',
+  path: '/auth/cli-grant',
+  getParentRoute: () => shellAuthLayoutRoute,
+} as any)
 const TeamTeamsRoute = TeamTeamsRouteImport.update({
   id: '/team/teams',
   path: '/team/teams',
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
   '/team/teams': typeof TeamTeamsRoute
+  '/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/auth/login': typeof shellAuthLoginRoute
   '/auth/pending': typeof shellAuthPendingRoute
   '/agents/': typeof AgentsIndexRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
   '/team/teams': typeof TeamTeamsRoute
+  '/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/auth/login': typeof shellAuthLoginRoute
   '/auth/pending': typeof shellAuthPendingRoute
   '/agents': typeof AgentsIndexRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/_app/team/$userId': typeof TeamUserIdRoute
   '/_app/team/attributes': typeof TeamAttributesRoute
   '/_app/team/teams': typeof TeamTeamsRoute
+  '/_auth/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/_auth/auth/login': typeof shellAuthLoginRoute
   '/_auth/auth/pending': typeof shellAuthPendingRoute
   '/_app/agents/': typeof AgentsIndexRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/team/$userId'
     | '/team/attributes'
     | '/team/teams'
+    | '/auth/cli-grant'
     | '/auth/login'
     | '/auth/pending'
     | '/agents/'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/team/$userId'
     | '/team/attributes'
     | '/team/teams'
+    | '/auth/cli-grant'
     | '/auth/login'
     | '/auth/pending'
     | '/agents'
@@ -323,6 +334,7 @@ export interface FileRouteTypes {
     | '/_app/team/$userId'
     | '/_app/team/attributes'
     | '/_app/team/teams'
+    | '/_auth/auth/cli-grant'
     | '/_auth/auth/login'
     | '/_auth/auth/pending'
     | '/_app/agents/'
@@ -461,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof shellAuthLoginRouteImport
       parentRoute: typeof shellAuthLayoutRoute
     }
+    '/_auth/auth/cli-grant': {
+      id: '/_auth/auth/cli-grant'
+      path: '/auth/cli-grant'
+      fullPath: '/auth/cli-grant'
+      preLoaderRoute: typeof shellAuthCliGrantRouteImport
+      parentRoute: typeof shellAuthLayoutRoute
+    }
     '/_app/team/teams': {
       id: '/_app/team/teams'
       path: '/team/teams'
@@ -591,11 +610,13 @@ const shellAppLayoutRouteWithChildren = shellAppLayoutRoute._addFileChildren(
 )
 
 interface shellAuthLayoutRouteChildren {
+  shellAuthCliGrantRoute: typeof shellAuthCliGrantRoute
   shellAuthLoginRoute: typeof shellAuthLoginRoute
   shellAuthPendingRoute: typeof shellAuthPendingRoute
 }
 
 const shellAuthLayoutRouteChildren: shellAuthLayoutRouteChildren = {
+  shellAuthCliGrantRoute: shellAuthCliGrantRoute,
   shellAuthLoginRoute: shellAuthLoginRoute,
   shellAuthPendingRoute: shellAuthPendingRoute,
 }

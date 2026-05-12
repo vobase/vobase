@@ -6,6 +6,7 @@ export const routes = rootRoute('root.tsx', [
   layout('auth', 'shell/auth/layout.tsx', [
     route('/auth/login', 'shell/auth/login.tsx'),
     route('/auth/pending', 'shell/auth/pending.tsx'),
+    route('/auth/cli-grant', 'shell/auth/cli-grant.tsx'),
   ]),
   layout('app', 'shell/app-layout.tsx', [
     route('/', 'shell/home-redirect.tsx'),
