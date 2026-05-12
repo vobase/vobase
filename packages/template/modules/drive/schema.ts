@@ -86,12 +86,14 @@ const vector = customType<{ data: string; driverData: string }>({
 })
 
 /**
- * Generated tsvector column. Computed from `content` so search hits stay
- * consistent with the body without trigger maintenance.
+ * Plain tsvector column. The generated expression is attached per-column via
+ * `.generatedAlwaysAs(...)` so drizzle-kit's introspection (which reads the
+ * base type from `information_schema`) matches the schema and won't try to
+ * "re-alter" the column on every `push`.
  */
 const tsvector = customType<{ data: string; driverData: string }>({
   dataType() {
-    return "tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED"
+    return 'tsvector'
   },
 })
 
@@ -164,7 +166,7 @@ export const driveChunks = drivePgSchema.table(
     embedding: vector('embedding'),
     tokenCount: integer('token_count').notNull().default(0),
     /** Generated tsvector for hybrid search. */
-    tsv: tsvector('tsv'),
+    tsv: tsvector('tsv').generatedAlwaysAs(sql`to_tsvector('english', content)`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
