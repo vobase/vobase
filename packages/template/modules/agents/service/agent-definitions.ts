@@ -21,7 +21,7 @@ import { agentDefinitions } from '@modules/agents/schema'
 import { conversations } from '@modules/messaging/schema'
 import { asc, eq } from 'drizzle-orm'
 
-import type { RealtimeService } from '~/runtime'
+import { type RealtimeService, safeNotify } from '~/runtime'
 import type { AgentDefinition } from '../schema'
 
 export const BUILTIN_TOOL_NAMES = ['bash', 'vobase'] as const
@@ -88,13 +88,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
   const realtime = deps.realtime
 
-  function notifyRow(id: string, action: string): void {
-    try {
-      realtime.notify({ table: 'agent_definitions', id, action })
-    } catch {
-      // notify is best-effort
-    }
-  }
+  const notify = (id: string, action: string) => safeNotify(realtime, { table: 'agent_definitions', id, action })
 
   async function getById(id: string): Promise<AgentDefinition> {
     const rows = await db.select().from(agentDefinitions).where(eq(agentDefinitions.id, id)).limit(1)
@@ -118,7 +112,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     const row = rows[0]
     if (!row) throw new Error('agents/create: insert returned no rows')
     const created = row as AgentDefinition
-    notifyRow(created.id, 'created')
+    notify(created.id, 'created')
     return created
   }
 
@@ -137,13 +131,13 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error(`agent definition not found: ${id}`)
-    notifyRow(id, 'updated')
+    notify(id, 'updated')
     return row as AgentDefinition
   }
 
   async function remove(id: string): Promise<void> {
     await db.delete(agentDefinitions).where(eq(agentDefinitions.id, id))
-    notifyRow(id, 'removed')
+    notify(id, 'removed')
   }
 
   async function list(organizationId: string): Promise<AgentDefinition[]> {

@@ -1,15 +1,14 @@
 /**
  * Staff profiles service — CRUD over `team.staff_profiles`.
  *
- * Mirrors the contacts-service pattern: `createStaffService({ db })` factory,
- * installable process-level singleton, module-level re-exports. Drizzle is
- * dynamic-imported per call so `check-module-shape` doesn't flag the file.
+ * Mirrors the contacts-service pattern: factory + installable process-level
+ * singleton + module-level re-exports.
  */
 
 import { staffProfiles } from '@modules/team/schema'
 import { asc, eq } from 'drizzle-orm'
 
-import type { RealtimeService } from '~/runtime'
+import { type RealtimeService, safeNotify } from '~/runtime'
 import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
 import type { AttributeValue, Availability, StaffProfile } from '../schema'
 
@@ -69,13 +68,8 @@ export function createStaffService(deps: StaffDeps): StaffService {
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
   const realtime = deps.realtime
 
-  function notifyRow(userId: string, action: string): void {
-    try {
-      realtime.notify({ table: 'staff_profiles', id: userId, action })
-    } catch {
-      // notify is best-effort
-    }
-  }
+  const notify = (userId: string, action: string) =>
+    safeNotify(realtime, { table: 'staff_profiles', id: userId, action })
 
   async function list(organizationId: string): Promise<StaffProfile[]> {
     const rows = (await db
@@ -125,7 +119,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error('staff-profiles/upsert: insert returned no rows')
-    notifyRow(input.userId, 'upserted')
+    notify(input.userId, 'upserted')
     return row as StaffProfile
   }
 
@@ -148,13 +142,13 @@ export function createStaffService(deps: StaffDeps): StaffService {
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error(`staff-profile not found: ${userId}`)
-    notifyRow(userId, 'updated')
+    notify(userId, 'updated')
     return row as StaffProfile
   }
 
   async function remove(userId: string): Promise<void> {
     await db.delete(staffProfiles).where(eq(staffProfiles.userId, userId))
-    notifyRow(userId, 'removed')
+    notify(userId, 'removed')
   }
 
   async function setAttributes(userId: string, patch: Record<string, AttributeValue>): Promise<StaffProfile> {
@@ -176,7 +170,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
       .returning()) as unknown[]
     const row = rows[0]
     if (!row) throw new Error(`staff-profile not found: ${userId}`)
-    notifyRow(userId, 'attributes_updated')
+    notify(userId, 'attributes_updated')
     return row as StaffProfile
   }
 
@@ -193,7 +187,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
     const prior = priorRows[0]?.lastSeenAt ?? null
     const wasOffline = prior === null || Date.now() - prior.getTime() > PRESENCE_THRESHOLD_MS
     await db.update(staffProfiles).set({ lastSeenAt: new Date() }).where(eq(staffProfiles.userId, userId))
-    if (wasOffline) notifyRow(userId, 'presence_online')
+    if (wasOffline) notify(userId, 'presence_online')
   }
 
   async function readColumn(userId: string, field: 'profile' | 'memory'): Promise<string> {
@@ -212,7 +206,7 @@ export function createStaffService(deps: StaffDeps): StaffService {
       .update(staffProfiles)
       .set({ [field]: value })
       .where(eq(staffProfiles.userId, userId))
-    notifyRow(userId, `${field}_updated`)
+    notify(userId, `${field}_updated`)
   }
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature

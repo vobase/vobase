@@ -84,6 +84,19 @@ export interface RealtimeService {
   subscribe(fn: (payload: string) => void): () => void
 }
 
+/**
+ * Best-effort `realtime.notify`. A notify failure must never break the write
+ * path — every service that mutates a directory-feeding table calls this
+ * after the row write succeeds.
+ */
+export function safeNotify(realtime: RealtimeService, payload: NotifyPayload, tx?: Tx): void {
+  try {
+    realtime.notify(payload, tx)
+  } catch {
+    // intentionally swallowed
+  }
+}
+
 // ─── LLM call shape ─────────────────────────────────────────────────────────
 
 import type { AgentTool } from '@vobase/core'

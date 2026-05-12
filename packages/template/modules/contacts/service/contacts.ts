@@ -6,7 +6,7 @@
 import { contactExternalKeys, contacts, staffChannelBindings } from '@modules/contacts/schema'
 import { and, eq } from 'drizzle-orm'
 
-import type { RealtimeService } from '~/runtime'
+import { type RealtimeService, safeNotify } from '~/runtime'
 import type { Contact, StaffBinding } from '../schema'
 
 export interface UpsertByExternalKeyInput {
@@ -174,13 +174,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
       })
       .onConflictDoNothing()
 
-    if (inserted) {
-      try {
-        realtime.notify({ table: 'contacts', id: contactId, action: 'created' })
-      } catch {
-        // notify is best-effort
-      }
-    }
+    if (inserted) safeNotify(realtime, { table: 'contacts', id: contactId, action: 'created' })
 
     return (await findContactByExternalKey(input)) ?? get(contactId)
   }
@@ -212,11 +206,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
   async function writeMemoryIfChanged(id: string, current: string, next: string): Promise<void> {
     if (current === next) return
     await db.update(contacts).set({ memory: next }).where(eq(contacts.id, id))
-    try {
-      realtime.notify({ table: 'contacts', id, action: 'memory_updated' })
-    } catch {
-      // notify is best-effort
-    }
+    safeNotify(realtime, { table: 'contacts', id, action: 'memory_updated' })
   }
 
   async function upsertMemorySection(id: string, heading: string, body: string): Promise<void> {
@@ -250,11 +240,7 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     const row = rows[0]
     if (!row) throw new Error('contacts/create: insert returned no rows')
     const created = row as Contact
-    try {
-      realtime.notify({ table: 'contacts', id: created.id, action: 'created' })
-    } catch {
-      // notify is best-effort
-    }
+    safeNotify(realtime, { table: 'contacts', id: created.id, action: 'created' })
     return created
   }
 
