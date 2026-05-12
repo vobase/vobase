@@ -58,7 +58,7 @@ const TRUNCATION_MARKER = '\n…[truncated — see the full thread in the file p
 const TRUNCATION_MARKER_BYTES = Buffer.byteLength(TRUNCATION_MARKER, 'utf8')
 
 /** Trim `body` to ≤ maxBytes (UTF-8 including the marker), cutting on a line boundary when possible. */
-function truncateForCue(body: string, maxBytes = MAX_CUE_BODY_BYTES): string {
+export function truncateForCue(body: string, maxBytes = MAX_CUE_BODY_BYTES): string {
   const trimmed = body.trim()
   if (Buffer.byteLength(trimmed, 'utf8') <= maxBytes) return trimmed
   // Reserve room for the marker so the returned string is guaranteed ≤ maxBytes.
@@ -82,17 +82,21 @@ function truncateForCue(body: string, maxBytes = MAX_CUE_BODY_BYTES): string {
   return `${kept.join('\n')}${TRUNCATION_MARKER}`
 }
 
-/**
- * Render `body` as a markdown blockquote so the cue's provenance is
- * unambiguous when an LLM reads it. Trims surrounding whitespace, truncates
- * over-large bodies to keep the cue bounded, and prefixes every line with
- * `> ` to mirror what `renderOperatorThread` does for operator-thread posts.
- */
-function quoteBody(body: string): string {
-  return truncateForCue(body)
+/** Prefix every line with `> `. Shared between trigger renderers and `wake/unread-activity.ts`. */
+export function blockquote(body: string): string {
+  return body
     .split('\n')
     .map((line) => `> ${line}`)
     .join('\n')
+}
+
+/**
+ * Render `body` as a markdown blockquote so the cue's provenance is unambiguous
+ * when an LLM reads it. Trims, truncates with the cue-wide byte budget, and
+ * blockquotes — mirrors `renderOperatorThread`'s handling of operator-thread posts.
+ */
+function quoteBody(body: string): string {
+  return blockquote(truncateForCue(body))
 }
 
 function renderInboundMessage(trigger: WakeTrigger, refs: RenderRefs): string {

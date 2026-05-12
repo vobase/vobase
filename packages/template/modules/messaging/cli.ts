@@ -7,11 +7,11 @@
 import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
-import type { Message } from './schema'
 import * as conversationsSvc from './service/conversations'
 import { list as listMessagesSvc } from './service/messages'
 import { listNotes } from './service/notes'
 import { sendStaffReply } from './service/staff-reply'
+import { summarizeMessageContent } from './service/summarize-content'
 
 // Must stay byte-identical with `renderInternalNotes` in `./agent.ts` so
 // operators read exactly what the agent reads inside its bash sandbox.
@@ -26,22 +26,6 @@ function renderInternalNotesMd(
     lines.push(n.body, '')
   }
   return lines.join('\n')
-}
-
-function summarizeMessageContent(m: Message): string {
-  const content = m.content as {
-    text?: string
-    card?: { title?: string }
-    buttonLabel?: string | null
-    buttonValue?: string
-  }
-  if (m.kind === 'text') return (content.text ?? '').replace(/\s+/g, ' ').trim()
-  if (m.kind === 'card') {
-    const title = content.card?.title?.trim()
-    return title ? `[card: ${title}]` : '[card]'
-  }
-  if (m.kind === 'card_reply') return `[card reply: ${content.buttonLabel ?? content.buttonValue ?? ''}]`
-  return `[${m.kind}]`
 }
 
 const ListTabSchema = z.enum(['active', 'later', 'done']).optional()
@@ -192,7 +176,7 @@ export const messagingMessagesVerb = defineCliVerb({
           id: m.id,
           role: m.role,
           kind: m.kind,
-          summary: summarizeMessageContent(m),
+          summary: summarizeMessageContent(m.kind, m.content),
           createdAt: m.createdAt,
         })),
       }
