@@ -96,7 +96,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
         '',
         'Send customer-visible content via `reply` / `send_card` / `send_file` / `book_slot`. Reassign with `vobase conv reassign`. Ask staff a question with `add_note` + `mentions`.',
         '',
-        'When your wake cue begins with `## Activity since your last reply`, that list is authoritative for what is new to you — debounced bursts and any notes between wakes are inlined there. Address every item, not just the trigger excerpt below it.',
+        'Your wake cue may end with `## Other recent activity (context)`, a read-only appendix of customer/staff messages and notes from non-self authors since your last reply (debounced bursts and any notes between wakes land here). The trigger at the top is why this wake fired; the appendix is the surrounding context.',
       ].join('\n')
     },
   }),
@@ -115,7 +115,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## Staff note (this wake)',
         '',
-        'A staff member left a note. Decide what it asks for — fix an artifact, relay to the customer, or both.',
+        'A staff member left a note. Decide what it asks for — fix an artifact, relay to the customer, or both. Brief bodies (a fact, a correction, yes/no) often answer a prior note of yours, with the customer still waiting on that answer.',
         '',
         '**Step 1 — read the artifact the note mentions** before doing anything else:',
         '',

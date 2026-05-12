@@ -209,11 +209,11 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   })
 
   // Snapshot what's new since the agent's last reply — customer/staff messages
-  // and internal notes from non-self authors. Prepended to every turn's wake
-  // cue so the producer-side debounce never hides the burst from the LLM.
-  // Frozen at wake boot to preserve the frozen-snapshot invariant.
+  // and internal notes from non-self authors. Appended after the wake cue as
+  // supplementary context, so the trigger reason stays at the top of the
+  // user-turn. Frozen at wake boot to preserve the frozen-snapshot invariant.
   const unreadActivity = await snapshotUnreadActivity({ db: deps.db, conversationId, agentId })
-  const unreadPreamble = renderUnreadActivity(unreadActivity, `/contacts/${data.contactId}/${channelInstanceId}`)
+  const unreadAppendix = renderUnreadActivity(unreadActivity, `/contacts/${data.contactId}/${channelInstanceId}`)
 
   const model = createModel(agentDefinition.model)
 
@@ -245,7 +245,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
             currentAgentId: agentId,
           })
         : 'Manual wake.'
-      return unreadPreamble ? `${unreadPreamble}\n\n${cue}` : cue
+      return unreadAppendix ? `${cue}\n\n---\n\n${unreadAppendix}` : cue
     },
 
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },

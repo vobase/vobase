@@ -25,7 +25,7 @@ describe('renderUnreadActivity', () => {
       hasMoreNotes: false,
     }
     const out = renderUnreadActivity(snap, FOLDER)
-    expect(out).toContain('## Activity since your last reply')
+    expect(out).toContain('## Other recent activity (context)')
     expect(out).toContain('Messages (2 customer)')
     expect(out).toContain('[2026-05-12 10:14 | customer]')
     expect(out).toContain('> Best under budget')
@@ -62,6 +62,6 @@ describe('renderUnreadActivity', () => {
     expect(out).toContain('Internal notes (1 new from non-self)')
     expect(out).toContain('[2026-05-12 10:15 | staff:u1]')
     expect(out).toContain('> try msg again')
-    expect(out).toContain('authoritative for what is new')
+    expect(out).toContain('The trigger at the top of this turn is what brought this wake')
   })
 })

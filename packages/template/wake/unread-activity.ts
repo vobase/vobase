@@ -126,12 +126,12 @@ function formatTs(ts: Date): string {
 
 /**
  * Render the snapshot as a markdown block. Returns `''` when nothing is
- * unread so callers can `${pre}${cue}` without conditional plumbing.
+ * unread so callers can append unconditionally without guard plumbing.
  */
 export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: string): string {
   if (snapshot.messages.length === 0 && snapshot.notes.length === 0) return ''
 
-  const lines: string[] = ['## Activity since your last reply', '']
+  const lines: string[] = ['## Other recent activity (context)', '']
   if (snapshot.messages.length > 0) {
     const customerCount = snapshot.messages.filter((m) => m.role === 'customer').length
     const staffCount = snapshot.messages.length - customerCount
@@ -162,7 +162,7 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
     }
   }
   lines.push(
-    'The list above is authoritative for what is new — do not assume the trigger cue below is the only new item. Older context still lives in the files referenced.',
+    'Everything above is what has accumulated since your last reply. The trigger at the top of this turn is what brought this wake — anything here that the trigger does not already cover is supplementary signal.',
   )
   return lines.join('\n')
 }
