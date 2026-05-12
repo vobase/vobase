@@ -44,6 +44,19 @@ async function deleteInstance(id: string) {
   if (!r.ok) throw new Error(`delete failed: ${r.status}`)
 }
 
+/**
+ * Managed-WhatsApp release. Goes through the dedicated endpoint so the
+ * platform-side claim row is released (`releaseWithPlatform`) BEFORE the
+ * tenant-side `channel_instances` row is soft-deleted. Calling the generic
+ * `DELETE /instances/:id` path for a managed channel would leak the
+ * platform claim (orphaning the per-(tenant, env) cap until manual cleanup)
+ * AND still hit the same FK constraint on `conversations`.
+ */
+async function releaseManagedInstance(instanceId: string) {
+  const r = await channelsClient.whatsapp.managed[':instanceId'].$delete({ param: { instanceId } })
+  if (!r.ok) throw new Error(`release failed: ${r.status}`)
+}
+
 function WebRowMenu({ row, onEdit, onDelete, onOpenDetails }: ChannelRowMenuProps) {
   return (
     <div className="flex items-center justify-end gap-1">
@@ -81,7 +94,7 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
   const displayPhoneNumber = config.displayPhoneNumber ?? null
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteInstance(row.id),
+    mutationFn: () => (isManaged ? releaseManagedInstance(row.id) : deleteInstance(row.id)),
     onSuccess: () => {
       setDeleteOpen(false)
       qc.invalidateQueries({ queryKey: listQueryKey })

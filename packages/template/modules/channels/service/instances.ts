@@ -12,7 +12,7 @@
 
 import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
 import { type ChannelInstance, channelInstances } from '@modules/channels/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, ne, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 
@@ -34,11 +34,21 @@ export interface UpdateInstanceInput {
   lastError?: string | null
 }
 
+/**
+ * Soft-delete sentinel for `channel_instances.status`. We can't hard-delete
+ * a row that still has conversations (FK `fk_conv_channel_instance` is
+ * `ON DELETE RESTRICT` so message history is preserved), so "release" /
+ * "disconnect" flips status to this value. Filtered out of `list()` and
+ * the managed-claim idempotency probe.
+ */
+export const RELEASED_STATUS = 'released' as const
+
 export interface ChannelInstancesService {
   list(organizationId: string, channel?: string): Promise<ChannelInstance[]>
   get(id: string): Promise<ChannelInstance | null>
   create(input: CreateInstanceInput): Promise<ChannelInstance>
   update(id: string, organizationId: string, patch: UpdateInstanceInput): Promise<ChannelInstance>
+  /** Soft-delete: marks the row `status='released'`. Conversations stay attached. */
   remove(id: string, organizationId: string): Promise<void>
 }
 
@@ -46,9 +56,14 @@ export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelIn
   const { db } = deps
 
   async function list(organizationId: string, channel?: string): Promise<ChannelInstance[]> {
-    const where = channel
-      ? and(eq(channelInstances.organizationId, organizationId), eq(channelInstances.channel, channel))
-      : eq(channelInstances.organizationId, organizationId)
+    // Hide soft-deleted rows. Released channels still exist (to preserve
+    // conversation FKs) but should not surface in the channels listing
+    // or the managed-claim idempotency probe.
+    const baseWhere = and(
+      eq(channelInstances.organizationId, organizationId),
+      ne(channelInstances.status, RELEASED_STATUS),
+    )
+    const where = channel ? and(baseWhere, eq(channelInstances.channel, channel)) : baseWhere
     const rows = await db.select().from(channelInstances).where(where)
     return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
   }
@@ -95,8 +110,14 @@ export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelIn
   }
 
   async function remove(id: string, organizationId: string): Promise<void> {
+    // Soft-delete via status. A hard delete would violate
+    // `fk_conv_channel_instance` (`ON DELETE RESTRICT`) whenever a
+    // conversation already routed through this channel, and the existing
+    // UI copy ("Existing conversations are preserved but no new messages
+    // will be received.") promises preservation anyway.
     await db
-      .delete(channelInstances)
+      .update(channelInstances)
+      .set({ status: RELEASED_STATUS })
       .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
   }
 
