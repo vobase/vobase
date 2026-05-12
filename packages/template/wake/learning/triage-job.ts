@@ -15,8 +15,9 @@
 import { agentDefinitions, learningCandidates } from '@modules/agents/schema'
 import { insertCandidate } from '@modules/agents/service/learning-candidates'
 import { contacts } from '@modules/contacts/schema'
-import { conversations } from '@modules/messaging/schema'
-import { conversationEvents, llmCall as coreLlmCall, type JobDef } from '@vobase/core'
+import { conversations, type MessageKind, messages } from '@modules/messaging/schema'
+import { summarizeMessageContent } from '@modules/messaging/service/summarize-content'
+import { llmCall as coreLlmCall, type JobDef } from '@vobase/core'
 import { and, desc, eq, max } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
@@ -131,22 +132,18 @@ async function handleTriageJob(raw: unknown): Promise<void> {
 
   // ── b) Load context ────────────────────────────────────────────────────────
 
-  // Journal: last 20 events incl. tool-call info so the triage LLM sees what
-  // the agent actually DID, not just text content. Format follows
-  // `[type/role] content | tool=<name> calls=<json…>` with empty fields elided.
-  const [journalRows, agentRows, contactRows] = await Promise.all([
+  // Journal: last 20 customer/staff/agent messages from `messaging.messages`.
+  // (Previously this read `conversation_events`, which only contains wake
+  // harness + lifecycle events — not the actual conversation thread — so the
+  // triage LLM never saw what was said.) Each message rendered via the canonical
+  // `summarizeMessageContent` so cards and replies appear as `[card: …]` /
+  // `[card reply: …]` like everywhere else.
+  const [messageRows, agentRows, contactRows] = await Promise.all([
     db
-      .select({
-        type: conversationEvents.type,
-        role: conversationEvents.role,
-        content: conversationEvents.content,
-        toolName: conversationEvents.toolName,
-        toolCalls: conversationEvents.toolCalls,
-        payload: conversationEvents.payload,
-      })
-      .from(conversationEvents)
-      .where(eq(conversationEvents.conversationId, conversationId))
-      .orderBy(desc(conversationEvents.ts))
+      .select({ role: messages.role, kind: messages.kind, content: messages.content, createdAt: messages.createdAt })
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(desc(messages.createdAt))
       .limit(20),
     db
       .select({
@@ -165,19 +162,9 @@ async function handleTriageJob(raw: unknown): Promise<void> {
       .limit(1),
   ])
 
-  const journalContext = journalRows
+  const journalContext = messageRows
     .reverse()
-    .map((r) => {
-      const head = `[${r.type}${r.role ? `/${r.role}` : ''}]`
-      const parts: string[] = []
-      if (r.content) parts.push(r.content)
-      if (r.toolName) parts.push(`tool=${r.toolName}`)
-      const callsOrPayload = r.toolCalls ?? r.payload
-      if (callsOrPayload !== null && callsOrPayload !== undefined) {
-        parts.push(`calls=${JSON.stringify(callsOrPayload).slice(0, 240)}`)
-      }
-      return `${head} ${parts.join(' | ')}`.trimEnd()
-    })
+    .map((r) => `[${r.role}/${r.kind}] ${summarizeMessageContent(r.kind as MessageKind, r.content)}`.trimEnd())
     .join('\n')
     .slice(0, 4000)
 
