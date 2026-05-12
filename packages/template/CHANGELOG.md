@@ -1,5 +1,74 @@
 # @vobase/template
 
+## 3.11.2
+
+### Patch Changes
+
+- [`421ec4d`](https://github.com/vobase/vobase/commit/421ec4dfa41ef3ad79e430eadf9590c81bcdd57f) Thanks [@mdluo](https://github.com/mdluo)! - fix(template/channels): release sandbox via managed endpoint + soft-delete instead of hard
+
+  Releasing a sandbox WhatsApp channel from the UI returned 500 because the
+  WhatsApp row menu's delete button called the generic
+  `DELETE /api/channels/instances/:id` — which doesn't release the
+  platform-side `managed_whatsapp_channel_claims` row, and hits
+  `fk_conv_channel_instance` (`ON DELETE RESTRICT`) the moment a conversation
+  has routed through this channel. The intent in the existing dialog copy is
+  already "Existing conversations are preserved but no new messages will be
+  received", so this switches the contract to soft-delete:
+
+  - `service/instances.ts::remove` now flips `status` to a new
+    `RELEASED_STATUS = 'released'` sentinel instead of hard-deleting.
+    `list()` filters those rows out so they neither surface in the channels
+    listing nor short-circuit the managed-claim idempotency probe.
+  - `channel-row-menu.tsx` dispatches managed channels to the dedicated
+    `DELETE /api/channels/whatsapp/managed/:instanceId` so the platform
+    claim release runs before the tenant-side soft-delete; self channels
+    still use the generic path (now also soft-delete).
+
+- [`5a417f4`](https://github.com/vobase/vobase/commit/5a417f46308dd8d3621649eb1e854ae984dbcab2) Thanks [@mdluo](https://github.com/mdluo)! - fix(template/whatsapp): write `agent:<id>` (not bare id) as the sandbox channel's default assignee
+
+  The managed-WhatsApp claim handler was writing the bare `agentDefinitions.id`
+  into `channel_instances.config.defaultAssignee`, but the canonical principal
+  token format used by every other writer (`modules/contacts/seed.ts`, the web
+  instance create form), every reader (`<Principal id=…>`, mention rendering,
+  hover cards), and the `conversations.assignee` column itself (via
+  `initialAssignee` in `dispatchInbound`) is `agent:<id>`. The mismatch showed
+  up in the channels table as a raw 8-character id instead of the agent's
+  name, and would also have broken assignee resolution on the first inbound
+  message after claim.
+
+  The one downstream reader that strips the `agent:` prefix to do a DB lookup
+  (`web/service/instances.ts` → `loadHydrationFor`) now strips it uniformly
+  from both the conversation's assignee and the instance's defaultAssignee,
+  so the seed flow (`defaultAssignee: 'agent:agt0meri0v1'`) keeps working.
+
+- [`46bd416`](https://github.com/vobase/vobase/commit/46bd41623b8a904f97aadf05808e786ce62a9e1c) Thanks [@mdluo](https://github.com/mdluo)! - fix(template/whatsapp): derive sandbox-claim environment from STAGING env, not NODE_ENV
+
+  The Dockerfile pins `ENV NODE_ENV=production` for every tenant container,
+  so a staging Railway deployment running `NODE_ENV=production` was claiming
+  a `production`-tier sandbox channel — the link message rendered
+  `mgd-<orgId>-production` even on the staging URL. The platform's
+  `set-staging-env-vars` step already stamps `STAGING=true` only on staging
+  Railway environments (production leaves it unset), so the tenant now reads
+  that flag to pick `production | staging` for `/managed/claim`. The
+  resulting `(tenant, environment, channelInstanceId)` key — and the
+  platform-pool slot it allocates — now corresponds to the deploy
+  environment the user is sitting in.
+
+- [`096a317`](https://github.com/vobase/vobase/commit/096a3179e172a17ed611c607ec58a022e723b40e) Thanks [@mdluo](https://github.com/mdluo)! - fix(whatsapp): use tenant slug, not nanoid, for webhook verify-token derivation
+
+  The sandbox-claim flow's earlier `X-Tenant-Id` fix correctly switched the
+  platform-call header to `PLATFORM_TENANT_ID` (the nanoid), but also accidentally
+  passed the nanoid as `tenantSlug` into `deriveVerifyToken`. The WhatsApp adapter's
+  GET hub-challenge handler derives the expected token from
+  `VITE_PLATFORM_TENANT_SLUG` (the human slug), so the two HKDF derivations
+  disagreed. Platform's webhook self-registration GET hit the tenant URL with the
+  wrong `hub.verify_token`, got 403, and surfaced in the UI as
+  "platform webhook registration failed (400: http_403)".
+
+  Threaded `tenantSlug` through `PlatformCreds` and use it for verify-token
+  derivation on both `/managed/claim` and `/managed/:id/webhook/re-verify` paths.
+  `X-Tenant-Id` continues to use the nanoid via `tenantId`.
+
 ## 3.11.1
 
 ### Patch Changes
