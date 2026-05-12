@@ -48,8 +48,8 @@
   },
   "devDependencies": {
     "@vobase/core": "workspace:*",
-    "hono": "^4.12.15",
+    "hono": "^4.12.18",
     "typescript": "^6.0.3",
-    "zod": "^4.4.1"
+    "zod": "^4.4.3"
   }
 }
