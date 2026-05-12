@@ -23,6 +23,7 @@ import { extractEchoMetadata } from '@modules/messaging/service/echo-metadata'
 import { updateDeliveryStatus } from '@modules/messaging/service/messages'
 import { removeReaction, upsertReaction } from '@modules/messaging/service/reactions'
 import { seedOnInbound } from '@modules/messaging/service/sessions'
+import { notifyConversation } from '@modules/messaging/service/staff-ops'
 import type { ChannelEvent, MessageReceivedEvent, ReactionEvent, StatusUpdateEvent } from '@vobase/core'
 
 import { AGENTS_WAKE_JOB } from '~/wake/inbound'
@@ -164,6 +165,13 @@ export async function dispatchInbound(
     if (!isEcho && adapter.capabilities.messagingWindow && result.message.role === 'customer') {
       await seedOnInbound(result.conversation.id, instance.id)
     }
+
+    // Fan out SSE so the staff inbox refreshes immediately on customer inbound —
+    // before the wake fires its own notifies on `tool_execution_end`. Without
+    // this, new customer messages don't surface in the inbox until the agent
+    // replies (which can be several seconds later). Mirrors the web adapter's
+    // `handlers/inbound.ts` call. Non-fatal on failure.
+    await notifyConversation(result.conversation.id).catch(() => undefined)
 
     // Echoes never wake the agent — they are staff-authored, not customer-driven.
     if (!isEcho && result.isNew) {
