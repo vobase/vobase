@@ -190,7 +190,9 @@ function createSseRoute(realtime: RealtimeService): Hono {
 export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Promise<Hono> {
   const app = new Hono()
   app.use('*', createWidgetCors())
-  app.use('*', logger())
+  if (process.env.NODE_ENV !== 'production') {
+    app.use('*', logger((msg: string, ...rest: string[]) => console.debug(msg, ...rest)))
+  }
   app.get('/health', (c) => c.json({ ok: true }))
 
   const auth = createAuth(db)
