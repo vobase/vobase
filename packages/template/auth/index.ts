@@ -1,4 +1,5 @@
 import { productName } from '@auth/branding'
+import { nameFromEmail } from '@auth/display-name'
 import {
   authAccount,
   authInvitation,
@@ -157,7 +158,8 @@ export function createAuth(db: ScopedDb) {
         .from(authUser)
         .where(eq(authUser.id, userId))
         .limit(1)
-      const displayName = u?.name ?? u?.email ?? null
+      const rawName = u?.name?.trim() || ''
+      const displayName = rawName || (u?.email ? nameFromEmail(u.email) : null)
       await dbAny
         .insert(staffProfiles)
         .values({ userId, organizationId, displayName })

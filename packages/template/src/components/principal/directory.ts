@@ -85,7 +85,7 @@ export function usePrincipalDirectory(): PrincipalDirectory {
         kind: 'staff',
         id: s.userId,
         token: `staff:${s.userId}`,
-        name: s.displayName ?? humanize(s.userId),
+        name: s.displayName?.trim() || humanize(s.userId),
         staff: { title: s.title, availability: s.availability, isOnline, lastSeenAt: lastSeen },
       }
     })
@@ -94,7 +94,7 @@ export function usePrincipalDirectory(): PrincipalDirectory {
       kind: 'contact',
       id: c.id,
       token: `contact:${c.id}`,
-      name: c.displayName ?? humanize(c.id),
+      name: c.displayName?.trim() || humanize(c.id),
       contact: { email: c.email, phone: c.phone },
     }))
 

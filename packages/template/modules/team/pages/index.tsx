@@ -149,7 +149,7 @@ export function StaffListPage() {
             params={{ userId: row.original.userId }}
             className="font-medium text-foreground hover:underline"
           >
-            {row.original.displayName ?? row.original.userId}
+            {row.original.displayName?.trim() || row.original.userId}
           </Link>
         ),
         meta: { label: 'Name', variant: 'text', placeholder: 'Search name…' },

@@ -1,3 +1,4 @@
+import { nameFromEmail } from '@auth/display-name'
 import type { BetterAuthPlugin } from 'better-auth'
 import { createAuthEndpoint } from 'better-auth/api'
 import { setSessionCookie } from 'better-auth/cookies'
@@ -28,7 +29,7 @@ export function devAuth(): BetterAuthPlugin {
             // user.create.after hook auto-enrolls into the sole org (single-org
             // mode) or accepts a pending invite.
             const result = await ctx.context.internalAdapter.createOAuthUser(
-              { email, name: name ?? email.split('@')[0], emailVerified: true },
+              { email, name: name ?? nameFromEmail(email), emailVerified: true },
               { providerId: 'dev', accountId: email },
             )
             user = result.user
