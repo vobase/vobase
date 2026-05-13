@@ -27,6 +27,7 @@ const PER_ITEM_BYTE_CAP = 800
 /** Per-section row caps — overflow surfaces a `read <file>` pointer instead of an inflated count. */
 const MAX_MESSAGES = 50
 const MAX_NOTES = 20
+const MAX_SELF = 12
 
 export interface UnreadMessage {
   role: 'customer' | 'staff'
@@ -40,6 +41,14 @@ export interface UnreadNote {
   body: string
 }
 
+/** Agent's own recent outbound — used as a self-anchor so back-to-back wakes don't re-send the same card. */
+export interface SelfActivity {
+  /** `reply` = text msg, `card` = card msg, `file` = image/file msg, `note` = self-authored internal note. */
+  kind: 'reply' | 'card' | 'file' | 'note'
+  ts: Date
+  body: string
+}
+
 export interface UnreadActivitySnapshot {
   /** `MAX(messages.created_at) WHERE role='agent'`; `null` when no agent reply yet. */
   since: Date | null
@@ -49,6 +58,12 @@ export interface UnreadActivitySnapshot {
   notes: readonly UnreadNote[]
   /** True when at least one older note was dropped by `MAX_NOTES`. */
   hasMoreNotes: boolean
+  /** `MAX(messages.created_at) WHERE role IN ('customer','staff')`; `null` when no inbound yet. */
+  sinceCustomer: Date | null
+  /** Agent's own outbound + self-authored notes since the last customer/staff inbound. */
+  selfActivity: readonly SelfActivity[]
+  /** True when at least one older self action was dropped by `MAX_SELF`. */
+  hasMoreSelf: boolean
 }
 
 export interface SnapshotInput {
@@ -60,13 +75,23 @@ export interface SnapshotInput {
 export async function snapshotUnreadActivity(input: SnapshotInput): Promise<UnreadActivitySnapshot> {
   const { db, conversationId, agentId } = input
 
-  const sinceRows = await db
-    .select({ ts: sql<Date | null>`MAX(${messages.createdAt})` })
-    .from(messages)
-    .where(and(eq(messages.conversationId, conversationId), eq(messages.role, 'agent')))
+  // Two watermarks: `since` (agent's last reply, anchors the inbound view); `sinceCustomer`
+  // (last customer/staff inbound, anchors the self-anchor view of what the agent has done
+  // in response to the current inbound).
+  const [sinceRows, sinceCustomerRows] = await Promise.all([
+    db
+      .select({ ts: sql<Date | null>`MAX(${messages.createdAt})` })
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversationId), eq(messages.role, 'agent'))),
+    db
+      .select({ ts: sql<Date | null>`MAX(${messages.createdAt})` })
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversationId), inArray(messages.role, ['customer', 'staff']))),
+  ])
   const since = sinceRows[0]?.ts ?? null
+  const sinceCustomer = sinceCustomerRows[0]?.ts ?? null
 
-  const [msgRows, noteRows] = await Promise.all([
+  const [msgRows, noteRows, selfMsgRows, selfNoteRows] = await Promise.all([
     db
       .select({ role: messages.role, kind: messages.kind, content: messages.content, createdAt: messages.createdAt })
       .from(messages)
@@ -96,6 +121,31 @@ export async function snapshotUnreadActivity(input: SnapshotInput): Promise<Unre
       )
       .orderBy(asc(internalNotes.createdAt))
       .limit(MAX_NOTES + 1),
+    db
+      .select({ kind: messages.kind, content: messages.content, createdAt: messages.createdAt })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          eq(messages.role, 'agent'),
+          sinceCustomer ? gt(messages.createdAt, sinceCustomer) : undefined,
+        ),
+      )
+      .orderBy(asc(messages.createdAt))
+      .limit(MAX_SELF + 1),
+    db
+      .select({ body: internalNotes.body, createdAt: internalNotes.createdAt })
+      .from(internalNotes)
+      .where(
+        and(
+          eq(internalNotes.conversationId, conversationId),
+          eq(internalNotes.authorType, 'agent'),
+          eq(internalNotes.authorId, agentId),
+          sinceCustomer ? gt(internalNotes.createdAt, sinceCustomer) : undefined,
+        ),
+      )
+      .orderBy(asc(internalNotes.createdAt))
+      .limit(MAX_SELF + 1),
   ])
 
   const messagesOut: UnreadMessage[] = msgRows.slice(0, MAX_MESSAGES).map((r) => ({
@@ -110,13 +160,35 @@ export async function snapshotUnreadActivity(input: SnapshotInput): Promise<Unre
     body: truncateForCue(r.body, PER_ITEM_BYTE_CAP),
   }))
 
+  const selfMerged: SelfActivity[] = [
+    ...selfMsgRows.map((r) => ({
+      kind: messageKindToSelfKind(r.kind as MessageKind),
+      ts: r.createdAt,
+      body: truncateForCue(summarizeMessageContent(r.kind as MessageKind, r.content), PER_ITEM_BYTE_CAP),
+    })),
+    ...selfNoteRows.map((r) => ({
+      kind: 'note' as const,
+      ts: r.createdAt,
+      body: truncateForCue(r.body, PER_ITEM_BYTE_CAP),
+    })),
+  ].sort((a, b) => a.ts.getTime() - b.ts.getTime())
+
   return {
     since,
     messages: messagesOut,
     hasMoreMessages: msgRows.length > MAX_MESSAGES,
     notes: notesOut,
     hasMoreNotes: noteRows.length > MAX_NOTES,
+    sinceCustomer,
+    selfActivity: selfMerged.slice(0, MAX_SELF),
+    hasMoreSelf: selfMerged.length > MAX_SELF,
   }
+}
+
+function messageKindToSelfKind(kind: MessageKind): SelfActivity['kind'] {
+  if (kind === 'card') return 'card'
+  if (kind === 'image') return 'file'
+  return 'reply'
 }
 
 /** `YYYY-MM-DD HH:MM` UTC — opaque magic-index slice; comment is the only thing telling readers what those indices mean. */
@@ -129,7 +201,7 @@ function formatTs(ts: Date): string {
  * unread so callers can append unconditionally without guard plumbing.
  */
 export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: string): string {
-  if (snapshot.messages.length === 0 && snapshot.notes.length === 0) return ''
+  if (snapshot.messages.length === 0 && snapshot.notes.length === 0 && snapshot.selfActivity.length === 0) return ''
 
   const lines: string[] = ['## Other recent activity (context)', '']
   if (snapshot.messages.length > 0) {
@@ -164,8 +236,20 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
       lines.push('')
     }
   }
+  if (snapshot.selfActivity.length > 0) {
+    lines.push(`**Your recent actions (since last customer/staff inbound — already done, do not re-send):**`)
+    for (const a of snapshot.selfActivity) {
+      lines.push(`[${formatTs(a.ts)} | ${a.kind}]`)
+      lines.push(blockquote(a.body))
+      lines.push('')
+    }
+    if (snapshot.hasMoreSelf) {
+      lines.push(`*(more older actions exist beyond the ${MAX_SELF}-row cap.)*`)
+      lines.push('')
+    }
+  }
   lines.push(
-    'Everything above is what has accumulated since your last reply. The trigger at the top of this turn is what brought this wake — anything here that the trigger does not already cover is supplementary signal.',
+    'The trigger at the top of this turn is what brought this wake. "Messages" and "Internal notes" accumulated since your last reply; "Your recent actions" is what you already sent in response to the current inbound — do not re-fire the same card or reply.',
   )
   return lines.join('\n')
 }

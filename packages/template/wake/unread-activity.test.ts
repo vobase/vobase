@@ -5,7 +5,16 @@ import { renderUnreadActivity, type UnreadActivitySnapshot } from './unread-acti
 const FOLDER = '/contacts/c1/ch1'
 
 function emptySnapshot(): UnreadActivitySnapshot {
-  return { since: null, messages: [], hasMoreMessages: false, notes: [], hasMoreNotes: false }
+  return {
+    since: null,
+    messages: [],
+    hasMoreMessages: false,
+    notes: [],
+    hasMoreNotes: false,
+    sinceCustomer: null,
+    selfActivity: [],
+    hasMoreSelf: false,
+  }
 }
 
 describe('renderUnreadActivity', () => {
@@ -23,6 +32,9 @@ describe('renderUnreadActivity', () => {
       hasMoreMessages: false,
       notes: [],
       hasMoreNotes: false,
+      sinceCustomer: null,
+      selfActivity: [],
+      hasMoreSelf: false,
     }
     const out = renderUnreadActivity(snap, FOLDER)
     expect(out).toContain('## Other recent activity (context)')
@@ -41,6 +53,9 @@ describe('renderUnreadActivity', () => {
       hasMoreMessages: true,
       notes: [],
       hasMoreNotes: false,
+      sinceCustomer: null,
+      selfActivity: [],
+      hasMoreSelf: false,
     }
     const out = renderUnreadActivity(snap, FOLDER)
     expect(out).toContain(`more older messages exist beyond the 50-row cap — read ${FOLDER}/MESSAGES.md`)
@@ -56,6 +71,9 @@ describe('renderUnreadActivity', () => {
       hasMoreMessages: false,
       notes: [{ ts: new Date('2026-05-12T10:15:00Z'), authorLabel: 'staff:u1', body: 'try msg again' }],
       hasMoreNotes: false,
+      sinceCustomer: null,
+      selfActivity: [],
+      hasMoreSelf: false,
     }
     const out = renderUnreadActivity(snap, FOLDER)
     expect(out).toContain('Messages (1 customer, 1 staff)')
@@ -63,5 +81,28 @@ describe('renderUnreadActivity', () => {
     expect(out).toContain('[2026-05-12 10:15 | staff:u1]')
     expect(out).toContain('> try msg again')
     expect(out).toContain('The trigger at the top of this turn is what brought this wake')
+  })
+
+  it('renders the self-anchor block when the agent has recent outbound', () => {
+    const snap: UnreadActivitySnapshot = {
+      since: new Date('2026-05-12T10:16:00Z'),
+      messages: [],
+      hasMoreMessages: false,
+      notes: [],
+      hasMoreNotes: false,
+      sinceCustomer: new Date('2026-05-12T10:10:00Z'),
+      selfActivity: [
+        { kind: 'card', ts: new Date('2026-05-12T10:14:00Z'), body: '[card: Premium 42 promo for your slot]' },
+        { kind: 'note', ts: new Date('2026-05-12T10:15:00Z'), body: 'Added high-priority label as requested.' },
+      ],
+      hasMoreSelf: false,
+    }
+    const out = renderUnreadActivity(snap, FOLDER)
+    expect(out).toContain('Your recent actions (since last customer/staff inbound — already done, do not re-send)')
+    expect(out).toContain('[2026-05-12 10:14 | card]')
+    expect(out).toContain('> [card: Premium 42 promo for your slot]')
+    expect(out).toContain('[2026-05-12 10:15 | note]')
+    expect(out).toContain('> Added high-priority label as requested.')
+    expect(out).toContain('do not re-fire the same card or reply')
   })
 })

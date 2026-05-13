@@ -83,6 +83,9 @@ export interface ConversationWakeConfigInput {
 
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
 
+/** Tools dropped from the registry on peer-consultation wakes (staff_note + assignee ≠ agent). */
+const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply', 'send_card', 'send_file', 'book_slot'])
+
 export async function conversationWakeConfig(input: ConversationWakeConfigInput): Promise<WakeConfig> {
   const { data, conv, agentId, agentDefinition, contributions, deps } = input
 
@@ -107,7 +110,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // — same set the wake's harness will see (staff-note's `audience`
   // filter is a runtime exception not surfaced here). Tools opt into the lane
   // via their `lane` field; `'both'` enrols a tool into both lanes (e.g. add_note).
-  const laneTools = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
+  const laneToolsAll = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
 
   const trigger: WakeTrigger =
     input.triggerOverride ??
@@ -122,6 +125,16 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // every other conversation-lane trigger (staff_note, approval, scheduled,
   // manual) is staff-initiated.
   const audienceTier: 'staff' | 'contact' = trigger.trigger === 'inbound_message' ? 'contact' : 'staff'
+
+  // Peer-consultation guard: when a staff @-mention fires while the conversation
+  // is owned by a human, the agent's customer-facing tools are dropped from the
+  // registry. The cue prose already says "do NOT call reply / send_card / …",
+  // but LLMs ignore negative instructions under strong in-context pattern
+  // pressure. Removing the tools makes it a hard guarantee.
+  const isPeerConsultation = trigger.trigger === 'staff_note' && conv.assignee !== `agent:${agentId}`
+  const laneTools = isPeerConsultation
+    ? laneToolsAll.filter((t) => !CUSTOMER_FACING_TOOL_NAMES.has(t.name))
+    : laneToolsAll
 
   const wakeCtx: WakeContext = {
     organizationId: data.organizationId,

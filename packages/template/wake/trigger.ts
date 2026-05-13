@@ -131,9 +131,9 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
     : `${lead}. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
   const youOwn = refs.assignee === `agent:${refs.currentAgentId}`
   if (!youOwn) {
-    return `${noteSection} You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. Do NOT call reply / send_card / send_file / book_slot — the assignee is in charge of customer-facing replies here.`
+    return `${noteSection} You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. The customer-facing tools (reply / send_card / send_file / book_slot) are not available in this wake — the assignee owns customer replies.`
   }
-  return `${noteSection} Decide what the note asks for and act — see \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
+  return `${noteSection} Act on this note's request only. Do not re-respond to prior customer threads — anything still pending was already handled in earlier wakes (your recent outbound appears below under "Your recent actions"). See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {
