@@ -193,19 +193,15 @@ export function __resetManagedRotationCacheForTests(): void {
 }
 
 /**
- * Resolve the vault provider key for a managed-mode config. Reads
- * `config.kind` (written by `claimAndBootstrap` per US-011) and looks the
- * provider up in the managed-channels registry. Rows minted before US-011
- * have no `kind` — fall back to `'sandbox'`, which today still resolves to
- * `'vobase-platform'` so the migration is byte-stable.
- *
- * The whole point of the indirection is that Slice 3's `notification` kind
- * can register a different provider in the registry without touching this
- * factory at all.
+ * Resolve the managed-channels registry entry for a config. Reads
+ * `config.kind` (written by `claimAndBootstrap` per US-011); rows minted
+ * before US-011 have no `kind` — fall back to `'sandbox'`, which today
+ * still resolves to `'vobase-platform'` so the migration is byte-stable.
+ * `vaultProvider`, `channelName` (= webhook provider salt), etc. all come
+ * from this single lookup.
  */
-function resolveVaultProvider(config: ManagedConfig): VaultProvider {
-  const kind = config.kind ?? 'sandbox'
-  return findKind(kind).vaultProvider
+function resolveKindSpec(config: ManagedConfig) {
+  return findKind(config.kind ?? 'sandbox')
 }
 
 // biome-ignore lint/suspicious/useAwait: signature kept Promise-returning so callers don't need to branch on cache hit vs miss
@@ -254,8 +250,9 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
 
   // Consult the managed-channels registry once at adapter construction.
   // Slice 3's `notification` kind plugs in here without touching this file —
-  // it just registers a new `(kind, vaultProvider)` pair.
-  const vaultProvider = resolveVaultProvider(config)
+  // it just registers a new `(kind, vaultProvider, channelName)` triple.
+  const kindSpec = resolveKindSpec(config)
+  const vaultProvider = kindSpec.vaultProvider
 
   // Await the initial vault load so that the first outbound dispatch never
   // races the cold load. `loadRotation` deduplicates concurrent calls via the
@@ -296,11 +293,15 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
   // for anything else).
   const betterAuthSecret = process.env.BETTER_AUTH_SECRET
   const environment = (config.environment as 'production' | 'staging' | undefined) ?? 'production'
+  // The provider salt MUST match what the platform registration side used
+  // (see `claimAndBootstrap`'s `registerWebhookWithPlatform` call, which
+  // sources the literal from `kindSpec.channelName`). Hardcoding `'whatsapp'`
+  // here would silently 403 the notification webhook's hub challenge.
   const webhookVerifyToken = betterAuthSecret
     ? deriveVerifyToken({
         tenantSlug,
         environment,
-        provider: 'whatsapp',
+        provider: kindSpec.channelName,
         betterAuthSecret,
       })
     : undefined

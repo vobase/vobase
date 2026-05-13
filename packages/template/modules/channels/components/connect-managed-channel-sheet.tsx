@@ -1,12 +1,11 @@
 /**
  * Generic claim sheet for any platform-managed channel kind (sandbox,
  * notification, …). The `kind` prop pins which managed-channels registry
- * entry the sheet operates against. Today, the tenant's managed endpoints
- * (`availability`, `claim`) are mounted at `channelsClient.whatsapp.managed`
- * for both kinds; the per-kind dispatch happens server-side via the
- * `kind` claim payload (US-021). When a future kind needs a different
- * client path, extend `KIND_CLIENTS` below — the typed mapping keeps the
- * Hono RPC client sound without `as unknown` casts.
+ * entry the sheet operates against. Each kind has its own pair of HTTP
+ * routes on the tenant — sandbox under `whatsapp.managed.{availability,claim}`
+ * and notification under `whatsapp.managed.notification.{availability,claim}`
+ * — so `fetchAvailability` / `postClaim` switch on `kind` to pick the
+ * right Hono RPC client path.
  *
  * Slice 3 introduces this generic — `ConnectNotificationSheet` was its
  * single-kind ancestor.
@@ -21,12 +20,8 @@ import { Status } from '@/components/ui/status'
 import { channelsClient } from '@/lib/api-client'
 
 interface AvailabilityResponse {
-  /**
-   * Free slots in the platform pool for this kind. Server side names this
-   * `sandboxPoolAvailable` for legacy reasons; the field is generic across
-   * kinds today (notification + sandbox share the count).
-   */
-  sandboxPoolAvailable: number
+  /** Free slots in the platform pool for this kind. Normalised across kinds. */
+  available: number
   configured: boolean
   error?: string
 }
@@ -70,39 +65,34 @@ const KIND_COPY: Record<ManagedChannelKind, KindCopy> = {
   },
 }
 
-/**
- * Per-kind RPC client mapping. Both kinds route through the same
- * `whatsapp.managed.{availability,claim}` endpoints today; the server-side
- * `kind` argument lives in the claim payload. Splitting this map per kind
- * preserves the path-level type safety of the Hono RPC client (no
- * `as unknown` casts) while keeping the door open for future per-kind
- * route splits — extend the map, not the call sites.
- */
-const KIND_CLIENTS: Record<
-  ManagedChannelKind,
-  {
-    availability: typeof channelsClient.whatsapp.managed.availability
-    claim: typeof channelsClient.whatsapp.managed.claim
-  }
-> = {
-  sandbox: {
-    availability: channelsClient.whatsapp.managed.availability,
-    claim: channelsClient.whatsapp.managed.claim,
-  },
-  notification: {
-    availability: channelsClient.whatsapp.managed.availability,
-    claim: channelsClient.whatsapp.managed.claim,
-  },
-}
-
 async function fetchAvailability(kind: ManagedChannelKind): Promise<AvailabilityResponse> {
-  const r = await KIND_CLIENTS[kind].availability.$get()
+  // Server returns kind-specific field names (`sandboxPoolAvailable` vs
+  // `notificationPoolAvailable`); normalise to `available` here.
+  if (kind === 'sandbox') {
+    const r = await channelsClient.whatsapp.managed.availability.$get()
+    if (!r.ok && r.status !== 502) throw new Error(`availability failed (${r.status})`)
+    const body = (await r.json()) as { sandboxPoolAvailable?: number; configured?: boolean; error?: string }
+    return {
+      available: body.sandboxPoolAvailable ?? 0,
+      configured: body.configured ?? false,
+      error: body.error,
+    }
+  }
+  const r = await channelsClient.whatsapp.managed.notification.availability.$get()
   if (!r.ok && r.status !== 502) throw new Error(`availability failed (${r.status})`)
-  return (await r.json()) as AvailabilityResponse
+  const body = (await r.json()) as { notificationPoolAvailable?: number; configured?: boolean; error?: string }
+  return {
+    available: body.notificationPoolAvailable ?? 0,
+    configured: body.configured ?? false,
+    error: body.error,
+  }
 }
 
 async function postClaim(kind: ManagedChannelKind): Promise<ClaimSuccessResponse> {
-  const r = await KIND_CLIENTS[kind].claim.$post()
+  const r =
+    kind === 'sandbox'
+      ? await channelsClient.whatsapp.managed.claim.$post()
+      : await channelsClient.whatsapp.managed.notification.claim.$post()
   const body = (await r.json()) as ClaimSuccessResponse | ClaimErrorResponse
   if (!r.ok) {
     const err = body as ClaimErrorResponse
@@ -158,7 +148,7 @@ export function ConnectManagedChannelSheet({ open, kind, onOpenChange, onConnect
   })
 
   const configured = availability.data?.configured ?? false
-  const available = availability.data?.sandboxPoolAvailable ?? 0
+  const available = availability.data?.available ?? 0
 
   return (
     <Sheet

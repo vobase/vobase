@@ -451,6 +451,63 @@ export async function fetchSandboxAvailability(input: {
   tenantId: string
   tenantHmacSecret: string
 }): Promise<{ sandboxPoolAvailable: number; schemaVersion: string }> {
+  const data = await fetchPoolHealth(input)
+  if (typeof data.sandboxPoolAvailable !== 'number') {
+    throw new PlatformHandshakeError(
+      'platform rejected tenant HMAC signature on /health (tenant unknown, inactive, or secret drift)',
+      null,
+      'platform_unauthenticated',
+    )
+  }
+  return {
+    sandboxPoolAvailable: data.sandboxPoolAvailable,
+    schemaVersion: data.schemaVersion ?? '',
+  }
+}
+
+/**
+ * Read the platform's notification-tier pool availability. Same `/health`
+ * endpoint as `fetchSandboxAvailability` — `/health` already returns both
+ * counters; this helper picks the notification one. Lets the UI gate the
+ * "Claim notification channel" button symmetrically to sandbox.
+ */
+export async function fetchNotificationAvailability(input: {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+}): Promise<{ notificationPoolAvailable: number; schemaVersion: string }> {
+  const data = await fetchPoolHealth(input)
+  if (typeof data.notificationPoolAvailable !== 'number') {
+    throw new PlatformHandshakeError(
+      'platform rejected tenant HMAC signature on /health (tenant unknown, inactive, or secret drift)',
+      null,
+      'platform_unauthenticated',
+    )
+  }
+  return {
+    notificationPoolAvailable: data.notificationPoolAvailable,
+    schemaVersion: data.schemaVersion ?? '',
+  }
+}
+
+/**
+ * Shared `/health` fetcher. Platform's `/health` strips data fields
+ * (returns bare `{ok: true}`) when tenant HMAC fails to verify, so the
+ * per-kind callers above translate "field missing" into a structured
+ * `platform_unauthenticated` error instead of masquerading as pool
+ * exhaustion. Common causes: tenant row missing on the platform,
+ * `tenant.status !== 'active'`, or HMAC secret drift.
+ */
+async function fetchPoolHealth(input: {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+}): Promise<{
+  ok: boolean
+  sandboxPoolAvailable?: number
+  notificationPoolAvailable?: number
+  schemaVersion?: string
+}> {
   const { res } = await signedPlatformRequest({
     method: 'GET',
     platformBaseUrl: input.platformBaseUrl,
@@ -461,26 +518,11 @@ export async function fetchSandboxAvailability(input: {
   if (!res.ok) {
     throw new PlatformHandshakeError(`platform health fetch failed (${res.status})`, res.status)
   }
-  const data = (await res.json()) as {
+  return (await res.json()) as {
     ok: boolean
     sandboxPoolAvailable?: number
+    notificationPoolAvailable?: number
     schemaVersion?: string
-  }
-  if (typeof data.sandboxPoolAvailable !== 'number') {
-    // Platform's `/health` strips data fields (returns bare `{ok: true}`) when
-    // tenant HMAC fails to verify. We surface that as an explicit error so the
-    // dialog shows "auth failed" instead of masquerading as pool exhaustion.
-    // Common causes: tenant row missing on the platform, tenant.status !==
-    // 'active', or HMAC secret drift between tenant vault and platform DB.
-    throw new PlatformHandshakeError(
-      'platform rejected tenant HMAC signature on /health (tenant unknown, inactive, or secret drift)',
-      res.status,
-      'platform_unauthenticated',
-    )
-  }
-  return {
-    sandboxPoolAvailable: data.sandboxPoolAvailable,
-    schemaVersion: data.schemaVersion ?? '',
   }
 }
 

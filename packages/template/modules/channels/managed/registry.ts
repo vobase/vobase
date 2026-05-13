@@ -63,6 +63,21 @@ export interface ChannelKind {
    */
   readonly role: 'customer' | 'staff'
   /**
+   * `channel_instances.config.mode` discriminator written at claim time.
+   * `'managed'` for sandbox (customer-facing); `'managed-notif'` for the
+   * notification tier (matches `isManagedNotifConfig` predicate). The
+   * inbound router + factory both branch on this; threading it through the
+   * registry keeps `bootstrap.ts` kind-agnostic.
+   */
+  readonly instanceMode: 'managed' | 'managed-notif'
+  /**
+   * Human-readable label written into `channel_instances.displayName` at
+   * claim time. Defaulted from the registry so `bootstrap.ts` doesn't have
+   * to branch on `kind`; callers can still override per-org via the
+   * `displayName` opts field (Slice 4+).
+   */
+  readonly displayLabel: string
+  /**
    * Downstream-dispatch tag. The registry-driven inbound router branches on
    * this without ever switching on `kind` directly.
    */
@@ -78,6 +93,8 @@ export const KINDS: readonly ChannelKind[] = [
     releasePath: '/api/managed-whatsapp/tenant/release',
     channelName: 'whatsapp',
     role: 'customer',
+    instanceMode: 'managed',
+    displayLabel: 'Platform sandbox',
     inboundDispatch: 'customer',
     description: 'Pooled platform-managed sandbox WhatsApp number. Tenant fetches secrets via vobase-platform vault.',
   },
@@ -88,6 +105,8 @@ export const KINDS: readonly ChannelKind[] = [
     releasePath: '/api/managed-whatsapp/notification/release',
     channelName: 'whatsapp_notif',
     role: 'staff',
+    instanceMode: 'managed-notif',
+    displayLabel: 'Staff WhatsApp notification',
     inboundDispatch: 'staff_reply',
     description:
       'Pooled platform-managed staff-notification WhatsApp number. Inbound from linked staff phones dispatches as `staff_reply`.',

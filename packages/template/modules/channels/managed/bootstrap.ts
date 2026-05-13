@@ -45,7 +45,7 @@ import {
 } from '@modules/integrations/service/handshake'
 import type { IntegrationsVault } from '@modules/integrations/service/vault'
 
-import { findKind } from './registry'
+import { findKind, type ManagedChannelKind } from './registry'
 
 /**
  * Single-row upsert seam. Real callers pass
@@ -61,7 +61,7 @@ export interface ClaimAndBootstrapOpts {
   /** Indicative env label — `production` | `staging`. */
   environment: 'production' | 'staging'
   /**
-   * Stable per-(org, env) channel instance id. Re-clicks (multi-tab,
+   * Stable per-(org, env, kind) channel instance id. Re-clicks (multi-tab,
    * post-`db:reset`, mid-flight crash) all converge to the same row. Must
    * match what the platform persists in `tester_links.channel_instance_id`
    * so platform-side `readExistingClaim` returns the same secret pair.
@@ -71,8 +71,13 @@ export interface ClaimAndBootstrapOpts {
   platformBaseUrl: string
   /** Tenant HMAC secret used to sign outbound platform calls. */
   hmacSecret: string
-  /** Channel kind from the registry. Today only `'sandbox'`. */
-  kind: 'sandbox'
+  /**
+   * Channel kind from the registry. Threads through to platform path
+   * selection (`registry.claimPath`), vault provider, and the
+   * `channel_instances.{channel, role, config.mode, displayName}`
+   * discriminators written via `upsertManagedInstance`.
+   */
+  kind: ManagedChannelKind
   /** Per-org integrations vault for storing the rotation secret. */
   vault: IntegrationsVault
   /**
@@ -166,16 +171,18 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
   const { instance } = await opts.upsertInstance({
     id: opts.channelInstanceId,
     organizationId: opts.organizationId,
-    channel: 'whatsapp',
+    channel: kindSpec.channelName,
     platformChannelId: allocation.platformChannelId,
-    displayName: `Platform sandbox (${opts.environment})`,
+    displayName: `${kindSpec.displayLabel} (${opts.environment})`,
+    role: kindSpec.role,
+    mode: kindSpec.instanceMode,
     config: {
-      mode: 'managed',
       // `organizationId` lives in config too because the WhatsApp adapter's
-      // `isManagedConfig` predicate reads it from `config` (the registry
-      // only passes `(name, config, instanceId)`). Without it the predicate
-      // fails and the factory falls into the explicit-config branch,
-      // demanding accessToken/appSecret/verifyToken from env.
+      // `isManagedConfig` / `isManagedNotifConfig` predicates read it from
+      // `config` (the registry only passes `(name, config, instanceId)`).
+      // Without it the predicate fails and the factory falls into the
+      // explicit-config branch, demanding accessToken/appSecret/verifyToken
+      // from env.
       organizationId: opts.organizationId,
       platformChannelId: allocation.platformChannelId,
       platformBaseUrl: opts.platformBaseUrl,
@@ -192,13 +199,20 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
   // The §4.4 trade-off: failure here leaves a usable claim row; the UI
   // surfaces a "Re-verify" button that re-runs `POST /managed/:id/webhook/re-verify`.
   // We never fail the whole orchestrator on this leg.
+  //
+  // Provider literal MUST match what the adapter's GET-challenge handler
+  // uses to derive the verify token (see `factory.ts::createManagedAdapter`
+  // — it reads the same `kindSpec.channelName`). Sandbox is `'whatsapp'`,
+  // notification is `'whatsapp_notif'`; the literals also scope distinct
+  // slots in the platform's `tenant_webhook_endpoints` table so customer
+  // + staff URLs can't collide on the same channel id.
   try {
     const registered = await registerWebhookWithPlatform({
       platformBaseUrl: opts.platformBaseUrl,
       tenantId: opts.tenantSlug,
       tenantHmacSecret: opts.hmacSecret,
       environment: opts.environment,
-      provider: 'whatsapp',
+      provider: kindSpec.channelName,
       channelInstanceId: instance.id,
       webhookUrl: opts.webhookUrl,
       verifyToken: opts.verifyToken,

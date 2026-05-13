@@ -2,34 +2,39 @@
  * Managed-mode WhatsApp control-plane endpoints (auth-gated, per-org).
  *
  * Routes:
- *   - GET    /managed/availability         — sandbox pool availability count (from platform /health)
- *   - POST   /managed/claim                — claim a sandbox channel from the platform pool
- *   - DELETE /managed/:instanceId          — release the channel back to the platform pool
- *   - GET    /managed/:instanceId/webhook  — proxy this channel's webhook registration status
- *   - POST   /managed/:instanceId/webhook/re-verify
- *                                          — re-trigger the platform challenge
- *                                            against the registered URL (debugging aid)
+ *   - GET    /managed/availability                  — sandbox pool availability count
+ *   - POST   /managed/claim                         — claim a sandbox channel from the platform pool
+ *   - DELETE /managed/:instanceId                   — release the channel back to the platform pool
+ *   - GET    /managed/:instanceId/webhook           — proxy this channel's webhook registration status
+ *   - POST   /managed/:instanceId/webhook/re-verify — re-trigger the platform challenge
+ *                                                     against the registered URL (debugging aid)
+ *   - GET    /managed/notification/availability     — notification pool availability count
+ *   - POST   /managed/notification/claim            — claim a notification-tier channel from the pool
+ *   - DELETE /managed/notification/:instanceId      — release the notification channel back to the pool
  *
  * The webhook endpoints proxy signed requests to the platform's
  * `/api/provisioning/webhook-endpoints/*` so the frontend can render +
  * refresh registration status without holding the HMAC secret in the bundle.
  *
  * `claim` replaces the legacy boot-time auto-provision: a tenant operator
- * clicks "Claim sandbox" in the UI and the same handshake + vault store +
- * channel-instances upsert + webhook self-register sequence runs
- * synchronously inside the request.
+ * clicks "Claim sandbox" / "Claim notification channel" in the UI and the
+ * same handshake + vault store + channel-instances upsert + webhook
+ * self-register sequence runs synchronously inside the request.
  */
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { agentDefinitions } from '@modules/agents/schema'
-import { isManagedConfig } from '@modules/channels/adapters/whatsapp/factory'
+import { isManagedConfig, isManagedNotifConfig } from '@modules/channels/adapters/whatsapp/factory'
 import { claimAndBootstrap } from '@modules/channels/managed/bootstrap'
+import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
 import { getInstance, listInstances, removeInstance, upsertManagedInstance } from '@modules/channels/service/instances'
 import {
+  fetchNotificationAvailability,
   fetchSandboxAvailability,
   fetchWebhookEndpointStatus,
   PlatformHandshakeError,
   registerWebhookWithPlatform,
+  release as releasePlatformClaim,
   releaseWithPlatform,
   type WebhookEndpointStatus,
 } from '@modules/integrations/service/handshake'
@@ -90,6 +95,25 @@ function tenantWebhookUrl(instanceId: string): string {
     process.env.BETTER_AUTH_URL ??
     `http://localhost:${process.env.PORT ?? '3000'}`
   return `${base.replace(/\/$/, '')}/api/channels/webhook/whatsapp/${instanceId}`
+}
+
+/**
+ * Map a `PlatformHandshakeError` thrown from `claimAndBootstrap` to the
+ * tenant's external HTTP response. Returns `null` when `err` isn't a
+ * handshake error so the caller can rethrow.
+ *
+ * `pool_exhausted` → 503 (transient, retry once supply recovers); platform
+ * 4xx → 409 with the structured `code` (`channel_instance_owned_by_other_tenant`,
+ * residual `allocation_cap_exceeded` — tenant-actionable, not a bad gateway);
+ * everything else → 502.
+ */
+function mapPlatformError(c: { json: (body: unknown, status: number) => Response }, err: unknown): Response | null {
+  if (!(err instanceof PlatformHandshakeError)) return null
+  if (err.code === 'pool_exhausted') return c.json({ error: 'pool_exhausted' }, 503)
+  if (err.status !== null && err.status >= 400 && err.status < 500) {
+    return c.json({ error: 'platform_conflict', detail: err.message, code: err.code ?? null }, 409)
+  }
+  return c.json({ error: 'platform_error', detail: err.message, code: err.code ?? null }, 502)
 }
 
 const app = new Hono<OrganizationEnv>()
@@ -205,19 +229,8 @@ const app = new Hono<OrganizationEnv>()
         : ({ ok: false, detail: result.webhookDetail ?? 'unknown' } as const)
       return c.json({ status: 'claimed', instance: result.instance, webhook }, 201)
     } catch (err) {
-      if (err instanceof PlatformHandshakeError) {
-        if (err.code === 'pool_exhausted') {
-          return c.json({ error: 'pool_exhausted' }, 503)
-        }
-        // Surface platform 4xx (e.g. cross-tenant `channel_instance_owned_by_other_tenant`,
-        // residual `allocation_cap_exceeded`) as a 409 so the UI can show
-        // the structured `code` instead of a generic 502 bad-gateway —
-        // these are tenant-actionable, not platform-unreachable.
-        if (err.status !== null && err.status >= 400 && err.status < 500) {
-          return c.json({ error: 'platform_conflict', detail: err.message, code: err.code ?? null }, 409)
-        }
-        return c.json({ error: 'platform_error', detail: err.message, code: err.code ?? null }, 502)
-      }
+      const mapped = mapPlatformError(c, err)
+      if (mapped) return mapped
       throw err
     }
   })
@@ -286,6 +299,128 @@ const app = new Hono<OrganizationEnv>()
     }
 
     return c.json({ endpoint: endpoints[0] ?? null })
+  })
+
+  // ─── Notification tier (staff-facing managed WhatsApp) ─────────────────
+  // Parallel to the sandbox routes above; threads `kind: 'notification'`
+  // through the registry so paths/vault/discriminators all switch together.
+
+  .get('/managed/notification/availability', async (c) => {
+    const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
+    const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+    const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+    if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {
+      return c.json({ notificationPoolAvailable: 0, configured: false })
+    }
+    try {
+      const data = await fetchNotificationAvailability({ platformBaseUrl, tenantId, tenantHmacSecret })
+      return c.json({ notificationPoolAvailable: data.notificationPoolAvailable, configured: true })
+    } catch (err) {
+      if (err instanceof PlatformHandshakeError) {
+        return c.json({ notificationPoolAvailable: 0, configured: true, error: err.message }, 502)
+      }
+      throw err
+    }
+  })
+
+  .post('/managed/notification/claim', async (c) => {
+    const organizationId = c.get('organizationId')
+    const environment: 'production' | 'staging' = process.env.STAGING === 'true' ? 'staging' : 'production'
+
+    const creds = readPlatformCreds(undefined)
+    if (!creds) return c.json({ error: 'platform_not_configured' }, 503)
+    const { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret } = creds
+
+    const kindSpec = findKind('notification' satisfies ManagedChannelKind)
+    // `-notif` suffix keeps the row id distinct from the sandbox row so a
+    // tenant can hold both kinds simultaneously and the id is
+    // self-describing in logs. The channel_instances unique index keys on
+    // `(orgId, channel, platformChannelId)`, so `channel` already
+    // separates them at the DB level.
+    const channelInstanceId = `mgd-${organizationId}-${environment}-notif`
+
+    // Vault-first idempotency: short-circuit when the vault + row pair
+    // already exists. Post-`db:reset` (vault survived, row wiped) falls
+    // through so platform `readExistingClaim` returns the same secret pair
+    // and the row gets recreated.
+    const vault = getVaultFor(organizationId)
+    if (await vault.hasSecret(kindSpec.vaultProvider)) {
+      const instances = await listInstances(organizationId, kindSpec.channelName)
+      const existing = instances.find((i) => isManagedNotifConfig(i.config))
+      if (existing) {
+        return c.json({ status: 'already_claimed', instance: existing })
+      }
+    }
+
+    const webhookUrl = tenantWebhookUrl(channelInstanceId)
+    const verifyToken = deriveVerifyToken({
+      tenantSlug,
+      environment,
+      provider: kindSpec.channelName,
+      betterAuthSecret,
+    })
+
+    try {
+      const result = await claimAndBootstrap({
+        tenantSlug: tenantId,
+        environment,
+        channelInstanceId,
+        platformBaseUrl,
+        hmacSecret: tenantHmacSecret,
+        kind: 'notification',
+        vault,
+        upsertInstance: (input) => upsertManagedInstance(getInstalledDb(), input),
+        organizationId,
+        webhookUrl,
+        verifyToken,
+        // Staff WA replies route via `dispatchStaffReply` (reads
+        // `defaultOperatorAgentId` from `org_settings`), not via this row's
+        // `config.defaultAssignee`. Null avoids storing a misleading pointer.
+        defaultAssignee: null,
+      })
+      const webhook = result.webhookOk
+        ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)
+        : ({ ok: false, detail: result.webhookDetail ?? 'unknown' } as const)
+      return c.json({ status: 'claimed', instance: result.instance, webhook }, 201)
+    } catch (err) {
+      const mapped = mapPlatformError(c, err)
+      if (mapped) return mapped
+      throw err
+    }
+  })
+
+  .delete('/managed/notification/:instanceId', async (c) => {
+    const instanceId = c.req.param('instanceId')
+    const organizationId = c.get('organizationId')
+    const row = await getInstance(instanceId)
+    if (!row || row.organizationId !== organizationId) {
+      return c.json({ error: 'not_found' }, 404)
+    }
+    const kindSpec = findKind('notification' satisfies ManagedChannelKind)
+    if (row.channel !== kindSpec.channelName || !isManagedNotifConfig(row.config)) {
+      return c.json({ error: 'not_managed_notif' }, 400)
+    }
+    const rowPlatformBaseUrl = (row.config.platformBaseUrl as string | undefined) ?? undefined
+    const environment = (row.config.environment as 'production' | 'staging' | undefined) ?? 'production'
+    const creds = readPlatformCreds(rowPlatformBaseUrl)
+    if (!creds) return c.json({ error: 'platform_not_configured' }, 500)
+
+    try {
+      await releasePlatformClaim('notification', {
+        platformBaseUrl: creds.platformBaseUrl,
+        tenantId: creds.tenantId,
+        tenantHmacSecret: creds.tenantHmacSecret,
+        environment,
+      })
+    } catch (err) {
+      if (err instanceof PlatformHandshakeError) {
+        return c.json({ error: 'platform_release_failed', detail: err.message }, 502)
+      }
+      throw err
+    }
+
+    await removeInstance(instanceId, organizationId)
+    return c.json({ released: true })
   })
 
   // Re-trigger the platform challenge against the registered URL — useful

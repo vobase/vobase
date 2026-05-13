@@ -48,6 +48,7 @@ import { channelsClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { type ChannelInstanceRow, ChannelsTable } from '../components/channels-table'
 import { ClaimSandboxDialog } from '../components/claim-sandbox-dialog'
+import { ConnectManagedChannelSheet } from '../components/connect-managed-channel-sheet'
 import { ConnectWhatsAppSheet } from '../components/connect-whatsapp-sheet'
 import { WebChannelDetailsSheet } from '../components/web-channel-details-sheet'
 import { WhatsAppEmptyState } from '../components/whatsapp-empty-state'
@@ -288,6 +289,7 @@ export function ChannelsPage() {
 
   const [connectWaOpen, setConnectWaOpen] = useState(false)
   const [claimSandboxOpen, setClaimSandboxOpen] = useState(false)
+  const [claimNotifOpen, setClaimNotifOpen] = useState(false)
   const [createWebOpen, setCreateWebOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<WebInstance | null>(null)
   // Managed-WhatsApp edit target — separate from `editTarget` because managed
@@ -299,6 +301,7 @@ export function ChannelsPage() {
   const [detailsTarget, setDetailsTarget] = useState<string | null>(null)
 
   const hasWhatsApp = instances.some((i) => i.channel === 'whatsapp')
+  const hasWhatsAppNotif = instances.some((i) => i.channel === 'whatsapp_notif')
   const wabaId = instances.find((i) => i.channel === 'whatsapp')?.config.wabaId as string | undefined
 
   const createMutation = useMutation({
@@ -322,7 +325,7 @@ export function ChannelsPage() {
     [editTarget],
   )
 
-  function handleWhatsAppConnected(_instanceId: string) {
+  function handleWhatsAppConnected(_instanceId?: string) {
     qc.invalidateQueries({ queryKey: ALL_INSTANCES_KEY })
   }
 
@@ -345,6 +348,9 @@ export function ChannelsPage() {
                 <DropdownMenuItem onClick={() => setClaimSandboxOpen(true)}>
                   Platform sandbox (WhatsApp)
                 </DropdownMenuItem>
+              )}
+              {PLATFORM_CONFIGURED && !hasWhatsAppNotif && (
+                <DropdownMenuItem onClick={() => setClaimNotifOpen(true)}>Staff WhatsApp notification</DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => setCreateWebOpen(true)}>Web chat</DropdownMenuItem>
               {hasWhatsApp && wabaId && (
@@ -395,6 +401,15 @@ export function ChannelsPage() {
         open={claimSandboxOpen}
         onOpenChange={setClaimSandboxOpen}
         onClaimed={handleWhatsAppConnected}
+      />
+
+      {/* Staff WhatsApp notification claim sheet — kind-parameterised
+          generic. Sandbox still uses the older dialog above. */}
+      <ConnectManagedChannelSheet
+        open={claimNotifOpen}
+        kind="notification"
+        onOpenChange={setClaimNotifOpen}
+        onConnected={handleWhatsAppConnected}
       />
 
       {/* Managed-WhatsApp edit dialog — same form shape as web (only edits
