@@ -36,7 +36,6 @@ import type { WakeMaterializerFactory } from '~/wake/context'
 export type { MessagingIndexReader, MessagingReader }
 
 import { addNoteTool } from './tools/add-note'
-import { bookSlotTool } from './tools/book-slot'
 import { draftEmailToReviewTool } from './tools/draft-email-to-review'
 import { replyTool } from './tools/reply'
 import { sendCardTool } from './tools/send-card'
@@ -66,13 +65,12 @@ export const messagingTools: AgentTool[] = [
   replyTool,
   sendCardTool,
   sendFileTool,
-  bookSlotTool,
   addNoteTool,
   summarizeInboxTool,
   draftEmailToReviewTool,
 ]
 
-export { addNoteTool, bookSlotTool, draftEmailToReviewTool, replyTool, sendCardTool, sendFileTool, summarizeInboxTool }
+export { addNoteTool, draftEmailToReviewTool, replyTool, sendCardTool, sendFileTool, summarizeInboxTool }
 
 const AGENTS_MD_FILE = 'AGENTS.md'
 
@@ -94,7 +92,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
         '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — customer-visible timeline.',
         '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — staff/agent notes.',
         '',
-        'Send customer-visible content via `reply` / `send_card` / `send_file` / `book_slot`. Reassign with `vobase conv reassign`. Ask staff a question with `add_note` + `mentions`.',
+        'Send customer-visible content via `reply` / `send_card` / `send_file`. Reassign with `vobase conv reassign`. Ask staff a question with `add_note` + `mentions`.',
         '',
         'Your wake cue may end with `## Other recent activity (context)`, a read-only appendix of customer/staff messages and notes from non-self authors since your last reply (debounced bursts and any notes between wakes land here). The trigger at the top is why this wake fired; the appendix is the surrounding context.',
       ].join('\n')

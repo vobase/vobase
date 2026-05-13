@@ -133,7 +133,7 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
   const ownership = youOwn
     ? `You are the conversation assignee.`
     : `You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread.`
-  return `${noteSection} ${ownership} Staff notes are internal coaching — the customer-facing tools (reply / send_card / send_file / book_slot) are not available in this wake. Act on the note's request via memory updates, contact proposals, or add_note. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
+  return `${noteSection} ${ownership} Staff notes are internal coaching — the customer-facing tools (reply / send_card / send_file) are not available in this wake. Act on the note's request via memory updates, contact proposals, or add_note. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {

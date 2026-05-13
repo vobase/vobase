@@ -18,7 +18,7 @@ import { buildFrozenPrompt, type SessionContext } from '~/wake/prompt'
 const SYSTEM_HASH_FIXTURE = 'da52a0b92dadbafd3d4450583ef733bb4b0db2b5de8a1168229c838a4ceb6741'
 
 /** Tool names surfaced through `collectAgentContributions` to the harness. */
-const TOOL_SURFACE_FIXTURE = ['reply', 'send_card', 'send_file', 'book_slot', 'add_note'] as const
+const TOOL_SURFACE_FIXTURE = ['reply', 'send_card', 'send_file', 'add_note'] as const
 
 const CANONICAL_AGENTS_MD = `# Canonical Test Agent (a_canon0001)
 

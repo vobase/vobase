@@ -84,7 +84,7 @@ export interface ConversationWakeConfigInput {
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
 
 /** Tools dropped from the registry on all staff_note wakes (default-deny). */
-const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply', 'send_card', 'send_file', 'book_slot'])
+const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply', 'send_card', 'send_file'])
 
 export async function conversationWakeConfig(input: ConversationWakeConfigInput): Promise<WakeConfig> {
   const { data, conv, agentId, agentDefinition, contributions, deps } = input
@@ -126,8 +126,8 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // manual) is staff-initiated.
   const audienceTier: 'staff' | 'contact' = trigger.trigger === 'inbound_message' ? 'contact' : 'staff'
 
-  // Default-deny on staff_note wakes: drop reply / send_card / send_file /
-  // book_slot from the registry, regardless of assignee or note body. Staff
+  // Default-deny on staff_note wakes: drop reply / send_card / send_file
+  // from the registry, regardless of assignee or note body. Staff
   // notes are internal coaching — never an instruction to push a customer
   // message. If staff want the agent to message the customer, they either
   // type the reply themselves, or wait for the customer's next inbound which
