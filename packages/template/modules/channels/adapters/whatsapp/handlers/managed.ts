@@ -205,10 +205,17 @@ const app = new Hono<OrganizationEnv>()
         : ({ ok: false, detail: result.webhookDetail ?? 'unknown' } as const)
       return c.json({ status: 'claimed', instance: result.instance, webhook }, 201)
     } catch (err) {
-      if (err instanceof PlatformHandshakeError && err.code === 'pool_exhausted') {
-        return c.json({ error: 'pool_exhausted' }, 503)
-      }
       if (err instanceof PlatformHandshakeError) {
+        if (err.code === 'pool_exhausted') {
+          return c.json({ error: 'pool_exhausted' }, 503)
+        }
+        // Surface platform 4xx (e.g. cross-tenant `channel_instance_owned_by_other_tenant`,
+        // residual `allocation_cap_exceeded`) as a 409 so the UI can show
+        // the structured `code` instead of a generic 502 bad-gateway —
+        // these are tenant-actionable, not platform-unreachable.
+        if (err.status !== null && err.status >= 400 && err.status < 500) {
+          return c.json({ error: 'platform_conflict', detail: err.message, code: err.code ?? null }, 409)
+        }
         return c.json({ error: 'platform_error', detail: err.message, code: err.code ?? null }, 502)
       }
       throw err
