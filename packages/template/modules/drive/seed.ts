@@ -7,6 +7,7 @@
 
 import { MARCUS_CONTACT_ID, MERIDIAN_ORG_ID, PRIYA_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
+import { TEXT_WRITE_LIFECYCLE } from '@modules/drive/state'
 
 export { MERIDIAN_ORG_ID }
 
@@ -228,7 +229,7 @@ export async function seed(db: unknown): Promise<void> {
         mimeType: 'text/markdown',
         extractedText: file.content,
         source: 'admin_uploaded',
-        processingStatus: 'ready',
+        ...TEXT_WRITE_LIFECYCLE,
       })
       .onConflictDoNothing()
   }
@@ -252,7 +253,7 @@ export async function seed(db: unknown): Promise<void> {
         '- Seats: 8\n- ARR: $84,000 (8 × $10.5k)\n- Signed: 2026-04-26 via DocuSign\n- MSA reference: NWS-2026-04-26\n\n' +
         '## Discount approvals\nPer-seat discounts > 10% require Carol; > 20% require Alice.',
       source: 'staff_uploaded',
-      processingStatus: 'ready',
+      ...TEXT_WRITE_LIFECYCLE,
     })
     .onConflictDoNothing()
 
@@ -274,7 +275,7 @@ export async function seed(db: unknown): Promise<void> {
         '- Response window expected: < 2h during SGT business hours\n' +
         '- Loves bullet-point summaries; dislikes long prose\n',
       source: 'staff_uploaded',
-      processingStatus: 'ready',
+      ...TEXT_WRITE_LIFECYCLE,
     })
     .onConflictDoNothing()
 }

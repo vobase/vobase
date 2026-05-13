@@ -114,7 +114,7 @@ These are how you debug a live tenant from the CLI alone — no `psql` access re
 | `agents debug wakes` | `--conversationId=<id>` (`--limit=20`, `--since` opt.) | Wake-by-wake summary: trigger, started_at, turns, tool_calls, cost, **systemHash** (drift across wakes = frozen-snapshot violation), endReason. First place to look for "did the agent even wake?" / "where did the cost go?" |
 | `agents debug timeline` | `--wakeId=<id>` (`--full` opt.) | Per-wake event timeline (`agent_start`, `tool_dispatch_*`, `tool_execution_*`, `llm_call`, `agent_end`). Reveals "did the agent skip the file read?" / "is it looping?" |
 | `agents debug llm-io` | `--conversationId=<id>` OR `--wakeId=<id>` (`--seq=N:M`, `--role`, `--tool`, `--limit=30`, `--full` opt.) | The LLM I/O log (`harness.messages`): user cues, assistant tool calls with arguments, tool results, model + token + cost per row. The killer verb — shows what the LLM saw and decided. |
-| `drive upload` | `--path=<local-file>` `--scope=organization` `--basePath=/` | **(Currently broken for remote tenants.)** `--path` resolves on the **server's** filesystem, not the operator's, so against a Railway/prod tenant it returns `file not found` for any local path. Only useful in local-dev where operator + server share a disk. **Use `drive propose --body="$(cat file)"` instead** to ship file content from a developer machine. Will be reworked to stream the body over the wire. | write |
+| `drive upload` | `--file=<local-path>` [`--scope=organization|contact|staff|agent`] [`--scopeId=<id>`] [`--basePath=/`] | Upload a local file's bytes into the drive. `--file` reads from the **operator's** filesystem (the CLI base64-encodes the bytes and ships them over the wire), so this works against remote tenants. Use for PDFs, images, office docs, or any binary the agent should be able to `request_caption` on. For markdown / policy text that should route through the proposal-review flow, prefer `drive propose --body=...` instead. (`--path=<server-path>` still works for the agent's in-process bash sandbox.) | write |
 
 ### Critical flag-name gotchas
 
@@ -126,7 +126,7 @@ These are how you debug a live tenant from the CLI alone — no `psql` access re
 - `agents debug llm-io` accepts EITHER `--conversationId` OR `--wakeId`; `--wakeId` auto-derives the conversation and narrows the seq window to that wake's `agent_start..agent_end` time range.
 - `contacts propose-change` uses `--field` + `--to`, NOT `--field=` + `--value=`.
 - `drive propose` uses `--body`, NOT `--content`.
-- `drive upload --path` resolves on the **server's** filesystem (server-side `Bun.file(input.path)`), not the operator's. Broken for remote tenants — see the verb-table caveat. For remote tenants, ship content via `drive propose --body="$(cat file)"`.
+- `drive upload` uses `--file=<local-path>` (read on the operator's machine, base64'd over the wire). The legacy `--path=<server-path>` form is still accepted but only useful for the agent's in-process bash sandbox — never use it against a remote tenant, the path would resolve on the container, not your laptop.
 
 Always run the verb with no args first to see the validation error — it returns the exact missing/wrong field path under `errorCode: "invalid_input"`.
 
@@ -188,6 +188,7 @@ To make the agent cite a new fact:
 | Goal | Mutation |
 |---|---|
 | Agent should reference a new policy / pricing / SLA | `drive propose --path=/<existing-doc>.md --body=<original + new section>` to a file the instructions already tell it to `cat` (typically `/BUSINESS.md` or `/pricing.md`). Adding a brand-new file the instructions don't reference is **invisible to the agent**. |
+| Agent should be able to read a binary asset (PDF, image, office doc) | `drive upload --file=<local-path> [--scope=...] [--basePath=...]` — bytes go to storage, the extraction + caption pipeline runs, and the agent's `request_caption` tool works. Use this for any non-text file. Markdown text should go through `drive propose --body=...` instead. |
 | Agent should remember a customer fact | `contacts propose-change --id=<contactId> --field=<attribute> --to=<value>` — the agent's wake reads contact state automatically. |
 | Agent should change tone / behavior universally | `vobase agents set-instructions --id=<agentId> --file=<localPath>` (admin-tier; ships in `@vobase/cli` >= post-this-week). Pre-verb workaround: edit `agent_definitions.instructions` via Drizzle Studio (`bun run db:studio`) — no remote-tenant equivalent. |
 | Agent should remember a session-level lesson | `vobase agents set-working-memory --id=<agentId> --body=<text>` (admin-tier; ships in `@vobase/cli` >= post-this-week). Or have the agent self-update via the `remember` tool from inside a wake. |
@@ -331,7 +332,7 @@ WHERE t.conversation_id = $1 ORDER BY m.seq;
 |---|---|---|
 | `--path=/pricing.md` | `/pricing.md` | `/drive/pricing.md` ✓ |
 | `--path=/drive/pricing.md` | `/drive/pricing.md` | `/drive/drive/pricing.md` ✗ (unreachable) |
-| `drive upload --path=/tmp/x.md --basePath=/policies/` | `/policies/x.md` | `/drive/policies/x.md` ✓ |
+| `drive upload --file=./x.pdf --basePath=/policies/` | `/policies/x.pdf` | `/drive/policies/x.pdf` ✓ |
 
 ## Audience tier truth table
 

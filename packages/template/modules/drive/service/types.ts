@@ -3,7 +3,7 @@
  * Consumed by workspace, agents observers, channels, and the dev layer.
  */
 
-import type { DriveExtractionKind, DriveFile, DriveSource } from '../schema'
+import type { DriveExtractionKind, DriveFile, DriveProcessingStatus, DriveSource } from '../schema'
 
 export type DriveScope =
   | { scope: 'organization' }
@@ -25,6 +25,9 @@ export interface CreateFileInput {
   sourceMessageId?: string
   tags?: string[]
   uploadedBy?: string
+  /** Override schema defaults; text-only writers pass `TEXT_WRITE_LIFECYCLE`. */
+  processingStatus?: DriveProcessingStatus
+  extractionKind?: DriveExtractionKind
 }
 
 export interface GrepOpts {

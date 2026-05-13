@@ -39,6 +39,7 @@ import { deriveDriveName } from '../lib/drive-name'
 import { embedTexts, encodeVector } from '../lib/embeddings'
 import { hybridScore } from '../lib/search'
 import type { DriveFile } from '../schema'
+import { TEXT_WRITE_LIFECYCLE } from '../state'
 import { listOverlayProviders } from './overlays'
 import type {
   CreateFileInput,
@@ -579,7 +580,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     if (existing) {
       const rows = (await db
         .update(driveFiles)
-        .set({ extractedText: content })
+        .set({ extractedText: content, ...TEXT_WRITE_LIFECYCLE })
         .where(eq(driveFiles.id, existing.id))
         .returning()) as DriveFile[]
       return rows[0] ?? null
@@ -591,6 +592,7 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
       mimeType: 'text/markdown',
       extractedText: content,
       parentFolderId: await resolveParentFolderId(scope, path),
+      ...TEXT_WRITE_LIFECYCLE,
     })
   }
 
@@ -642,6 +644,10 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
         sourceMessageId: input.sourceMessageId ?? null,
         tags: input.tags ?? [],
         uploadedBy: input.uploadedBy ?? null,
+        // Drizzle omits `undefined` keys from the INSERT — column defaults
+        // (`'ready'` / `'pending'`) apply when callers don't override.
+        processingStatus: input.processingStatus,
+        extractionKind: input.extractionKind,
       })
       .returning()) as DriveFile[]
     const row = rows[0]
@@ -1038,6 +1044,14 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
     if (!deps.jobs) throw new Error('drive/files: jobs not installed — pass ctx.jobs to setFilesRuntime')
     const row = await get(fileId)
     if (!row) throw new Error(`drive/files.reextract: not found: ${fileId}`)
+    // Text-only rows have no bytes to re-fetch; re-enqueueing the job would
+    // flip them to (failed, failed) with `processingError='no_storage_key'`.
+    if (!row.storageKey) {
+      throw new Error(
+        `drive/files.reextract: ${row.path} has no storage_key — text-only row, nothing to re-extract. ` +
+          `Edit content via 'vobase drive write' / 'vobase drive propose', or re-upload bytes via 'vobase drive upload --file=<local>'.`,
+      )
+    }
     // Recompute path if mime classification flipped; `nameStem` and `originalName` stay frozen.
     const patch: Partial<DriveFile> = {
       processingStatus: 'pending',

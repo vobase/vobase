@@ -13,6 +13,7 @@ import {
   type TxLike,
 } from '@modules/changes/service/proposals'
 import { driveFiles } from '@modules/drive/schema'
+import { TEXT_WRITE_LIFECYCLE } from '@modules/drive/state'
 import { validation } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
@@ -143,7 +144,7 @@ async function upsertFile(tx: TxLike, input: UpsertInput): Promise<{ id: string 
   if (input.existingId) {
     await tx
       .update(driveFiles)
-      .set({ extractedText: input.body, mimeType: 'text/markdown' })
+      .set({ extractedText: input.body, mimeType: 'text/markdown', ...TEXT_WRITE_LIFECYCLE })
       .where(eq(driveFiles.id, input.existingId))
     return { id: input.existingId }
   }
@@ -162,7 +163,7 @@ async function upsertFile(tx: TxLike, input: UpsertInput): Promise<{ id: string 
     mimeType: 'text/markdown',
     extractedText: input.body,
     tags: [],
-    processingStatus: 'ready',
+    ...TEXT_WRITE_LIFECYCLE,
   })
   return { id }
 }
