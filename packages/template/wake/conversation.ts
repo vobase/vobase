@@ -83,7 +83,7 @@ export interface ConversationWakeConfigInput {
 
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
 
-/** Tools dropped from the registry on peer-consultation wakes (staff_note + assignee ≠ agent). */
+/** Tools dropped from the registry on all staff_note wakes (default-deny). */
 const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply', 'send_card', 'send_file', 'book_slot'])
 
 export async function conversationWakeConfig(input: ConversationWakeConfigInput): Promise<WakeConfig> {
@@ -126,13 +126,17 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // manual) is staff-initiated.
   const audienceTier: 'staff' | 'contact' = trigger.trigger === 'inbound_message' ? 'contact' : 'staff'
 
-  // Peer-consultation guard: when a staff @-mention fires while the conversation
-  // is owned by a human, the agent's customer-facing tools are dropped from the
-  // registry. The cue prose already says "do NOT call reply / send_card / …",
-  // but LLMs ignore negative instructions under strong in-context pattern
-  // pressure. Removing the tools makes it a hard guarantee.
-  const isPeerConsultation = trigger.trigger === 'staff_note' && conv.assignee !== `agent:${agentId}`
-  const laneTools = isPeerConsultation
+  // Default-deny on staff_note wakes: drop reply / send_card / send_file /
+  // book_slot from the registry, regardless of assignee or note body. Staff
+  // notes are internal coaching — never an instruction to push a customer
+  // message. If staff want the agent to message the customer, they either
+  // type the reply themselves, or wait for the customer's next inbound which
+  // fires an `inbound_message` wake with the full tool set + the coaching
+  // already in INTERNAL-NOTES.md as context. Soft constraints (prompts, cue
+  // prose, self-anchor) cannot break dominant in-context patterns; the only
+  // reliable fix is removing the tool from the registry.
+  const isStaffNoteWake = trigger.trigger === 'staff_note'
+  const laneTools = isStaffNoteWake
     ? laneToolsAll.filter((t) => !CUSTOMER_FACING_TOOL_NAMES.has(t.name))
     : laneToolsAll
 

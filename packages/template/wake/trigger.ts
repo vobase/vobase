@@ -130,10 +130,10 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
     ? `${lead} from staff:${trigger.authorUserId}:\n\n${quoteBody(body)}\n\n${pointer}`
     : `${lead}. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
   const youOwn = refs.assignee === `agent:${refs.currentAgentId}`
-  if (!youOwn) {
-    return `${noteSection} You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread. Treat the @-mention as a peer consultation: read it, update memory if it teaches you a pattern, and end the turn. The customer-facing tools (reply / send_card / send_file / book_slot) are not available in this wake — the assignee owns customer replies.`
-  }
-  return `${noteSection} Act on this note's request only. Do not re-respond to prior customer threads — anything still pending was already handled in earlier wakes (your recent outbound appears below under "Your recent actions"). See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
+  const ownership = youOwn
+    ? `You are the conversation assignee.`
+    : `You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread.`
+  return `${noteSection} ${ownership} Staff notes are internal coaching — the customer-facing tools (reply / send_card / send_file / book_slot) are not available in this wake. Act on the note's request via memory updates, contact proposals, or add_note. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {
