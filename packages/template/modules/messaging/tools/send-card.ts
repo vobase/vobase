@@ -112,7 +112,7 @@ export const sendCardTool: AgentTool<CardElement, { messageId: string }> = {
   inputSchema: CardElementSchema,
   requiresApproval: true,
   prompt:
-    'PREFERRED reply format. Use whenever the customer has options to choose, confirm, compare, or act on (pricing, plans, refund decisions, booking slots, yes/no with consequences, lists of 2+ choices, how-to with a CTA). Cards let the customer one-tap their next move instead of typing. Fall back to `reply` only for pure acknowledgements and free-form questions.',
+    'Send a structured card with choices, buttons, or fields for customer-facing interactive decisions (pricing, plans, refund options, booking slots). Reach for this when the response has structure or actionable choices — otherwise use `reply`. Only call when a customer message is pending and unanswered; never to react to an internal note, staff coaching, or your own prior wake. Before firing, scan "Your recent actions" in the wake cue: if an equivalent card was already sent in response to the current inbound, do not re-fire (rewriting a few words to bypass this check is still a duplicate).',
 
   async execute(args, ctx: ToolContext): Promise<ToolResult<{ messageId: string }>> {
     if (!Value.Check(CardElementSchema, args)) {
