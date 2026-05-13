@@ -117,11 +117,7 @@ export function StaffDetailPage() {
 
   return (
     <PageLayout>
-      <PageHeader
-        title={staff?.displayName?.trim() || userId}
-        backTo={{ to: '/team', label: 'Team' }}
-        icon={Users}
-      />
+      <PageHeader title={staff?.displayName?.trim() || userId} backTo={{ to: '/team', label: 'Team' }} icon={Users} />
 
       <PageBody className="lg:flex lg:flex-col lg:overflow-hidden">
         {isLoading && <div className="text-muted-foreground text-sm">Loading…</div>}

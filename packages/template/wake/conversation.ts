@@ -136,9 +136,7 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // prose, self-anchor) cannot break dominant in-context patterns; the only
   // reliable fix is removing the tool from the registry.
   const isStaffNoteWake = trigger.trigger === 'staff_note'
-  const laneTools = isStaffNoteWake
-    ? laneToolsAll.filter((t) => !CUSTOMER_FACING_TOOL_NAMES.has(t.name))
-    : laneToolsAll
+  const laneTools = isStaffNoteWake ? laneToolsAll.filter((t) => !CUSTOMER_FACING_TOOL_NAMES.has(t.name)) : laneToolsAll
 
   const wakeCtx: WakeContext = {
     organizationId: data.organizationId,

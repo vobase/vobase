@@ -9,7 +9,7 @@ export function nameFromEmail(email: string): string {
   const local = email.split('@')[0] ?? ''
   const cleaned = local.replace(/\+.*$/, '')
   const parts = cleaned
-    .split(/[._\-]+/)
+    .split(/[._-]+/)
     .filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
   return parts.join(' ') || local || email
