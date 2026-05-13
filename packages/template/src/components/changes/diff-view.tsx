@@ -64,6 +64,7 @@ function MarkdownPatchView({
             diffStyle: 'unified',
             diffIndicators: 'classic',
             disableFileHeader: true,
+            overflow: 'wrap',
             theme: { light: 'pierre-light', dark: 'pierre-dark' },
             themeType: 'system',
           }}
