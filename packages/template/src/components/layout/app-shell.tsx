@@ -19,6 +19,8 @@ import { browserStorage } from '@/lib/browser-storage'
 import { cn } from '@/lib/utils'
 import { NavUser } from './nav-user'
 
+const PRODUCT_NAME = import.meta.env.VITE_PRODUCT_NAME ?? 'Vobase'
+
 interface AppShellProps {
   children: React.ReactNode
 }
@@ -159,10 +161,10 @@ function DesktopShell({
         >
           <div className="mb-3 flex h-9 items-center @max-[80px]/rail:justify-center @max-[80px]/rail:px-0 px-2.5">
             <span className="@max-[80px]/rail:hidden font-bold font-mono text-foreground text-sm tracking-widest">
-              VOBASE
+              {PRODUCT_NAME.toUpperCase()}
             </span>
             <span className="@max-[80px]/rail:inline hidden font-bold font-mono text-foreground text-sm tracking-widest">
-              V
+              {PRODUCT_NAME.charAt(0).toUpperCase()}
             </span>
           </div>
 
