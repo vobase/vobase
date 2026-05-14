@@ -1,6 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
+import type { InternalNote } from '@modules/messaging/schema'
 import { __resetNotesServiceForTests, installNotesService, type NotesService } from '@modules/messaging/service/notes'
 import type { StaffProfile } from '@modules/team/schema'
+import {
+  __resetMentionNotifyServiceForTests,
+  type FanOutResult,
+  installMentionNotifyService,
+} from '@modules/team/service/mention-notify'
 import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 import type { ToolContext } from '@vobase/core'
 
@@ -30,15 +36,19 @@ function installStaffStub(roster: ReadonlyArray<{ userId: string; displayName?: 
   } as unknown as StaffService)
 }
 
+const NOOP_FAN_OUT: FanOutResult = { notified: [], skipped: [] }
+
 afterAll(() => {
   __resetNotesServiceForTests()
   __resetStaffServiceForTests()
+  __resetMentionNotifyServiceForTests()
 })
 
 describe('consultStaffTool', () => {
   beforeEach(() => {
     __resetNotesServiceForTests()
     __resetStaffServiceForTests()
+    __resetMentionNotifyServiceForTests()
   })
 
   it('resolves `to` to staff:<userId> mentions and prepends @DisplayName', async () => {
@@ -97,5 +107,34 @@ describe('consultStaffTool', () => {
     await consultStaffTool.execute({ conversationId: 'c', body: 'fyi', to: ['user:u1', 'Alice'] }, ctx())
     expect(received.mentions).toEqual(['staff:u1'])
     expect(received.body).toBe('@Alice fyi')
+  })
+
+  it('fans out mention notifications for the written note', async () => {
+    installStaffStub([{ userId: 'u1', displayName: 'Alice' }])
+    const note: InternalNote = { id: 'n4', mentions: ['staff:u1'] } as InternalNote
+    installNotesService({
+      addNote: () => Promise.resolve(note),
+      listNotes: () => Promise.resolve([]),
+    } as NotesService)
+    const fannedOut: InternalNote[] = []
+    installMentionNotifyService({
+      fanOutNoteMentions: (n) => {
+        fannedOut.push(n)
+        return Promise.resolve(NOOP_FAN_OUT)
+      },
+    })
+    const result = await consultStaffTool.execute({ conversationId: 'c', body: 'fyi', to: ['user:u1'] }, ctx())
+    expect(result.ok).toBe(true)
+    expect(fannedOut).toEqual([note])
+  })
+
+  it('still succeeds when the mention-notify service is not installed', async () => {
+    installStaffStub([{ userId: 'u1', displayName: 'Alice' }])
+    installNotesService({
+      addNote: () => Promise.resolve({ id: 'n5', mentions: ['staff:u1'] } as InternalNote),
+      listNotes: () => Promise.resolve([]),
+    } as NotesService)
+    const result = await consultStaffTool.execute({ conversationId: 'c', body: 'fyi', to: ['user:u1'] }, ctx())
+    expect(result.ok).toBe(true)
   })
 })

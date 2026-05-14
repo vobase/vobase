@@ -10,12 +10,14 @@
  * Backed by the same `internal_notes` write path as `add_note` — `consult_staff`
  * always carries resolved `mentions`, `add_note` never does. Agent-authored
  * notes never trigger staff-note fan-out for the agent itself; staff become
- * aware via the mention-notification path, and their reply is what wakes the
- * agent back.
+ * aware via the mention-notification path (`fanOutNoteMentions`, fired here),
+ * and their reply is what wakes the agent back. The HTTP notes handler fires
+ * the same fan-out for human-authored notes — this is its agent-write-path twin.
  */
 
+import { fanOutNoteMentions } from '@modules/team/service/mention-notify'
 import { type Static, Type } from '@sinclair/typebox'
-import { defineAgentTool } from '@vobase/core'
+import { defineAgentTool, logger } from '@vobase/core'
 
 import { addNote } from '../service/notes'
 import { prependMentionTags, resolveStaffMentions } from './lib/resolve-staff-mentions'
@@ -64,6 +66,17 @@ export const consultStaffTool = defineAgentTool({
       body,
       mentions,
     })
+    // Fire-and-forget: a flaky provider must not fail the note write. The
+    // try/catch guards the *synchronous* "service not installed" throw from
+    // `current()` in mention-notify.ts (unit-test contexts); the `.catch`
+    // handles async provider failures.
+    try {
+      void fanOutNoteMentions(row).catch((err) => {
+        logger.error({ err }, '[messaging/consult_staff] mention fan-out failed (non-fatal)')
+      })
+    } catch (err) {
+      logger.warn({ err }, '[messaging/consult_staff] mention-notify service not installed — skipping fan-out')
+    }
     return { noteId: row.id, notified: mentions }
   },
 })
