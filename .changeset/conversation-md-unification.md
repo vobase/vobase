@@ -39,6 +39,25 @@ blockquoted so a column-0 `**` is renderer-only — a message or note body
 cannot typographically forge a row header of a different audience. Mention
 tokens in the note header are stripped to the id charset for the same reason.
 
+## One row format everywhere
+
+The agent sees conversation content in three places — the `CONVERSATION.md`
+timeline, the wake-cue trigger renderers, and the unread-activity appendix —
+and they previously rendered it three different ways. A shared
+`modules/messaging/lib/conversation-row.ts` now owns the row vocabulary
+(`messageAudienceLabel` / `noteAudienceLabel`), the blockquoting of untrusted
+body text, and the timestamp format, so all three render the same
+`**<audience>** (<timestamp>) <note>:` header + blockquoted body. The
+unread-activity appendix's note rows now carry the `[internal]` audience
+marker that previously only `CONVERSATION.md` had.
+
+## Timezone-aware timestamps
+
+Conversation timestamps render in the org timezone (`ORG_TIMEZONE`) with an
+explicit offset — e.g. `2026-05-14 18:30 GMT+08:00` — instead of bare UTC.
+`formatRowTimestamp` is deterministic for a fixed input (no clock read), so it
+is safe inside the frozen-snapshot renderers.
+
 ## Surface updates
 
 The rename is threaded through the read-only config, RO-error hints, the

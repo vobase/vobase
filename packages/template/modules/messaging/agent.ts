@@ -37,6 +37,7 @@ import type { WakeMaterializerFactory } from '~/wake/context'
 
 export type { MessagingIndexReader, MessagingReader }
 
+import { conversationRow, formatRowTimestamp, messageAudienceLabel, noteAudienceLabel } from './lib/conversation-row'
 import { addNoteTool } from './tools/add-note'
 import { consultStaffTool } from './tools/consult-staff'
 import { draftEmailToReviewTool } from './tools/draft-email-to-review'
@@ -220,13 +221,6 @@ interface ConversationEntry {
   lines: string[]
 }
 
-function messageRoleLabel(role: Message['role']): string {
-  if (role === 'customer') return 'Customer'
-  if (role === 'agent') return 'Agent → customer'
-  if (role === 'staff') return 'Staff → customer'
-  return 'System'
-}
-
 function messageText(m: Message): string {
   if (m.kind === 'text') return (m.content as { text?: string }).text ?? ''
   if (m.kind === 'card') return `[card: ${JSON.stringify(m.content)}]`
@@ -234,23 +228,15 @@ function messageText(m: Message): string {
   return `[${m.kind}]`
 }
 
-/**
- * Prefix every line of untrusted body text with `> `. The `**…**` row headers
- * are the only thing telling the agent whether a row is customer-visible or
- * the internal staff thread; blockquoting message text and note bodies keeps a
- * column-0 `**` renderer-only, so a customer message or staff note body cannot
- * typographically forge a row of a different audience.
- */
-function blockquoteBody(body: string): string {
-  return body
-    .split('\n')
-    .map((line) => `> ${line}`)
-    .join('\n')
-}
-
 function messageEntry(m: Message, driveFilesById: Map<string, DriveFileProjection>): ConversationEntry {
   const created = new Date(m.createdAt)
-  const lines = [`**${messageRoleLabel(m.role)}** (${created.toISOString()}):`, blockquoteBody(messageText(m))]
+  const lines = [
+    conversationRow({
+      label: messageAudienceLabel(m.role),
+      timestamp: formatRowTimestamp(created),
+      body: messageText(m),
+    }),
+  ]
   for (const att of m.attachments ?? []) {
     lines.push(renderAttachmentBlock(att, driveFilesById.get(att.driveFileId)))
   }
@@ -259,16 +245,21 @@ function messageEntry(m: Message, driveFilesById: Map<string, DriveFileProjectio
 
 function noteEntry(n: InternalNote): ConversationEntry {
   const created = new Date(n.createdAt)
-  const who = n.authorType === 'staff' ? `Staff:${n.authorId}` : n.authorType === 'agent' ? 'Agent' : 'System'
   // Mentions are system-generated `staff:<userId>` tokens — strip anything
   // outside the id charset so a malformed token can't break the header line.
   const tokens = n.mentions.map((t) => t.replace(/[^\w:.-]/g, ''))
-  const mentions = tokens.length > 0 ? ` (@${tokens.join(' @')})` : ''
   return {
     ts: created.getTime(),
     rank: 1,
     id: n.id,
-    lines: [`**[internal] ${who}** (${created.toISOString()})${mentions}:`, blockquoteBody(n.body)],
+    lines: [
+      conversationRow({
+        label: noteAudienceLabel(n.authorType, n.authorId),
+        timestamp: formatRowTimestamp(created),
+        body: n.body,
+        headerNote: tokens.length > 0 ? `(@${tokens.join(' @')})` : undefined,
+      }),
+    ],
   }
 }
 

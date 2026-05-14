@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+import { formatRowTimestamp } from '@modules/messaging/lib/conversation-row'
 
 import { renderUnreadActivity, type UnreadActivitySnapshot } from './unread-activity'
 
@@ -39,9 +40,9 @@ describe('renderUnreadActivity', () => {
     const out = renderUnreadActivity(snap, FOLDER)
     expect(out).toContain('## Other recent activity (context)')
     expect(out).toContain('Messages (2 customer)')
-    expect(out).toContain('[2026-05-12 10:14 | customer]')
+    expect(out).toContain(`**Customer** (${formatRowTimestamp(new Date('2026-05-12T10:14:00Z'))}):`)
     expect(out).toContain('> Best under budget')
-    expect(out).toContain('[2026-05-12 10:15 | customer]')
+    expect(out).toContain(`**Customer** (${formatRowTimestamp(new Date('2026-05-12T10:15:00Z'))}):`)
     expect(out).toContain('> Couples Retreat')
     expect(out.indexOf('Best under budget')).toBeLessThan(out.indexOf('Couples Retreat'))
   })
@@ -69,7 +70,7 @@ describe('renderUnreadActivity', () => {
         { role: 'staff', ts: new Date('2026-05-12T10:16:00Z'), body: '[Yash] hi' },
       ],
       hasMoreMessages: false,
-      notes: [{ ts: new Date('2026-05-12T10:15:00Z'), authorLabel: 'staff:u1', body: 'try msg again' }],
+      notes: [{ ts: new Date('2026-05-12T10:15:00Z'), authorType: 'staff', authorId: 'u1', body: 'try msg again' }],
       hasMoreNotes: false,
       sinceCustomer: null,
       selfActivity: [],
@@ -78,7 +79,7 @@ describe('renderUnreadActivity', () => {
     const out = renderUnreadActivity(snap, FOLDER)
     expect(out).toContain('Messages (1 customer, 1 staff)')
     expect(out).toContain('Internal notes (1 new from non-self)')
-    expect(out).toContain('[2026-05-12 10:15 | staff:u1]')
+    expect(out).toContain(`**[internal] Staff:u1** (${formatRowTimestamp(new Date('2026-05-12T10:15:00Z'))}):`)
     expect(out).toContain('> try msg again')
     expect(out).toContain('The trigger at the top of this turn is what brought this wake')
   })
@@ -99,9 +100,9 @@ describe('renderUnreadActivity', () => {
     }
     const out = renderUnreadActivity(snap, FOLDER)
     expect(out).toContain('Your recent actions (since last customer/staff inbound — already done, do not re-send)')
-    expect(out).toContain('[2026-05-12 10:14 | card]')
+    expect(out).toContain(`**Agent → customer** (${formatRowTimestamp(new Date('2026-05-12T10:14:00Z'))}) [card]:`)
     expect(out).toContain('> [card: Premium 42 promo for your slot]')
-    expect(out).toContain('[2026-05-12 10:15 | note]')
+    expect(out).toContain(`**[internal] Agent** (${formatRowTimestamp(new Date('2026-05-12T10:15:00Z'))}) [note]:`)
     expect(out).toContain('> Added high-priority label as requested.')
     expect(out).toContain('do not re-fire the same card or reply')
   })

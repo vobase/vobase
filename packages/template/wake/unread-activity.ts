@@ -15,12 +15,18 @@
  * desired behavior (the agent hasn't replied to it, so it stays unread).
  */
 
-import { internalNotes, type MessageKind, messages } from '@modules/messaging/schema'
+import {
+  conversationRow,
+  formatRowTimestamp,
+  messageAudienceLabel,
+  noteAudienceLabel,
+} from '@modules/messaging/lib/conversation-row'
+import { type InternalNoteAuthorType, internalNotes, type MessageKind, messages } from '@modules/messaging/schema'
 import { summarizeMessageContent } from '@modules/messaging/service/summarize-content'
 import { and, asc, eq, gt, inArray, not, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
-import { blockquote, truncateForCue } from './trigger'
+import { truncateForCue } from './trigger'
 
 /** Per-item byte cap. Reuses the cue truncation pipeline so emoji/CJK count correctly. */
 const PER_ITEM_BYTE_CAP = 800
@@ -37,7 +43,8 @@ export interface UnreadMessage {
 
 export interface UnreadNote {
   ts: Date
-  authorLabel: string
+  authorType: InternalNoteAuthorType
+  authorId: string
   body: string
 }
 
@@ -156,7 +163,8 @@ export async function snapshotUnreadActivity(input: SnapshotInput): Promise<Unre
 
   const notesOut: UnreadNote[] = noteRows.slice(0, MAX_NOTES).map((r) => ({
     ts: r.createdAt,
-    authorLabel: r.authorType === 'system' ? 'system' : `${r.authorType}:${r.authorId}`,
+    authorType: r.authorType as InternalNoteAuthorType,
+    authorId: r.authorId,
     body: truncateForCue(r.body, PER_ITEM_BYTE_CAP),
   }))
 
@@ -191,14 +199,13 @@ function messageKindToSelfKind(kind: MessageKind): SelfActivity['kind'] {
   return 'reply'
 }
 
-/** `YYYY-MM-DD HH:MM` UTC — opaque magic-index slice; comment is the only thing telling readers what those indices mean. */
-function formatTs(ts: Date): string {
-  return ts.toISOString().slice(0, 16).replace('T', ' ')
-}
-
 /**
  * Render the snapshot as a markdown block. Returns `''` when nothing is
  * unread so callers can append unconditionally without guard plumbing.
+ *
+ * Rows use the shared `conversationRow` format (audience label + org-timezone
+ * timestamp + blockquoted body) so the appendix reads the same as
+ * `CONVERSATION.md` and the wake cue.
  */
 export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: string): string {
   if (snapshot.messages.length === 0 && snapshot.notes.length === 0 && snapshot.selfActivity.length === 0) return ''
@@ -213,8 +220,9 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
     ].filter(Boolean)
     lines.push(`**Messages (${counts.join(', ')}):**`)
     for (const m of snapshot.messages) {
-      lines.push(`[${formatTs(m.ts)} | ${m.role}]`)
-      lines.push(blockquote(m.body))
+      lines.push(
+        conversationRow({ label: messageAudienceLabel(m.role), timestamp: formatRowTimestamp(m.ts), body: m.body }),
+      )
       lines.push('')
     }
     if (snapshot.hasMoreMessages) {
@@ -227,8 +235,13 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
   if (snapshot.notes.length > 0) {
     lines.push(`**Internal notes (${snapshot.notes.length} new from non-self):**`)
     for (const n of snapshot.notes) {
-      lines.push(`[${formatTs(n.ts)} | ${n.authorLabel}]`)
-      lines.push(blockquote(n.body))
+      lines.push(
+        conversationRow({
+          label: noteAudienceLabel(n.authorType, n.authorId),
+          timestamp: formatRowTimestamp(n.ts),
+          body: n.body,
+        }),
+      )
       lines.push('')
     }
     if (snapshot.hasMoreNotes) {
@@ -239,8 +252,14 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
   if (snapshot.selfActivity.length > 0) {
     lines.push(`**Your recent actions (since last customer/staff inbound — already done, do not re-send):**`)
     for (const a of snapshot.selfActivity) {
-      lines.push(`[${formatTs(a.ts)} | ${a.kind}]`)
-      lines.push(blockquote(a.body))
+      lines.push(
+        conversationRow({
+          label: a.kind === 'note' ? noteAudienceLabel('agent', '') : messageAudienceLabel('agent'),
+          timestamp: formatRowTimestamp(a.ts),
+          body: a.body,
+          headerNote: `[${a.kind}]`,
+        }),
+      )
       lines.push('')
     }
     if (snapshot.hasMoreSelf) {

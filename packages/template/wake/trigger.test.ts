@@ -202,7 +202,7 @@ describe('renderStaffNote (assignee branch)', () => {
         currentAgentId: 'agt0mer0v1',
       },
     )
-    expect(text).toContain('staff:usr0alice')
+    expect(text).toContain('**[internal] Staff:usr0alice**')
     expect(text).toContain('> @MeriGPT yes we are GST registered, UEN 202012345A')
     expect(text).toContain('CONVERSATION.md')
     expect(text).toMatch(/routing table|AGENTS\.md/)
@@ -323,9 +323,10 @@ describe('cue body truncation', () => {
     )
     expect(text).toContain('[truncated')
     expect(text).toContain('CONVERSATION.md')
-    // The quoted body section (truncateForCue output + `> ` per line by quoteBody) is bounded by 4KB
-    // plus ~2 bytes per line of blockquote prefix. Extract from the first quoted line to the trailing pointer.
-    const quoteStart = text.indexOf('\n\n> ') + 2
+    // The quoted body section (truncateForCue output + `> ` per line) is bounded by 4KB
+    // plus ~2 bytes per line of blockquote prefix. Extract from the first quoted line
+    // (right after the `**[internal] …**:` row header) to the trailing pointer.
+    const quoteStart = text.indexOf('\n> ') + 1
     const quoteEnd = text.indexOf('\n\nFull thread in ')
     const quotedSection = text.slice(quoteStart, quoteEnd)
     expect(Buffer.byteLength(quotedSection, 'utf8')).toBeLessThanOrEqual(4096 + 200)

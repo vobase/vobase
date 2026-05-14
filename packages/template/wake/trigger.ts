@@ -17,6 +17,13 @@
  * byte-stable.
  */
 
+import {
+  blockquoteBody,
+  conversationRow,
+  messageAudienceLabel,
+  noteAudienceLabel,
+} from '@modules/messaging/lib/conversation-row'
+
 import type { WakeTrigger, WakeTriggerKind } from './events'
 
 /**
@@ -82,21 +89,13 @@ export function truncateForCue(body: string, maxBytes = MAX_CUE_BODY_BYTES): str
   return `${kept.join('\n')}${TRUNCATION_MARKER}`
 }
 
-/** Prefix every line with `> `. Shared between trigger renderers and `wake/unread-activity.ts`. */
-export function blockquote(body: string): string {
-  return body
-    .split('\n')
-    .map((line) => `> ${line}`)
-    .join('\n')
-}
-
 /**
  * Render `body` as a markdown blockquote so the cue's provenance is unambiguous
  * when an LLM reads it. Trims, truncates with the cue-wide byte budget, and
  * blockquotes — mirrors `renderOperatorThread`'s handling of operator-thread posts.
  */
 function quoteBody(body: string): string {
-  return blockquote(truncateForCue(body))
+  return blockquoteBody(truncateForCue(body))
 }
 
 function renderInboundMessage(trigger: WakeTrigger, refs: RenderRefs): string {
@@ -104,7 +103,8 @@ function renderInboundMessage(trigger: WakeTrigger, refs: RenderRefs): string {
   const pointer = `See ${convoFolder(refs)}/CONVERSATION.md for the full thread.`
   const body = trigger.body?.trim()
   if (!body) return `New customer message(s). ${pointer}`
-  return `New customer message:\n\n${quoteBody(body)}\n\n${pointer}`
+  const row = conversationRow({ label: messageAudienceLabel('customer'), body: truncateForCue(body) })
+  return `New customer message:\n\n${row}\n\n${pointer}`
 }
 
 function renderApprovalResumed(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -126,8 +126,11 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
   const lead = trigger.mentionedAgentId ? `Staff @-mentioned you in an internal note` : `Staff added an internal note`
   const body = trigger.body?.trim()
   const pointer = `Full thread in ${convoFolder(refs)}/CONVERSATION.md.`
+  const noteRow = body
+    ? conversationRow({ label: noteAudienceLabel('staff', trigger.authorUserId), body: truncateForCue(body) })
+    : ''
   const noteSection = body
-    ? `${lead} from staff:${trigger.authorUserId}:\n\n${quoteBody(body)}\n\n${pointer}`
+    ? `${lead}:\n\n${noteRow}\n\n${pointer}`
     : `${lead}. Read ${convoFolder(refs)}/CONVERSATION.md for context.`
   const youOwn = refs.assignee === `agent:${refs.currentAgentId}`
   const ownership = youOwn
