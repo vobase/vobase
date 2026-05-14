@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { MessageCard } from '@/components/message-card'
 
-const ORG_ID = 'mer0tenant'
+const ORG_ID = (import.meta.env.VITE_PLATFORM_TENANT_ID as string | undefined) ?? 'workspace'
 const CHANNEL_INSTANCE_ID = 'chi00web00'
 const WEBHOOK_SECRET = 'dev-secret'
 const SESSION_STORAGE_KEY = 'vobase.test-web.session'

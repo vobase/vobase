@@ -5,10 +5,11 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import type { ToolContext } from '@vobase/core'
 import { sql } from 'drizzle-orm'
 
+import { getSeededOrgId } from '~/tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '~/tests/helpers/test-db'
 import {
   __resetLearningCandidatesServiceForTests,
@@ -34,9 +35,20 @@ const stubRealtime = {
 
 let dbh: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
+  mockCtx = {
+    organizationId,
+    agentId: MERIGPT_AGENT_ID,
+    conversationId: CONV_A,
+    wakeId: 'wake-test-001',
+    turnIndex: 0,
+    toolCallId: 'tool-call-test-001',
+  }
   installLearningCandidatesService(
     createLearningCandidatesService({
       db: dbh.db as unknown as Parameters<typeof createLearningCandidatesService>[0]['db'],
@@ -60,7 +72,7 @@ const CONV_A = 'conv-dismiss-test-A'
 
 function baseInput(overrides: Partial<InsertLearningCandidateInput> = {}): InsertLearningCandidateInput {
   return {
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     agentId: MERIGPT_AGENT_ID,
     conversationId: CONV_A,
     signalKind: 'coaching_note',
@@ -72,14 +84,8 @@ function baseInput(overrides: Partial<InsertLearningCandidateInput> = {}): Inser
   }
 }
 
-const mockCtx: ToolContext = {
-  organizationId: MERIDIAN_ORG_ID,
-  agentId: MERIGPT_AGENT_ID,
-  conversationId: CONV_A,
-  wakeId: 'wake-test-001',
-  turnIndex: 0,
-  toolCallId: 'tool-call-test-001',
-}
+// Assigned in `beforeAll` once `organizationId` is resolved from the seeded DB.
+let mockCtx: ToolContext
 
 // ─── dismissCandidateTool ─────────────────────────────────────────────────────
 
@@ -107,7 +113,7 @@ describe('dismissCandidateTool', () => {
 
     await dismissCandidateTool.execute({ candidateId: dismissed.id, reason: 'off-topic' }, mockCtx)
 
-    const pending = await listPendingForConversation(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_A)
+    const pending = await listPendingForConversation(organizationId, MERIGPT_AGENT_ID, CONV_A)
     const ids = pending.map((r) => r.id)
     expect(ids).toContain(kept.id)
     expect(ids).not.toContain(dismissed.id)

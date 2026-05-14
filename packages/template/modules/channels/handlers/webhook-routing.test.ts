@@ -12,7 +12,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { ChannelInstance } from '@modules/channels/schema'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID } from '@modules/contacts/seed'
 import { createContactsService, installContactsService } from '@modules/contacts/service/contacts'
 import { conversations } from '@modules/messaging/schema'
 import { createConversationsService, installConversationsService } from '@modules/messaging/service/conversations'
@@ -22,6 +22,7 @@ import { createSessionsService, installSessionsService } from '@modules/messagin
 import { createNoopRealtime, type MessageReceivedEvent } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import { WHATSAPP_CAPABILITIES, WHATSAPP_CHANNEL_NAME } from '../adapters/whatsapp/factory'
 import { dispatchInbound } from '../service/inbound'
@@ -42,7 +43,7 @@ const stubJobs: JobQueue = {
 function makeInstance(config: Record<string, unknown>): ChannelInstance {
   return {
     id: CUSTOMER_CHANNEL_INSTANCE_ID,
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     channel: 'whatsapp',
     displayName: 'WA routing test',
     config,
@@ -71,9 +72,12 @@ function makeMessageEvent(messageId: string, from: string): MessageReceivedEvent
   }
 }
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
 
   installContactsService(createContactsService({ db: db.db, realtime: createNoopRealtime() }))
   installConversationsService(createConversationsService({ db: db.db }))

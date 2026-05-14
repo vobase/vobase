@@ -36,7 +36,7 @@ const TENANT_ID = 'tst0tenant1'
 const HMAC_SECRET = 'test-fixture-hmac-secret-slice1-us008' // deterministic; never rotated
 const KEY_VERSION = 1
 const SANDBOX_POOL_AVAILABLE = 3
-const SCHEMA_VERSION = 'v2'
+const SCHEMA_VERSION = 'v3'
 
 // ─── Platform stub ────────────────────────────────────────────────────────────
 

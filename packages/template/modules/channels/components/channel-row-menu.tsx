@@ -99,10 +99,16 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
   const [linkQrOpen, setLinkQrOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
-  const config = row.config as { wabaId?: string; mode?: string; displayPhoneNumber?: string }
+  const config = row.config as {
+    wabaId?: string
+    mode?: string
+    displayPhoneNumber?: string
+    endpointId?: string
+  }
   const isManaged = config.mode === 'managed'
   const wabaId = config.wabaId
   const displayPhoneNumber = config.displayPhoneNumber ?? null
+  const endpointId = config.endpointId ?? null
 
   const deleteMutation = useMutation({
     mutationFn: () => (isManaged ? releaseManagedInstance(row.id) : deleteInstance(row.id)),
@@ -138,7 +144,7 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
               <UserCog className="size-4" />
               Edit name & default assignee…
             </DropdownMenuItem>
-            {wabaId && (
+            {wabaId && !isManaged && (
               <DropdownMenuItem asChild>
                 <a
                   href={`https://business.facebook.com/wa/manage/phone-numbers/?waba_id=${wabaId}`}
@@ -163,7 +169,7 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
         <ManagedLinkQrSheet
           open={linkQrOpen}
           onOpenChange={setLinkQrOpen}
-          channelInstanceId={row.id}
+          endpointId={endpointId}
           displayPhoneNumber={displayPhoneNumber}
         />
       )}

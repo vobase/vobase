@@ -139,7 +139,12 @@ function buildPlatformStub(state: StubState): Hono {
       sigVersion: c.req.header('X-Vobase-Sig-Version') ?? null,
     })
     if (!ok) return c.json({ ok: false, reason: 'unauthenticated' }, 401)
-    return c.json({ ok: true, registeredAt: new Date('2025-06-01T00:00:00Z').toISOString() })
+    // v3: response carries `endpointId` (12-char platform-minted nanoid).
+    return c.json({
+      endpointId: 'ep0us012orph',
+      status: 'ok',
+      registeredAt: new Date('2025-06-01T00:00:00Z').toISOString(),
+    })
   })
 
   return app
@@ -335,10 +340,13 @@ describe('claim-bootstrap orphan recovery (US-012, slice-2)', () => {
     expect(storeCalls[0]?.provider).toBe('vobase-platform')
     expect(storeCalls[0]?.input.current.routineSecret).toBe(ALLOCATION.routineSecret)
 
-    // DB upsert ran once (second call).
-    expect(upsertCalls).toHaveLength(1)
+    // DB upsert ran twice (second invocation only): initial insert + the
+    // post-webhook re-upsert that folds the platform-minted `endpointId`
+    // into config. v3-only — pre-v3 it was a single upsert.
+    expect(upsertCalls).toHaveLength(2)
     expect(upsertCalls[0]?.platformChannelId).toBe(ALLOCATION.platformChannelId)
     expect(upsertCalls[0]?.id).toBe(CHANNEL_INSTANCE_ID)
+    expect(upsertCalls[1]?.config.endpointId).toBe('ep0us012orph')
 
     // Webhook registered once.
     expect(stubState.registerCalls).toBe(1)

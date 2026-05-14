@@ -9,12 +9,12 @@
  * cross-module seed coupling is encoded via explicit imports of ID constants).
  */
 
-import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID } from '@modules/contacts/seed'
 import { staffAttributeDefinitions, staffProfiles } from '@modules/team/schema'
 
-export { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID }
+export { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID }
 
-export async function seed(db: unknown): Promise<void> {
+export async function seed(db: unknown, { organizationId }: { organizationId: string }): Promise<void> {
   const d = db as {
     insert: (t: unknown) => {
       values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
@@ -26,7 +26,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(staffProfiles)
     .values({
       userId: ALICE_USER_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Alice',
       title: 'Senior Customer Success',
       sectors: ['retail', 'f&b'],
@@ -43,7 +43,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(staffProfiles)
     .values({
       userId: BOB_USER_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Bob',
       title: 'Solutions Engineer',
       sectors: ['fintech', 'saas'],
@@ -60,7 +60,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(staffProfiles)
     .values({
       userId: CAROL_USER_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Carol',
       title: 'Billing Lead',
       sectors: ['retail', 'f&b'],
@@ -123,7 +123,7 @@ export async function seed(db: unknown): Promise<void> {
   for (const def of defs) {
     await d
       .insert(staffAttributeDefinitions)
-      .values({ organizationId: MERIDIAN_ORG_ID, ...def })
+      .values({ organizationId: organizationId, ...def })
       .onConflictDoNothing()
   }
 }

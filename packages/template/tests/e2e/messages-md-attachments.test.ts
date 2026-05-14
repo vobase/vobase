@@ -13,7 +13,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import {
   getAttachmentSnapshot,
@@ -26,11 +26,15 @@ import type { DriveFileProjection } from '@modules/messaging/service/drive-attac
 import { and, eq } from 'drizzle-orm'
 
 import { type AttachmentTestHandle, bootMessagingAttachments } from '../helpers/attachments-fixture'
+import { getSeededOrgId } from '../helpers/seeded-org'
 
 let h: AttachmentTestHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   h = await bootMessagingAttachments()
+  organizationId = await getSeededOrgId(h.db.db)
 })
 
 afterAll(async () => {
@@ -41,7 +45,7 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
   it('renders [file: …] block for an extracted attachment and observes path drift on next wake', async () => {
     const externalId = `wa_md_${Date.now()}`
     const result = await createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: externalId,
@@ -66,11 +70,11 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
     await h.db.db
       .update(driveFiles)
       .set({ extractionKind: 'extracted', caption: 'PDF caption sentence', processingStatus: 'ready' })
-      .where(and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), eq(driveFiles.id, ref?.driveFileId ?? '')))
+      .where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, ref?.driveFileId ?? '')))
 
     // Wake N starts: invalidate the snapshot then prefetch.
-    invalidateAttachmentSnapshot(MERIDIAN_ORG_ID, result.conversation.id)
-    const snapshotN = await getAttachmentSnapshot(MERIDIAN_ORG_ID, result.conversation.id)
+    invalidateAttachmentSnapshot(organizationId, result.conversation.id)
+    const snapshotN = await getAttachmentSnapshot(organizationId, result.conversation.id)
 
     // Re-fetch the message rows (now with attachments) and render.
     const rows = (await h.db.db
@@ -89,7 +93,7 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
     await h.db.db
       .update(driveFiles)
       .set({ path: '/contacts/ctt0test00/chi0cust00/attachments/spec-renamed.md' })
-      .where(and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), eq(driveFiles.id, ref?.driveFileId ?? '')))
+      .where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, ref?.driveFileId ?? '')))
 
     // Snapshot N is frozen — re-render still shows old path because the
     // map was captured before the path mutation.
@@ -97,8 +101,8 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
     expect(transcriptNStillFrozen).not.toContain('spec-renamed.md')
 
     // Wake N+1 — invalidate, refetch, observe new path.
-    invalidateAttachmentSnapshot(MERIDIAN_ORG_ID, result.conversation.id)
-    const snapshotNext = await getAttachmentSnapshot(MERIDIAN_ORG_ID, result.conversation.id)
+    invalidateAttachmentSnapshot(organizationId, result.conversation.id)
+    const snapshotNext = await getAttachmentSnapshot(organizationId, result.conversation.id)
     const transcriptNext = renderTranscriptFromMessages(rows, snapshotNext)
     expect(transcriptNext).toContain('spec-renamed.md')
   })
@@ -107,7 +111,7 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
     const fakeRow = {
       id: 'm-fake',
       conversationId: 'c-fake',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       role: 'customer' as const,
       kind: 'text' as const,
       content: { text: 'see file' },
@@ -136,7 +140,7 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
     const fakeRow = {
       id: 'm-bin',
       conversationId: 'c-bin',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       role: 'customer' as const,
       kind: 'text' as const,
       content: { text: 'see video' },

@@ -32,7 +32,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { agentDefinitions } from '@modules/agents/schema'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 
 const MERIDIAN_AGENT_ID = MERIGPT_AGENT_ID
 const SENTINEL_AGENT_ID = 'agt-test-sent'
@@ -101,6 +101,7 @@ import { CliVerbRegistry, setJournalDb } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
 import { conversationWakeConfig } from '~/wake/conversation'
+import { getSeededOrgId } from '../helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 const NOOP_LOGGER: HarnessLogger = {
@@ -130,9 +131,12 @@ let db: TestDbHandle
 let captured: CapturedEnqueue[] = []
 let priyaConvId: string
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
   setJournalDb(db.db as unknown as Parameters<typeof setJournalDb>[0])
   setCliRegistry(new CliVerbRegistry())
 
@@ -140,13 +144,13 @@ beforeAll(async () => {
   const ins = db.db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<unknown> } }
   await ins.insert(agentDefinitions).values({
     id: SENTINEL_AGENT_ID,
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     name: 'Sentinel',
     enabled: true,
   })
   await ins.insert(agentDefinitions).values({
     id: ATLAS_AGENT_ID,
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     name: 'Atlas',
     enabled: true,
   })
@@ -249,7 +253,7 @@ describe('staff-note mention fan-out', () => {
     captured = []
 
     const note = await addNote({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       conversationId: priyaConvId,
       author: { kind: 'staff', id: STAFF_USER_ID },
       body: '@Sentinel can you take a look?',
@@ -277,7 +281,7 @@ describe('staff-note mention fan-out', () => {
     captured = []
 
     const note = await addNote({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       conversationId: priyaConvId,
       author: { kind: 'staff', id: STAFF_USER_ID },
       body: '@MeriGPT please double-check',
@@ -302,7 +306,7 @@ describe('staff-note mention fan-out', () => {
     captured = []
 
     const note = await addNote({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       conversationId: priyaConvId,
       author: { kind: 'staff', id: STAFF_USER_ID },
       body: '@Sentinel @Atlas need both eyes on this',
@@ -343,7 +347,7 @@ describe('staff-note mention fan-out', () => {
     await reassign(priyaConvId, `agent:${SENTINEL_AGENT_ID}`, STAFF_USER_ID, 'test reassign')
     try {
       const note = await addNote({
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         conversationId: priyaConvId,
         author: { kind: 'staff', id: STAFF_USER_ID },
         body: '@MeriGPT thoughts on the refund?',
@@ -372,7 +376,7 @@ describe('staff-note mention fan-out', () => {
       }
       const config = await conversationWakeConfig({
         data: {
-          organizationId: MERIDIAN_ORG_ID,
+          organizationId: organizationId,
           conversationId: priyaConvId,
           messageId: '',
           contactId: conv.contactId,
@@ -417,7 +421,7 @@ describe('staff-note mention fan-out', () => {
 
     const before = await listNotes(priyaConvId)
     await addNote({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       conversationId: priyaConvId,
       author: { kind: 'agent', id: MERIDIAN_AGENT_ID },
       body: '@Atlas thoughts?',
@@ -439,7 +443,7 @@ describe('staff-note mention fan-out', () => {
 
     const before = await listNotes(priyaConvId)
     await addNote({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       conversationId: priyaConvId,
       author: { kind: 'staff', id: STAFF_USER_ID },
       body: 'just leaving a note for the team',
@@ -475,7 +479,7 @@ describe('staff-note mention fan-out', () => {
     const buildOnce = () =>
       conversationWakeConfig({
         data: {
-          organizationId: MERIDIAN_ORG_ID,
+          organizationId: organizationId,
           conversationId: priyaConvId,
           messageId: '',
           contactId: conv.contactId,

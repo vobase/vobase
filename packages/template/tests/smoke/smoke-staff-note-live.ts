@@ -27,6 +27,7 @@ import {
   connectSmokeDb,
   countAssistantTurns,
   envPollS,
+  getSmokeOrgId,
   POLL_S_DEFAULTS,
   pickText,
   pickToolCalls,
@@ -36,7 +37,6 @@ import {
 } from '../helpers/smoke-runtime'
 import { devLogin, makeAuthedFetch } from './_helpers'
 
-const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const CONV_ID = process.env.CONV_ID ?? 'cnv0marcus'
 const AGENT_ID = process.env.AGENT_ID ?? SMOKE_AGENT_ID
 const AGENT_HANDLE = process.env.AGENT_HANDLE ?? 'MeriGPT'
@@ -63,6 +63,8 @@ await runSmoke(
     const api = makeAuthedFetch(baseUrl, auth)
     const { sql, end } = connectSmokeDb()
     try {
+      const organizationId = await getSmokeOrgId(sql)
+
       // Pre-state baselines.
       const [contactBefore] = await sql<{ memory: string | null }[]>`
         SELECT memory FROM contacts.contacts WHERE id = ${CONTACT_ID}
@@ -75,7 +77,7 @@ await runSmoke(
       `
       const baselineProposals = await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM changes.change_proposals
-        WHERE organization_id = ${ORG_ID} AND resource_module = 'drive'
+        WHERE organization_id = ${organizationId} AND resource_module = 'drive'
       `
       const baselineAssistant = await countAssistantTurns(sql, CONV_ID)
 
@@ -131,7 +133,7 @@ await runSmoke(
       `
       const newProposals = await sql<{ id: string; resource_module: string; resource_type: string; status: string }[]>`
         SELECT id, resource_module, resource_type, status FROM changes.change_proposals
-        WHERE organization_id = ${ORG_ID} AND resource_module = 'drive'
+        WHERE organization_id = ${organizationId} AND resource_module = 'drive'
         ORDER BY created_at ASC
         OFFSET ${baselineProposals[0]?.count ?? 0}
       `

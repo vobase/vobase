@@ -27,7 +27,8 @@
  *   BASE_URL=http://localhost:3000 bun run tests/smoke/smoke-all-triggers-live.ts
  *
  * Env passthrough: every env var the child smokes consume (BASE_URL,
- * SMOKE_EMAIL, ORG_ID, POLL_S, etc.) is inherited unchanged.
+ * SMOKE_EMAIL, POLL_S, etc.) is inherited unchanged. ORG_ID is an optional
+ * override — when unset, smokes resolve the org from auth.organization.
  */
 
 import { spawn } from 'node:child_process'

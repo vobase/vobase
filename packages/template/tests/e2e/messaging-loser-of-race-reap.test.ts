@@ -11,7 +11,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import { messages as messagesTable } from '@modules/messaging/schema'
 // Re-import the bound conversations service so the test can install a
@@ -26,11 +26,15 @@ import {
 import { and, eq, like } from 'drizzle-orm'
 
 import { type AttachmentTestHandle, bootMessagingAttachments } from '../helpers/attachments-fixture'
+import { getSeededOrgId } from '../helpers/seeded-org'
 
 let h: AttachmentTestHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   h = await bootMessagingAttachments()
+  organizationId = await getSeededOrgId(h.db.db)
 })
 
 afterAll(async () => {
@@ -43,7 +47,7 @@ describe('messaging loser-of-race reap', () => {
 
     // Winner — call createInboundMessage with attachments first; let it
     // commit. This pre-stages the row that the loser will discover.
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
 
     // Install a wrapper conversations service whose existence check lies
     // on the first call — returning [] so the loser proceeds to ingest +
@@ -65,7 +69,7 @@ describe('messaging loser-of-race reap', () => {
           // externalMessageId.
           await h.db.db.insert(messagesTable).values({
             conversationId: conversation.id,
-            organizationId: MERIDIAN_ORG_ID,
+            organizationId: organizationId,
             role: 'customer',
             kind: 'text',
             content: { text: 'winner' },
@@ -78,7 +82,7 @@ describe('messaging loser-of-race reap', () => {
     installConversationsService(wrapped)
 
     const loser = await wrapped.createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: externalId,
@@ -99,7 +103,7 @@ describe('messaging loser-of-race reap', () => {
     const messageRows = await h.db.db
       .select()
       .from(messagesTable)
-      .where(and(eq(messagesTable.organizationId, MERIDIAN_ORG_ID), eq(messagesTable.channelExternalId, externalId)))
+      .where(and(eq(messagesTable.organizationId, organizationId), eq(messagesTable.channelExternalId, externalId)))
     expect(messageRows).toHaveLength(1)
 
     // Loser's drive row was reaped.
@@ -107,7 +111,7 @@ describe('messaging loser-of-race reap', () => {
       .select()
       .from(driveFiles)
       .where(
-        and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), like(driveFiles.originalName, `loser-${externalId}.pdf`)),
+        and(eq(driveFiles.organizationId, organizationId), like(driveFiles.originalName, `loser-${externalId}.pdf`)),
       )
     expect(reapedDriveRows).toHaveLength(0)
 

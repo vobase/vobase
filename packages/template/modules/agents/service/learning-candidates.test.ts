@@ -7,9 +7,10 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import { sql } from 'drizzle-orm'
 
+import { getSeededOrgId } from '~/tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '~/tests/helpers/test-db'
 import {
   __resetLearningCandidatesServiceForTests,
@@ -48,9 +49,12 @@ const stubRealtime = {
 
 let dbh: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
   installLearningCandidatesService(
     createLearningCandidatesService({
       db: dbh.db as unknown as Parameters<typeof createLearningCandidatesService>[0]['db'],
@@ -76,7 +80,7 @@ const CONV_B = 'conv-test-B'
 
 function baseInput(overrides: Partial<InsertLearningCandidateInput> = {}): InsertLearningCandidateInput {
   return {
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     agentId: MERIGPT_AGENT_ID,
     conversationId: CONV_A,
     signalKind: 'coaching_note',
@@ -95,7 +99,7 @@ describe('insertCandidate', () => {
     const row = await insertCandidate(baseInput())
 
     expect(row.id).toBeTruthy()
-    expect(row.organizationId).toBe(MERIDIAN_ORG_ID)
+    expect(row.organizationId).toBe(organizationId)
     expect(row.agentId).toBe(MERIGPT_AGENT_ID)
     expect(row.conversationId).toBe(CONV_A)
     expect(row.signalKind).toBe('coaching_note')
@@ -145,7 +149,7 @@ describe('listPendingForConversation', () => {
     await Bun.sleep(15)
     const r3 = await insertCandidate(baseInput({ summary: 'Third' }))
 
-    const rows = await listPendingForConversation(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_A)
+    const rows = await listPendingForConversation(organizationId, MERIGPT_AGENT_ID, CONV_A)
     expect(rows.map((r) => r.id)).toEqual([r3.id, r2.id, r1.id])
   })
 
@@ -153,7 +157,7 @@ describe('listPendingForConversation', () => {
     for (let i = 0; i < 7; i++) {
       await insertCandidate(baseInput({ summary: `Candidate ${i}`, signalRef: `ref-${i}` }))
     }
-    const rows = await listPendingForConversation(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_A)
+    const rows = await listPendingForConversation(organizationId, MERIGPT_AGENT_ID, CONV_A)
     expect(rows.length).toBe(5)
   })
 
@@ -161,7 +165,7 @@ describe('listPendingForConversation', () => {
     for (let i = 0; i < 7; i++) {
       await insertCandidate(baseInput({ summary: `Candidate ${i}`, signalRef: `ref-${i}` }))
     }
-    const rows = await listPendingForConversation(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_A, 3)
+    const rows = await listPendingForConversation(organizationId, MERIGPT_AGENT_ID, CONV_A, 3)
     expect(rows.length).toBe(3)
   })
 
@@ -169,7 +173,7 @@ describe('listPendingForConversation', () => {
     await insertCandidate(baseInput({ conversationId: CONV_A }))
     await insertCandidate(baseInput({ conversationId: CONV_B }))
 
-    const rowsA = await listPendingForConversation(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_A)
+    const rowsA = await listPendingForConversation(organizationId, MERIGPT_AGENT_ID, CONV_A)
     expect(rowsA.length).toBe(1)
     expect(rowsA[0]?.conversationId).toBe(CONV_A)
   })
@@ -186,10 +190,10 @@ describe('countPendingOtherConversations', () => {
     await insertCandidate(baseInput({ conversationId: CONV_B, signalRef: 'b2' }))
     await insertCandidate(baseInput({ conversationId: CONV_B, signalRef: 'b3' }))
 
-    const fromA = await countPendingOtherConversations(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_A)
+    const fromA = await countPendingOtherConversations(organizationId, MERIGPT_AGENT_ID, CONV_A)
     expect(fromA).toBe(3)
 
-    const fromB = await countPendingOtherConversations(MERIDIAN_ORG_ID, MERIGPT_AGENT_ID, CONV_B)
+    const fromB = await countPendingOtherConversations(organizationId, MERIGPT_AGENT_ID, CONV_B)
     expect(fromB).toBe(2)
   })
 })

@@ -9,7 +9,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import { AGENT_MEMORY_RESOURCE, agentMemoryMaterializer } from '@modules/agents/service/changes'
 import {
   __resetLearningCandidatesServiceForTests,
@@ -32,6 +32,7 @@ import {
 } from '@modules/contacts/service/contact-memory-changes'
 import { eq, sql } from 'drizzle-orm'
 
+import { getSeededOrgId } from '~/tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '~/tests/helpers/test-db'
 import { rememberTool } from './remember'
 
@@ -49,7 +50,7 @@ const stubRealtime = {
 
 function makeCtx(overrides: Partial<{ conversationId: string }> = {}) {
   return {
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     agentId: MERIGPT_AGENT_ID,
     conversationId: overrides.conversationId ?? 'conv-remember-test',
     wakeId: 'wake-remember-test',
@@ -62,9 +63,12 @@ function makeCtx(overrides: Partial<{ conversationId: string }> = {}) {
 
 let dbh: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
 
   __resetChangeRegistryForTests()
   __resetChangeProposalsServiceForTests()
@@ -309,7 +313,7 @@ describe('team.staff_memory missing resourceId', () => {
 describe('candidateId consumption', () => {
   it('marks the learning_candidate row as consumed when candidateId is supplied', async () => {
     const candidate = await insertCandidate({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       conversationId: 'conv-remember-candidate',
       signalKind: 'coaching_note',

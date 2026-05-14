@@ -387,6 +387,27 @@ export async function dumpConversationState(sql: Sql, conversationId: string, op
   console.error('─── end dump ───\n')
 }
 
+// ─── Org resolution ──────────────────────────────────────────────────────────
+
+/**
+ * Resolve the org id for a smoke run. Honors `ORG_ID` env as an explicit
+ * override (useful against a multi-org server); otherwise queries the
+ * seeded org from auth.organization — mirrors the unit/e2e fixture
+ * `getSeededOrgId`. Throws if neither is available.
+ */
+export async function getSmokeOrgId(sql: Sql): Promise<string> {
+  const override = process.env.ORG_ID?.trim()
+  if (override) return override
+  const rows = await sql<{ id: string }[]>`
+    SELECT id FROM auth.organization ORDER BY created_at ASC LIMIT 1
+  `
+  const id = rows[0]?.id
+  if (!id) {
+    throw new Error('getSmokeOrgId: no org found in auth.organization and ORG_ID not set — is the dev server seeded?')
+  }
+  return id
+}
+
 // ─── Top-level wrapper ───────────────────────────────────────────────────────
 
 export interface SmokeRunCtx {

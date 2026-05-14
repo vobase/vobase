@@ -11,7 +11,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   __resetLearningCandidatesServiceForTests,
   createLearningCandidatesService,
@@ -19,6 +19,7 @@ import {
 } from '@modules/agents/service/learning-candidates'
 import { sql } from 'drizzle-orm'
 
+import { getSeededOrgId } from '~/tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '~/tests/helpers/test-db'
 import {
   __resetTriageDepsForTests,
@@ -43,9 +44,12 @@ let dbh: TestDbHandle
 
 const CONV_A = 'conv-triage-test-A'
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
   installLearningCandidatesService(
     createLearningCandidatesService({
       db: dbh.db as unknown as Parameters<typeof createLearningCandidatesService>[0]['db'],
@@ -69,7 +73,7 @@ beforeEach(async () => {
 
 function makePayload(overrides: Partial<LearningTriageJobPayload> = {}): LearningTriageJobPayload {
   return {
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     agentId: MERIGPT_AGENT_ID,
     conversationId: CONV_A,
     signal: {
@@ -120,7 +124,7 @@ describe('learning:triage job handler', () => {
           (id, organization_id, agent_id, conversation_id, signal_kind, signal_ref,
            triage_confidence, summary, context, status, created_at, updated_at)
           VALUES
-          ('seed-deb-01', ${MERIDIAN_ORG_ID}, ${MERIGPT_AGENT_ID}, ${CONV_A}, 'coaching_note', 'note-seed',
+          ('seed-deb-01', ${organizationId}, ${MERIGPT_AGENT_ID}, ${CONV_A}, 'coaching_note', 'note-seed',
            0.5, 'Seed candidate', 'Seed context', 'pending',
            now() - interval '1 minute', now() - interval '1 minute')`,
       )
@@ -142,7 +146,7 @@ describe('learning:triage job handler', () => {
           (id, organization_id, agent_id, conversation_id, signal_kind, signal_ref,
            triage_confidence, summary, context, status, created_at, updated_at)
           VALUES
-          ('seed-deb-02', ${MERIDIAN_ORG_ID}, ${MERIGPT_AGENT_ID}, ${CONV_A}, 'coaching_note', 'note-seed-old',
+          ('seed-deb-02', ${organizationId}, ${MERIGPT_AGENT_ID}, ${CONV_A}, 'coaching_note', 'note-seed-old',
            0.5, 'Old seed candidate', 'Old seed context', 'pending',
            now() - interval '6 minutes', now() - interval '6 minutes')`,
       )

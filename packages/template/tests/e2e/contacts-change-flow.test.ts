@@ -31,17 +31,21 @@ import {
   registerChangeMaterializer,
 } from '@modules/changes/service/proposals'
 import { contacts as contactsTable } from '@modules/contacts/schema'
-import { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { contactChangeMaterializer } from '@modules/contacts/service/changes'
 import { and, eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 let dbh: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
 
   __resetChangeRegistryForTests()
   __resetChangeProposalsServiceForTests()
@@ -77,7 +81,7 @@ afterAll(async () => {
 describe('contacts change-flow (auto-write path: sensitivity="low")', () => {
   it('insertProposal materializes inline, writes history, links the records', async () => {
     const result = await insertProposal({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact',
       resourceId: SEEDED_CONTACT_ID,
@@ -117,7 +121,7 @@ describe('contacts change-flow (auto-write path: sensitivity="low")', () => {
 describe('contacts change-flow (approval-gated path: sensitivity="critical")', () => {
   it('insertProposal → inbox → decide("approved") → linked history row', async () => {
     const proposed = await insertProposal({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact_pending',
       resourceId: SEEDED_CONTACT_ID,
@@ -136,7 +140,7 @@ describe('contacts change-flow (approval-gated path: sensitivity="critical")', (
     expect(proposed.status).toBe('pending')
     if (proposed.status === 'dropped') throw new Error('unreachable: confidence above floor')
 
-    const inbox = await listInbox(MERIDIAN_ORG_ID)
+    const inbox = await listInbox(organizationId)
     expect(inbox.some((r) => r.id === proposed.id)).toBe(true)
 
     const decision = await decideChangeProposal(proposed.id, 'approved', 'usr0alice0', 'looks good')
@@ -168,7 +172,7 @@ describe('contacts change-flow (approval-gated path: sensitivity="critical")', (
 
   it('decide("rejected") writes rejection without touching history or contact', async () => {
     const proposed = await insertProposal({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact_pending',
       resourceId: SEEDED_CONTACT_ID,

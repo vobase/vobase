@@ -129,8 +129,8 @@ export function ClaimSandboxDialog({ open, onOpenChange, onClaimed }: ClaimSandb
           <DialogTitle>Claim a platform sandbox number</DialogTitle>
           <DialogDescription>
             The platform allocates one shared WhatsApp sandbox phone to your tenant. Customers reach you by sending{' '}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">/link {'<slug>'}</code> to that number
-            first, then start chatting normally.
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">/link {'<endpointId>'}</code> to that
+            number first, then start chatting normally.
           </DialogDescription>
         </DialogHeader>
 

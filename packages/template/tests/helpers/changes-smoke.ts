@@ -22,7 +22,7 @@ import { createHmac } from 'node:crypto'
 import postgres, { type Sql } from 'postgres'
 
 import { devLogin as devLoginRaw, makeAuthedFetch, type SmokeAuth } from '../smoke/_helpers'
-import { pickText, pickToolCalls, pollAssistantTurns, SMOKE_AGENT_ID } from './smoke-runtime'
+import { getSmokeOrgId, pickText, pickToolCalls, pollAssistantTurns, SMOKE_AGENT_ID } from './smoke-runtime'
 
 export { pickText, pickToolCalls, SMOKE_AGENT_ID }
 
@@ -58,7 +58,6 @@ export interface OpenOpts {
  */
 export async function open(opts: OpenOpts = {}): Promise<SmokeCtx> {
   const baseUrl = opts.baseUrl ?? process.env.BASE_URL ?? 'http://localhost:3000'
-  const organizationId = opts.organizationId ?? process.env.ORG_ID ?? 'mer0tenant'
   const channelInstanceId = opts.channelInstanceId ?? process.env.CHANNEL_INSTANCE_ID ?? 'chi00web00'
   // Use `||` not `??`: Bun loads .env which sets the var to the empty string,
   // and `??` would propagate "" while the server's HMAC verifier falls through
@@ -66,6 +65,7 @@ export async function open(opts: OpenOpts = {}): Promise<SmokeCtx> {
   const webhookSecret = opts.webhookSecret || process.env.CHANNEL_WEB_WEBHOOK_SECRET || 'dev-secret'
   const from = opts.from ?? `smoke-${Date.now()}`
   const sql = postgres(process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5432/vobase')
+  const organizationId = opts.organizationId ?? (await getSmokeOrgId(sql))
   const auth = await devLoginRaw(baseUrl, opts.staffEmail ?? 'alice@meridian.test')
   const authedFetch = makeAuthedFetch(baseUrl, auth)
   return { baseUrl, channelInstanceId, organizationId, webhookSecret, from, sql, auth, authedFetch }

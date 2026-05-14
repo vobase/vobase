@@ -5,11 +5,9 @@
  * Other files contain concise placeholder content.
  */
 
-import { MARCUS_CONTACT_ID, MERIDIAN_ORG_ID, PRIYA_CONTACT_ID } from '@modules/contacts/seed'
+import { MARCUS_CONTACT_ID, PRIYA_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import { TEXT_WRITE_LIFECYCLE } from '@modules/drive/state'
-
-export { MERIDIAN_ORG_ID }
 
 const BUSINESS_MD_CONTENT = `# Business Identity
 
@@ -183,7 +181,7 @@ function hashId(s: string): string {
   return Math.abs(h).toString(36).padStart(6, '0').slice(0, 6)
 }
 
-export async function seed(db: unknown): Promise<void> {
+export async function seed(db: unknown, { organizationId }: { organizationId: string }): Promise<void> {
   const d = db as {
     insert: (t: unknown) => {
       values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
@@ -199,9 +197,9 @@ export async function seed(db: unknown): Promise<void> {
       .insert(driveFiles)
       .values({
         id: folder.id,
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         scope: 'organization',
-        scopeId: MERIDIAN_ORG_ID,
+        scopeId: organizationId,
         kind: 'folder',
         name: folder.name,
         path: folder.path,
@@ -219,9 +217,9 @@ export async function seed(db: unknown): Promise<void> {
       .insert(driveFiles)
       .values({
         id: file.id,
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         scope: 'organization',
-        scopeId: MERIDIAN_ORG_ID,
+        scopeId: organizationId,
         kind: 'file',
         name: file.name,
         path: file.path,
@@ -240,7 +238,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(driveFiles)
     .values({
       id: 'drv0marcus1',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       scope: 'contact',
       scopeId: MARCUS_CONTACT_ID,
       kind: 'file',
@@ -261,7 +259,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(driveFiles)
     .values({
       id: 'drv0priya01',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       scope: 'contact',
       scopeId: PRIYA_CONTACT_ID,
       kind: 'file',

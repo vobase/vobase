@@ -454,13 +454,27 @@ const app = new Hono<OrganizationEnv>()
         platformBaseUrl: creds.platformBaseUrl,
         tenantId: creds.tenantId,
         tenantHmacSecret: creds.tenantHmacSecret,
-        environment,
         provider: 'whatsapp',
-        channelInstanceId: instanceId,
         webhookUrl,
         verifyToken,
       })
-      return c.json({ ok: true, registeredAt: res.registeredAt, webhookUrl })
+      // Persist (or refresh) the platform-minted endpointId into config so
+      // the QR encoding stays stable across re-verifies. `upsertManagedInstance`
+      // shallow-merges `config` on conflict so the rest of the row survives.
+      const platformChannelId = typeof row.config.platformChannelId === 'string' ? row.config.platformChannelId : null
+      if (platformChannelId) {
+        await upsertManagedInstance(getInstalledDb(), {
+          id: instanceId,
+          organizationId,
+          channel: row.channel,
+          platformChannelId,
+          displayName: row.displayName ?? '',
+          role: row.role,
+          mode: row.config.mode === 'managed-notif' ? 'managed-notif' : 'managed',
+          config: { ...row.config, endpointId: res.endpointId },
+        })
+      }
+      return c.json({ ok: true, registeredAt: res.registeredAt, webhookUrl, endpointId: res.endpointId })
     } catch (err) {
       if (err instanceof PlatformHandshakeError) {
         return c.json(

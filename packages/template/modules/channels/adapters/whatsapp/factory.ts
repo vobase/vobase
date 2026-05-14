@@ -87,6 +87,13 @@ interface ManagedConfig {
    * the registry without touching this discriminator.
    */
   kind?: ManagedChannelKind
+  /**
+   * Platform-minted webhook endpoint id. Written by the webhook-register
+   * handler after a successful `/link` registration; used to encode the QR
+   * deeplink on the tenant side. Absent on rows created before the v3
+   * webhook-endpoints contract.
+   */
+  endpointId?: string
 }
 
 export function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig & Record<string, unknown> {

@@ -156,13 +156,21 @@ async function signedPlatformRequest(
  * metadata + key material). Throws `PlatformHandshakeError` on transport,
  * auth, or pool-exhausted errors. The platform path is sourced from the
  * managed-channels registry per kind.
+ *
+ * v3 wire: the request body is an empty JSON object `{}` — `environment`
+ * and `channelInstanceId` were removed from the contract because the
+ * platform now keys claims solely on `(tenant_slug, kind)`. The fields are
+ * still accepted on `HandshakeInput` (so callers that already plumb them
+ * for tenant-local use don't have to drop them), but they are NEVER sent
+ * to the platform. Sending them triggers HTTP 410 `legacy_contract_version`.
  */
 export async function claim(kind: ManagedChannelKind, input: HandshakeInput): Promise<HandshakeAllocation> {
   const kindSpec = findKind(kind)
-  const body = JSON.stringify({
-    environment: input.environment,
-    channelInstanceId: input.channelInstanceId,
-  })
+  // `input.environment` / `input.channelInstanceId` are intentionally unused
+  // on the wire — see v3 contract note above.
+  void input.environment
+  void input.channelInstanceId
+  const body = JSON.stringify({})
   const { res } = await signedPlatformRequest({
     method: 'POST',
     platformBaseUrl: input.platformBaseUrl,
@@ -196,11 +204,16 @@ export async function release(
     platformBaseUrl: string
     tenantId: string
     tenantHmacSecret: string
-    environment: 'production' | 'staging'
+    /**
+     * Kept on the input for caller compatibility; not sent on the wire under
+     * v3 (the platform releases solely by `(tenant_slug, kind)`).
+     */
+    environment?: 'production' | 'staging'
   },
 ): Promise<{ released: boolean }> {
   const kindSpec = findKind(kind)
-  const body = JSON.stringify({ environment: input.environment })
+  void input.environment
+  const body = JSON.stringify({})
   const { res } = await signedPlatformRequest({
     method: 'POST',
     platformBaseUrl: input.platformBaseUrl,
@@ -372,34 +385,40 @@ export const staffLinks = {
 // ─── Webhook + availability helpers (unchanged from Slice 2) ────────────────
 
 /**
- * Register a webhook URL + verify token with the platform for a given
- * `(channelInstanceId, provider)`. The platform runs the provider's
- * challenge protocol against the URL before persisting; on success, future
- * inbound forwards target the supplied URL verbatim.
+ * Register a webhook URL + verify token with the platform for the calling
+ * tenant. The platform runs the provider's challenge protocol against the URL
+ * before persisting; on success, future inbound forwards target the supplied
+ * URL verbatim.
  *
- * Idempotent: re-calling with the same payload re-runs the challenge and
- * refreshes `lastVerifiedAt`. Re-calling with a different URL replaces it.
+ * Idempotent: re-calling with the same `(tenantSlug, provider, webhookUrl)`
+ * triple re-runs the challenge and refreshes `lastVerifiedAt`. Re-calling
+ * with a different URL replaces it.
  *
- * `environment` is a free-text indicative label here — the platform stores
- * it for human readability but doesn't use it for routing (channelInstanceId
- * is the routing key).
+ * v3 wire: `environment` and `channelInstanceId` were removed from the body
+ * (the platform now keys endpoints on `(tenant_slug, provider, webhook_url)`
+ * and mints its own `endpointId` to identify the row). Sending either field
+ * triggers HTTP 410 `legacy_contract_version`. The response now carries
+ * `endpointId` — a 12-char platform-side nanoid that the tenant persists in
+ * `channel_instances.config.endpointId` so the `/link <endpointId>` QR
+ * encoding stays stable across re-verifies.
+ *
+ * `label` is optional and human-readable — surfaced in the platform admin UI.
  */
 export async function registerWebhookWithPlatform(input: {
   platformBaseUrl: string
   tenantId: string
   tenantHmacSecret: string
-  environment: string
   provider: string
-  channelInstanceId: string
   webhookUrl: string
   verifyToken: string
-}): Promise<{ ok: true; registeredAt: string }> {
+  /** Optional human label persisted on the platform endpoint row. */
+  label?: string
+}): Promise<{ ok: true; registeredAt: string; endpointId: string }> {
   const body = JSON.stringify({
-    environment: input.environment,
     provider: input.provider,
-    channelInstanceId: input.channelInstanceId,
     webhookUrl: input.webhookUrl,
     verifyToken: input.verifyToken,
+    ...(input.label !== undefined ? { label: input.label } : {}),
   })
   const { res } = await signedPlatformRequest({
     method: 'POST',
@@ -423,7 +442,19 @@ export async function registerWebhookWithPlatform(input: {
       reason,
     )
   }
-  return (await res.json()) as { ok: true; registeredAt: string }
+  const parsed = (await res.json()) as { endpointId?: string; registeredAt?: string }
+  if (typeof parsed.endpointId !== 'string' || parsed.endpointId.length === 0) {
+    throw new PlatformHandshakeError(
+      'platform webhook registration response missing endpointId',
+      res.status,
+      'missing_endpoint_id',
+    )
+  }
+  return {
+    ok: true,
+    registeredAt: parsed.registeredAt ?? new Date().toISOString(),
+    endpointId: parsed.endpointId,
+  }
 }
 
 export interface WebhookEndpointStatus {

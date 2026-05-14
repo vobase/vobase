@@ -17,7 +17,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import type { HeartbeatTrigger } from '@modules/schedules/jobs'
 import { agentSchedules } from '@modules/schedules/schema'
 import { tickSchedules } from '@modules/schedules/service/cron-tick'
@@ -29,13 +29,17 @@ import {
 } from '@modules/schedules/service/schedules'
 import { and, eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 let db: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
   installSchedulesService(createSchedulesService({ db: db.db }))
 }, 60_000)
 
@@ -46,11 +50,11 @@ afterAll(async () => {
 
 afterEach(async () => {
   // Each test owns its schedules — wipe between tests for isolation.
-  await db.db.delete(agentSchedules).where(eq(agentSchedules.organizationId, MERIDIAN_ORG_ID))
+  await db.db.delete(agentSchedules).where(eq(agentSchedules.organizationId, organizationId))
 })
 
 function makeSchedule(slug: string, cron = '0 * * * *'): Promise<{ scheduleId: string }> {
-  return schedules.create({ organizationId: MERIDIAN_ORG_ID, agentId: MERIGPT_AGENT_ID, slug, cron })
+  return schedules.create({ organizationId: organizationId, agentId: MERIGPT_AGENT_ID, slug, cron })
 }
 
 const T0 = new Date('2026-04-26T10:00:00.000Z')
@@ -103,7 +107,7 @@ describe('schedules cron-tick (real PG)', () => {
     const b = await makeSchedule('disabled')
     await schedules.setEnabled({ scheduleId: b.scheduleId, enabled: false })
 
-    const enabled = await schedules.listEnabled({ organizationId: MERIDIAN_ORG_ID })
+    const enabled = await schedules.listEnabled({ organizationId: organizationId })
     expect(enabled.map((r) => r.id).sort()).toEqual([a.scheduleId].sort())
 
     const fired: HeartbeatTrigger[] = []
@@ -185,7 +189,7 @@ describe('schedules cron-tick (real PG)', () => {
       },
     })
 
-    expect(fired.map((t) => t.organizationId).sort()).toEqual([MERIDIAN_ORG_ID, otherOrg].sort())
+    expect(fired.map((t) => t.organizationId).sort()).toEqual([organizationId, otherOrg].sort())
 
     await db.db
       .delete(agentSchedules)

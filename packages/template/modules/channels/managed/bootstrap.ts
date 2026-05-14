@@ -113,6 +113,14 @@ export interface ClaimAndBootstrapResult {
   webhookDetail?: string
   /** Persisted `registeredAt` ISO string when `webhookOk === true`. */
   webhookRegisteredAt?: string
+  /**
+   * Platform-minted 12-char endpoint id returned by
+   * `/webhook-endpoints/register` (v3 only). The QR encoding uses
+   * `/link <endpointId>` so we surface it back to callers that want to
+   * render it without re-reading `channel_instances.config.endpointId`.
+   * Undefined when the register leg failed (`webhookOk === false`).
+   */
+  endpointId?: string
 }
 
 /**
@@ -204,24 +212,43 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
   // uses to derive the verify token (see `factory.ts::createManagedAdapter`
   // — it reads the same `kindSpec.channelName`). Sandbox is `'whatsapp'`,
   // notification is `'whatsapp_notif'`; the literals also scope distinct
-  // slots in the platform's `tenant_webhook_endpoints` table so customer
-  // + staff URLs can't collide on the same channel id.
+  // slots in the platform's `tenant_webhook_endpoints` table.
+  //
+  // v3: the register call no longer carries `channelInstanceId`; the
+  // platform mints an `endpointId` and returns it on success. We persist
+  // that id back into `config.endpointId` so the `/link <endpointId>` QR
+  // encoding can read it without re-fetching from the platform.
   try {
     const registered = await registerWebhookWithPlatform({
       platformBaseUrl: opts.platformBaseUrl,
       tenantId: opts.tenantSlug,
       tenantHmacSecret: opts.hmacSecret,
-      environment: opts.environment,
       provider: kindSpec.channelName,
-      channelInstanceId: instance.id,
       webhookUrl: opts.webhookUrl,
       verifyToken: opts.verifyToken,
     })
+    // Re-upsert with the endpointId folded into config. `upsertManagedInstance`
+    // shallow-merges `config` on conflict, so existing adapter-set keys
+    // (e.g. `lastSyncAt`) are preserved.
+    const { instance: refreshed } = await opts.upsertInstance({
+      id: instance.id,
+      organizationId: opts.organizationId,
+      channel: kindSpec.channelName,
+      platformChannelId: allocation.platformChannelId,
+      displayName: instance.displayName ?? `${kindSpec.displayLabel} (${opts.environment})`,
+      role: kindSpec.role,
+      mode: kindSpec.instanceMode,
+      config: {
+        ...(instance.config ?? {}),
+        endpointId: registered.endpointId,
+      },
+    })
     return {
-      instanceId: instance.id,
-      instance,
+      instanceId: refreshed.id,
+      instance: refreshed,
       webhookOk: true,
       webhookRegisteredAt: registered.registeredAt,
+      endpointId: registered.endpointId,
     }
   } catch (err) {
     const detail = err instanceof PlatformHandshakeError ? err.message : err instanceof Error ? err.message : 'unknown'

@@ -15,7 +15,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { ALICE_USER_ID, MARCUS_CONTACT_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID, MARCUS_CONTACT_ID } from '@modules/contacts/seed'
 import {
   createAgentBuiltinOverlay,
   createContactBuiltinOverlay,
@@ -24,13 +24,17 @@ import {
 import { __resetFilesDbForTests, filesServiceFor, setFilesDb } from '@modules/drive/service/files'
 import { __resetOverlaysForTests, registerDriveOverlay } from '@modules/drive/service/overlays'
 
+import { getSeededOrgId } from '../helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 let dbh: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
   setFilesDb(dbh.db)
   __resetOverlaysForTests()
   registerDriveOverlay(createContactBuiltinOverlay(dbh.db))
@@ -46,7 +50,7 @@ afterAll(async () => {
 
 describe('agent-view merge — drive is the canonical surface', () => {
   it('contact scope: listFolder root surfaces PROFILE.md + MEMORY.md virtual overlays', async () => {
-    const svc = filesServiceFor(MERIDIAN_ORG_ID)
+    const svc = filesServiceFor(organizationId)
     const rows = await svc.listFolder({ scope: 'contact', contactId: MARCUS_CONTACT_ID }, null)
     const paths = rows.map((r) => r.path)
     expect(paths).toContain('/PROFILE.md')
@@ -54,7 +58,7 @@ describe('agent-view merge — drive is the canonical surface', () => {
   })
 
   it('contact scope: PROFILE.md is virtual (id starts with virtual:contact:)', async () => {
-    const svc = filesServiceFor(MERIDIAN_ORG_ID)
+    const svc = filesServiceFor(organizationId)
     const rows = await svc.listFolder({ scope: 'contact', contactId: MARCUS_CONTACT_ID }, null)
     const profile = rows.find((r) => r.path === '/PROFILE.md')
     expect(profile).toBeDefined()
@@ -62,7 +66,7 @@ describe('agent-view merge — drive is the canonical surface', () => {
   })
 
   it('contact scope: readPath /PROFILE.md returns the contact profile column', async () => {
-    const svc = filesServiceFor(MERIDIAN_ORG_ID)
+    const svc = filesServiceFor(organizationId)
     const result = await svc.readPath({ scope: 'contact', contactId: MARCUS_CONTACT_ID }, '/PROFILE.md')
     expect(result).not.toBeNull()
     expect(result?.virtual).toBe(true)
@@ -70,7 +74,7 @@ describe('agent-view merge — drive is the canonical surface', () => {
   })
 
   it('staff scope: listFolder root surfaces PROFILE.md + MEMORY.md virtual overlays', async () => {
-    const svc = filesServiceFor(MERIDIAN_ORG_ID)
+    const svc = filesServiceFor(organizationId)
     const rows = await svc.listFolder({ scope: 'staff', userId: ALICE_USER_ID }, null)
     const paths = rows.map((r) => r.path)
     expect(paths).toContain('/PROFILE.md')

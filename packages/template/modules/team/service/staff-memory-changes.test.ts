@@ -11,15 +11,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { agentStaffMemory } from '@modules/agents/schema'
 import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import type { ChangeProposalRow } from '@modules/changes/schema'
-import { ALICE_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID } from '@modules/contacts/seed'
 import { and, eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import { staffMemoryChangeMaterializer } from './staff-memory-changes'
 
 let dbh: TestDbHandle
 
-const ORG_ID = MERIDIAN_ORG_ID
+let organizationId: string
 const AGENT_ID = MERIGPT_AGENT_ID
 const STAFF_ID = ALICE_USER_ID
 
@@ -28,7 +29,7 @@ function makeProposal(
 ): ChangeProposalRow {
   return {
     id: 'tst0prop00',
-    organizationId: ORG_ID,
+    organizationId: organizationId,
     resourceModule: 'team',
     resourceType: 'staff_memory',
     resourceId: `${AGENT_ID}:${STAFF_ID}`,
@@ -54,7 +55,7 @@ async function readMemory(dbHandle: TestDbHandle, agentId: string, staffId: stri
     .from(agentStaffMemory)
     .where(
       and(
-        eq(agentStaffMemory.organizationId, ORG_ID),
+        eq(agentStaffMemory.organizationId, organizationId),
         eq(agentStaffMemory.agentId, agentId),
         eq(agentStaffMemory.staffId, staffId),
       ),
@@ -66,6 +67,7 @@ async function readMemory(dbHandle: TestDbHandle, agentId: string, staffId: stri
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
 }, 60_000)
 
 afterAll(async () => {

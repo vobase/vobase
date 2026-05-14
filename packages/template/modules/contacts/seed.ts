@@ -16,9 +16,6 @@
  * in dependency order. Both instances are keyed by stable nanoid constants exported below.
  */
 
-// Stable nanoid constants — hardcoded so tests can import them as compile-time constants.
-export const MERIDIAN_ORG_ID = 'mer0tenant'
-
 export const ALICE_USER_ID = 'usr0alice0'
 export const BOB_USER_ID = 'usr00bob00'
 export const CAROL_USER_ID = 'usrcarol00'
@@ -55,28 +52,19 @@ export const DEREK_CONTACT_ID = 'ctt0derek0'
 export const SOPHIA_CONTACT_ID = 'ctt0sophia'
 export const LIAM_CONTACT_ID = 'ctt00liam0'
 
-export async function seed(db: unknown): Promise<void> {
+export async function seed(db: unknown, { organizationId }: { organizationId: string }): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { channelInstances } = await import('@modules/channels/schema')
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
-  const { authAccount, authMember, authOrganization, authUser } = await import('@auth/schema')
+  const { authAccount, authMember, authUser } = await import('@auth/schema')
 
   const d = db as {
     insert: (t: unknown) => {
       values: (v: unknown) => { onConflictDoNothing: () => Promise<void> }
     }
   }
-
-  // --- auth organization (Meridian) + memberships ---
-  // Seeded so requireOrganization's fallback lookup can resolve a membership
-  // for every staff user, and `auth.api.setActiveOrganization` succeeds on
-  // first request after sign-in.
-  await d
-    .insert(authOrganization)
-    .values({ id: MERIDIAN_ORG_ID, name: 'Meridian', slug: 'meridian' })
-    .onConflictDoNothing()
 
   // --- auth users (alice, bob, carol) ---
   await d
@@ -107,15 +95,15 @@ export async function seed(db: unknown): Promise<void> {
   // --- auth memberships — Alice owner, Bob/Carol members ---
   await d
     .insert(authMember)
-    .values({ id: 'mbr0alice0', userId: ALICE_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'owner' })
+    .values({ id: 'mbr0alice0', userId: ALICE_USER_ID, organizationId: organizationId, role: 'owner' })
     .onConflictDoNothing()
   await d
     .insert(authMember)
-    .values({ id: 'mbr00bob00', userId: BOB_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'member' })
+    .values({ id: 'mbr00bob00', userId: BOB_USER_ID, organizationId: organizationId, role: 'member' })
     .onConflictDoNothing()
   await d
     .insert(authMember)
-    .values({ id: 'mbr0carol0', userId: CAROL_USER_ID, organizationId: MERIDIAN_ORG_ID, role: 'member' })
+    .values({ id: 'mbr0carol0', userId: CAROL_USER_ID, organizationId: organizationId, role: 'member' })
     .onConflictDoNothing()
 
   // --- channel instances (channels schema — inserted early for FK correctness) ---
@@ -123,7 +111,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(channelInstances)
     .values({
       id: CUSTOMER_CHANNEL_INSTANCE_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channel: 'whatsapp',
       role: 'customer',
       displayName: 'Meridian Customer WA',
@@ -139,7 +127,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(channelInstances)
     .values({
       id: STAFF_CHANNEL_INSTANCE_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channel: 'whatsapp',
       role: 'staff',
       displayName: 'Meridian Staff WA',
@@ -154,7 +142,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(channelInstances)
     .values({
       id: WEB_CHANNEL_INSTANCE_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channel: 'web',
       role: 'customer',
       displayName: 'Meridian Web Chat',
@@ -242,7 +230,7 @@ export async function seed(db: unknown): Promise<void> {
   for (const def of attrDefs) {
     await d
       .insert(contactAttributeDefinitions)
-      .values({ organizationId: MERIDIAN_ORG_ID, ...def })
+      .values({ organizationId: organizationId, ...def })
       .onConflictDoNothing()
   }
 
@@ -251,7 +239,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: SEEDED_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Test Customer',
       phone: '+6500000000',
       memory: '',
@@ -263,7 +251,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: PRIYA_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Priya Raman',
       email: 'priya@acme-labs.io',
       phone: '+6591100201',
@@ -290,7 +278,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: MARCUS_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Marcus Chen',
       email: 'marcus.chen@northwind.co',
       phone: '+6591100202',
@@ -314,7 +302,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: ELENA_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Elena Rossi',
       email: 'elena@rossi-design.studio',
       phone: '+6591100203',
@@ -337,7 +325,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: DEREK_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Derek Okafor',
       email: 'derek@okafor.dev',
       phone: '+6591100204',
@@ -350,7 +338,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: LIAM_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Liam Reyes',
       email: 'liam@finsight.io',
       phone: '+6591100206',
@@ -375,7 +363,7 @@ export async function seed(db: unknown): Promise<void> {
     .insert(contacts)
     .values({
       id: SOPHIA_CONTACT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       displayName: 'Sophia Nakamura',
       email: 'sophia@nakamura-co.jp',
       phone: '+6591100205',

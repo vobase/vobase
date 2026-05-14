@@ -7,18 +7,22 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import { messages as messagesTable } from '@modules/messaging/schema'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { and, eq } from 'drizzle-orm'
 
 import { type AttachmentTestHandle, bootMessagingAttachments } from '../helpers/attachments-fixture'
+import { getSeededOrgId } from '../helpers/seeded-org'
 
 let h: AttachmentTestHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   h = await bootMessagingAttachments()
+  organizationId = await getSeededOrgId(h.db.db)
 })
 
 afterAll(async () => {
@@ -29,7 +33,7 @@ describe('messaging inbound attachments — happy path', () => {
   it('creates a drive row and persists attachments[] on the message', async () => {
     const externalId = `wa_${Date.now()}_attach`
     const result = await createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: externalId,
@@ -61,7 +65,7 @@ describe('messaging inbound attachments — happy path', () => {
       await h.db.db
         .select()
         .from(driveFiles)
-        .where(and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), eq(driveFiles.id, ref?.driveFileId ?? '')))
+        .where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, ref?.driveFileId ?? '')))
     )
       // biome-ignore lint/suspicious/noExplicitAny: drizzle row shape narrowed by the WHERE
       .map((r: any) => ({ path: r.path, source: r.source, extractionKind: r.extractionKind, scope: r.scope }))

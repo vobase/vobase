@@ -33,9 +33,10 @@ import {
   installChangeProposalsService,
   registerChangeMaterializer,
 } from '@modules/changes/service/proposals'
-import { ALICE_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID } from '@modules/contacts/seed'
 
 import type { NotifyPayload } from '~/runtime'
+import { getSeededOrgId } from '../helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 let dbh: TestDbHandle
@@ -50,9 +51,12 @@ const stubRealtime = {
   },
 }
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
 
   installStaffMemoryService(createStaffMemoryService({ db: dbh.db, realtime: stubRealtime }))
   installAgentSkillsService(createAgentSkillsService({ db: dbh.db }))
@@ -80,7 +84,7 @@ describe('agent-view merge — realtime notify payloads', () => {
   it('upsertStaffMemory emits table=agent_staff_memory', async () => {
     const before = captured.length
     await upsertStaffMemory(
-      { organizationId: MERIDIAN_ORG_ID, agentId: MERIGPT_AGENT_ID, staffId: ALICE_USER_ID },
+      { organizationId: organizationId, agentId: MERIGPT_AGENT_ID, staffId: ALICE_USER_ID },
       'test memory content',
     )
     const emitted = captured.slice(before)
@@ -93,7 +97,7 @@ describe('agent-view merge — realtime notify payloads', () => {
   it('approved learned-skill proposal emits table=change_proposals action=approved resourceModule=agents', async () => {
     const before = captured.length
     const proposal = await insertProposal({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: AGENT_SKILL_RESOURCE.module,
       resourceType: AGENT_SKILL_RESOURCE.type,
       resourceId: 'test-skill-realtime',

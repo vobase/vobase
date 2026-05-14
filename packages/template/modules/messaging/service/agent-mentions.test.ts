@@ -13,9 +13,10 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { agentDefinitions } from '@modules/agents/schema'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import { eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import { createAgentMentionsService } from './agent-mentions'
 
@@ -26,9 +27,12 @@ const SENTINEL_AGENT_ID = 'agt-test-sent'
 
 let db: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
 
   // Seed extra agents the suite owns: a disabled `Disabledora`, a `Sentinelbot`
   // (longest-precedence test), a cross-org `Sentinel` (org isolation test),
@@ -37,7 +41,7 @@ beforeAll(async () => {
     .insert(agentDefinitions)
     .values({
       id: 'agt-test-dis',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       name: 'Disabledora',
       enabled: false,
     })
@@ -46,7 +50,7 @@ beforeAll(async () => {
     .insert(agentDefinitions)
     .values({
       id: 'agt-test-sbot',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       name: 'Sentinelbot',
       enabled: true,
     })
@@ -65,7 +69,7 @@ beforeAll(async () => {
     .insert(agentDefinitions)
     .values({
       id: SENTINEL_AGENT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       name: 'Sentinel',
       enabled: true,
     })
@@ -90,7 +94,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: '@merigpt can you take a look?',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
     })
     expect(ids).toEqual([MERIGPT_AGENT_ID])
   })
@@ -99,7 +103,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: 'ping @Sentinelbot for details',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
     })
     expect(ids).toContain('agt-test-sbot')
     expect(ids).not.toContain(SENTINEL_AGENT_ID)
@@ -109,7 +113,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: 'see @Sentinel.next for the diff',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
     })
     expect(ids).not.toContain(SENTINEL_AGENT_ID)
     expect(ids).toEqual([])
@@ -119,7 +123,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: '@Disabledora thoughts?',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
     })
     expect(ids).toEqual([])
   })
@@ -136,7 +140,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     // And the Meridian-org query should match Meridian's Sentinel only.
     const meridianIds = await svc.resolveAgentMentionsInBody({
       body: '@Sentinel ping',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
     })
     expect(meridianIds).toEqual([SENTINEL_AGENT_ID])
   })
@@ -145,7 +149,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: '@Sentinel @Sentinel @Sentinel',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
     })
     expect(ids).toEqual([SENTINEL_AGENT_ID])
   })
@@ -154,7 +158,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: 'hey @MeriGPT',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       mentions: [`agent:${SENTINEL_AGENT_ID}`],
     })
     expect(ids).toEqual([])
@@ -164,7 +168,7 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
     const svc = createAgentMentionsService({ db: db.db })
     const ids = await svc.resolveAgentMentionsInBody({
       body: '@Sentinel please review',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       mentions: [`agent:${SENTINEL_AGENT_ID}`, 'staff:usr-foo'],
     })
     expect(ids).toEqual([SENTINEL_AGENT_ID])
@@ -172,8 +176,8 @@ describe('createAgentMentionsService — resolveAgentMentionsInBody', () => {
 
   it('returns [] for empty bodies and bodies with no @-mentions', async () => {
     const svc = createAgentMentionsService({ db: db.db })
-    expect(await svc.resolveAgentMentionsInBody({ body: '', organizationId: MERIDIAN_ORG_ID })).toEqual([])
-    expect(await svc.resolveAgentMentionsInBody({ body: 'no mentions here', organizationId: MERIDIAN_ORG_ID })).toEqual(
+    expect(await svc.resolveAgentMentionsInBody({ body: '', organizationId: organizationId })).toEqual([])
+    expect(await svc.resolveAgentMentionsInBody({ body: 'no mentions here', organizationId: organizationId })).toEqual(
       [],
     )
   })

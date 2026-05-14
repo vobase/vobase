@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { wakeSnoozedJobHandler } from '@modules/messaging/jobs'
 import {
   createConversationsService,
@@ -11,6 +11,7 @@ import {
 import { createMessagesService, installMessagesService } from '@modules/messaging/service/messages'
 import { setJournalDb } from '@vobase/core'
 
+import { getSeededOrgId } from '../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../tests/helpers/test-db'
 
 let db: TestDbHandle
@@ -20,9 +21,12 @@ const noopScheduler = {
   cancel: async () => undefined,
 }
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
   installConversationsService(createConversationsService({ db: db.db, scheduler: noopScheduler }))
   setJournalDb(db.db)
   installMessagesService(createMessagesService({ db: db.db }))
@@ -34,7 +38,7 @@ afterAll(async () => {
 
 describe('wakeSnoozedJobHandler idempotency', () => {
   it('no-ops when snoozedAt does not match current row', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await reopen(conversation.id, 'test', 'staff_reopen').catch(() => undefined)
     await snooze({ conversationId: conversation.id, until: new Date(Date.now() + 3600_000), by: 'alice' })
 

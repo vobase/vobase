@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import { setFilesRuntime } from '@modules/drive/service/files'
 import { messages as messagesTable } from '@modules/messaging/schema'
@@ -15,11 +15,15 @@ import { and, eq } from 'drizzle-orm'
 
 import type { AppStorage, BucketHandle } from '~/runtime/storage'
 import { type AttachmentTestHandle, bootMessagingAttachments } from '../helpers/attachments-fixture'
+import { getSeededOrgId } from '../helpers/seeded-org'
 
 let h: AttachmentTestHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   h = await bootMessagingAttachments()
+  organizationId = await getSeededOrgId(h.db.db)
   // Swap the drive bucket's upload to throw — exercises the
   // ingestUpload "storage_upload_failed" terminal-failed branch.
   const realStorage = h.storage
@@ -50,7 +54,7 @@ describe('messaging attachment failure — storage upload throws', () => {
   it('warn-logs and posts the message with attachments: []; drive row goes (failed, failed)', async () => {
     const externalId = `wa_fail_${Date.now()}`
     const result = await createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: externalId,
@@ -78,7 +82,7 @@ describe('messaging attachment failure — storage upload throws', () => {
       .select()
       .from(driveFiles)
       .where(
-        and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), eq(driveFiles.originalName, `fail-${externalId}.pdf`)),
+        and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.originalName, `fail-${externalId}.pdf`)),
       )) as Array<{ extractionKind: string; processingStatus: string; processingError: string | null }>
     expect(driveRows).toHaveLength(1)
     expect(driveRows[0]?.extractionKind).toBe('failed')

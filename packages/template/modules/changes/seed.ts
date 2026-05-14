@@ -20,7 +20,6 @@ import {
   ELENA_CONTACT_ID,
   LIAM_CONTACT_ID,
   MARCUS_CONTACT_ID,
-  MERIDIAN_ORG_ID,
   PRIYA_CONTACT_ID,
   SOPHIA_CONTACT_ID,
 } from '@modules/contacts/seed'
@@ -63,7 +62,7 @@ function hoursAgo(h: number): Date {
   return new Date(Date.now() - h * 60 * 60 * 1000)
 }
 
-export async function seed(db: unknown): Promise<void> {
+export async function seed(db: unknown, { organizationId }: { organizationId: string }): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { changeProposals, changeHistory } = await import('@modules/changes/schema')
 
@@ -75,7 +74,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_VIP_ESC,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'escalate-vip-when-stuck',
@@ -108,7 +107,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_REFUND_POLICY,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'refund-window-90-day',
@@ -141,7 +140,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_GREETING_TWEAK,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'opening-script-tweak',
@@ -169,7 +168,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_MARCUS_PRICING,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact',
       resourceId: MARCUS_CONTACT_ID,
@@ -201,7 +200,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_LIAM_NOTES,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact',
       resourceId: LIAM_CONTACT_ID,
@@ -229,7 +228,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_AGENT_MEMORY,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'agent_memory',
       resourceId: MERIGPT_AGENT_ID,
@@ -259,7 +258,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_DRIVE_REFUND_POLICY,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'drive',
       resourceType: 'doc',
       resourceId: '/policies/refunds.md',
@@ -291,7 +290,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeHistory)
     .values({
       id: HIST_AUTO_CONTACT_DEREK,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact',
       resourceId: 'ctt0derek0',
@@ -317,7 +316,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeHistory)
     .values({
       id: HIST_APPROVED_SLACK_LINK,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'slack-routing-link',
@@ -341,7 +340,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeHistory)
     .values({
       id: HIST_REJECTED_AGGRESSIVE,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'aggressive-upsell',
@@ -363,7 +362,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeHistory)
     .values({
       id: HIST_AUTO_AGENT_MEM,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'agent_memory',
       resourceId: MERIGPT_AGENT_ID,
@@ -387,7 +386,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_APPROVED_SLACK,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'slack-routing-link',
@@ -419,7 +418,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_REJECTED_AGGRESSIVE,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'aggressive-upsell',
@@ -450,7 +449,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_AUTO_DEREK,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'contacts',
       resourceType: 'contact',
       resourceId: 'ctt0derek0',
@@ -480,7 +479,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_AUTO_AGENT_MEM,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'agent_memory',
       resourceId: MERIGPT_AGENT_ID,
@@ -508,7 +507,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(changeProposals)
     .values({
       id: PROP_REJECTED_PRICEDROP,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       resourceModule: 'agents',
       resourceType: 'learned_skill',
       resourceId: 'price-drop-bait',

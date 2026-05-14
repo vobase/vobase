@@ -85,7 +85,10 @@ function buildColumns(
       header: 'Channel',
       cell: ({ row }) => {
         const instance = row.original
-        const modeChip = instance.channel === 'whatsapp' ? getModeChip(instance.config) : null
+        // Managed channels carry their type in the displayName ("Platform
+        // sandbox (production)") — a mode chip would just repeat it.
+        const modeChip =
+          instance.channel === 'whatsapp' && instance.config.mode !== 'managed' ? getModeChip(instance.config) : null
         return (
           <div className="flex flex-wrap items-center gap-2">
             <ChannelGlyph channel={instance.channel} />

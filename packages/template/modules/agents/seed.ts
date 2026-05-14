@@ -11,9 +11,7 @@
  */
 
 import { models } from '@modules/agents/lib/models'
-import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
-
-export { MERIDIAN_ORG_ID }
+import { ALICE_USER_ID, BOB_USER_ID, CAROL_USER_ID } from '@modules/contacts/seed'
 
 /** Stable agent ID — the single Meridian-org agent. */
 export const MERIGPT_AGENT_ID = 'agt0meri0v1'
@@ -88,7 +86,7 @@ interface InsertOp {
 }
 type Inserter = (t: unknown) => InsertOp
 
-export async function seed(db: unknown): Promise<void> {
+export async function seed(db: unknown, { organizationId }: { organizationId: string }): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const agentsSchema = await import('@modules/agents/schema')
   const { agentDefinitions, agentScores, agentStaffMemory, operatorThreadMessages, operatorThreads, learnedSkills } =
@@ -103,7 +101,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentDefinitions)
     .values({
       id: MERIGPT_AGENT_ID,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       name: 'MeriGPT',
       instructions: MERIGPT_INSTRUCTIONS,
       model: models.gpt_standard,
@@ -129,7 +127,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentSchedules)
     .values({
       id: 'sch0bri0v1',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       slug: 'daily-brief',
       cron: '0 8 * * 1-5',
@@ -143,7 +141,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentSchedules)
     .values({
       id: 'sch0tri0v1',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       slug: 'stale-triage',
       cron: '*/15 * * * *',
@@ -157,7 +155,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentSchedules)
     .values({
       id: 'sch0bkp0v1',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       slug: 'refund-volume-watch',
       cron: '0 9 * * *',
@@ -172,7 +170,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(learnedSkills)
     .values({
       id: 'lsk0sla001',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       name: 'slack-routing-link',
       description: 'Direct link + one-line answer for Slack notification filter questions.',
@@ -195,7 +193,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(learnedSkills)
     .values({
       id: 'lsk0org001',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: null,
       name: 'cite-policy',
       description:
@@ -224,7 +222,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(learnedSkills)
     .values({
       id: 'lsk0enq002',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       name: 'enterprise-quote-hold',
       description: 'Hold any > $20/seat or > 200-seat quote for Alice approval before sending — v2 widens the trigger.',
@@ -255,7 +253,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentStaffMemory)
     .values({
       id: 'asm0alice0',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       staffId: ALICE_USER_ID,
       memory: [
@@ -278,7 +276,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentStaffMemory)
     .values({
       id: 'asm0bob000',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       staffId: BOB_USER_ID,
       memory: [
@@ -296,7 +294,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(agentStaffMemory)
     .values({
       id: 'asm0carol0',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       staffId: CAROL_USER_ID,
       memory: [
@@ -363,7 +361,7 @@ export async function seed(db: unknown): Promise<void> {
     await ins(agentScores)
       .values({
         id: score.id,
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         conversationId: score.conversationId,
         wakeTurnIndex: score.wakeTurnIndex,
         scorer: score.scorer,
@@ -379,7 +377,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(operatorThreads)
     .values({
       id: 'thd0brfgi1',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       createdBy: ALICE_USER_ID,
       title: 'Daily brief 2026-04-26',
@@ -449,7 +447,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(operatorThreads)
     .values({
       id: 'thd0refnd1',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       createdBy: CAROL_USER_ID,
       title: 'Refund volume — Q2 trend',
@@ -624,7 +622,7 @@ export async function seed(db: unknown): Promise<void> {
     await ins(agentsSchema.learningCandidates)
       .values({
         id: cand.id,
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         agentId: MERIGPT_AGENT_ID,
         conversationId: cand.conversationId,
         signalKind: cand.signalKind,
@@ -645,7 +643,7 @@ export async function seed(db: unknown): Promise<void> {
   await ins(operatorThreads)
     .values({
       id: 'thd0smoke01',
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       createdBy: ALICE_USER_ID,
       title: 'Smoke target',

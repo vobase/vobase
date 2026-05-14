@@ -144,7 +144,12 @@ function buildPlatformStub(state: StubState): Hono {
       // the test only ever sets 502 so the literal narrows cleanly.
       return c.json({ ok: false, reason: 'challenge_failed' }, status as 502)
     }
-    return c.json({ ok: true, registeredAt: new Date('2025-06-01T00:00:00Z').toISOString() })
+    // v3: platform returns `endpointId` (12-char nanoid) alongside `registeredAt`.
+    return c.json({
+      endpointId: 'ep0us011test',
+      status: 'ok',
+      registeredAt: new Date('2025-06-01T00:00:00Z').toISOString(),
+    })
   })
 
   return app
@@ -287,12 +292,17 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
     expect(storeCalls).toHaveLength(1)
     expect(storeCalls[0]?.provider).toBe('vobase-platform')
     expect(storeCalls[0]?.input.current.routineSecret).toBe(ALLOCATION.routineSecret)
-    expect(upsertCalls).toHaveLength(1)
+    // v3 happy path now upserts twice: once before webhook-register (so the
+    // row exists if webhook-register fails) and once after (to fold the
+    // platform-minted `endpointId` into config).
+    expect(upsertCalls).toHaveLength(2)
     expect(upsertCalls[0]?.platformChannelId).toBe(ALLOCATION.platformChannelId)
     expect(upsertCalls[0]?.config.kind).toBe('sandbox')
+    expect(upsertCalls[1]?.config.endpointId).toBe('ep0us011test')
     expect(result.instanceId).toBe(CHANNEL_INSTANCE_ID)
     expect(result.webhookOk).toBe(true)
     expect(result.webhookRegisteredAt).toBeDefined()
+    expect(result.endpointId).toBe('ep0us011test')
   })
 
   it('failure-after-claim: vault throws → platform has claim, tenant has no state (orphan)', async () => {
@@ -360,10 +370,11 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
     // value remains the same shape.
     expect(storeCalls).toHaveLength(2)
     expect(storeCalls[0]?.input.current.routineSecret).toBe(storeCalls[1]?.input.current.routineSecret)
-    // Upsert called twice with the same channelInstanceId — second call
-    // resolves as not-new (`isNew === false`) in our stub.
-    expect(upsertCalls).toHaveLength(2)
-    expect(upsertCalls[0]?.id).toBe(upsertCalls[1]?.id)
+    // Upsert called four times — each invocation runs (initial-insert,
+    // refresh-with-endpointId) under v3. Same channelInstanceId throughout;
+    // second+ calls resolve as not-new in our stub.
+    expect(upsertCalls).toHaveLength(4)
+    expect(new Set(upsertCalls.map((c) => c.id)).size).toBe(1)
   })
 
   it('webhook register failure is non-fatal: result.webhookOk === false with detail', async () => {

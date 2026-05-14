@@ -10,15 +10,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { ChangeProposalRow } from '@modules/changes/schema'
 import { contacts as contactsTable } from '@modules/contacts/schema'
-import { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import { contactMemoryChangeMaterializer } from './contact-memory-changes'
 
 let dbh: TestDbHandle
 
-const ORG_ID = MERIDIAN_ORG_ID
+let organizationId: string
 const CONTACT_ID = SEEDED_CONTACT_ID
 
 function makeProposal(
@@ -26,7 +27,7 @@ function makeProposal(
 ): ChangeProposalRow {
   return {
     id: 'tst0prop01',
-    organizationId: ORG_ID,
+    organizationId: organizationId,
     resourceModule: 'contacts',
     resourceType: 'contact_memory',
     resourceId: CONTACT_ID,
@@ -58,6 +59,7 @@ async function readMemory(dbHandle: TestDbHandle, contactId: string): Promise<st
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
 }, 60_000)
 
 afterAll(async () => {

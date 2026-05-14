@@ -12,7 +12,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import { filesServiceFor } from '@modules/drive/service/files'
 import { messages as messagesTable } from '@modules/messaging/schema'
@@ -24,11 +24,15 @@ import {
 import { and, eq } from 'drizzle-orm'
 
 import { type AttachmentTestHandle, bootMessagingAttachments } from '../helpers/attachments-fixture'
+import { getSeededOrgId } from '../helpers/seeded-org'
 
 let h: AttachmentTestHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   h = await bootMessagingAttachments()
+  organizationId = await getSeededOrgId(h.db.db)
 })
 
 afterAll(async () => {
@@ -45,9 +49,9 @@ describe('messaging attachment orphan — tx rolls back after successful ingest'
     // unrelated failure. We can't intercept inside the tx without
     // refactoring, so we simulate by calling ingestUpload directly via the
     // bound drive service and asserting the row stays.
-    const drive = filesServiceFor(MERIDIAN_ORG_ID)
+    const drive = filesServiceFor(organizationId)
     const ingest = await drive.ingestUpload({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       scope: { scope: 'contact', contactId: SEEDED_CONTACT_ID },
       originalName: `orphan-${externalId}.pdf`,
       mimeType: 'application/pdf',
@@ -62,14 +66,14 @@ describe('messaging attachment orphan — tx rolls back after successful ingest'
     const noMessage = await h.db.db
       .select()
       .from(messagesTable)
-      .where(and(eq(messagesTable.organizationId, MERIDIAN_ORG_ID), eq(messagesTable.channelExternalId, externalId)))
+      .where(and(eq(messagesTable.organizationId, organizationId), eq(messagesTable.channelExternalId, externalId)))
     expect(noMessage).toHaveLength(0)
 
     // Drive row exists post-rollback (the orphan).
     const driveRows = (await h.db.db
       .select()
       .from(driveFiles)
-      .where(and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), eq(driveFiles.id, ingest.id)))) as Array<{
+      .where(and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.id, ingest.id)))) as Array<{
       id: string
       processingStatus: string
       extractionKind: string

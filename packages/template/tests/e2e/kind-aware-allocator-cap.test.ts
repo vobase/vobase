@@ -62,30 +62,33 @@ function buildAllocation(channelInstanceId: string): Record<string, unknown> {
 function buildPlatformStub(state: StubState): Hono {
   const app = new Hono()
 
-  // Notification kind — cap of 1 per (tenant, env). A second claim before
-  // the first is released returns 409 + structured error.
+  // Notification kind — cap of 1 per tenant. A second claim before the
+  // first is released returns 409 + structured error.
+  //
+  // v3: request body is now an empty `{}` — the platform keys claims solely
+  // on `(tenant_slug, kind)`. Tests use a per-call counter to fabricate a
+  // distinct `platformChannelId` rather than echoing a `channelInstanceId`
+  // from the body.
   app.post(NOTIFICATION_CLAIM_PATH, async (c) => {
     state.notificationClaimCalls += 1
-    const body = (await c.req.json()) as { environment: string; channelInstanceId: string }
     if (state.notificationClaimActive) {
       return c.json(
         {
           ok: false,
           code: 'notification_cap_exceeded',
-          error: `tenant ${TENANT_ID} already has a notification claim in ${body.environment}; release it first`,
+          error: `tenant ${TENANT_ID} already has a notification claim; release it first`,
         },
         409,
       )
     }
     state.notificationClaimActive = true
-    return c.json(buildAllocation(body.channelInstanceId))
+    return c.json(buildAllocation(`notif-${state.notificationClaimCalls}`))
   })
 
   // Sandbox kind — pool-allocated, no per-tenant cap. Always succeeds.
   app.post(SANDBOX_CLAIM_PATH, async (c) => {
     state.sandboxClaimCalls += 1
-    const body = (await c.req.json()) as { environment: string; channelInstanceId: string }
-    return c.json(buildAllocation(body.channelInstanceId))
+    return c.json(buildAllocation(`sandbox-${state.sandboxClaimCalls}`))
   })
 
   return app
@@ -137,7 +140,9 @@ describe('kind-aware allocator cap (US-026, slice-3)', () => {
       channelInstanceId: 'ch-notif-us026-cap-1',
       kind: 'notification',
     })
-    expect(first.platformChannelId).toBe('pcid-ch-notif-us026-cap-1')
+    // v3: the stub fabricates platformChannelId per-call (body is now empty),
+    // so the assertion key on the call counter rather than the request body.
+    expect(first.platformChannelId).toBe('pcid-notif-1')
     expect(stubState.notificationClaimCalls).toBe(1)
     expect(stubState.notificationClaimActive).toBe(true)
 
@@ -189,7 +194,7 @@ describe('kind-aware allocator cap (US-026, slice-3)', () => {
       channelInstanceId: 'ch-sandbox-us026-mixed',
       kind: 'sandbox',
     })
-    expect(sandboxAlloc.platformChannelId).toBe('pcid-ch-sandbox-us026-mixed')
+    expect(sandboxAlloc.platformChannelId).toBe('pcid-sandbox-1')
     expect(stubState.sandboxClaimCalls).toBe(1)
 
     // Notification claim #2 — still rejected by the cap.

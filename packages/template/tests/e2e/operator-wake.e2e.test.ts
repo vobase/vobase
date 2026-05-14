@@ -14,7 +14,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   __resetAgentDefinitionsServiceForTests,
   createAgentDefinitionsService,
@@ -68,6 +68,7 @@ import type { AgentContributions, HarnessLogger } from '@vobase/core'
 import { CliVerbRegistry, setJournalDb } from '@vobase/core'
 
 import { standaloneWakeConfig } from '~/wake/standalone'
+import { getSeededOrgId } from '../helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../helpers/test-db'
 
 const NOOP_LOGGER: HarnessLogger = {
@@ -95,9 +96,12 @@ let db: TestDbHandle
 const NOOP_REALTIME = { notify: () => {}, subscribe: () => () => {} }
 const NOOP_JOBS = { send: async (_name: string, _data: unknown) => 'noop', cancel: async (_id: string) => {} }
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
   setJournalDb(db.db as unknown as Parameters<typeof setJournalDb>[0])
   setFilesDb(db.db)
   setCliRegistry(new CliVerbRegistry())
@@ -134,7 +138,7 @@ describe('standaloneWakeConfig (real PG)', () => {
     // Provision a thread + staff message via the public service surface so
     // the test exercises the same path as the operator chat producer will.
     const { threadId } = await threadsApi.createThread({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       agentId: MERIGPT_AGENT_ID,
       createdBy: 'staff:test',
       title: 'Test brief',
@@ -143,7 +147,7 @@ describe('standaloneWakeConfig (real PG)', () => {
 
     const config = await standaloneWakeConfig({
       data: {
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         triggerKind: 'operator_thread',
         threadId,
         threadMessage: 'Summarize today and propose any follow-ups.',
@@ -158,7 +162,7 @@ describe('standaloneWakeConfig (real PG)', () => {
     // lane events from conversation-lane ones.
     expect(config.conversationId).toBe(`operator-${threadId}`)
     expect(config.contactId).toBe('')
-    expect(config.organizationId).toBe(MERIDIAN_ORG_ID)
+    expect(config.organizationId).toBe(organizationId)
     expect(config.agentId).toBe(MERIGPT_AGENT_ID)
 
     const toolNames = (config.tools as readonly { name: string }[]).map((t) => t.name)
@@ -189,7 +193,7 @@ describe('standaloneWakeConfig (real PG)', () => {
     const sideLoadEntries = await Promise.all(
       (config.sideLoadContributors ?? []).map((fn) =>
         fn({
-          organizationId: MERIDIAN_ORG_ID,
+          organizationId: organizationId,
           conversationId: config.conversationId,
           contactId: '',
           turnIndex: 0,
@@ -222,7 +226,7 @@ describe('standaloneWakeConfig (real PG)', () => {
   it('heartbeat wake: heartbeat-<scheduleId> conversationId, heartbeat brief side-load', async () => {
     const config = await standaloneWakeConfig({
       data: {
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         triggerKind: 'heartbeat',
         scheduleId: 'sch_smoke',
         intendedRunAt: new Date('2026-04-26T18:00:00.000Z'),
@@ -240,7 +244,7 @@ describe('standaloneWakeConfig (real PG)', () => {
     const sideLoadEntries = await Promise.all(
       (config.sideLoadContributors ?? []).map((fn) =>
         fn({
-          organizationId: MERIDIAN_ORG_ID,
+          organizationId: organizationId,
           conversationId: config.conversationId,
           contactId: '',
           turnIndex: 0,

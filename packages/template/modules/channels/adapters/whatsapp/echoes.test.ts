@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { ChannelInstance } from '@modules/channels/schema'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID } from '@modules/contacts/seed'
 import { createContactsService, installContactsService } from '@modules/contacts/service/contacts'
 import { messages } from '@modules/messaging/schema'
 import { createConversationsService, installConversationsService } from '@modules/messaging/service/conversations'
@@ -18,6 +18,7 @@ import { createSessionsService, installSessionsService } from '@modules/messagin
 import type { MessageReceivedEvent } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../../../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../../tests/helpers/test-db'
 import { dispatchInbound } from '../../service/inbound'
 import { __resetForTests as __resetRegistryForTests, register as registerAdapter } from '../../service/registry'
@@ -35,21 +36,7 @@ const stubJobs: JobQueue = {
   },
 }
 
-const INSTANCE: ChannelInstance = {
-  id: CUSTOMER_CHANNEL_INSTANCE_ID,
-  organizationId: MERIDIAN_ORG_ID,
-  channel: 'whatsapp',
-  displayName: 'Test WA',
-  config: {},
-  platformChannelId: null,
-  role: 'customer',
-  webhookSecret: null,
-  status: null,
-  setupStage: null,
-  lastError: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-}
+let INSTANCE: ChannelInstance
 
 function makeMessageEvent(overrides: Partial<MessageReceivedEvent> & { messageId: string }): MessageReceivedEvent {
   return {
@@ -65,9 +52,27 @@ function makeMessageEvent(overrides: Partial<MessageReceivedEvent> & { messageId
   }
 }
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
+  INSTANCE = {
+    id: CUSTOMER_CHANNEL_INSTANCE_ID,
+    organizationId,
+    channel: 'whatsapp',
+    displayName: 'Test WA',
+    config: {},
+    platformChannelId: null,
+    role: 'customer',
+    webhookSecret: null,
+    status: null,
+    setupStage: null,
+    lastError: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
 
   installContactsService(
     createContactsService({ db: db.db, realtime: { notify: () => {}, subscribe: () => () => {} } }),

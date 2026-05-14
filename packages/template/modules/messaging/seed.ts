@@ -24,7 +24,6 @@ import {
   ELENA_CONTACT_ID,
   LIAM_CONTACT_ID,
   MARCUS_CONTACT_ID,
-  MERIDIAN_ORG_ID,
   PRIYA_CONTACT_ID,
   SEEDED_CONTACT_ID,
   SOPHIA_CONTACT_ID,
@@ -33,7 +32,7 @@ import {
 import { conversations, internalNotes, messages, pendingApprovals } from '@modules/messaging/schema'
 import { conversationEvents } from '@vobase/core'
 
-export type { MERIDIAN_ORG_ID, SEEDED_CONTACT_ID }
+export type { SEEDED_CONTACT_ID }
 
 /** Stable conversation ID — imported by integration tests and Lane F test-harness. */
 export const SEEDED_CONV_ID = 'cnv0test00'
@@ -58,6 +57,7 @@ type Inserter = (t: unknown) => InsertOp
 
 async function insertConv(
   insert: Inserter,
+  organizationId: string,
   row: {
     id: string
     contactId: string
@@ -72,7 +72,7 @@ async function insertConv(
   await insert(conversations)
     .values({
       id: row.id,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId,
       contactId: row.contactId,
       channelInstanceId: row.channelInstanceId,
       status: row.status,
@@ -86,6 +86,7 @@ async function insertConv(
 
 async function insertMsg(
   insert: Inserter,
+  organizationId: string,
   row: {
     id: string
     conversationId: string
@@ -102,7 +103,7 @@ async function insertMsg(
     .values({
       id: row.id,
       conversationId: row.conversationId,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId,
       role: row.role,
       kind: row.kind,
       content: row.content,
@@ -116,6 +117,7 @@ async function insertMsg(
 
 async function insertNote(
   insert: Inserter,
+  organizationId: string,
   row: {
     id: string
     conversationId: string
@@ -130,7 +132,7 @@ async function insertNote(
   await insert(internalNotes)
     .values({
       id: row.id,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId,
       conversationId: row.conversationId,
       authorType: row.authorType,
       authorId: row.authorId,
@@ -144,6 +146,7 @@ async function insertNote(
 
 async function insertActivity(
   insert: Inserter,
+  organizationId: string,
   row: {
     conversationId: string
     type: string
@@ -154,7 +157,7 @@ async function insertActivity(
   await insert(conversationEvents)
     .values({
       conversationId: row.conversationId,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId,
       wakeId: null,
       turnIndex: 0,
       ts: row.ts,
@@ -166,6 +169,7 @@ async function insertActivity(
 
 async function insertApproval(
   insert: Inserter,
+  organizationId: string,
   row: {
     id: string
     conversationId: string
@@ -178,7 +182,7 @@ async function insertApproval(
   await insert(pendingApprovals)
     .values({
       id: row.id,
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId,
       conversationId: row.conversationId,
       toolName: row.toolName,
       toolArgs: row.toolArgs,
@@ -188,12 +192,12 @@ async function insertApproval(
     .onConflictDoNothing()
 }
 
-export async function seed(db: unknown): Promise<void> {
+export async function seed(db: unknown, { organizationId }: { organizationId: string }): Promise<void> {
   const d = db as { insert: Inserter }
   const ins = d.insert.bind(d)
 
   // ── 1. Test Customer (baseline, empty) ──────────────────────────────
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: SEEDED_CONV_ID,
     contactId: SEEDED_CONTACT_ID,
     channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
@@ -203,7 +207,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // ── 2. Priya — active; customer asked about Slack integration; agent sent card ──
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: PRIYA_CONV_ID,
     contactId: PRIYA_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
@@ -211,7 +215,7 @@ export async function seed(db: unknown): Promise<void> {
     assignee: AGENT_ASSIGNEE,
     lastMessageAt: mins(8),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0priya01',
     conversationId: PRIYA_CONV_ID,
     role: 'customer',
@@ -222,7 +226,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-priya-01',
     createdAt: mins(35),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0priya02',
     conversationId: PRIYA_CONV_ID,
     role: 'agent',
@@ -233,7 +237,7 @@ export async function seed(db: unknown): Promise<void> {
     status: 'delivered',
     createdAt: mins(34),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0priya03',
     conversationId: PRIYA_CONV_ID,
     role: 'agent',
@@ -258,7 +262,7 @@ export async function seed(db: unknown): Promise<void> {
     status: 'read',
     createdAt: mins(34),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0priya04',
     conversationId: PRIYA_CONV_ID,
     role: 'customer',
@@ -270,7 +274,7 @@ export async function seed(db: unknown): Promise<void> {
   })
   // Coaching note from Alice to MeriGPT — recurring Slack-routing topic worth
   // capturing in the next daily-brief.
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0priya01',
     conversationId: PRIYA_CONV_ID,
     authorType: 'staff',
@@ -281,7 +285,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // ── 2b. Priya — second conversation on WhatsApp (short follow-up) ──
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: PRIYA_WA_CONV_ID,
     contactId: PRIYA_CONTACT_ID,
     channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
@@ -289,7 +293,7 @@ export async function seed(db: unknown): Promise<void> {
     assignee: AGENT_ASSIGNEE,
     lastMessageAt: mins(45),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0priywa1',
     conversationId: PRIYA_WA_CONV_ID,
     role: 'customer',
@@ -298,7 +302,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'wa-priya-01',
     createdAt: mins(50),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0priywa2',
     conversationId: PRIYA_WA_CONV_ID,
     role: 'agent',
@@ -312,7 +316,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // ── 3. Marcus — awaiting_approval; enterprise quote drafted, waiting on Alice ──
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: MARCUS_CONV_ID,
     contactId: MARCUS_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
@@ -320,7 +324,7 @@ export async function seed(db: unknown): Promise<void> {
     assignee: AGENT_ASSIGNEE,
     lastMessageAt: mins(55),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0marc001',
     conversationId: MARCUS_CONV_ID,
     role: 'customer',
@@ -331,7 +335,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-marcus-01',
     createdAt: mins(120),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0marc002',
     conversationId: MARCUS_CONV_ID,
     role: 'agent',
@@ -341,7 +345,7 @@ export async function seed(db: unknown): Promise<void> {
     },
     createdAt: mins(58),
   })
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0marc001',
     conversationId: MARCUS_CONV_ID,
     authorType: 'agent',
@@ -350,7 +354,7 @@ export async function seed(db: unknown): Promise<void> {
     mentions: [ALICE_USER_ID],
     createdAt: mins(57),
   })
-  await insertApproval(ins, {
+  await insertApproval(ins, organizationId, {
     id: 'pnd0marc001',
     conversationId: MARCUS_CONV_ID,
     toolName: 'send_card',
@@ -388,7 +392,7 @@ export async function seed(db: unknown): Promise<void> {
   // a `coexistence_echo` candidate (see agents/seed.ts → lcd0coe002,
   // signalRef='msg0mcalice') because the staff message subsumed the
   // agent's answer rather than overriding a direct refusal.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0marc003',
     conversationId: MARCUS_CONV_ID,
     role: 'customer',
@@ -403,7 +407,7 @@ export async function seed(db: unknown): Promise<void> {
   // `cat /drive/security/soc2-faq.md` first. The miss is silent (no
   // refusal, no escalation) which is exactly what coexistence_echo
   // catches that staff_takeover misses.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0marc004',
     conversationId: MARCUS_CONV_ID,
     role: 'agent',
@@ -415,7 +419,7 @@ export async function seed(db: unknown): Promise<void> {
     createdAt: mins(48),
   })
   // Customer pushes back — they need the report NOW, separately from the quote.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0marc005',
     conversationId: MARCUS_CONV_ID,
     role: 'customer',
@@ -429,7 +433,7 @@ export async function seed(db: unknown): Promise<void> {
   // ▶ Alice steps in directly with the on-request language from
   // /drive/security/soc2-faq.md. This message is the signal_ref for
   // the coexistence_echo learning candidate.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0mcalice',
     conversationId: MARCUS_CONV_ID,
     role: 'staff',
@@ -443,7 +447,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // ── 4. Elena — active, reassigned to Carol, refund flow with 2 notes + pending ──
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: ELENA_CONV_ID,
     contactId: ELENA_CONTACT_ID,
     channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
@@ -451,7 +455,7 @@ export async function seed(db: unknown): Promise<void> {
     assignee: `user:${CAROL_USER_ID}`,
     lastMessageAt: mins(22),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0elen001',
     conversationId: ELENA_CONV_ID,
     role: 'customer',
@@ -462,7 +466,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'wa-elena-01',
     createdAt: mins(180),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0elen002',
     conversationId: ELENA_CONV_ID,
     role: 'agent',
@@ -472,7 +476,7 @@ export async function seed(db: unknown): Promise<void> {
     },
     createdAt: mins(178),
   })
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0elen001',
     conversationId: ELENA_CONV_ID,
     authorType: 'agent',
@@ -481,13 +485,13 @@ export async function seed(db: unknown): Promise<void> {
     mentions: [CAROL_USER_ID],
     createdAt: mins(177),
   })
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: ELENA_CONV_ID,
     type: 'conversation.reassigned',
     payload: { from: AGENT_ASSIGNEE, to: `user:${CAROL_USER_ID}`, reason: 'billing escalation', by: MERIGPT_AGENT_ID },
     ts: mins(176),
   })
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0elen002',
     conversationId: ELENA_CONV_ID,
     authorType: 'staff',
@@ -497,7 +501,7 @@ export async function seed(db: unknown): Promise<void> {
     createdAt: mins(60),
   })
   // Alice is the dev-login staff — authored note demonstrates "mine on right".
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0elen003',
     conversationId: ELENA_CONV_ID,
     authorType: 'staff',
@@ -510,7 +514,7 @@ export async function seed(db: unknown): Promise<void> {
   // every future refund, not just Elena's. The @-mention to the agent
   // makes this the canonical signal for the coaching_note triage path
   // (see agents/seed.ts → lcd0cnt003, signalRef='not0carolele').
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0carolele',
     conversationId: ELENA_CONV_ID,
     authorType: 'staff',
@@ -519,7 +523,7 @@ export async function seed(db: unknown): Promise<void> {
     mentions: [`agent:\${MERIGPT_AGENT_ID}`],
     createdAt: mins(35),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0elen003',
     conversationId: ELENA_CONV_ID,
     role: 'customer',
@@ -528,7 +532,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'wa-elena-03',
     createdAt: mins(22),
   })
-  await insertApproval(ins, {
+  await insertApproval(ins, organizationId, {
     id: 'pnd0elen001',
     conversationId: ELENA_CONV_ID,
     toolName: 'send_card',
@@ -560,7 +564,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // ── 4b. Elena — second conversation on Web (billing portal follow-up) ──
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: ELENA_WEB_CONV_ID,
     contactId: ELENA_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
@@ -568,7 +572,7 @@ export async function seed(db: unknown): Promise<void> {
     assignee: AGENT_ASSIGNEE,
     lastMessageAt: mins(70),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0elnweb1',
     conversationId: ELENA_WEB_CONV_ID,
     role: 'customer',
@@ -579,7 +583,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-elena-01',
     createdAt: mins(75),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0elnweb2',
     conversationId: ELENA_WEB_CONV_ID,
     role: 'agent',
@@ -591,7 +595,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // ── 5. Derek — resolved; quick slack-integration help, closed ───────
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: DEREK_CONV_ID,
     contactId: DEREK_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
@@ -601,7 +605,7 @@ export async function seed(db: unknown): Promise<void> {
     resolvedAt: mins(1430),
     resolvedReason: 'answered',
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0derk001',
     conversationId: DEREK_CONV_ID,
     role: 'customer',
@@ -610,7 +614,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-derek-01',
     createdAt: mins(1460),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0derk002',
     conversationId: DEREK_CONV_ID,
     role: 'agent',
@@ -620,7 +624,7 @@ export async function seed(db: unknown): Promise<void> {
     },
     createdAt: mins(1458),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0derk003',
     conversationId: DEREK_CONV_ID,
     role: 'customer',
@@ -629,7 +633,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-derek-03',
     createdAt: mins(1440),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0derk004',
     conversationId: DEREK_CONV_ID,
     role: 'agent',
@@ -637,7 +641,7 @@ export async function seed(db: unknown): Promise<void> {
     content: { text: 'Glad to help. Ping us if anything else comes up.' },
     createdAt: mins(1438),
   })
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: DEREK_CONV_ID,
     type: 'conversation.resolved',
     payload: { by: MERIGPT_AGENT_ID, reason: 'answered' },
@@ -651,7 +655,7 @@ export async function seed(db: unknown): Promise<void> {
   // answer. The takeover message + his coaching note become a
   // `staff_takeover` candidate via the learning triage job (see
   // agents/seed.ts → lcd0sft001, signalRef='msg0sopstf1').
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: SOPHIA_CONV_ID,
     contactId: SOPHIA_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
@@ -659,7 +663,7 @@ export async function seed(db: unknown): Promise<void> {
     assignee: `user:${BOB_USER_ID}`,
     lastMessageAt: mins(35),
   })
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0soph001',
     conversationId: SOPHIA_CONV_ID,
     role: 'customer',
@@ -673,7 +677,7 @@ export async function seed(db: unknown): Promise<void> {
   // Agent's weak first reply — should have cited /drive/BUSINESS.md#Products
   // directly. Instead asks for clarification on a question that already has
   // everything needed. This is the gap Bob will close.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0soph002',
     conversationId: SOPHIA_CONV_ID,
     role: 'agent',
@@ -686,7 +690,7 @@ export async function seed(db: unknown): Promise<void> {
   })
   // Customer answers the agent's redundant question — the original ask
   // already implied Teams (8 seats), but the agent didn't read /drive/.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0soph003',
     conversationId: SOPHIA_CONV_ID,
     role: 'customer',
@@ -697,7 +701,7 @@ export async function seed(db: unknown): Promise<void> {
     channelExternalId: 'web-sophia-03',
     createdAt: mins(78),
   })
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0soph001',
     conversationId: SOPHIA_CONV_ID,
     authorType: 'agent',
@@ -706,7 +710,7 @@ export async function seed(db: unknown): Promise<void> {
     mentions: [BOB_USER_ID],
     createdAt: mins(60),
   })
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: SOPHIA_CONV_ID,
     type: 'conversation.reassigned',
     payload: {
@@ -721,7 +725,7 @@ export async function seed(db: unknown): Promise<void> {
   // the agent. The triage job catches the message-id pattern (assistant
   // role drops out, staff role enters with customer-facing content) and
   // emits a `staff_takeover` learning candidate referencing this message.
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0sopstf1',
     conversationId: SOPHIA_CONV_ID,
     role: 'staff',
@@ -737,7 +741,7 @@ export async function seed(db: unknown): Promise<void> {
   // next learning candidate has a clean rationale, not just a takeover
   // delta. The note is the signal that turns a one-off rescue into a
   // codified lesson.
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0sopbob1',
     conversationId: SOPHIA_CONV_ID,
     authorType: 'staff',
@@ -748,13 +752,13 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // Priya scenario: earlier snooze that expired, then resolved-then-reopened loop
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: PRIYA_CONV_ID,
     type: 'conversation.snoozed',
     payload: { until: mins(20).toISOString(), reason: 'waiting on product for filter docs', by: ALICE_USER_ID },
     ts: mins(60),
   })
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: PRIYA_CONV_ID,
     type: 'conversation.snooze_expired',
     payload: { originalUntil: mins(20).toISOString() },
@@ -769,7 +773,7 @@ export async function seed(db: unknown): Promise<void> {
   // staff-note wake fires → Meridian uses Bob's guidance to answer Liam.
   // Meanwhile Meridian keeps the customer engaged with a holding reply +
   // an information-gathering question so the wait is productive.
-  await insertConv(ins, {
+  await insertConv(ins, organizationId, {
     id: LIAM_CONV_ID,
     contactId: LIAM_CONTACT_ID,
     channelInstanceId: WEB_CHANNEL_INSTANCE_ID,
@@ -779,7 +783,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-65: customer's opening question
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam01',
     conversationId: LIAM_CONV_ID,
     role: 'customer',
@@ -792,7 +796,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-64: Meridian's holding reply (acknowledge + ask for more info)
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam02',
     conversationId: LIAM_CONV_ID,
     role: 'agent',
@@ -805,7 +809,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-63: Meridian @-mentions Bob via internal note (consult-human start)
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0liam01',
     conversationId: LIAM_CONV_ID,
     authorType: 'agent',
@@ -817,7 +821,7 @@ export async function seed(db: unknown): Promise<void> {
 
   // T-63: notification dispatched to Bob's WhatsApp (system event so the
   // activity timeline shows the staff received the ping out-of-band)
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: LIAM_CONV_ID,
     type: 'mention.notified',
     payload: {
@@ -834,7 +838,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-50: customer responds with the requested debug info
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam03',
     conversationId: LIAM_CONV_ID,
     role: 'customer',
@@ -847,7 +851,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-49: Meridian keeps the customer engaged WHILE WAITING for Bob
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam04',
     conversationId: LIAM_CONV_ID,
     role: 'agent',
@@ -862,7 +866,7 @@ export async function seed(db: unknown): Promise<void> {
   // T-30: Bob replies via WhatsApp staff number — recorded as a staff
   // internal note. The inbound webhook attaches @meridian to mentions so
   // the staff-note wake fires off it.
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0liam02',
     conversationId: LIAM_CONV_ID,
     authorType: 'staff',
@@ -874,7 +878,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-30: inbound channel event recording where the staff reply came from.
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: LIAM_CONV_ID,
     type: 'staff_reply.received',
     payload: {
@@ -892,7 +896,7 @@ export async function seed(db: unknown): Promise<void> {
 
   // T-30: staff-note wake fires off Bob's note (this is what kicks Meridian
   // back awake on the conversation as a `staff_note` signal).
-  await insertActivity(ins, {
+  await insertActivity(ins, organizationId, {
     conversationId: LIAM_CONV_ID,
     type: 'agent_wake.scheduled',
     payload: {
@@ -905,7 +909,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-29: Meridian uses Bob's guidance to give Liam a definitive answer
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam05',
     conversationId: LIAM_CONV_ID,
     role: 'agent',
@@ -941,7 +945,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-25: customer ack
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam06',
     conversationId: LIAM_CONV_ID,
     role: 'customer',
@@ -953,7 +957,7 @@ export async function seed(db: unknown): Promise<void> {
   })
 
   // T-25: customer follow-up — "Retry-After tip is gold"
-  await insertMsg(ins, {
+  await insertMsg(ins, organizationId, {
     id: 'msg0liam07',
     conversationId: LIAM_CONV_ID,
     role: 'customer',
@@ -967,7 +971,7 @@ export async function seed(db: unknown): Promise<void> {
 
   // Meridian's internal post-resolution note: capture the per-endpoint
   // override as a feature request so Alice sees it on her queue.
-  await insertNote(ins, {
+  await insertNote(ins, organizationId, {
     id: 'not0liam03',
     conversationId: LIAM_CONV_ID,
     authorType: 'agent',

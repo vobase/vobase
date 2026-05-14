@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { MERIDIAN_ORG_ID, MERIGPT_AGENT_ID } from '@modules/agents/seed'
+import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import {
   __resetLearningCandidatesServiceForTests,
   createLearningCandidatesService,
@@ -16,6 +16,7 @@ import {
 } from '@modules/agents/service/learning-candidates'
 import { sql } from 'drizzle-orm'
 
+import { getSeededOrgId } from '~/tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '~/tests/helpers/test-db'
 import { learningCandidateExpiryJob } from './expiry-cron'
 
@@ -33,9 +34,12 @@ const stubRealtime = {
 
 let dbh: TestDbHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   dbh = connectTestDb()
+  organizationId = await getSeededOrgId(dbh.db)
   installLearningCandidatesService(
     createLearningCandidatesService({
       db: dbh.db as unknown as Parameters<typeof createLearningCandidatesService>[0]['db'],
@@ -57,7 +61,7 @@ beforeEach(async () => {
 
 function baseInput(overrides: Partial<InsertLearningCandidateInput> = {}): InsertLearningCandidateInput {
   return {
-    organizationId: MERIDIAN_ORG_ID,
+    organizationId: organizationId,
     agentId: MERIGPT_AGENT_ID,
     conversationId: 'conv-expiry-test',
     signalKind: 'coaching_note',

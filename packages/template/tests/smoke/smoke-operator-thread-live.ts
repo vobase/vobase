@@ -13,6 +13,7 @@ import {
   connectSmokeDb,
   countAssistantTurns,
   envPollS,
+  getSmokeOrgId,
   POLL_S_DEFAULTS,
   pickText,
   pollAssistantTurns,
@@ -20,7 +21,6 @@ import {
 } from '../helpers/smoke-runtime'
 import { devLogin, makeAuthedFetch } from './_helpers'
 
-const ORG_ID = process.env.ORG_ID ?? 'mer0tenant'
 const THREAD_ID = process.env.THREAD_ID ?? 'thd0smoke01'
 const EMAIL = process.env.SMOKE_EMAIL ?? 'alice@meridian.test'
 const POLL_S = envPollS(POLL_S_DEFAULTS.operator)
@@ -37,12 +37,13 @@ await runSmoke(
     const api = makeAuthedFetch(baseUrl, auth)
     const { sql, end } = connectSmokeDb()
     try {
+      const organizationId = await getSmokeOrgId(sql)
       const baseline = await countAssistantTurns(sql, SYNTH_CONV_ID)
       console.log(`[smoke:op-thread] baseline assistant turns=${baseline}`)
 
       const res = await api(`/api/agents/threads/${THREAD_ID}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ organizationId: ORG_ID, content: PROMPT }),
+        body: JSON.stringify({ organizationId, content: PROMPT }),
       })
       const body = await res.text()
       if (!res.ok) throw new Error(`POST messages ${res.status}: ${body}`)

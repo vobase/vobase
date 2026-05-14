@@ -11,7 +11,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { conversations as convTable } from '@modules/messaging/schema'
 import {
   ConversationFailedError,
@@ -33,6 +33,7 @@ import { createMessagesService, installMessagesService } from '@modules/messagin
 import { conversationEvents, setJournalDb } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
+import { getSeededOrgId } from '../../../tests/helpers/seeded-org'
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 
 let db: TestDbHandle
@@ -57,9 +58,12 @@ function fakeScheduler() {
   }
 }
 
+let organizationId: string
+
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
+  organizationId = await getSeededOrgId(db.db)
   installConversationsService(createConversationsService({ db: db.db, scheduler: fakeScheduler() }))
   setJournalDb(db.db)
   installMessagesService(createMessagesService({ db: db.db }))
@@ -75,16 +79,16 @@ beforeEach(() => {
 
 describe('resumeOrCreate (Model A uniqueness)', () => {
   it('returns the same row across calls for the same (organization, contact, channelInstance)', async () => {
-    const a = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
-    const b = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const a = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const b = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     expect(a.conversation.id).toBe(b.conversation.id)
     expect(b.created).toBe(false)
   })
 
   it('returns the same row even if status was flipped to resolved', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await resolve(conversation.id, 'test', 'answered')
-    const again = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const again = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     expect(again.conversation.id).toBe(conversation.id)
     expect(again.created).toBe(false)
   })
@@ -94,13 +98,13 @@ describe('resumeOrCreate (Model A uniqueness)', () => {
     // Email-style: two RFC 5322 thread roots → two separate conversations
     // on the same (organization, contact, channel_instance).
     const booking = await resumeOrCreate(
-      MERIDIAN_ORG_ID,
+      organizationId,
       SEEDED_CONTACT_ID,
       CUSTOMER_CHANNEL_INSTANCE_ID,
       'thread:<booking-2026-04@example.com>',
     )
     const billing = await resumeOrCreate(
-      MERIDIAN_ORG_ID,
+      organizationId,
       SEEDED_CONTACT_ID,
       CUSTOMER_CHANNEL_INSTANCE_ID,
       'thread:<billing-2026-04@example.com>',
@@ -111,7 +115,7 @@ describe('resumeOrCreate (Model A uniqueness)', () => {
 
     // Repeated calls with the same threadKey are idempotent.
     const bookingAgain = await resumeOrCreate(
-      MERIDIAN_ORG_ID,
+      organizationId,
       SEEDED_CONTACT_ID,
       CUSTOMER_CHANNEL_INSTANCE_ID,
       'thread:<booking-2026-04@example.com>',
@@ -123,7 +127,7 @@ describe('resumeOrCreate (Model A uniqueness)', () => {
 
 describe('resolve / reopen / reset transitions', () => {
   it('active → resolved via resolve(); then resolved → active via reopen()', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     // ensure active
     await reopen(conversation.id, 'test', 'staff_reopen').catch(() => undefined)
 
@@ -139,7 +143,7 @@ describe('resolve / reopen / reset transitions', () => {
 
 describe('snooze / unsnooze / wakeSnoozed', () => {
   it('snooze writes fields + enqueues job; unsnooze clears + cancels', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await reopen(conversation.id, 'test', 'staff_reopen').catch(() => undefined)
 
     const until = new Date(Date.now() + 3600_000)
@@ -157,7 +161,7 @@ describe('snooze / unsnooze / wakeSnoozed', () => {
   })
 
   it('rejects snooze on non-active status', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await resolve(conversation.id, 'alice', 'test')
     await expect(
       snooze({ conversationId: conversation.id, until: new Date(Date.now() + 3600_000), by: 'alice' }),
@@ -166,7 +170,7 @@ describe('snooze / unsnooze / wakeSnoozed', () => {
   })
 
   it('wakeSnoozed is idempotent via snoozedAt match', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     const until = new Date(Date.now() + 3600_000)
     await snooze({ conversationId: conversation.id, until, by: 'alice' })
 
@@ -190,11 +194,11 @@ describe('snooze / unsnooze / wakeSnoozed', () => {
 
 describe('createInboundMessage lifecycle', () => {
   it('inbound on resolved flips to active + writes reopened event', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await resolve(conversation.id, 'alice', 'done')
 
     const res = await createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: `wake-resolved-${Date.now()}`,
@@ -218,12 +222,12 @@ describe('createInboundMessage lifecycle', () => {
 
   it('inbound on failed is rejected (no auto-wake)', async () => {
     // Manually set status to failed
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await db.db.update(convTable).set({ status: 'failed' }).where(eq(convTable.id, conversation.id))
 
     await expect(
       createInboundMessage({
-        organizationId: MERIDIAN_ORG_ID,
+        organizationId: organizationId,
         channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
         contactId: SEEDED_CONTACT_ID,
         externalMessageId: `wake-failed-${Date.now()}`,
@@ -238,13 +242,13 @@ describe('createInboundMessage lifecycle', () => {
   })
 
   it('inbound on snoozed conversation clears snooze + cancels job', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await reopen(conversation.id, 'test', 'staff_reopen').catch(() => undefined)
     await snooze({ conversationId: conversation.id, until: new Date(Date.now() + 3600_000), by: 'alice' })
     schedulerCalls.length = 0
 
     const res = await createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: `wake-snoozed-${Date.now()}`,
@@ -258,9 +262,9 @@ describe('createInboundMessage lifecycle', () => {
 
 describe('list() preview', () => {
   it('returns lastMessagePreview + kind + role from latest message', async () => {
-    const { conversation } = await resumeOrCreate(MERIDIAN_ORG_ID, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
     await createInboundMessage({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: `preview-${Date.now()}`,
@@ -268,7 +272,7 @@ describe('list() preview', () => {
       contentType: 'text',
     })
 
-    const rows = await list(MERIDIAN_ORG_ID)
+    const rows = await list(organizationId)
     const row = rows.find((r) => r.id === conversation.id)
     expect(row).toBeDefined()
     expect(row?.lastMessagePreview).toBe('latest text from customer')

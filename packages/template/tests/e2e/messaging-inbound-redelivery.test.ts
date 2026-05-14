@@ -12,18 +12,22 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, MERIDIAN_ORG_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
 import { messages as messagesTable } from '@modules/messaging/schema'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { and, eq } from 'drizzle-orm'
 
 import { type AttachmentTestHandle, bootMessagingAttachments } from '../helpers/attachments-fixture'
+import { getSeededOrgId } from '../helpers/seeded-org'
 
 let h: AttachmentTestHandle
 
+let organizationId: string
+
 beforeAll(async () => {
   h = await bootMessagingAttachments()
+  organizationId = await getSeededOrgId(h.db.db)
 })
 
 afterAll(async () => {
@@ -34,7 +38,7 @@ describe('messaging inbound redelivery — Promise.all', () => {
   it('produces exactly one drive row + one OCR job under real concurrency', async () => {
     const externalId = `wa_redelivery_${Date.now()}`
     const makePayload = () => ({
-      organizationId: MERIDIAN_ORG_ID,
+      organizationId: organizationId,
       channelInstanceId: CUSTOMER_CHANNEL_INSTANCE_ID,
       contactId: SEEDED_CONTACT_ID,
       externalMessageId: externalId,
@@ -62,7 +66,7 @@ describe('messaging inbound redelivery — Promise.all', () => {
       .select()
       .from(messagesTable)
       .where(
-        and(eq(messagesTable.organizationId, MERIDIAN_ORG_ID), eq(messagesTable.channelExternalId, externalId)),
+        and(eq(messagesTable.organizationId, organizationId), eq(messagesTable.channelExternalId, externalId)),
       )) as Array<{ id: string; attachments: Array<{ driveFileId: string }> }>
     expect(messageRows).toHaveLength(1)
 
@@ -74,7 +78,7 @@ describe('messaging inbound redelivery — Promise.all', () => {
       .select()
       .from(driveFiles)
       .where(
-        and(eq(driveFiles.organizationId, MERIDIAN_ORG_ID), eq(driveFiles.originalName, `redeliver-${externalId}.pdf`)),
+        and(eq(driveFiles.organizationId, organizationId), eq(driveFiles.originalName, `redeliver-${externalId}.pdf`)),
       )) as Array<{ id: string }>
     expect(driveRows.length).toBeLessThanOrEqual(1)
 
