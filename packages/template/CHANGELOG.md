@@ -1,5 +1,79 @@
 # @vobase/template
 
+## 3.12.0
+
+### Minor Changes
+
+- [`f647ed9`](https://github.com/vobase/vobase/commit/f647ed9f22ef2b1f22a757c8d39c3612b0128f72) Thanks [@mdluo](https://github.com/mdluo)! - refactor(template): adopt platform contract v3 + runtime org-id resolution
+
+  Bumps `PLATFORM_TENANT_CONTRACT_VERSION` to `v3` and removes the hardcoded
+  organization-id constant that module seeds and tests relied on.
+
+  ## platform contract v3
+
+  - The claim and webhook-register wire bodies no longer carry
+    `channelInstanceId` or `environment`. Channel-instance identity is now
+    purely tenant-side state.
+  - On webhook registration the platform mints an `endpointId`, which the
+    tenant persists on `channel_instances.config` and encodes into the
+    single-arg `/link <endpointId>` QR. The managed re-verify path refreshes
+    it in place.
+  - `handshake.ts` claim/release calls send empty bodies; the canonical
+    managed-config type gains an optional `endpointId` field.
+
+  ## runtime org-id resolution
+
+  - The seed orchestrator (`scripts/seed.ts`) inserts the `auth.organization`
+    row first and threads its id to every module seed, instead of each seed
+    reading a compile-time constant. The id comes from `PLATFORM_TENANT_ID`
+    on real deploys, or a fresh nanoid for a bare `db:reset`.
+  - Tests resolve the id at runtime via the new `getSeededOrgId` helper
+    (earliest `auth.organization` row); live smokes use `getSmokeOrgId`,
+    which also honours an optional `ORG_ID` override.
+
+  ## managed-channel row UI
+
+  - Drops the redundant "Platform sandbox" mode chip for managed channels —
+    the display name already states the type.
+  - Hides the "Open in Meta WABA Manager" action for managed channels, which
+    have no tenant-accessible Meta Business surface.
+
+### Patch Changes
+
+- [`afee068`](https://github.com/vobase/vobase/commit/afee06843a981ee8a2d3261d64b49b3dbe50f6f6) Thanks [@mdluo](https://github.com/mdluo)! - refactor(auth): generate the auth schema via the better-auth CLI; adopt the official apiKey plugin
+
+  Fixes the bug where new tenant projects got the better-auth tables duplicated
+  into both the `auth` and `public` Postgres schemas.
+
+  ## core (breaking surface reduction)
+
+  Core ships infrastructure primitives, not app schema. The hand-written
+  better-auth drizzle schema, the `authPgSchema` export, the auth table exports
+  (`authUser`, `authSession`, …), and the unused `VerifyApiKey` / `CreateApiKey`
+  / `RevokeApiKey` contract types are all removed from the public surface. The
+  `better-auth` / `@better-auth/api-key` peer deps are dropped — core has zero
+  runtime use of better-auth. App code now owns its auth schema in the template.
+
+  ## template
+
+  - **CLI-generated auth schema.** `bun run gen:auth` runs the pinned `auth` CLI
+    against `auth/auth.config.ts`, then rewrites the flat output into the vobase
+    shape: `auth` pg schema, timezone-aware timestamps, `defaultNow()` on
+    created/updated columns. Output splits into `schema-tables.ts` (native names,
+    drizzle-kit reads this) and `schema.ts` (re-export + `auth`-prefixed aliases,
+    app code reads this) so each table registers exactly once. `auth/plugins.ts`
+    is the single source of truth for the schema-contributing plugin set, shared
+    by the runtime and CLI-introspection configs so they can't drift.
+    `check:auth-schema` guards this in CI.
+  - **Official `apiKey` plugin.** The custom API-key service is replaced by
+    `@better-auth/api-key`. A valid `Authorization: Bearer vbt_<key>` mocks a
+    session, so the CLI catalog/dispatch routes and `/api/auth/whoami` resolve
+    through the standard session → org → role middleware chain — one auth path
+    for cookie and bearer callers alike.
+
+- Updated dependencies [[`afee068`](https://github.com/vobase/vobase/commit/afee06843a981ee8a2d3261d64b49b3dbe50f6f6)]:
+  - @vobase/core@0.43.0
+
 ## 3.11.4
 
 ### Patch Changes
