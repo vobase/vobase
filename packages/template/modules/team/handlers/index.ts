@@ -1,3 +1,4 @@
+import { E164_RE } from '@auth/e164'
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
@@ -19,7 +20,7 @@ import heartbeatHandlers from './heartbeat'
 import mentionHandlers from './mentions'
 
 /** Accept `+E164` only (digits, leading `+`, 8-16 chars total). Empty/null clears. */
-const whatsappPhoneE164Schema = z.string().regex(/^\+[1-9]\d{6,14}$/, 'whatsappPhoneE164 must be E.164 with leading +')
+const phoneNumberSchema = z.string().regex(E164_RE, 'phoneNumber must be E.164 with leading +')
 
 const availability = z.enum(['active', 'busy', 'off', 'inactive'])
 
@@ -34,7 +35,7 @@ const upsertStaffBody = z.object({
   availability: availability.optional(),
   profile: z.string().max(4000).optional(),
   memory: z.string().max(8000).optional(),
-  whatsappPhoneE164: whatsappPhoneE164Schema.nullable().optional(),
+  phoneNumber: phoneNumberSchema.nullable().optional(),
 })
 
 const updateStaffBody = z.object({
@@ -47,19 +48,19 @@ const updateStaffBody = z.object({
   availability: availability.optional(),
   profile: z.string().max(4000).optional(),
   memory: z.string().max(8000).optional(),
-  whatsappPhoneE164: whatsappPhoneE164Schema.nullable().optional(),
+  phoneNumber: phoneNumberSchema.nullable().optional(),
 })
 
 /**
- * Returns `true` when the inbound patch's `whatsappPhoneE164` differs from
+ * Returns `true` when the inbound patch's `phoneNumber` differs from
  * the existing row's value — the trigger for enqueueing a staff-link sync.
  * A patch that omits the field, or sets it to the same value, returns
  * `false` so no work is enqueued.
  */
-function phoneChangedAfterWrite(before: StaffProfile | null, patch: { whatsappPhoneE164?: string | null }): boolean {
-  if (!('whatsappPhoneE164' in patch)) return false
-  const next = patch.whatsappPhoneE164 ?? null
-  const prev = before?.whatsappPhoneE164 ?? null
+function phoneChangedAfterWrite(before: StaffProfile | null, patch: { phoneNumber?: string | null }): boolean {
+  if (!('phoneNumber' in patch)) return false
+  const next = patch.phoneNumber ?? null
+  const prev = before?.phoneNumber ?? null
   return next !== prev
 }
 
@@ -132,7 +133,7 @@ const app = new Hono<OrganizationEnv>()
     const userId = c.req.param('userId')
     const before = await findStaff(userId)
     await removeStaff(userId)
-    if (before?.whatsappPhoneE164) {
+    if (before?.phoneNumber) {
       // Removing the staff row deletes its tenant-side phone binding too;
       // the reconciler will translate that into a platform-side delete on
       // its next run.

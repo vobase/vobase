@@ -23,6 +23,7 @@ import {
   authUser,
   authVerification,
 } from './schema'
+import { generateVisitorName } from './visitor-name'
 
 const authTableMap = {
   user: authUser,
@@ -62,6 +63,7 @@ export function createAuth(db: ScopedDb) {
   const plugins = [
     ...buildAuthPlugins({
       multiOrg,
+      generateAnonymousName: () => generateVisitorName(db),
       sendVerificationOTP: async ({ email, otp, type }) => {
         try {
           const html = await renderOtpEmail({ otp, type })
@@ -168,6 +170,7 @@ export function createAuth(db: ScopedDb) {
         id: authInvitation.id,
         organizationId: authInvitation.organizationId,
         role: authInvitation.role,
+        phoneNumber: authInvitation.phoneNumber,
       })
       .from(authInvitation)
       .where(and(eq(authInvitation.email, user.email), eq(authInvitation.status, 'pending')))
@@ -186,6 +189,19 @@ export function createAuth(db: ScopedDb) {
         await tx.update(authInvitation).set({ status: 'accepted' }).where(eq(authInvitation.id, invite.id))
       })
       logger.info({ email: user.email }, '[auth] Auto-accepted invitation')
+      // Optional phone the admin set on the invite — copy it onto the user.
+      // Best-effort: a unique-collision (phone already in use) must not block
+      // enrollment, so it's written outside the membership tx.
+      if (invite.phoneNumber) {
+        try {
+          await dbAny.update(authUser).set({ phoneNumber: invite.phoneNumber }).where(eq(authUser.id, user.id))
+        } catch (err) {
+          logger.warn(
+            { error: err instanceof Error ? err.message : String(err), email: user.email },
+            '[auth] invite phone-number write failed (non-fatal)',
+          )
+        }
+      }
       await ensureStaffProfile(user.id, invite.organizationId)
       return
     }

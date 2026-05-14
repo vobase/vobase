@@ -22,6 +22,7 @@ export const auth = betterAuth({
   emailAndPassword: { enabled: false },
   plugins: buildAuthPlugins({
     multiOrg: true,
+    generateAnonymousName: async () => 'Visitor',
     sendVerificationOTP: async () => {},
     sendInvitationEmail: async () => {},
   }),

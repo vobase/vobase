@@ -6,8 +6,9 @@
  *
  * Sends through the org's notification-tier WhatsApp channel
  * (`channels/service/instances::findNotificationChannel`) — not the customer-
- * facing WhatsApp channel — and dials `staff_profiles.whatsappPhoneE164`
- * (the staff's personal phone, set via the team settings page).
+ * facing WhatsApp channel — and dials the staff member's `phoneNumber` (their
+ * personal phone, joined in from the better-auth `user` table by the staff
+ * service; set by an admin at invite time or via the staff profile form).
  *
  * On a successful send the service writes a row to `pending_mention_pings`
  * (TTL ledger) so the inbound notifications handler can correlate the
@@ -70,13 +71,13 @@ export function createMentionNotifyService(_deps: MentionNotifyDeps): MentionNot
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
     const channel = await findNotificationChannel(organizationId)
     if (!channel) return { ok: false, reason: 'no_notification_channel' }
-    if (!profile.whatsappPhoneE164) return { ok: false, reason: 'no_whatsapp_phone' }
+    if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
     // Route through the registry — same seam `outbound.ts` uses, so tests
     // can swap the adapter via `register('whatsapp_notif', stubFactory, ...)`
     // without touching the integrations vault.
     const adapter = await channelRegistryGet(channel.channel, channel.config ?? {}, channel.id)
     if (!adapter) return { ok: false, reason: 'no_adapter_registered' }
-    const res = await adapter.send({ to: profile.whatsappPhoneE164, text })
+    const res = await adapter.send({ to: profile.phoneNumber, text })
     if (!res.success) return { ok: false, reason: 'adapter_error' }
     return { ok: true }
   }

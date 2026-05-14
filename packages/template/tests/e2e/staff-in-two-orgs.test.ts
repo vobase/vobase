@@ -144,7 +144,7 @@ function makeProfile(orgId: string, userId: string, phone: string): StaffProfile
     profile: '',
     memory: '',
     lastSeenAt: null,
-    whatsappPhoneE164: phone,
+    phoneNumber: phone,
     createdAt: new Date(),
     updatedAt: new Date(),
   }

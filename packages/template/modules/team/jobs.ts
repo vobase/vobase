@@ -7,9 +7,10 @@
  * ~24h horizon with exponential backoff so a platform 5xx eventually drains.
  *
  * `team:sync-staff-link:cron` — daily 03:00 UTC tick that enumerates orgs with
- * at least one populated `staff_profiles.whatsapp_phone_e164` and fans out a
- * deduped sync per org. Catch-all for drift the PATCH path missed (deleted
- * users, mid-flight 5xx that exhausted retries, platform-side resets).
+ * at least one staff member carrying a phone number (better-auth
+ * `user.phone_number`) and fans out a deduped sync per org. Catch-all for
+ * drift the PATCH path missed (deleted users, mid-flight 5xx that exhausted
+ * retries, platform-side resets).
  */
 /** @contract platform-tenant-v1 */
 

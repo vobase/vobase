@@ -77,7 +77,7 @@ export function StaffDetailPage() {
         languages: values.languages,
         capacity: values.capacity,
         availability: values.availability,
-        whatsappPhoneE164: values.whatsappPhoneE164,
+        phoneNumber: values.phoneNumber,
       })
       toast.success('Profile updated')
       setEditOpen(false)
@@ -150,8 +150,8 @@ export function StaffDetailPage() {
                     <TagList items={staff.languages} />
                   </InfoRow>
                   <InfoRow label="WhatsApp">
-                    {staff.whatsappPhoneE164 ? (
-                      <span className="font-mono">{staff.whatsappPhoneE164}</span>
+                    {staff.phoneNumber ? (
+                      <span className="font-mono">{staff.phoneNumber}</span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

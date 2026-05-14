@@ -1,5 +1,6 @@
 /**
- * Staff-link reconciler — converges tenant-side `staff_profiles.whatsapp_phone_e164`
+ * Staff-link reconciler — converges tenant-side staff phone numbers (the
+ * better-auth `user.phone_number`, surfaced on `StaffProfile.phoneNumber`)
  * with the platform's `staff_links` registry for the org's notification-tier
  * WhatsApp channel.
  *
@@ -122,9 +123,9 @@ function defaultReadPlatformCreds(): PlatformCreds | null {
 }
 
 /**
- * Compute the per-org delta between tenant-side `staff_profiles` (with
- * non-null `whatsapp_phone_e164`) and platform-side `staff_links`, then
- * apply via `staffLinks.upsert` / `staffLinks.delete` until they converge.
+ * Compute the per-org delta between tenant-side staff (those with a non-null
+ * `phoneNumber`) and platform-side `staff_links`, then apply via
+ * `staffLinks.upsert` / `staffLinks.delete` until they converge.
  *
  * Out-of-order safe: the reconciler diffs sets, so two PATCHes racing each
  * other still converge once the loser's enqueue eventually fires. Per-row
@@ -158,15 +159,15 @@ export async function syncStaffLinks(
   const staff = await listStaffFn(orgId)
   const tenantByWaId = new Map<string, { userId: string; staffPhoneE164: string }>()
   for (const profile of staff) {
-    if (!profile.whatsappPhoneE164) continue
+    if (!profile.phoneNumber) continue
     try {
-      const waId = normalizeWaId(profile.whatsappPhoneE164)
-      tenantByWaId.set(waId, { userId: profile.userId, staffPhoneE164: profile.whatsappPhoneE164 })
+      const waId = normalizeWaId(profile.phoneNumber)
+      tenantByWaId.set(waId, { userId: profile.userId, staffPhoneE164: profile.phoneNumber })
     } catch (err) {
       // Malformed phone in the DB — surface as a per-row error and skip.
       errors.push({
         phase: 'upsert',
-        staffPhoneE164: profile.whatsappPhoneE164,
+        staffPhoneE164: profile.phoneNumber,
         message: err instanceof Error ? err.message : 'invalid wa_id',
       })
     }

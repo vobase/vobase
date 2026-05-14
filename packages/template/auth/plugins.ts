@@ -12,12 +12,15 @@
  */
 
 import { apiKey } from '@better-auth/api-key'
+import { APIError } from 'better-auth/api'
 import { anonymous } from 'better-auth/plugins/anonymous'
 import { bearer } from 'better-auth/plugins/bearer'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 import { organization } from 'better-auth/plugins/organization'
+import { phoneNumber } from 'better-auth/plugins/phone-number'
 
 import { ac, roles } from './ac'
+import { E164_RE } from './e164'
 
 /** Bearer-token shape the vobase CLI sends: `Authorization: Bearer vbt_<key>`. */
 const BEARER_API_KEY_RE = /^Bearer\s+(vbt_[A-Za-z0-9_-]+)$/u
@@ -30,6 +33,8 @@ export interface AuthPluginOpts {
   multiOrg: boolean
   sendVerificationOTP: EmailOtpOptions['sendVerificationOTP']
   sendInvitationEmail: OrganizationOptions['sendInvitationEmail']
+  /** Serial name for a fresh anonymous session, e.g. "Visitor B001". */
+  generateAnonymousName: () => Promise<string>
 }
 
 export function buildAuthPlugins(opts: AuthPluginOpts) {
@@ -39,11 +44,28 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
     // widget's anonymous session from the dashboard cookie session on the
     // same origin.
     bearer(),
-    anonymous(),
+    anonymous({
+      // Public /chat visitors get a serial name ("Visitor B001") instead of
+      // better-auth's random id, so staff see a stable handle in the inbox.
+      generateName: opts.generateAnonymousName,
+    }),
     emailOTP({
       sendVerificationOTP: opts.sendVerificationOTP,
       otpLength: 6,
       expiresIn: 300,
+    }),
+    phoneNumber({
+      // Storage-only: the plugin contributes `user.phoneNumber` /
+      // `phoneNumberVerified`, which is where staff WhatsApp numbers now live
+      // (admin-set at invite time, see `auth/index.ts`). Phone-based sign-in
+      // is not enabled — `sendOTP` is the seam where a future SMS/WhatsApp
+      // OTP sender plugs in. Until then the sign-in endpoints fail loudly.
+      sendOTP: () => {
+        throw new APIError('NOT_IMPLEMENTED', {
+          message: 'Phone sign-in is not enabled on this deployment.',
+        })
+      },
+      phoneNumberValidator: (value) => E164_RE.test(value),
     }),
     organization({
       allowUserToCreateOrganization: opts.multiOrg,
@@ -54,6 +76,15 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
         allowRemovingAllTeams: false,
       },
       sendInvitationEmail: opts.sendInvitationEmail,
+      // Carry an optional staff phone on the invitation row so the admin can
+      // set it at invite time; `autoEnroll` copies it onto the new user.
+      schema: {
+        invitation: {
+          additionalFields: {
+            phoneNumber: { type: 'string', required: false, input: true },
+          },
+        },
+      },
     }),
     apiKey({
       // CLI keys are `vbt_<random>`. The dashboard's settings page and the

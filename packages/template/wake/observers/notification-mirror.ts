@@ -5,7 +5,7 @@
  * Resolved at wake start (so we never query mid-turn or thread DB lookups
  * into the frozen-snapshot inputs):
  *   - notificationChannelInstanceId — single 'whatsapp_notif' channel for the org
- *   - staffPhoneE164                — staff_profiles.whatsapp_phone_e164 for
+ *   - staffPhoneE164                — the better-auth `user.phone_number` of
  *                                     the operator-thread's createdBy user
  *
  * Fires on `message_end` (final assistant text) only — not on

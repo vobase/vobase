@@ -5,8 +5,10 @@
  * singleton + module-level re-exports.
  */
 
+import { authUser } from '@auth/schema'
 import { staffProfiles } from '@modules/team/schema'
-import { asc, eq } from 'drizzle-orm'
+import { conflict } from '@vobase/core'
+import { asc, eq, getTableColumns } from 'drizzle-orm'
 
 import { type RealtimeService, safeNotify } from '~/runtime'
 import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
@@ -25,8 +27,11 @@ export interface UpsertStaffInput {
   attributes?: Record<string, AttributeValue>
   profile?: string
   memory?: string
-  /** Personal WhatsApp phone in E.164 (`+`-prefixed). Mirrored to platform staff-links. */
-  whatsappPhoneE164?: string | null
+  /**
+   * Personal phone in E.164 (`+`-prefixed). Written to the better-auth `user`
+   * table, not `staff_profiles`. Mirrored to platform staff-links.
+   */
+  phoneNumber?: string | null
 }
 
 export interface UpdateStaffInput {
@@ -39,8 +44,11 @@ export interface UpdateStaffInput {
   availability?: Availability
   profile?: string
   memory?: string
-  /** Personal WhatsApp phone in E.164 (`+`-prefixed). Mirrored to platform staff-links. */
-  whatsappPhoneE164?: string | null
+  /**
+   * Personal phone in E.164 (`+`-prefixed). Written to the better-auth `user`
+   * table, not `staff_profiles`. Mirrored to platform staff-links.
+   */
+  phoneNumber?: string | null
 }
 
 interface StaffDeps {
@@ -71,17 +79,44 @@ export function createStaffService(deps: StaffDeps): StaffService {
   const notify = (userId: string, action: string) =>
     safeNotify(realtime, { table: 'staff_profiles', id: userId, action })
 
+  // `phoneNumber` lives on the better-auth `user` table (phone-number plugin),
+  // not `staff_profiles` — every read joins it back in so callers keep seeing
+  // a single `StaffProfile` shape.
+  const staffSelection = { ...getTableColumns(staffProfiles), phoneNumber: authUser.phoneNumber }
+
+  /**
+   * Write a staff member's phone onto the better-auth `user` row. The
+   * phone-number plugin makes `user.phone_number` UNIQUE — surface a
+   * collision as a typed 409 rather than a raw 23505.
+   */
+  async function writePhoneNumber(userId: string, phoneNumber: string | null): Promise<void> {
+    try {
+      await db.update(authUser).set({ phoneNumber }).where(eq(authUser.id, userId))
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === '23505') {
+        throw conflict('team/staff: phone number')
+      }
+      throw err
+    }
+  }
+
   async function list(organizationId: string): Promise<StaffProfile[]> {
     const rows = (await db
-      .select()
+      .select(staffSelection)
       .from(staffProfiles)
+      .leftJoin(authUser, eq(authUser.id, staffProfiles.userId))
       .where(eq(staffProfiles.organizationId, organizationId))
       .orderBy(asc(staffProfiles.displayName))) as unknown[]
     return rows as StaffProfile[]
   }
 
   async function find(userId: string): Promise<StaffProfile | null> {
-    const rows = await db.select().from(staffProfiles).where(eq(staffProfiles.userId, userId)).limit(1)
+    const rows = await db
+      .select(staffSelection)
+      .from(staffProfiles)
+      .leftJoin(authUser, eq(authUser.id, staffProfiles.userId))
+      .where(eq(staffProfiles.userId, userId))
+      .limit(1)
     return (rows[0] as StaffProfile | undefined) ?? null
   }
 
@@ -106,21 +141,25 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (input.attributes !== undefined) values.attributes = input.attributes
     if (input.profile !== undefined) values.profile = input.profile
     if (input.memory !== undefined) values.memory = input.memory
-    if (input.whatsappPhoneE164 !== undefined) values.whatsappPhoneE164 = input.whatsappPhoneE164
 
     const update: Record<string, unknown> = { ...values }
     delete update.userId
     delete update.organizationId
+
+    // `phoneNumber` is not a `staff_profiles` column — it writes to the
+    // better-auth `user` row. Do it first so a unique-collision aborts before
+    // the profile row is touched (keeps the write all-or-nothing).
+    if (input.phoneNumber !== undefined) await writePhoneNumber(input.userId, input.phoneNumber)
 
     const rows = (await db
       .insert(staffProfiles)
       .values(values)
       .onConflictDoUpdate({ target: staffProfiles.userId, set: update })
       .returning()) as unknown[]
-    const row = rows[0]
-    if (!row) throw new Error('staff-profiles/upsert: insert returned no rows')
+    if (!rows[0]) throw new Error('staff-profiles/upsert: insert returned no rows')
     notify(input.userId, 'upserted')
-    return row as StaffProfile
+    // Re-read so the result carries the joined `phoneNumber`.
+    return get(input.userId)
   }
 
   async function update(userId: string, patch: UpdateStaffInput): Promise<StaffProfile> {
@@ -134,16 +173,24 @@ export function createStaffService(deps: StaffDeps): StaffService {
     if (patch.availability !== undefined) set.availability = patch.availability
     if (patch.profile !== undefined) set.profile = patch.profile
     if (patch.memory !== undefined) set.memory = patch.memory
-    if (patch.whatsappPhoneE164 !== undefined) set.whatsappPhoneE164 = patch.whatsappPhoneE164
-    const rows = (await db
-      .update(staffProfiles)
-      .set(set)
-      .where(eq(staffProfiles.userId, userId))
-      .returning()) as unknown[]
-    const row = rows[0]
-    if (!row) throw new Error(`staff-profile not found: ${userId}`)
+
+    // `phoneNumber` writes to the better-auth `user` row, not `staff_profiles`.
+    if (patch.phoneNumber !== undefined) await writePhoneNumber(userId, patch.phoneNumber)
+
+    if (Object.keys(set).length > 0) {
+      const rows = (await db
+        .update(staffProfiles)
+        .set(set)
+        .where(eq(staffProfiles.userId, userId))
+        .returning()) as unknown[]
+      if (!rows[0]) throw new Error(`staff-profile not found: ${userId}`)
+    } else if (!(await find(userId))) {
+      // phone-only patch: the staff_profiles row was never touched, so confirm
+      // it exists to preserve the not-found contract.
+      throw new Error(`staff-profile not found: ${userId}`)
+    }
     notify(userId, 'updated')
-    return row as StaffProfile
+    return get(userId)
   }
 
   async function remove(userId: string): Promise<void> {

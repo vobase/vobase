@@ -13,6 +13,7 @@
  */
 
 import { buildAuthLookup } from '@auth/lookup'
+import { authUser } from '@auth/schema'
 import { type AgentDefinition, operatorThreads } from '@modules/agents/schema'
 import { getCliRegistry } from '@modules/agents/service/cli-registry'
 import * as syntheticIds from '@modules/agents/service/synthetic-ids'
@@ -220,8 +221,9 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
           const createdBy = thread?.createdBy ?? null
           const [profile] = createdBy
             ? await deps.db
-                .select({ whatsappPhoneE164: staffProfiles.whatsappPhoneE164 })
+                .select({ phoneNumber: authUser.phoneNumber })
                 .from(staffProfiles)
+                .innerJoin(authUser, eq(authUser.id, staffProfiles.userId))
                 .where(and(eq(staffProfiles.userId, createdBy), eq(staffProfiles.organizationId, data.organizationId)))
                 .limit(1)
             : [undefined]
@@ -229,7 +231,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
           return createNotificationMirrorObserver({
             organizationId: data.organizationId,
             threadId,
-            staffPhoneE164: profile?.whatsappPhoneE164 ?? null,
+            staffPhoneE164: profile?.phoneNumber ?? null,
             notificationChannelInstanceId: notifChannel?.id ?? null,
             logger: deps.logger,
           })

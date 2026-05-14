@@ -6,6 +6,7 @@
  * detail page.
  */
 
+import { E164_RE } from '@auth/e164'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -30,8 +31,8 @@ export interface StaffFormValues {
   languages: string[]
   capacity: number
   availability: Availability
-  /** E.164 with leading `+`, or null to clear. Used for WhatsApp mention pings. */
-  whatsappPhoneE164: string | null
+  /** E.164 with leading `+`, or null to clear. Stored on the better-auth user; used for WhatsApp mention pings. */
+  phoneNumber: string | null
 }
 
 interface Props {
@@ -57,7 +58,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
   const [languages, setLanguages] = useState('')
   const [capacity, setCapacity] = useState('10')
   const [availability, setAvailability] = useState<Availability>('active')
-  const [whatsappPhone, setWhatsappPhone] = useState('')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
     setLanguages(toCsv(staff.languages))
     setCapacity(String(staff.capacity))
     setAvailability(staff.availability)
-    setWhatsappPhone(staff.whatsappPhoneE164 ?? '')
+    setPhone(staff.phoneNumber ?? '')
     setError(null)
   }, [open, staff])
 
@@ -80,10 +81,10 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
       setError('Capacity must be between 0 and 1000.')
       return
     }
-    const phoneRaw = whatsappPhone.trim()
+    const phoneRaw = phone.trim()
     // Empty → null (clear). Otherwise must match E.164 with leading `+`.
-    const phone: string | null = phoneRaw === '' ? null : phoneRaw
-    if (phone !== null && !/^\+[1-9]\d{6,14}$/.test(phone)) {
+    const phoneValue: string | null = phoneRaw === '' ? null : phoneRaw
+    if (phoneValue !== null && !E164_RE.test(phoneValue)) {
       setError('WhatsApp number must be E.164 with leading + (e.g. +6591234567).')
       return
     }
@@ -95,7 +96,7 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
       languages: fromCsv(languages),
       capacity: cap,
       availability,
-      whatsappPhoneE164: phone,
+      phoneNumber: phoneValue,
     })
   }
 
@@ -158,8 +159,8 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
             <Input
               id="staff-whatsapp-phone"
               type="tel"
-              value={whatsappPhone}
-              onChange={(e) => setWhatsappPhone(e.target.value)}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               placeholder="+6591234567"
             />
             <p className="text-muted-foreground text-xs">

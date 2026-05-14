@@ -218,11 +218,11 @@ export function StaffListPage() {
         enableSorting: false,
       },
       {
-        id: 'whatsappPhoneE164',
-        accessorKey: 'whatsappPhoneE164',
+        id: 'phoneNumber',
+        accessorKey: 'phoneNumber',
         header: ({ column }) => <DataTableColumnHeader column={column} label="WhatsApp" />,
         cell: ({ row }) => (
-          <span className="font-mono text-muted-foreground text-xs">{row.original.whatsappPhoneE164 ?? '—'}</span>
+          <span className="font-mono text-muted-foreground text-xs">{row.original.phoneNumber ?? '—'}</span>
         ),
         meta: { label: 'WhatsApp', variant: 'text', placeholder: 'Search number…' },
         enableColumnFilter: true,

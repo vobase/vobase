@@ -32,7 +32,7 @@ function makeProfile(overrides: Partial<StaffProfile> = {}): StaffProfile {
     profile: '',
     memory: '',
     lastSeenAt: null,
-    whatsappPhoneE164: overrides.whatsappPhoneE164 ?? null,
+    phoneNumber: overrides.phoneNumber ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -115,7 +115,7 @@ function buildOptions(opts: {
 describe('syncStaffLinks() — diff/apply', () => {
   it('no-op when tenant set equals platform set', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
+      staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [{ staffUserId: 'u-1', staffPhoneE164: '6591111111' }],
     })
     const result = await syncStaffLinks(ORG_ID, options)
@@ -133,7 +133,7 @@ describe('syncStaffLinks() — diff/apply', () => {
 
   it('upsert-needed: tenant has 1 phone not on platform', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
+      staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [],
     })
     const result = await syncStaffLinks(ORG_ID, options)
@@ -161,7 +161,7 @@ describe('syncStaffLinks() — diff/apply', () => {
 
   it('mixed: one upsert + one delete', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-new', whatsappPhoneE164: '+6512345678' })],
+      staff: [makeProfile({ userId: 'u-new', phoneNumber: '+6512345678' })],
       platform: [{ staffUserId: 'u-gone', staffPhoneE164: '6587654321' }],
     })
     const result = await syncStaffLinks(ORG_ID, options)
@@ -178,7 +178,7 @@ describe('syncStaffLinks() — diff/apply', () => {
     // same number, the reconciler issues an upsert to re-bind the platform
     // row's `staffUserId`.
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-new-owner', whatsappPhoneE164: '+6511111111' })],
+      staff: [makeProfile({ userId: 'u-new-owner', phoneNumber: '+6511111111' })],
       platform: [{ staffUserId: 'u-old-owner', staffPhoneE164: '6511111111' }],
     })
     const result = await syncStaffLinks(ORG_ID, options)
@@ -190,7 +190,7 @@ describe('syncStaffLinks() — diff/apply', () => {
 
   it('dryRun: computes diff without writing', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
+      staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [{ staffUserId: 'u-2', staffPhoneE164: '6592222222' }],
     })
     const result = await syncStaffLinks(ORG_ID, { ...options, dryRun: true })
@@ -207,8 +207,8 @@ describe('syncStaffLinks() — diff/apply', () => {
     // partial progress lands.
     const { options, calls } = buildOptions({
       staff: [
-        makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6511111111' }),
-        makeProfile({ userId: 'u-2', whatsappPhoneE164: '+6522222222' }),
+        makeProfile({ userId: 'u-1', phoneNumber: '+6511111111' }),
+        makeProfile({ userId: 'u-2', phoneNumber: '+6522222222' }),
       ],
       platform: [],
       upsertFailsFor: '+6511111111',
@@ -243,7 +243,7 @@ describe('syncStaffLinks() — diff/apply', () => {
 
   it('platform list failure aborts with single error', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
+      staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [],
       listFails: true,
     })
@@ -257,7 +257,7 @@ describe('syncStaffLinks() — diff/apply', () => {
 
   it('no notification channel → skipped, no platform calls', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
+      staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [],
       channel: null,
     })
@@ -270,7 +270,7 @@ describe('syncStaffLinks() — diff/apply', () => {
 
   it('platform creds missing → skipped, no platform calls', async () => {
     const { options, calls } = buildOptions({
-      staff: [makeProfile({ userId: 'u-1', whatsappPhoneE164: '+6591111111' })],
+      staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [],
       withCreds: false,
     })
@@ -296,8 +296,8 @@ describe('syncStaffLinks() — diff/apply', () => {
   it('malformed tenant phone surfaces as upsert-phase error', async () => {
     const { options, calls } = buildOptions({
       staff: [
-        makeProfile({ userId: 'u-good', whatsappPhoneE164: '+6591111111' }),
-        makeProfile({ userId: 'u-bad', whatsappPhoneE164: '+0invalid' }),
+        makeProfile({ userId: 'u-good', phoneNumber: '+6591111111' }),
+        makeProfile({ userId: 'u-bad', phoneNumber: '+0invalid' }),
       ],
       platform: [],
     })

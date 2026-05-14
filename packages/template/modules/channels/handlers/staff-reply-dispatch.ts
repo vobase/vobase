@@ -16,6 +16,7 @@
  * doesn't grow the router file.
  */
 
+import { authUser } from '@auth/schema'
 import { agentDefinitions, operatorThreads } from '@modules/agents/schema'
 import { requireJobs } from '@modules/agents/service/state'
 import { threads as threadsApi } from '@modules/agents/service/threads'
@@ -73,12 +74,13 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   if (!senderPhone || !text) return { ok: true, branch: 'unparseable' }
 
   // Match either with or without leading `+` — Meta's wa_id has no `+`; we
-  // store `+E.164` in staff_profiles.
+  // store `+E.164` on the better-auth `user` row.
   const candidate = senderPhone.startsWith('+') ? senderPhone : `+${senderPhone}`
   const [staff] = await db
     .select({ userId: staffProfiles.userId })
     .from(staffProfiles)
-    .where(and(eq(staffProfiles.organizationId, organizationId), eq(staffProfiles.whatsappPhoneE164, candidate)))
+    .innerJoin(authUser, eq(authUser.id, staffProfiles.userId))
+    .where(and(eq(staffProfiles.organizationId, organizationId), eq(authUser.phoneNumber, candidate)))
     .limit(1)
   if (!staff) return { ok: true, branch: 'unmatched_staff' }
 

@@ -17,6 +17,8 @@ export const user = authPgSchema.table('user', {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   isAnonymous: boolean('is_anonymous').default(false),
+  phoneNumber: text('phone_number').unique(),
+  phoneNumberVerified: boolean('phone_number_verified'),
 })
 
 export const session = authPgSchema.table(
@@ -158,6 +160,7 @@ export const invitation = authPgSchema.table(
     inviterId: text('inviter_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    phoneNumber: text('phone_number'),
   },
   (table) => [
     index('invitation_organizationId_idx').on(table.organizationId),

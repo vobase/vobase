@@ -6,6 +6,7 @@
  * `server/auth/index.ts` auto-enroll hooks).
  */
 
+import { E164_RE } from '@auth/e164'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -29,20 +30,25 @@ import { teamsKeys } from '../hooks/use-teams'
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   role: z.enum(['admin', 'member']),
+  // Optional staff phone — rides the invitation row and is copied onto the
+  // user at sign-in (see `auth/index.ts` autoEnroll). `null` when left blank.
+  phoneNumber: z.string().regex(E164_RE, 'Phone must be E.164 with leading + (e.g. +6591234567)').nullable(),
 })
 
 export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const qc = useQueryClient()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'member'>('member')
+  const [phone, setPhone] = useState('')
 
   const invite = useMutation({
-    mutationFn: async (input: { email: string; role: 'admin' | 'member' }) => {
+    mutationFn: async (input: { email: string; role: 'admin' | 'member'; phoneNumber: string | null }) => {
       // biome-ignore lint/suspicious/noExplicitAny: better-auth runtime types are loose
       const result = await (authClient.organization as any).inviteMember({
         email: input.email,
         role: input.role,
         resend: true,
+        ...(input.phoneNumber ? { phoneNumber: input.phoneNumber } : {}),
       })
       if (result.error) throw new Error(result.error.message ?? 'inviteMember failed')
       return result.data
@@ -53,6 +59,7 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
       qc.invalidateQueries({ queryKey: ['staff'] })
       setEmail('')
       setRole('member')
+      setPhone('')
       onOpenChange(false)
     },
     onError: (err: Error) => toast.error(err.message),
@@ -60,7 +67,7 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const parsed = inviteSchema.safeParse({ email, role })
+    const parsed = inviteSchema.safeParse({ email, role, phoneNumber: phone.trim() || null })
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message)
       return
@@ -101,6 +108,20 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="invite-phone">WhatsApp number (optional)</Label>
+            <Input
+              id="invite-phone"
+              type="tel"
+              placeholder="+6591234567"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <p className="text-muted-foreground text-xs">
+              E.164 with leading <code>+</code>. Used for mention-ping notifications; editable later on the staff
+              profile.
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

@@ -53,12 +53,14 @@ export interface StaffProfile {
   /** Heartbeat for presence / offline detection (mentions notification flow). */
   lastSeenAt: Date | null
   /**
-   * Personal WhatsApp phone in E.164 (`+`-prefixed at the API edge; stored as
-   * `+`-prefixed text). Used by `team/service/mention-notify.ts` to ping the
+   * Personal phone in E.164 (`+`-prefixed). NOT a `staff_profiles` column — it
+   * lives on the better-auth `user` table (phone-number plugin) and is joined
+   * in by the staff service on read. Set by an admin at invite time or via the
+   * staff profile form. Used by `team/service/mention-notify.ts` to ping the
    * staff member on the org's notification-tier WhatsApp number when an agent
    * @-mentions them in an internal note.
    */
-  whatsappPhoneE164: string | null
+  phoneNumber: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -99,12 +101,6 @@ export const staffProfiles = teamPgSchema.table(
     profile: text('profile').notNull().default(''),
     memory: text('memory').notNull().default(''),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
-    /**
-     * Personal WhatsApp phone in E.164 (with leading `+`). Nullable; populated
-     * via the staff settings page. Read by `mention-notify.ts` to dispatch
-     * @-mention pings on the notification-tier WhatsApp channel.
-     */
-    whatsappPhoneE164: text('whatsapp_phone_e164'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
@@ -116,7 +112,6 @@ export const staffProfiles = teamPgSchema.table(
     index('idx_staff_profiles_sectors').using('gin', t.sectors),
     index('idx_staff_profiles_expertise').using('gin', t.expertise),
     index('idx_staff_profiles_languages').using('gin', t.languages),
-    index('idx_staff_profiles_whatsapp_phone').on(t.whatsappPhoneE164),
     check('staff_profiles_availability_check', sql`availability IN ('active','busy','off','inactive')`),
     check('staff_profiles_capacity_check', sql`capacity >= 0`),
   ],
@@ -203,10 +198,12 @@ export const pendingMentionPings = teamPgSchema.table(
 )
 
 // Compile-time drift guards
+// `phoneNumber` is omitted: it's joined in from the better-auth `user` table
+// by the staff service, not a `staff_profiles` column.
 type _StaffProfileAssert =
   InferSelectModel<typeof staffProfiles> extends Omit<
     StaffProfile,
-    'sectors' | 'expertise' | 'languages' | 'attributes' | 'availability'
+    'sectors' | 'expertise' | 'languages' | 'attributes' | 'availability' | 'phoneNumber'
   >
     ? true
     : never

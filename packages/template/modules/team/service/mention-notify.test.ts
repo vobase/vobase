@@ -3,7 +3,7 @@
  *
  * Covers the WHERE/WHO contract:
  *   - sends through `findNotificationChannel` (NOT the customer-WA channel)
- *   - dials `staff_profiles.whatsappPhoneE164` (NOT `staff_channel_bindings`)
+ *   - dials the staff member's `phoneNumber` (joined from the better-auth user)
  *   - records a `pendingMentionPings` row ONLY on a successful WA send AND
  *     when an agent authored the note
  *
@@ -155,14 +155,14 @@ function installStubs(): void {
         profile: '',
         memory: '',
         lastSeenAt: lastSeenOffline,
-        whatsappPhoneE164: null,
+        phoneNumber: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         ...overrides,
       })
-      if (userId === STAFF_X) return make({ whatsappPhoneE164: STAFF_PHONE })
-      if (userId === STAFF_NO_PHONE) return make({ whatsappPhoneE164: null })
-      if (userId === STAFF_ONLINE) return make({ whatsappPhoneE164: STAFF_PHONE, lastSeenAt: lastSeenOnline })
+      if (userId === STAFF_X) return make({ phoneNumber: STAFF_PHONE })
+      if (userId === STAFF_NO_PHONE) return make({ phoneNumber: null })
+      if (userId === STAFF_ONLINE) return make({ phoneNumber: STAFF_PHONE, lastSeenAt: lastSeenOnline })
       return null
     },
     // biome-ignore lint/suspicious/noExplicitAny: stub
@@ -260,7 +260,7 @@ describe('mention-notify rewrite (Unit 8)', () => {
     expect(recordedPings).toEqual([{ conversationId: 'conv-test', staffUserId: STAFF_X, askingAgentId: AGENT_ID }])
   })
 
-  it('skips staff with no whatsappPhoneE164', async () => {
+  it('skips staff with no phoneNumber', async () => {
     const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_NO_PHONE}`]))
     expect(result.notified).toEqual([])
     expect(result.skipped[0]?.reason).toBe('no_whatsapp_phone')
