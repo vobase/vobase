@@ -13,8 +13,9 @@ import { listNotes } from './service/notes'
 import { sendStaffReply } from './service/staff-reply'
 import { summarizeMessageContent } from './service/summarize-content'
 
-// Must stay byte-identical with `renderInternalNotes` in `./agent.ts` so
-// operators read exactly what the agent reads inside its bash sandbox.
+// Standalone notes-only markdown view for the `messaging notes` CLI verb. The
+// agent itself sees these notes interleaved into CONVERSATION.md (see
+// `noteEntry` in ./agent.ts); this is the separate operator-facing rendering.
 function renderInternalNotesMd(
   notes: ReadonlyArray<{ authorType: string; authorId: string; createdAt: Date; mentions: string[]; body: string }>,
 ): string {
@@ -194,7 +195,7 @@ export const messagingMessagesVerb = defineCliVerb({
 export const messagingNotesVerb = defineCliVerb({
   name: 'messaging notes',
   description:
-    'Render the conversation’s internal notes the same way the agent sees them inside its bash sandbox (a single concatenated markdown view of INTERNAL-NOTES.md).',
+    'Render the conversation’s internal notes as a standalone markdown view (the staff-thread rows the agent sees interleaved in CONVERSATION.md).',
   audience: 'staff',
   input: z.object({ id: z.string().min(1) }),
   body: async ({ input, ctx }) => {

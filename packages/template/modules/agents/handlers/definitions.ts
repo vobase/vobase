@@ -87,7 +87,7 @@ type PreviewQuery = z.infer<typeof previewQuery>
  * messaging's staff-note prose) appear in the right cases.
  *
  * Drive / staff / auth handles are stubbed because the AGENTS.md
- * materializer never reads them — only the MESSAGES.md / PROFILE.md
+ * materializer never reads them — only the CONVERSATION.md / PROFILE.md
  * materializers do, and those don't fire here. Type-safety satisfied;
  * runtime never touches them.
  */

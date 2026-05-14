@@ -12,7 +12,7 @@ describe('buildActiveIdsPreamble', () => {
       channelInstanceId: 'ci_test',
     })
     expect(line).toBe(
-      'You are /agents/a_test/, conversing with /contacts/c_test/ via /contacts/c_test/ci_test/. Latest at /contacts/c_test/ci_test/MESSAGES.md.',
+      'You are /agents/a_test/, conversing with /contacts/c_test/ via /contacts/c_test/ci_test/. Latest at /contacts/c_test/ci_test/CONVERSATION.md.',
     )
   })
 
@@ -228,7 +228,7 @@ describe('buildFrozenPrompt regions', () => {
     const preambleRegion = regions.find((r) => r.source === 'preamble')
     expect(preambleRegion).toBeDefined()
     expect(system.slice(preambleRegion?.start, preambleRegion?.end)).toBe(
-      'You are /agents/a_test/, conversing with /contacts/c_test/ via /contacts/c_test/ci_test/. Latest at /contacts/c_test/ci_test/MESSAGES.md.',
+      'You are /agents/a_test/, conversing with /contacts/c_test/ via /contacts/c_test/ci_test/. Latest at /contacts/c_test/ci_test/CONVERSATION.md.',
     )
   })
 

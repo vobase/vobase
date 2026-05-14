@@ -187,10 +187,7 @@ describe('per-module materializer factories', () => {
     const conv = messagingMaterializerFactory(conversationCtx())
     const stand = messagingMaterializerFactory(standaloneCtx())
     const partial = messagingMaterializerFactory(conversationCtx({ channelInstanceId: undefined }))
-    expect(conv.map((m) => m.path)).toEqual([
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/MESSAGES.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/INTERNAL-NOTES.md`,
-    ])
+    expect(conv.map((m) => m.path)).toEqual([`/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/CONVERSATION.md`])
     expect(stand).toEqual([])
     expect(partial).toEqual([])
   })
@@ -224,8 +221,7 @@ describe('per-module materializer factories', () => {
       `/agents/${AGENT_ID}/MEMORY.md`,
       `/contacts/${CONTACT_ID}/PROFILE.md`,
       `/contacts/${CONTACT_ID}/MEMORY.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/MESSAGES.md`,
-      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/INTERNAL-NOTES.md`,
+      `/contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/CONVERSATION.md`,
       '/staff/s1/PROFILE.md',
       '/staff/s1/MEMORY.md',
     ])
@@ -359,9 +355,9 @@ describe('roHints chained across modules', () => {
 
   it('falls through when earlier modules do not own the path', () => {
     const chain = chainRoHints([...driveRoHints, ...messagingRoHints])
-    const out = chain('/contacts/c1/ci1/MESSAGES.md')
-    expect(out).toContain('Read-only filesystem')
-    expect(out).toContain('Use the `reply` tool')
+    const out = chain('/contacts/c1/ci1/CONVERSATION.md')
+    expect(out).toContain('Read-only file')
+    expect(out).toContain('reply_contact')
   })
 
   it('returns null when no module claims the path (harness uses generic RO error)', () => {

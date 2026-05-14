@@ -58,7 +58,7 @@ describe('renderUnreadActivity', () => {
       hasMoreSelf: false,
     }
     const out = renderUnreadActivity(snap, FOLDER)
-    expect(out).toContain(`more older messages exist beyond the 50-row cap — read ${FOLDER}/MESSAGES.md`)
+    expect(out).toContain(`more older messages exist beyond the 50-row cap — read ${FOLDER}/CONVERSATION.md`)
   })
 
   it('renders staff messages and notes alongside customer messages', () => {

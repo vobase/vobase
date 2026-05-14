@@ -1,5 +1,5 @@
 /**
- * Step 13 acceptance — `MESSAGES.md` materializer attachment caption blocks.
+ * Step 13 acceptance — `CONVERSATION.md` materializer attachment caption blocks.
  *
  * Asserts:
  *   1. Inline `[file: …]` / `[binary: …]` blocks render per-attachment.
@@ -15,11 +15,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { driveFiles } from '@modules/drive/schema'
-import {
-  getAttachmentSnapshot,
-  invalidateAttachmentSnapshot,
-  renderTranscriptFromMessages,
-} from '@modules/messaging/agent'
+import { getAttachmentSnapshot, invalidateAttachmentSnapshot, renderConversation } from '@modules/messaging/agent'
 import { messages as messagesTable } from '@modules/messaging/schema'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import type { DriveFileProjection } from '@modules/messaging/service/drive-attachments'
@@ -41,7 +37,7 @@ afterAll(async () => {
   if (h) await h.teardown()
 })
 
-describe('MESSAGES.md attachments — render + snapshot semantics', () => {
+describe('CONVERSATION.md attachments — render + snapshot semantics', () => {
   it('renders [file: …] block for an extracted attachment and observes path drift on next wake', async () => {
     const externalId = `wa_md_${Date.now()}`
     const result = await createInboundMessage({
@@ -81,9 +77,9 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
       .select()
       .from(messagesTable)
       .where(eq(messagesTable.conversationId, result.conversation.id))) as Array<
-      Parameters<typeof renderTranscriptFromMessages>[0][number]
+      Parameters<typeof renderConversation>[0][number]
     >
-    const transcriptN = renderTranscriptFromMessages(rows, snapshotN)
+    const transcriptN = renderConversation(rows, [], snapshotN)
     expect(transcriptN).toContain('[file: ')
     expect(transcriptN).toContain('PDF caption sentence')
 
@@ -97,13 +93,13 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
 
     // Snapshot N is frozen — re-render still shows old path because the
     // map was captured before the path mutation.
-    const transcriptNStillFrozen = renderTranscriptFromMessages(rows, snapshotN)
+    const transcriptNStillFrozen = renderConversation(rows, [], snapshotN)
     expect(transcriptNStillFrozen).not.toContain('spec-renamed.md')
 
     // Wake N+1 — invalidate, refetch, observe new path.
     invalidateAttachmentSnapshot(organizationId, result.conversation.id)
     const snapshotNext = await getAttachmentSnapshot(organizationId, result.conversation.id)
-    const transcriptNext = renderTranscriptFromMessages(rows, snapshotNext)
+    const transcriptNext = renderConversation(rows, [], snapshotNext)
     expect(transcriptNext).toContain('spec-renamed.md')
   })
 
@@ -132,7 +128,7 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
       metadata: {},
       createdAt: new Date(),
     }
-    const transcript = renderTranscriptFromMessages([fakeRow], new Map())
+    const transcript = renderConversation([fakeRow], [], new Map())
     expect(transcript).toContain('/contacts/x/y/attachments/missing.md — unavailable')
   })
 
@@ -174,7 +170,7 @@ describe('MESSAGES.md attachments — render + snapshot semantics', () => {
         },
       ],
     ])
-    const transcript = renderTranscriptFromMessages([fakeRow], driveMap)
+    const transcript = renderConversation([fakeRow], [], driveMap)
     expect(transcript).toContain('[binary: /contacts/x/y/attachments/intro.mp4 (video/mp4, 1.0 MB)]')
   })
 })

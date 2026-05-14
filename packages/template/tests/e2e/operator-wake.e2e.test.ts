@@ -183,10 +183,9 @@ describe('standaloneWakeConfig (real PG)', () => {
     const paths = (config.materializers ?? []).map((m) => m.path)
     expect(paths).toContain('/INDEX.md')
 
-    // Conversation transcript materializers MUST NOT be present — operator
+    // Conversation timeline materializer MUST NOT be present — operator
     // wakes have no contactId, no channelInstanceId.
-    expect(paths.some((p) => p.endsWith('/MESSAGES.md'))).toBe(false)
-    expect(paths.some((p) => p.endsWith('/INTERNAL-NOTES.md'))).toBe(false)
+    expect(paths.some((p) => p.endsWith('/CONVERSATION.md'))).toBe(false)
 
     // Operator brief side-load — framing only, message body has moved to the
     // user-turn render text (see the renderTrigger assertion below).
@@ -218,7 +217,7 @@ describe('standaloneWakeConfig (real PG)', () => {
     expect(renderedTrigger).toContain('A staff member posted in your operator thread')
 
     // Trigger renderer should produce the operator-friendly cue, NOT the
-    // conversation-lane "see MESSAGES.md" cue.
+    // conversation-lane "see CONVERSATION.md" cue.
     const cue = config.renderTrigger?.(config.trigger)
     expect(cue).toContain('staff member posted')
   })

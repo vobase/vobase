@@ -108,7 +108,7 @@ export function buildActiveIdsPreamble(ids: {
   channelInstanceId?: string
 }): string {
   if (ids.contactId && ids.channelInstanceId) {
-    return `You are /agents/${ids.agentId}/, conversing with /contacts/${ids.contactId}/ via /contacts/${ids.contactId}/${ids.channelInstanceId}/. Latest at /contacts/${ids.contactId}/${ids.channelInstanceId}/MESSAGES.md.`
+    return `You are /agents/${ids.agentId}/, conversing with /contacts/${ids.contactId}/ via /contacts/${ids.contactId}/${ids.channelInstanceId}/. Latest at /contacts/${ids.contactId}/${ids.channelInstanceId}/CONVERSATION.md.`
   }
   return `You are /agents/${ids.agentId}/.`
 }

@@ -101,7 +101,7 @@ function quoteBody(body: string): string {
 
 function renderInboundMessage(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'inbound_message') return ''
-  const pointer = `See ${convoFolder(refs)}/MESSAGES.md for the full thread.`
+  const pointer = `See ${convoFolder(refs)}/CONVERSATION.md for the full thread.`
   const body = trigger.body?.trim()
   if (!body) return `New customer message(s). ${pointer}`
   return `New customer message:\n\n${quoteBody(body)}\n\n${pointer}`
@@ -125,10 +125,10 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'staff_note') return ''
   const lead = trigger.mentionedAgentId ? `Staff @-mentioned you in an internal note` : `Staff added an internal note`
   const body = trigger.body?.trim()
-  const pointer = `Full thread in ${convoFolder(refs)}/INTERNAL-NOTES.md.`
+  const pointer = `Full thread in ${convoFolder(refs)}/CONVERSATION.md.`
   const noteSection = body
     ? `${lead} from staff:${trigger.authorUserId}:\n\n${quoteBody(body)}\n\n${pointer}`
-    : `${lead}. Read ${convoFolder(refs)}/INTERNAL-NOTES.md for context.`
+    : `${lead}. Read ${convoFolder(refs)}/CONVERSATION.md for context.`
   const youOwn = refs.assignee === `agent:${refs.currentAgentId}`
   const ownership = youOwn
     ? `You are the conversation assignee.`
@@ -165,7 +165,7 @@ function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
 function renderCaptionReady(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'caption_ready') return ''
   const fileLabel = trigger.filePath ?? `file ${trigger.fileId}`
-  const pointer = `Re-read ${convoFolder(refs)}/MESSAGES.md for the updated context.`
+  const pointer = `Re-read ${convoFolder(refs)}/CONVERSATION.md for the updated context.`
   const caption = trigger.caption?.trim()
   if (!caption) return `Caption ready for ${fileLabel}. ${pointer}`
   return `Caption ready for ${fileLabel}:\n\n${quoteBody(caption)}\n\n${pointer}`

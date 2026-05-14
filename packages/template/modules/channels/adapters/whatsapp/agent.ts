@@ -3,14 +3,14 @@
  *
  * When staff send messages via the WhatsApp Business App (SMB coexistence),
  * those messages arrive as echoes with `role='staff', metadata.echo=true`. The
- * agent sees them in `MESSAGES.md` on the next turn's side-load and must stay
- * silent so it doesn't talk over the human staffer.
+ * agent sees them in `CONVERSATION.md` on the next turn's side-load and must
+ * stay silent so it doesn't talk over the human staffer.
  *
  * `whatsappAgentsMdContributors` is the canonical export aggregated by the
  * channels umbrella's `agent.ts` (pattern mirrors `messaging/agent.ts`).
  *
  * The echo block renders only on conversation-lane wakes — standalone
- * (operator/heartbeat) wakes don't see `MESSAGES.md` so the rule is moot.
+ * (operator/heartbeat) wakes don't see `CONVERSATION.md` so the rule is moot.
  */
 import { defineIndexContributor, type HarnessPlatformHint, type IndexContributor } from '@vobase/core'
 
@@ -33,7 +33,7 @@ export const whatsappAgentsMdContributors: readonly IndexContributor[] = [
     render: (ctx) => {
       const wake = getWakeAgentsMdScratch(ctx)
       // Echoes only show up on conversation-lane wakes; standalone
-      // (operator/heartbeat) wakes don't see MESSAGES.md.
+      // (operator/heartbeat) wakes don't see CONVERSATION.md.
       if (wake?.lane !== 'conversation') return null
       return whatsappAgentsMd
     },

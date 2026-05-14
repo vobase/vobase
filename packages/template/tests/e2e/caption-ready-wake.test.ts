@@ -4,7 +4,7 @@
  * Asserts the producer-to-consumer wiring of the new wake trigger:
  *   1. The `WakeTriggerSchema` validates a `caption_ready` payload.
  *   2. `wake/trigger.ts:REGISTRY['caption_ready'].render` produces the
- *      first-turn cue pointing the agent back at MESSAGES.md.
+ *      first-turn cue pointing the agent back at CONVERSATION.md.
  *   3. `AgentsWakePayloadSchema` accepts a payload that omits
  *      `messageId` but carries an explicit `caption_ready` trigger,
  *      mirroring what `modules/drive/jobs.ts` enqueues post-OCR.
@@ -39,7 +39,7 @@ describe('caption_ready wake trigger — Step 11a wiring', () => {
       { contactId: 'ctt0test00', channelInstanceId: 'chi0cust00' },
     )
     expect(cue).toContain('Caption ready for file f-1')
-    expect(cue).toContain('/contacts/ctt0test00/chi0cust00/MESSAGES.md')
+    expect(cue).toContain('/contacts/ctt0test00/chi0cust00/CONVERSATION.md')
   })
 
   it('AgentsWakePayloadSchema accepts caption_ready payload without messageId', () => {

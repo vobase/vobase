@@ -25,7 +25,7 @@ export type WakeTrigger =
       messageIds: string[]
       /**
        * Latest customer message body, inlined into the wake cue so the agent
-       * can decide without first running `cat …/MESSAGES.md`. Optional for
+       * can decide without first running `cat …/CONVERSATION.md`. Optional for
        * back-compat with legacy queue rows enqueued before the body was
        * threaded through; the renderer falls back to a pointer-only cue when
        * absent. Producers set this from the channel event content (or a
@@ -54,7 +54,7 @@ export type WakeTrigger =
       mentionedAgentId?: string
       /**
        * Note body, inlined into the wake cue so the agent doesn't have to cat
-       * INTERNAL-NOTES.md just to learn what the latest note says. Optional
+       * CONVERSATION.md just to learn what the latest note says. Optional
        * for back-compat with legacy queue rows; renderer falls back to a
        * pointer-only cue when absent. Producer: `messaging/service/notes.ts`
        * post-commit fan-out (the body it just inserted).
@@ -68,7 +68,7 @@ export type WakeTrigger =
   /**
    * Drive caption / OCR finished for a binary-stub or extracted file the
    * agent asked about (or that arrived as an inbound attachment). The wake
-   * fires conversation-bound so the agent re-reads `MESSAGES.md` for the
+   * fires conversation-bound so the agent re-reads `CONVERSATION.md` for the
    * new caption block. Producer: `modules/drive/jobs.ts`'s `forceCaption`
    * branch. See `wake/trigger.ts` for the renderer.
    */

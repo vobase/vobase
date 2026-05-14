@@ -3,12 +3,13 @@
  *
  * Materializers are wake-time factories — `/contacts/<contactId>/<channelInstanceId>/`
  * paths encode `channelInstanceId`, which is only known once the wake resolves
- * its conversation. They render the rolling transcript + internal notes from
- * `messages` and `conversation_internal_notes`.
+ * its conversation. They render `CONVERSATION.md` — one interleaved timeline of
+ * customer messages and internal staff notes from `messages` and
+ * `internal_notes`.
  *
  * `conversationSideLoad` is the static "respond now" task instruction + the
- * rendered transcript + the contact profile block — composed by the wake
- * handler at `agent_start`. Lives here because the transcript + contact-block
+ * rendered conversation timeline + the contact profile block — composed by the
+ * wake handler at `agent_start`. Lives here because the timeline + contact-block
  * rendering are messaging concerns.
  *
  * The agent-bash verb `conv reassign` lives as a `defineCliVerb` definition
@@ -45,18 +46,15 @@ import { sendFileTool } from './tools/send-file'
 import { summarizeInboxTool } from './tools/summarize-inbox'
 
 /**
- * RO-error hints for messaging-owned derived files: the customer timeline
- * (`MESSAGES.md`) and the staff thread (`INTERNAL-NOTES.md`). Both accept
- * mutations only via tool calls — `reply_contact` / `send_card` / `send_file`
- * for the customer timeline; `consult_staff` / `add_note` for the staff thread.
+ * RO-error hint for the messaging-owned derived file `CONVERSATION.md` — the
+ * single interleaved timeline of customer messages and internal staff notes.
+ * It accepts mutations only via tool calls: `reply_contact` / `send_card` /
+ * `send_file` for the customer; `consult_staff` / `add_note` for the staff thread.
  */
 export const messagingRoHints: RoHintFn[] = [
   (path) => {
-    if (path.endsWith('/MESSAGES.md')) {
-      return `bash: ${path}: Read-only file.\n  This is the customer-visible conversation timeline. Use \`reply_contact\` (or \`send_card\`, \`send_file\`) to send the customer a message; do not append to this file.`
-    }
-    if (path.endsWith('/INTERNAL-NOTES.md')) {
-      return `bash: ${path}: Read-only file.\n  This is the staff thread for this conversation. Use \`consult_staff\` to message a colleague, or \`add_note\` to leave a breadcrumb; do not append to this file.`
+    if (path.endsWith('/CONVERSATION.md')) {
+      return `bash: ${path}: Read-only file.\n  This is the full conversation timeline — customer messages and internal staff notes interleaved. Use \`reply_contact\` (or \`send_card\`, \`send_file\`) to message the customer; \`consult_staff\` to message a colleague, or \`add_note\` to leave a breadcrumb. Do not append to this file.`
     }
     return null
   },
@@ -99,10 +97,10 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## Conversation surface',
         '',
-        'This conversation has two threads, equal in standing — read both before you act:',
+        '`/contacts/<id>/<channelInstanceId>/CONVERSATION.md` is the full timeline of this conversation — customer messages, your replies, and internal staff notes, interleaved in time order. Read it before you act. Rows are audience-labelled:',
         '',
-        '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — the customer thread. What the customer sees.',
-        '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — the staff thread. You and your colleagues; the customer never sees it. A note here newer than your last action means a colleague is waiting on you.',
+        '- `**Customer**` / `**Agent → customer**` / `**Staff → customer**` — the customer-visible thread. What the customer sees.',
+        '- `**[internal] …**` — the staff thread. You and your colleagues; the customer never sees these rows. An `[internal]` row newer than your last action means a colleague is waiting on you.',
         '',
         'Write to the customer with `reply_contact` / `send_card` / `send_file`; to a staff colleague with `consult_staff`; an undirected breadcrumb with `add_note`. Reassign with `vobase conv reassign`. See `## Tool guidance` for when to use each.',
         '',
@@ -213,39 +211,92 @@ function renderAttachmentBlock(
   return `[file: ${path}]\n  > ${caption}\n  > (cat for full text)`
 }
 
+/** One timeline row — a message or a note — carrying sort keys for the merge. */
+interface ConversationEntry {
+  ts: number
+  /** 0 = message, 1 = note: messages sort before notes at an equal timestamp. */
+  rank: 0 | 1
+  id: string
+  lines: string[]
+}
+
+function messageRoleLabel(role: Message['role']): string {
+  if (role === 'customer') return 'Customer'
+  if (role === 'agent') return 'Agent → customer'
+  if (role === 'staff') return 'Staff → customer'
+  return 'System'
+}
+
+function messageText(m: Message): string {
+  if (m.kind === 'text') return (m.content as { text?: string }).text ?? ''
+  if (m.kind === 'card') return `[card: ${JSON.stringify(m.content)}]`
+  if (m.kind === 'card_reply') return `[card reply: ${JSON.stringify(m.content)}]`
+  return `[${m.kind}]`
+}
+
 /**
- * Render the conversation transcript with optional drive-attachment
- * caption blocks per message.
- *
- * Drive enrichment is a per-wake snapshot. Path drift from re-extraction
- * (mime reclassification) surfaces on the NEXT wake, never mid-turn —
- * consistent with the frozen-snapshot rule. A single materialization
- * sees a single drive state.
+ * Prefix every line of untrusted body text with `> `. The `**…**` row headers
+ * are the only thing telling the agent whether a row is customer-visible or
+ * the internal staff thread; blockquoting message text and note bodies keeps a
+ * column-0 `**` renderer-only, so a customer message or staff note body cannot
+ * typographically forge a row of a different audience.
  */
-export function renderTranscriptFromMessages(
+function blockquoteBody(body: string): string {
+  return body
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n')
+}
+
+function messageEntry(m: Message, driveFilesById: Map<string, DriveFileProjection>): ConversationEntry {
+  const created = new Date(m.createdAt)
+  const lines = [`**${messageRoleLabel(m.role)}** (${created.toISOString()}):`, blockquoteBody(messageText(m))]
+  for (const att of m.attachments ?? []) {
+    lines.push(renderAttachmentBlock(att, driveFilesById.get(att.driveFileId)))
+  }
+  return { ts: created.getTime(), rank: 0, id: m.id, lines }
+}
+
+function noteEntry(n: InternalNote): ConversationEntry {
+  const created = new Date(n.createdAt)
+  const who = n.authorType === 'staff' ? `Staff:${n.authorId}` : n.authorType === 'agent' ? 'Agent' : 'System'
+  // Mentions are system-generated `staff:<userId>` tokens — strip anything
+  // outside the id charset so a malformed token can't break the header line.
+  const tokens = n.mentions.map((t) => t.replace(/[^\w:.-]/g, ''))
+  const mentions = tokens.length > 0 ? ` (@${tokens.join(' @')})` : ''
+  return {
+    ts: created.getTime(),
+    rank: 1,
+    id: n.id,
+    lines: [`**[internal] ${who}** (${created.toISOString()})${mentions}:`, blockquoteBody(n.body)],
+  }
+}
+
+/**
+ * Render the conversation as ONE interleaved timeline — customer messages, the
+ * agent's replies, and internal staff notes — ordered by `createdAt`. Rows are
+ * audience-labelled: customer-visible rows (`**Customer**`, `**Agent →
+ * customer**`, `**Staff → customer**`) and internal rows (`**[internal] …**`,
+ * the staff thread the customer never sees).
+ *
+ * The merge is deterministic — equal timestamps break ties by (message before
+ * note, then id) — so the file is byte-stable across re-renders within a wake,
+ * preserving the frozen-snapshot `systemHash` invariant. Drive enrichment is a
+ * per-wake snapshot: path drift from re-extraction surfaces on the NEXT wake,
+ * never mid-turn.
+ */
+export function renderConversation(
   msgs: readonly Message[],
+  notes: readonly InternalNote[],
   driveFilesById: Map<string, DriveFileProjection> = new Map(),
 ): string {
-  if (msgs.length === 0) return '# Conversation\n\n_No messages yet._\n'
+  if (msgs.length === 0 && notes.length === 0) return '# Conversation\n\n_No messages yet._\n'
+  const entries: ConversationEntry[] = [
+    ...msgs.map((m) => messageEntry(m, driveFilesById)),
+    ...notes.map(noteEntry),
+  ].sort((a, b) => a.ts - b.ts || a.rank - b.rank || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const lines = ['# Conversation', '']
-  for (const m of msgs) {
-    const role = m.role === 'customer' ? 'Customer' : m.role === 'agent' ? 'Agent' : 'System'
-    const text =
-      m.kind === 'text'
-        ? ((m.content as { text?: string }).text ?? '')
-        : m.kind === 'card'
-          ? `[card: ${JSON.stringify(m.content)}]`
-          : m.kind === 'card_reply'
-            ? `[card reply: ${JSON.stringify(m.content)}]`
-            : `[${m.kind}]`
-    lines.push(`**${role}** (${new Date(m.createdAt).toISOString()}):`)
-    lines.push(text)
-    for (const att of m.attachments ?? []) {
-      const driveFile = driveFilesById.get(att.driveFileId)
-      lines.push(renderAttachmentBlock(att, driveFile))
-    }
-    lines.push('')
-  }
+  for (const e of entries) lines.push(...e.lines, '')
   return lines.join('\n')
 }
 
@@ -255,35 +306,22 @@ function collectAttachmentIds(msgs: readonly Message[]): string[] {
   return [...ids]
 }
 
-export async function renderTranscript(
+export async function renderConversationFromSources(
   messaging: MessagingReader,
   conversationId: string,
   driveFilesById?: Map<string, DriveFileProjection>,
 ): Promise<string> {
-  const msgs = (await messaging.listMessages(conversationId, { limit: 200 })) as Message[]
-  return renderTranscriptFromMessages(msgs, driveFilesById ?? new Map())
-}
-
-export function renderInternalNotesFromList(notes: readonly InternalNote[]): string {
-  if (notes.length === 0) return '# Internal Notes\n\n_No notes yet._\n'
-  const lines = ['# Internal Notes', '']
-  for (const n of notes) {
-    const mentions = n.mentions.length > 0 ? ` (@${n.mentions.join(' @')})` : ''
-    lines.push(`**${n.authorType}:${n.authorId}** (${new Date(n.createdAt).toISOString()})${mentions}:`)
-    lines.push(n.body, '')
-  }
-  return lines.join('\n')
-}
-
-export async function renderInternalNotes(messaging: MessagingReader, conversationId: string): Promise<string> {
-  const notes = await messaging.listInternalNotes(conversationId).catch(() => [])
-  return renderInternalNotesFromList(notes as InternalNote[])
+  const [msgs, notes] = await Promise.all([
+    messaging.listMessages(conversationId, { limit: 200 }) as Promise<Message[]>,
+    messaging.listInternalNotes(conversationId).catch(() => [] as InternalNote[]),
+  ])
+  return renderConversation(msgs, notes, driveFilesById ?? new Map())
 }
 
 /**
  * Per-wake attachment-prefetch cache. Keyed by `${orgId}:${conversationId}`,
  * invalidated at the top of every wake (when the materializer factory
- * runs) and shared between the initial `MESSAGES.md` materialization and
+ * runs) and shared between the initial `CONVERSATION.md` materialization and
  * `conversationSideLoad`'s per-turn re-render so a single wake issues
  * exactly ONE batched drive query for attachment enrichment.
  */
@@ -331,17 +369,12 @@ export const messagingMaterializerFactory: WakeMaterializerFactory = (ctx) => {
   const folder = `/contacts/${ctx.contactId}/${ctx.channelInstanceId}`
   return [
     {
-      path: `${folder}/MESSAGES.md`,
+      path: `${folder}/CONVERSATION.md`,
       phase: 'frozen',
       materialize: async (mctx) => {
         const snapshot = await getAttachmentSnapshot(ctx.organizationId, mctx.conversationId)
-        return renderTranscript(messagingReader, mctx.conversationId, snapshot)
+        return renderConversationFromSources(messagingReader, mctx.conversationId, snapshot)
       },
-    },
-    {
-      path: `${folder}/INTERNAL-NOTES.md`,
-      phase: 'frozen',
-      materialize: (mctx) => renderInternalNotes(messagingReader, mctx.conversationId),
     },
   ]
 }
@@ -370,7 +403,7 @@ export async function loadMessagingIndexContributors(opts: MessagingIndexContrib
         for (const c of top) {
           const last = c.lastMessageAt ? new Date(c.lastMessageAt).toISOString() : 'never'
           lines.push(
-            `- /contacts/${c.contactId}/${c.channelInstanceId}/MESSAGES.md — assignee=${c.assignee} status=${c.status} last=${last}`,
+            `- /contacts/${c.contactId}/${c.channelInstanceId}/CONVERSATION.md — assignee=${c.assignee} status=${c.status} last=${last}`,
           )
         }
         if (open.length > top.length) lines.push(`- … and ${open.length - top.length} more`)
@@ -396,7 +429,7 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
     getContact(ctx.contactId).catch(() => null),
     getAttachmentSnapshot(ctx.organizationId, ctx.conversationId),
   ])
-  const transcript = renderTranscriptFromMessages(msgs, driveFilesById)
+  const transcript = renderConversation(msgs, notes, driveFilesById)
   const contactBlock = contact
     ? `# Contact\n\nName: ${contact.displayName ?? '(unknown)'}\nPhone: ${contact.phone ?? ''}\nEmail: ${contact.email ?? ''}\nSegments: ${(contact.segments ?? []).join(', ') || '(none)'}\nMemory:\n${contact.memory || '(empty)'}\n`
     : '# Contact\n\n(no profile)\n'
@@ -410,9 +443,9 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   ].join('\n')
 
   // Unaddressed staff content: a staff/system note newer than the agent's
-  // last action (its last customer message or its last breadcrumb). Pushed
-  // into context so the staff thread is as unmissable as the customer
-  // transcript — not a file the agent has to remember to open.
+  // last action (its last customer message or its last breadcrumb). When one
+  // exists, push a banner above the transcript so the waiting colleague is
+  // unmissable — the `[internal]` row itself is already inline in CONVERSATION.md.
   const lastAgentActivityAt = Math.max(
     0,
     ...msgs.filter((m) => m.role === 'agent').map((m) => new Date(m.createdAt).getTime()),
@@ -421,13 +454,13 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   const hasUnaddressedStaffNote = notes.some(
     (n) => n.authorType !== 'agent' && new Date(n.createdAt).getTime() > lastAgentActivityAt,
   )
+  const staffBanner =
+    '⚠ An `[internal]` note in CONVERSATION.md is newer than your last action — a colleague is waiting on you. Read it and respond with `consult_staff` before replying to the customer.'
 
   return [
     { kind: 'custom' as const, priority: 100, render: () => instruction },
+    ...(hasUnaddressedStaffNote ? [{ kind: 'custom' as const, priority: 95, render: () => staffBanner }] : []),
     { kind: 'custom' as const, priority: 90, render: () => transcript },
-    ...(hasUnaddressedStaffNote
-      ? [{ kind: 'custom' as const, priority: 85, render: () => renderInternalNotesFromList(notes) }]
-      : []),
     { kind: 'custom' as const, priority: 80, render: () => contactBlock },
   ]
 }

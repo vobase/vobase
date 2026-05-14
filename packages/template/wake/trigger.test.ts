@@ -163,7 +163,7 @@ describe('renderChangeDecided', () => {
 describe('renderStaffNote (assignee branch)', () => {
   const cap = resolveTriggerSpec('staff_note')
 
-  it('points at INTERNAL-NOTES and references the AGENTS.md routing table when body is absent', () => {
+  it('points at CONVERSATION.md and references the AGENTS.md routing table when body is absent', () => {
     const text = cap.render(
       {
         trigger: 'staff_note',
@@ -179,7 +179,7 @@ describe('renderStaffNote (assignee branch)', () => {
         currentAgentId: 'agt0mer0v1',
       },
     )
-    expect(text).toContain('INTERNAL-NOTES.md')
+    expect(text).toContain('CONVERSATION.md')
     expect(text).toMatch(/routing table|AGENTS\.md/)
     // No body provided → no blockquote.
     expect(text).not.toContain('> ')
@@ -204,7 +204,7 @@ describe('renderStaffNote (assignee branch)', () => {
     )
     expect(text).toContain('staff:usr0alice')
     expect(text).toContain('> @MeriGPT yes we are GST registered, UEN 202012345A')
-    expect(text).toContain('INTERNAL-NOTES.md')
+    expect(text).toContain('CONVERSATION.md')
     expect(text).toMatch(/routing table|AGENTS\.md/)
   })
 
@@ -241,10 +241,10 @@ describe('renderInboundMessage', () => {
     currentAgentId: 'agt0mer0v1',
   }
 
-  it('points at MESSAGES.md when no body is provided', () => {
+  it('points at CONVERSATION.md when no body is provided', () => {
     const text = cap.render({ trigger: 'inbound_message', conversationId: 'cnv0marcus', messageIds: ['m1'] }, refs)
     expect(text).toContain('New customer message(s)')
-    expect(text).toContain('/contacts/ct0marcus/ch0web/MESSAGES.md')
+    expect(text).toContain('/contacts/ct0marcus/ch0web/CONVERSATION.md')
     expect(text).not.toContain('> ')
   })
 
@@ -260,7 +260,7 @@ describe('renderInboundMessage', () => {
     )
     expect(text).toContain('New customer message:')
     expect(text).toContain('> are you GST registered?')
-    expect(text).toContain('MESSAGES.md')
+    expect(text).toContain('CONVERSATION.md')
   })
 })
 
@@ -276,7 +276,7 @@ describe('renderCaptionReady', () => {
   it('falls back to the file id pointer when caption is absent', () => {
     const text = cap.render({ trigger: 'caption_ready', conversationId: 'cnv0marcus', fileId: 'fil0001' }, refs)
     expect(text).toContain('Caption ready for file fil0001.')
-    expect(text).toContain('Re-read /contacts/ct0marcus/ch0web/MESSAGES.md')
+    expect(text).toContain('Re-read /contacts/ct0marcus/ch0web/CONVERSATION.md')
     expect(text).not.toContain('> ')
   })
 
@@ -293,7 +293,7 @@ describe('renderCaptionReady', () => {
     )
     expect(text).toContain('Caption ready for /policies/refunds.pdf:')
     expect(text).toContain('> Refund policy: 14-day window from purchase date, prorated thereafter.')
-    expect(text).toContain('Re-read /contacts/ct0marcus/ch0web/MESSAGES.md')
+    expect(text).toContain('Re-read /contacts/ct0marcus/ch0web/CONVERSATION.md')
   })
 })
 
@@ -322,7 +322,7 @@ describe('cue body truncation', () => {
       refs,
     )
     expect(text).toContain('[truncated')
-    expect(text).toContain('INTERNAL-NOTES.md')
+    expect(text).toContain('CONVERSATION.md')
     // The quoted body section (truncateForCue output + `> ` per line by quoteBody) is bounded by 4KB
     // plus ~2 bytes per line of blockquote prefix. Extract from the first quoted line to the trailing pointer.
     const quoteStart = text.indexOf('\n\n> ') + 2
@@ -331,7 +331,7 @@ describe('cue body truncation', () => {
     expect(Buffer.byteLength(quotedSection, 'utf8')).toBeLessThanOrEqual(4096 + 200)
   })
 
-  it('returns the pre-fix cue byte-for-byte when body is absent (back-compat guard)', () => {
+  it('returns the cue byte-for-byte when body is absent (back-compat guard)', () => {
     // Locked text — any change here is a back-compat break that downstream hash/snapshot
     // logic or test fixtures might silently fail against.
     const text = cap.render(
@@ -345,7 +345,7 @@ describe('cue body truncation', () => {
       refs,
     )
     expect(text).toBe(
-      'Staff @-mentioned you in an internal note. Read /contacts/ct0marcus/ch0web/INTERNAL-NOTES.md for context. Decide what the note asks for and act — see `## Staff note (this wake)` in AGENTS.md for the routing table.',
+      "Staff @-mentioned you in an internal note. Read /contacts/ct0marcus/ch0web/CONVERSATION.md for context. You are the conversation assignee. Staff notes are internal coaching — the customer-facing tools (reply_contact / send_card / send_file) are not available in this wake. Act on the note's request via memory updates, contact proposals, or a workspace write, then reply to the staff member with `consult_staff`. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See `## Staff note (this wake)` in AGENTS.md for the routing table.",
     )
   })
 

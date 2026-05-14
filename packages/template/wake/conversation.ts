@@ -3,8 +3,8 @@
  * `approval_resumed` path that the helpdesk has had since day one. Every
  * conversation-lane wake is conversation-bound — `conv.channelInstanceId` drives the
  * `/contacts/<contactId>/<channelInstanceId>/` materializers, the side-load
- * pulls the rolling transcript, and the trigger renderer points at MESSAGES.md
- * for context.
+ * pulls the rolling conversation timeline, and the trigger renderer points at
+ * CONVERSATION.md for context.
  *
  * Standalone-lane wakes (heartbeat, operator-thread) use `./standalone.ts` instead;
  * shared building blocks live in `./build-base.ts`.

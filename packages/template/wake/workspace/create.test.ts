@@ -10,7 +10,7 @@ import { BUSINESS_MD_FALLBACK, driveMaterializerFactory, driveRoHints } from '@m
 import type { DriveFile } from '@modules/drive/schema'
 import type { FilesService } from '@modules/drive/service/files'
 import type { DriveScope, GrepMatch } from '@modules/drive/service/types'
-import { renderInternalNotes, renderTranscript } from '@modules/messaging/agent'
+import { renderConversationFromSources } from '@modules/messaging/agent'
 import type { MessagingPort } from '@modules/messaging/service/types'
 import { CliVerbRegistry, type WorkspaceMaterializer } from '@vobase/core'
 
@@ -321,14 +321,9 @@ async function buildWorkspace(files: DriveFile[] = []) {
       materialize: () => renderContactMemory(contacts, CONTACT_ID),
     },
     {
-      path: `${convFolder}/MESSAGES.md`,
+      path: `${convFolder}/CONVERSATION.md`,
       phase: 'frozen',
-      materialize: (ctx) => renderTranscript(messaging, ctx.conversationId),
-    },
-    {
-      path: `${convFolder}/INTERNAL-NOTES.md`,
-      phase: 'frozen',
-      materialize: (ctx) => renderInternalNotes(messaging, ctx.conversationId),
+      materialize: (ctx) => renderConversationFromSources(messaging, ctx.conversationId),
     },
   ]
   return createWorkspace({
@@ -452,13 +447,10 @@ describe('createWorkspace', () => {
     expect(r.stdout).toContain(`# Test Customer (${CONTACT_ID})`)
   })
 
-  it('emits /contacts/<id>/<channelInstanceId>/MESSAGES.md and INTERNAL-NOTES.md in the virtual FS', async () => {
+  it('emits /contacts/<id>/<channelInstanceId>/CONVERSATION.md in the virtual FS', async () => {
     const ws = await buildWorkspace([])
-    const m = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/MESSAGES.md`)
-    expect(m.exitCode).toBe(0)
-    expect(m.stdout).toContain('No messages yet')
-    const n = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/INTERNAL-NOTES.md`)
-    expect(n.exitCode).toBe(0)
-    expect(n.stdout).toContain('No notes yet')
+    const c = await runShell(ws, `cat /contacts/${CONTACT_ID}/${CHANNEL_INSTANCE_ID}/CONVERSATION.md`)
+    expect(c.exitCode).toBe(0)
+    expect(c.stdout).toContain('No messages yet')
   })
 })

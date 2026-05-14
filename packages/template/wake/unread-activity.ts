@@ -219,7 +219,7 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
     }
     if (snapshot.hasMoreMessages) {
       lines.push(
-        `*(more older messages exist beyond the ${MAX_MESSAGES}-row cap — read ${folder}/MESSAGES.md for the full thread.)*`,
+        `*(more older messages exist beyond the ${MAX_MESSAGES}-row cap — read ${folder}/CONVERSATION.md for the full thread.)*`,
       )
       lines.push('')
     }
@@ -232,7 +232,7 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
       lines.push('')
     }
     if (snapshot.hasMoreNotes) {
-      lines.push(`*(more older notes exist beyond the ${MAX_NOTES}-row cap — read ${folder}/INTERNAL-NOTES.md.)*`)
+      lines.push(`*(more older notes exist beyond the ${MAX_NOTES}-row cap — read ${folder}/CONVERSATION.md.)*`)
       lines.push('')
     }
   }

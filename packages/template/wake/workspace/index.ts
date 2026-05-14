@@ -119,9 +119,9 @@ export function buildStandaloneReadOnlyConfig(ids: {
  *   - `/tmp/` — scratch
  *
  * Exact RO paths (`/agents/<id>/AGENTS.md`, `/contacts/<id>/PROFILE.md`,
- * `/contacts/<id>/<channelInstanceId>/MESSAGES.md` + `/INTERNAL-NOTES.md`,
- * `/staff/<id>/PROFILE.md`) surface the standard read-only error or the
- * PROFILE.md verb hint. Everything else defaults to RO per the core enforcer.
+ * `/contacts/<id>/<channelInstanceId>/CONVERSATION.md`, `/staff/<id>/PROFILE.md`)
+ * surface the standard read-only error or the PROFILE.md verb hint. Everything
+ * else defaults to RO per the core enforcer.
  */
 export function buildDefaultReadOnlyConfig(ids: {
   agentId: string
@@ -134,8 +134,7 @@ export function buildDefaultReadOnlyConfig(ids: {
   const staffIds = ids.staffIds ?? []
   const readOnlyExact: string[] = [
     `/agents/${ids.agentId}/AGENTS.md`,
-    `/contacts/${ids.contactId}/${ids.channelInstanceId}/MESSAGES.md`,
-    `/contacts/${ids.contactId}/${ids.channelInstanceId}/INTERNAL-NOTES.md`,
+    `/contacts/${ids.contactId}/${ids.channelInstanceId}/CONVERSATION.md`,
     `/contacts/${ids.contactId}/PROFILE.md`,
     ...staffIds.map((s) => `/staff/${s}/PROFILE.md`),
   ]
