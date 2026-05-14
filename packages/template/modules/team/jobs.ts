@@ -11,11 +11,17 @@
  * `user.phone_number`) and fans out a deduped sync per org. Catch-all for
  * drift the PATCH path missed (deleted users, mid-flight 5xx that exhausted
  * retries, platform-side resets).
+ *
+ * `team:fanout-mention-pings` — runs the WhatsApp mention fan-out off the
+ * request path. Producers (`consult_staff` tool, HTTP notes handler) enqueue
+ * it; the handler runs `fanOutNoteMentions` so the WA send + ping-ledger write
+ * survive a process recycle.
  */
 /** @contract platform-tenant-v1 */
 
 import type { JobDef } from '@vobase/core'
 
+import { FANOUT_MENTION_PINGS_JOB, FanOutMentionPingsPayloadSchema, fanOutNoteMentions } from './service/mention-notify'
 import {
   SYNC_STAFF_LINK_CRON_JOB,
   SYNC_STAFF_LINK_JOB,
@@ -65,6 +71,13 @@ export function createTeamJobs(opts: SyncStaffLinkJobOptions = {}): JobDef[] {
         for (const orgId of orgs) {
           await syncStaffLinksEnqueue(orgId)
         }
+      },
+    },
+    {
+      name: FANOUT_MENTION_PINGS_JOB,
+      handler: async (data) => {
+        const { note } = FanOutMentionPingsPayloadSchema.parse(data)
+        await fanOutNoteMentions(note)
       },
     },
   ]

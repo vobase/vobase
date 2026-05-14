@@ -4,7 +4,8 @@ import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { addNote, listNotes } from '@modules/messaging/service/notes'
 import { getConversation, notifyConversation } from '@modules/messaging/service/staff-ops'
-import { fanOutNoteMentions } from '@modules/team/service/mention-notify'
+import { enqueueMentionFanOut } from '@modules/team/service/mention-notify'
+import { logger } from '@vobase/core'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -50,10 +51,13 @@ const app = new Hono<OrganizationEnv>()
         parentNoteId: data.parentNoteId,
       })
       await notifyConversation(id).catch(() => undefined)
+      // Durably enqueue the mention fan-out — see consult-staff.ts. Best-effort:
+      // a failed enqueue (incl. the "service not installed" throw in test
+      // contexts) must not fail the note write.
       try {
-        void fanOutNoteMentions(note).catch(() => undefined)
-      } catch {
-        // service not installed in test contexts — best-effort
+        await enqueueMentionFanOut(note)
+      } catch (err) {
+        logger.warn({ err }, '[messaging/notes] mention fan-out enqueue failed (non-fatal)')
       }
       return c.json(note)
     },

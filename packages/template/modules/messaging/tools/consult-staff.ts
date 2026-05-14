@@ -10,12 +10,12 @@
  * Backed by the same `internal_notes` write path as `add_note` — `consult_staff`
  * always carries resolved `mentions`, `add_note` never does. Agent-authored
  * notes never trigger staff-note fan-out for the agent itself; staff become
- * aware via the mention-notification path (`fanOutNoteMentions`, fired here),
- * and their reply is what wakes the agent back. The HTTP notes handler fires
+ * aware via the mention-notification path (enqueued here as a durable job),
+ * and their reply is what wakes the agent back. The HTTP notes handler enqueues
  * the same fan-out for human-authored notes — this is its agent-write-path twin.
  */
 
-import { fanOutNoteMentions } from '@modules/team/service/mention-notify'
+import { enqueueMentionFanOut } from '@modules/team/service/mention-notify'
 import { type Static, Type } from '@sinclair/typebox'
 import { defineAgentTool, logger } from '@vobase/core'
 
@@ -66,16 +66,15 @@ export const consultStaffTool = defineAgentTool({
       body,
       mentions,
     })
-    // Fire-and-forget: a flaky provider must not fail the note write. The
-    // try/catch guards the *synchronous* "service not installed" throw from
-    // `current()` in mention-notify.ts (unit-test contexts); the `.catch`
-    // handles async provider failures.
+    // Durably enqueue the mention fan-out (offline → WhatsApp ping + the
+    // pending-mention-ping ledger row that wakes this agent on a reply) as a
+    // pg-boss job, so it survives a process recycle. Best-effort: a failed
+    // enqueue — including the "service not installed" throw in unit-test
+    // contexts — must not fail the note write.
     try {
-      void fanOutNoteMentions(row).catch((err) => {
-        logger.error({ err }, '[messaging/consult_staff] mention fan-out failed (non-fatal)')
-      })
+      await enqueueMentionFanOut(row)
     } catch (err) {
-      logger.warn({ err }, '[messaging/consult_staff] mention-notify service not installed — skipping fan-out')
+      logger.error({ err }, '[messaging/consult_staff] mention fan-out enqueue failed (non-fatal)')
     }
     return { noteId: row.id, notified: mentions }
   },

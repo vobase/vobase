@@ -30,6 +30,8 @@ import type { ChannelAdapter, HarnessLogger } from '@vobase/core'
 import {
   __resetMentionNotifyServiceForTests,
   createMentionNotifyService,
+  FANOUT_MENTION_PINGS_JOB,
+  FanOutMentionPingsPayloadSchema,
   fanOutNoteMentions,
   installMentionNotifyService,
 } from './mention-notify'
@@ -317,5 +319,56 @@ describe('mention-notify rewrite (Unit 8)', () => {
     expect(result.notified).toEqual([STAFF_X])
     expect(sent.length).toBe(1)
     expect(recordedPings.length).toBe(0)
+  })
+})
+
+describe('mention-notify enqueueFanOut', () => {
+  it('enqueues FANOUT_MENTION_PINGS_JOB with the note and a per-note singletonKey', async () => {
+    const sends: Array<{ name: string; data: unknown; opts?: { singletonKey?: string } }> = []
+    const svc = createMentionNotifyService({
+      db: null as unknown,
+      jobs: {
+        send: (name, data, opts) => {
+          sends.push({ name, data, opts })
+          return Promise.resolve('job-1')
+        },
+      },
+    })
+    const note = makeAgentNote([`staff:${STAFF_X}`])
+    await svc.enqueueFanOut(note)
+    expect(sends).toHaveLength(1)
+    expect(sends[0]?.name).toBe(FANOUT_MENTION_PINGS_JOB)
+    // Payload carries only the fan-out's consumed fields — `createdAt` /
+    // `parentNoteId` are dropped (see `enqueueFanOut`).
+    expect(sends[0]?.data).toEqual({
+      note: {
+        id: 'note-test',
+        organizationId: ORG,
+        conversationId: 'conv-test',
+        authorType: 'agent',
+        authorId: AGENT_ID,
+        body: 'Need answer',
+        mentions: [`staff:${STAFF_X}`],
+      },
+    })
+    expect(sends[0]?.opts?.singletonKey).toBe(`fanout-mention:${note.id}`)
+  })
+
+  it('no-ops when no jobs queue is wired (unit-test boot)', async () => {
+    const svc = createMentionNotifyService({ db: null as unknown })
+    // Must not throw — mirrors `syncStaffLinksEnqueue`'s no-scheduler tolerance.
+    await svc.enqueueFanOut(makeAgentNote([`staff:${STAFF_X}`]))
+  })
+
+  it('FanOutMentionPingsPayloadSchema parses a JSON-round-tripped payload and strips non-consumed fields', () => {
+    // `makeAgentNote` carries `createdAt: Date` + `parentNoteId` — fields the
+    // fan-out never reads. After JSON round-trip they must not break the parse.
+    const note = makeAgentNote([`staff:${STAFF_X}`])
+    const roundTripped = JSON.parse(JSON.stringify({ note })) as unknown
+    const parsed = FanOutMentionPingsPayloadSchema.parse(roundTripped)
+    expect(parsed.note.id).toBe('note-test')
+    expect(parsed.note.mentions).toEqual([`staff:${STAFF_X}`])
+    expect('createdAt' in parsed.note).toBe(false)
+    expect('parentNoteId' in parsed.note).toBe(false)
   })
 })

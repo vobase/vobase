@@ -109,23 +109,24 @@ describe('consultStaffTool', () => {
     expect(received.body).toBe('@Alice fyi')
   })
 
-  it('fans out mention notifications for the written note', async () => {
+  it('enqueues the mention fan-out for the written note', async () => {
     installStaffStub([{ userId: 'u1', displayName: 'Alice' }])
     const note: InternalNote = { id: 'n4', mentions: ['staff:u1'] } as InternalNote
     installNotesService({
       addNote: () => Promise.resolve(note),
       listNotes: () => Promise.resolve([]),
     } as NotesService)
-    const fannedOut: InternalNote[] = []
+    const enqueued: InternalNote[] = []
     installMentionNotifyService({
-      fanOutNoteMentions: (n) => {
-        fannedOut.push(n)
-        return Promise.resolve(NOOP_FAN_OUT)
+      fanOutNoteMentions: () => Promise.resolve(NOOP_FAN_OUT),
+      enqueueFanOut: (n) => {
+        enqueued.push(n)
+        return Promise.resolve()
       },
     })
     const result = await consultStaffTool.execute({ conversationId: 'c', body: 'fyi', to: ['user:u1'] }, ctx())
     expect(result.ok).toBe(true)
-    expect(fannedOut).toEqual([note])
+    expect(enqueued).toEqual([note])
   })
 
   it('still succeeds when the mention-notify service is not installed', async () => {

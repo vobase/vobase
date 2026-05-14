@@ -36,7 +36,7 @@ const team: ModuleDef = {
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))
-    installMentionNotifyService(createMentionNotifyService({ db: ctx.db }))
+    installMentionNotifyService(createMentionNotifyService({ db: ctx.db, jobs: ctx.jobs }))
     installPendingMentionPingService(createPendingMentionPingService({ db: ctx.db }))
     installTeamJobsState({ jobs: ctx.jobs })
     installTeamOrgEnumerator({ db: ctx.db })
