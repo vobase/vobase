@@ -37,5 +37,8 @@
     "drizzle-kit": "^1.0.0-rc.2",
     "drizzle-orm": "^1.0.0-rc.2",
     "nanoid": "^5.1.11"
+  },
+  "overrides": {
+    "@better-auth/core": "1.6.11"
   }
 }
