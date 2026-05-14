@@ -20,14 +20,7 @@ export {
 } from './adapters/channels/whatsapp'
 export { createLocalAdapter } from './adapters/storage/local'
 export { createS3Adapter } from './adapters/storage/s3'
-export type {
-  AuthAdapter,
-  AuthSession,
-  AuthUser,
-  CreateApiKey,
-  RevokeApiKey,
-  VerifyApiKey,
-} from './contracts/auth'
+export type { AuthAdapter, AuthSession, AuthUser } from './contracts/auth'
 export type { ChangePayload, ChangePayloadKind, JsonPatchOp } from './contracts/changes'
 export type {
   ChannelAdapter,
@@ -62,12 +55,7 @@ export {
   NANOID_LENGTH,
   nanoidPrimaryKey,
 } from './db/helpers'
-export {
-  auditPgSchema,
-  authPgSchema,
-  harnessPgSchema,
-  infraPgSchema,
-} from './db/pg-schemas'
+export { auditPgSchema, harnessPgSchema, infraPgSchema } from './db/pg-schemas'
 // ─── Declarative resources ──────────────────────────────────────────
 export {
   type Authored,
@@ -394,21 +382,6 @@ export { createNoopRealtime, createRealtimeService } from './realtime'
 export type { JobDef, ScheduleOpts, ScopedScheduler } from './scheduler/types'
 // ─── Schemas ─────────────────────────────────────────────────────────
 export { auditLog, recordAudits } from './schemas/audit'
-export {
-  apikeyTableMap,
-  authAccount,
-  authApikey,
-  authInvitation,
-  authMember,
-  authOrganization,
-  authSession,
-  authTableMap,
-  authTeam,
-  authTeamMember,
-  authUser,
-  authVerification,
-  organizationTableMap,
-} from './schemas/auth'
 export { channelsLog, channelsTemplates } from './schemas/channels'
 export {
   activeWakes,
