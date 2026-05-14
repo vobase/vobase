@@ -1,10 +1,14 @@
 #!/usr/bin/env bun
 /**
  * db:push — 3 steps:
- *   1. Apply fixtures (extensions + nanoid function) from `db/current.sql`
+ *   1. Apply fixtures (extensions + nanoid function) from `db/fixtures.sql`
  *   2. Run `drizzle-kit push` (four pgSchemas + core schemas)
  *   3. Apply post-push extras via `scripts/db-apply-extras.ts`
  *      (cross-schema FKs, UNLOGGED active_wakes, pg_trgm GIN index)
+ *
+ * Step 1 reads `db/fixtures.sql` — the PERMANENT fixtures entry point — not
+ * `db/current.sql`, which is the transient inline-DML staging area emptied
+ * after every `db:generate`.
  */
 import postgres from 'postgres'
 
@@ -12,8 +16,8 @@ import { processSqlFile } from './utils/process-sql-file'
 
 const url = process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5432/vobase'
 
-process.stdout.write('→ applying db/current.sql fixtures\n')
-const fixturesPath = `${import.meta.dir}/../db/current.sql`
+process.stdout.write('→ applying db/fixtures.sql fixtures\n')
+const fixturesPath = `${import.meta.dir}/../db/fixtures.sql`
 const fixturesSql = await processSqlFile(fixturesPath)
 const admin = postgres(url, { max: 1 })
 try {
