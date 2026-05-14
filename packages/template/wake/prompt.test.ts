@@ -198,6 +198,7 @@ describe('buildFrozenPrompt regions', () => {
       'agents-md',
       'business-md',
       'skills-list',
+      'execution-bias',
       'static-instructions',
     ])
     // Every region's slice matches its section content; consecutive regions
@@ -244,6 +245,39 @@ describe('buildFrozenPrompt regions', () => {
     const r = regions.find((x) => x.source === 'agents-md')
     expect(r).toBeDefined()
     expect(system.slice(r?.start, r?.end)).toMatch(/^## AGENTS\.md\n\n/)
+  })
+
+  it('renders a static `## Execution Bias` behavioral section on every wake', async () => {
+    const bash = await buildBash()
+    const { system, regions } = await buildFrozenPrompt({
+      bash,
+      agentDefinition,
+      organizationId: 'org_test',
+      contactId: 'c_test',
+      channelInstanceId: 'ci_test',
+    })
+    const r = regions.find((x) => x.source === 'execution-bias')
+    expect(r).toBeDefined()
+    const section = system.slice(r?.start, r?.end)
+    expect(section).toMatch(/^## Execution Bias\n\n/)
+    expect(section).toContain('Explore before you act')
+    expect(section).toContain('Continue until the request is resolved or you')
+  })
+
+  it('keeps Execution Bias out of the test-only staticInstructionsSuffix override path', async () => {
+    const bash = await buildBash()
+    const { system } = await buildFrozenPrompt({
+      bash,
+      agentDefinition,
+      organizationId: 'org_test',
+      contactId: 'c_test',
+      channelInstanceId: 'ci_test',
+      staticInstructionsSuffix: '# Stub instructions',
+    })
+    // The override replaces only `static-instructions`; the behavioral section
+    // is its own region and survives.
+    expect(system).toContain('## Execution Bias')
+    expect(system).toContain('# Stub instructions')
   })
 })
 

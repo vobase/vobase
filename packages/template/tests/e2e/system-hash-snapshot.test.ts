@@ -15,7 +15,7 @@ import { resolvePlatformHint } from '~/wake/platform-hints'
 import { buildFrozenPrompt, type SessionContext } from '~/wake/prompt'
 
 /** Pinned SHA-256 of the canonical frozen prompt below. */
-const SYSTEM_HASH_FIXTURE = 'da52a0b92dadbafd3d4450583ef733bb4b0db2b5de8a1168229c838a4ceb6741'
+const SYSTEM_HASH_FIXTURE = '732da09bd2b9e3be997f3fb611995af44251b43c5d6cc07207f15667f0c27e05'
 
 /** Tool names surfaced through `collectAgentContributions` to the harness. */
 const TOOL_SURFACE_FIXTURE = ['reply_contact', 'send_card', 'send_file', 'consult_staff', 'add_note'] as const

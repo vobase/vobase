@@ -64,6 +64,7 @@ export type PromptRegionSource =
   | 'memory-md'
   | 'business-md'
   | 'skills-list'
+  | 'execution-bias'
   | 'static-instructions'
 
 /** Byte offsets of one section inside `FrozenPromptResult.system`. */
@@ -93,6 +94,23 @@ The bash you run executes in a browser-style WebContainer. **\`python\`, \`node\
 
 \`PROFILE.md\` files (contact + staff) are read-only at the workspace level: bash-edits will be rejected. Customer-asked profile updates go through the \`vobase contacts propose-change\` verb (see your AGENTS.md \`## Contact context\` section). \`MEMORY.md\` files are direct-writable for prose memory notes — append with \`echo "- ..." >> /…/MEMORY.md\`.
 `.trimStart()
+
+/**
+ * Framework-owned behavioral guidance — how to work a wake. Static every wake
+ * (no per-wake interpolation, so it never moves `systemHash`) and present on
+ * every lane, including standalone. Complements the conversation-lane `# Task`
+ * side-load (which frames *who* to address first); this frames *how* to act.
+ */
+const EXECUTION_BIAS = `
+## Execution Bias
+
+- Explore before you act: read the conversation, the relevant MEMORY.md, and any applicable skill before you reply or commit a change. The wake cue is a pointer, not the whole story.
+- Actionable request: finish it this turn — reply, send a card, book the slot, update the contact. Don't stop at a plan or a promise when a tool can do it.
+- Ground every answer in evidence: the workspace, a verb's output, or a staff reply. Don't answer from assumption.
+- Weak or empty result: vary the path, verb, or query before concluding. One failed \`cat\` is not "the file doesn't exist."
+- Continue until the request is resolved or you're genuinely blocked. A real block is a named missing decision — not "this is hard."
+- Check live state, don't assume it: re-read CONVERSATION.md for the newest turn, confirm a slot is free before booking.
+`.trim()
 
 /**
  * Build the active-IDs preamble rendered at the top of the system prompt.
@@ -233,6 +251,7 @@ export async function buildFrozenPrompt(input: FrozenPromptInput): Promise<Froze
         '\n',
       ),
     },
+    { source: 'execution-bias', text: EXECUTION_BIAS },
     { source: 'static-instructions', text: input.staticInstructionsSuffix ?? STATIC_INSTRUCTIONS },
   ]
 
