@@ -68,7 +68,7 @@ export function createMentionNotifyService(_deps: MentionNotifyDeps): MentionNot
     organizationId: string,
     profile: StaffProfile,
     text: string,
-  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+  ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
     const channel = await findNotificationChannel(organizationId)
     if (!channel) return { ok: false, reason: 'no_notification_channel' }
     if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
@@ -79,7 +79,10 @@ export function createMentionNotifyService(_deps: MentionNotifyDeps): MentionNot
     if (!adapter) return { ok: false, reason: 'no_adapter_registered' }
     const res = await adapter.send({ to: profile.phoneNumber, text })
     if (!res.success) return { ok: false, reason: 'adapter_error' }
-    return { ok: true }
+    // `messageId` is the WA wamid — recorded on the ping so a staff reply that
+    // quotes this message can exact-match back. Null when the provider/stub
+    // returned no id.
+    return { ok: true, messageId: res.messageId ?? null }
   }
 
   async function fanOutNoteMentions(note: InternalNote): Promise<FanOutResult> {
@@ -128,6 +131,7 @@ export function createMentionNotifyService(_deps: MentionNotifyDeps): MentionNot
                 organizationId: note.organizationId,
                 askingAgentId,
                 originalNoteId: note.id,
+                outboundWamid: send.messageId,
               })
             } catch (err) {
               // Non-fatal — the WA ping went out; the staff may still answer

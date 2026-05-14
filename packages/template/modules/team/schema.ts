@@ -176,6 +176,13 @@ export interface PendingMentionPing {
   askingAgentId: string
   /** Note id we're answering — threaded into the reply note's `parentNoteId`. */
   originalNoteId: string
+  /**
+   * wamid of the outbound WhatsApp ping. Set when the WA send returns a
+   * message id; lets an inbound staff reply's `context.id` (the quoted-message
+   * wamid, present only when staff use WhatsApp's native reply gesture)
+   * exact-match back to this ping. Null when the send returned no id.
+   */
+  outboundWamid: string | null
   createdAt: Date
 }
 
@@ -188,6 +195,7 @@ export const pendingMentionPings = teamPgSchema.table(
     staffUserId: text('staff_user_id').notNull(),
     askingAgentId: text('asking_agent_id').notNull(),
     originalNoteId: text('original_note_id').notNull(),
+    outboundWamid: text('outbound_wamid'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

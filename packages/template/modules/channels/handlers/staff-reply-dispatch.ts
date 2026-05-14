@@ -2,14 +2,17 @@
  * Staff-reply branch of the registry-driven inbound router.
  *
  * Two sub-branches:
- *   A. ask-staff-answer — if `pending_mention_pings` has a live row for
- *      `(staffUserId, organizationId)`, append a staff-authored internal
- *      note carrying `mentions: ['agent:<askingAgentId>']`. The existing
- *      `addNote` post-commit fan-out enqueues a wake for the asking agent.
- *   B. operator-thread — no live ping: enqueue/append into the operator
- *      chat thread for the org's default operator agent (per-org default
- *      via `getOrgSetting('defaultOperatorAgentId')`, fallback to oldest
- *      enabled agent).
+ *   A. ask-staff-answer — `claimPing` resolves the inbound to a single pending
+ *      mention ping (exact `context.id` wamid match, or the staff member's sole
+ *      live ping). Appends a staff-authored internal note carrying
+ *      `mentions: ['agent:<askingAgentId>']`; the existing `addNote` post-commit
+ *      fan-out enqueues a wake for the asking agent.
+ *   B. operator-thread — no single ping resolved: enqueue/append into the
+ *      operator chat thread for the org's default operator agent (per-org
+ *      default via `getOrgSetting('defaultOperatorAgentId')`, fallback to oldest
+ *      enabled agent). When the claim was `ambiguous` (the staff member has ≥2
+ *      live pings and didn't quote one), a `system` message is appended telling
+ *      the operator agent the reply could not be auto-routed.
  *
  * Pulled out of `inbound-router.ts` so the router stays under 150 LOC and
  * adding a third sub-branch (e.g. command-mode or unknown-staff handling)
@@ -35,6 +38,8 @@ interface MetaInboundMessage {
   type?: string
   id?: string
   text?: { body?: string }
+  /** Present only when the sender used WhatsApp's native reply gesture; `id` is the quoted message's wamid. */
+  context?: { id?: string }
 }
 
 export interface MetaInbound {
@@ -57,10 +62,26 @@ export interface StaffReplyInput {
 
 export interface StaffReplyResult {
   ok: true
-  branch: 'unparseable' | 'unmatched_staff' | 'ask_staff_answer' | 'operator_thread' | 'no_enabled_agent'
+  branch:
+    | 'unparseable'
+    | 'unmatched_staff'
+    | 'ask_staff_answer'
+    | 'operator_thread'
+    | 'operator_thread_ambiguous'
+    | 'no_enabled_agent'
   threadId?: string
   agentId?: string
   warning?: string
+}
+
+/** Operator-agent-facing note when a reply couldn't be auto-routed to a consult. */
+function buildAmbiguousReplyHint(liveCount: number): string {
+  return (
+    `Heads up: this teammate has ${liveCount} open questions from agents waiting on a reply, and this message arrived ` +
+    'without quoting a specific one — so it could not be routed back to a conversation automatically. If it reads like ' +
+    'an answer to one of those, ask which customer or conversation they mean before relaying it. They can also ' +
+    'long-press a question in WhatsApp and reply to it directly so future answers route on their own.'
+  )
 }
 
 export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffReplyResult> {
@@ -85,8 +106,14 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   if (!staff) return { ok: true, branch: 'unmatched_staff' }
 
   // ─── Branch A — ask-staff-answer ─────────────────────────────────────────
-  const ping = await claimPing({ staffUserId: staff.userId, organizationId })
-  if (ping) {
+  // Ladder: exact `context.id` wamid match → the staff member's sole live ping.
+  const claim = await claimPing({
+    staffUserId: staff.userId,
+    organizationId,
+    outboundWamid: msg.context?.id,
+  })
+  if (claim.status === 'claimed') {
+    const { ping } = claim
     try {
       await addNote({
         organizationId,
@@ -104,6 +131,10 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   }
 
   // ─── Branch B — operator-thread ──────────────────────────────────────────
+  // Reached when the claim was `none` (a fresh staff-initiated message) or
+  // `ambiguous` (≥2 live pings, no quoted wamid — we refuse to guess which
+  // conversation the reply answers; the operator agent gets a `system` hint).
+  const ambiguousCount = claim.status === 'ambiguous' ? claim.liveCount : null
   let agentId: string | null = await getOrgSetting(organizationId, 'defaultOperatorAgentId')
   if (!agentId) {
     const [first] = await db
@@ -147,11 +178,24 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
     threadAgentId = agentId
   }
 
+  if (ambiguousCount !== null) {
+    await threadsApi.appendMessage({
+      threadId,
+      role: 'system',
+      content: buildAmbiguousReplyHint(ambiguousCount),
+    })
+  }
+
   await requireJobs().send(
     OPERATOR_THREAD_TO_WAKE_JOB,
     { organizationId, threadId },
     { singletonKey: `operator-thread:${threadId}` },
   )
 
-  return { ok: true, branch: 'operator_thread', threadId, agentId: threadAgentId }
+  return {
+    ok: true,
+    branch: ambiguousCount === null ? 'operator_thread' : 'operator_thread_ambiguous',
+    threadId,
+    agentId: threadAgentId,
+  }
 }

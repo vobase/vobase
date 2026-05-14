@@ -62,7 +62,12 @@ interface SentMsg {
 }
 
 const sent: SentMsg[] = []
-const recordedPings: Array<{ conversationId: string; staffUserId: string; askingAgentId: string }> = []
+const recordedPings: Array<{
+  conversationId: string
+  staffUserId: string
+  askingAgentId: string
+  outboundWamid: string | null | undefined
+}> = []
 
 interface FakeChannelInstance {
   id: string
@@ -206,9 +211,10 @@ function installStubs(): void {
         conversationId: input.conversationId,
         staffUserId: input.staffUserId,
         askingAgentId: input.askingAgentId,
+        outboundWamid: input.outboundWamid,
       })
     },
-    claimPing: async () => null,
+    claimPing: async () => ({ status: 'none' as const }),
     pruneOlderThan: async () => 0,
   }
   installPendingMentionPingService(pingStub)
@@ -257,7 +263,9 @@ describe('mention-notify rewrite (Unit 8)', () => {
     const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_X}`]))
     expect(result.notified).toEqual([STAFF_X])
     expect(sent).toEqual([{ to: STAFF_PHONE, text: expect.stringContaining('mentioned') }])
-    expect(recordedPings).toEqual([{ conversationId: 'conv-test', staffUserId: STAFF_X, askingAgentId: AGENT_ID }])
+    expect(recordedPings).toEqual([
+      { conversationId: 'conv-test', staffUserId: STAFF_X, askingAgentId: AGENT_ID, outboundWamid: 'stub' },
+    ])
   })
 
   it('skips staff with no phoneNumber', async () => {
