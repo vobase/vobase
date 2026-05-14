@@ -30,18 +30,18 @@
  *
  * Usage: bun run db:generate [migration-name]
  */
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
-import { processSqlFile } from './utils/process-sql-file';
+import { processSqlFile } from './utils/process-sql-file'
 
-const name = process.argv[2] ?? `migration_${Date.now()}`;
-const repoDir = join(import.meta.dir, '..');
-const drizzleDir = join(repoDir, 'drizzle');
+const name = process.argv[2] ?? `migration_${Date.now()}`
+const repoDir = join(import.meta.dir, '..')
+const drizzleDir = join(repoDir, 'drizzle')
 
-if (!existsSync(drizzleDir)) mkdirSync(drizzleDir, { recursive: true });
+if (!existsSync(drizzleDir)) mkdirSync(drizzleDir, { recursive: true })
 
-const before = new Set(readdirSync(drizzleDir));
+const before = new Set(readdirSync(drizzleDir))
 
 // drizzle-kit generate refuses to run without a real TTY (process.stdin.isTTY
 // must be true), and any non-trivial schema diff produces "is X a rename of
@@ -49,36 +49,34 @@ const before = new Set(readdirSync(drizzleDir));
 // provides a real pty and auto-presses Enter for every prompt (the highlighted
 // default is always "create new", which is the right answer for renames we
 // don't want to collapse).
-const proc = Bun.spawnSync(
-  ['expect', join(import.meta.dir, 'drizzle-generate.exp'), name],
-  { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', cwd: repoDir },
-);
-if (proc.exitCode !== 0) process.exit(proc.exitCode ?? 1);
+const proc = Bun.spawnSync(['expect', join(import.meta.dir, 'drizzle-generate.exp'), name], {
+  stdin: 'inherit',
+  stdout: 'inherit',
+  stderr: 'inherit',
+  cwd: repoDir,
+})
+if (proc.exitCode !== 0) process.exit(proc.exitCode ?? 1)
 
-const newFolder = readdirSync(drizzleDir).find(
-  (f) => !before.has(f) && !f.startsWith('.'),
-);
+const newFolder = readdirSync(drizzleDir).find((f) => !before.has(f) && !f.startsWith('.'))
 if (!newFolder) {
-  process.stdout.write(
-    '[db:generate] no new migration folder — schema already in sync\n',
-  );
-  process.exit(0);
+  process.stdout.write('[db:generate] no new migration folder — schema already in sync\n')
+  process.exit(0)
 }
 
-const migrationPath = join(drizzleDir, newFolder, 'migration.sql');
+const migrationPath = join(drizzleDir, newFolder, 'migration.sql')
 
-const fixtures = await processSqlFile(join(repoDir, 'db', 'current.sql'));
-const schema = await Bun.file(migrationPath).text();
+const fixtures = await processSqlFile(join(repoDir, 'db', 'current.sql'))
+const schema = await Bun.file(migrationPath).text()
 
-await Bun.write(migrationPath, `${fixtures}\n${schema}`);
-process.stdout.write(`[db:generate] baked fixtures into ${migrationPath}\n`);
+await Bun.write(migrationPath, `${fixtures}\n${schema}`)
+process.stdout.write(`[db:generate] baked fixtures into ${migrationPath}\n`)
 
 // Reset db/current.sql back to an empty staging template so the inline SQL
 // you just baked is now in migration history and gone from current.sql.
 // Extensions + nanoid + functions + triggers are NOT re-included on every
 // generate — they live in the first migration only (baked once) so we don't
 // duplicate ~200 lines of nanoid into every subsequent migration.
-const currentSqlPath = join(repoDir, 'db', 'current.sql');
+const currentSqlPath = join(repoDir, 'db', 'current.sql')
 const resetTemplate = `-- One-off DML / DDL staging area
 -- Inline SQL here gets prepended to the next \`db:generate\` migration and
 -- baked into history; this file resets to empty afterwards. Use --!include
@@ -87,8 +85,6 @@ const resetTemplate = `-- One-off DML / DDL staging area
 -- Extensions + nanoid + functions + triggers are NOT included here — they
 -- already live in the initial migration (baked once at first db:generate)
 -- and don't need to re-run on subsequent migrations.
-`;
-await Bun.write(currentSqlPath, resetTemplate);
-process.stdout.write(
-  '[db:generate] current.sql reset to empty staging template\n',
-);
+`
+await Bun.write(currentSqlPath, resetTemplate)
+process.stdout.write('[db:generate] current.sql reset to empty staging template\n')
