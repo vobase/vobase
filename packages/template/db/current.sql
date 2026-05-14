@@ -1,13 +1,8 @@
--- Fixtures entry point
--- Use --!include to include SQL files with glob support
--- Run `bun run db:push` to apply during development
--- Run `bun run db:generate` to bake into a migration
-
--- Extensions
---!include extensions/*.sql
-
--- Functions
---!include fixtures/functions/*.sql
-
--- Triggers
---!include fixtures/triggers/*.sql
+-- One-off DML / DDL staging area
+-- Inline SQL here gets prepended to the next `db:generate` migration and
+-- baked into history; this file resets to empty afterwards. Use --!include
+-- to pull in shared SQL fragments via glob.
+--
+-- Extensions + nanoid + functions + triggers are NOT included here — they
+-- already live in the initial migration (baked once at first db:generate)
+-- and don't need to re-run on subsequent migrations.
