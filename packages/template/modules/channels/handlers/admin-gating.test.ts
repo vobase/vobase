@@ -10,7 +10,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { createRequireRole } from '@auth/middleware'
-import { authMember, authOrganization, authUser } from '@vobase/core'
+import { authMember, authOrganization, authUser } from '@auth/schema'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 

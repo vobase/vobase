@@ -11,8 +11,6 @@ import type { Auth } from '@auth'
 import { createNanoid } from '@vobase/core'
 import { Hono } from 'hono'
 
-import type { ScopedDb } from '~/runtime'
-import { createApiKey } from './api-keys'
 import { createRequireSession, type SessionEnv } from './middleware/require-session'
 
 const GRANT_TTL_MS = 5 * 60 * 1000
@@ -47,7 +45,6 @@ export function __resetCliGrantsForTests(): void {
 
 export interface CliGrantRouteOpts {
   auth: Auth
-  db: ScopedDb
   /** Public origin used to build the confirmation URL (e.g. `https://acme.vobase.app`). */
   publicBaseUrl: string
 }
@@ -82,7 +79,7 @@ export function createCliGrantRoutes(opts: CliGrantRouteOpts): Hono<SessionEnv> 
     if (grant.status !== 'pending') return c.json({ error: `grant_${grant.status}` }, 410)
 
     const session = c.get('session')
-    const created = await createApiKey({ db: opts.db, userId: session.user.id, name })
+    const created = await opts.auth.api.createApiKey({ body: { name }, headers: c.req.raw.headers })
     grant.apiKey = created.key
     grant.userId = session.user.id
     grant.baseUrl = opts.publicBaseUrl

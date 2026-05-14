@@ -61,7 +61,7 @@ export async function seed(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
   const { contactAttributeDefinitions, contacts, staffChannelBindings } = await import('@modules/contacts/schema')
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
-  const { authAccount, authMember, authOrganization, authUser } = await import('@vobase/core')
+  const { authAccount, authMember, authOrganization, authUser } = await import('@auth/schema')
 
   const d = db as {
     insert: (t: unknown) => {

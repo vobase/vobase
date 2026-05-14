@@ -14,8 +14,14 @@
 import { join } from 'node:path'
 import { createAuth } from '@auth'
 import { createCliGrantRoutes } from '@auth/cli-grant'
-import { createRequireSession, createWidgetCors, installOrganizationContext } from '@auth/middleware'
-import { type ApiKeyEnv, createRequireApiKey } from '@auth/middleware/require-api-key'
+import {
+  createRequireRole,
+  createRequireSession,
+  createWidgetCors,
+  installOrganizationContext,
+  type RoleEnv,
+  requireOrganization,
+} from '@auth/middleware'
 import { createWhoamiRoute } from '@auth/whoami'
 import { setAgentContributions } from '@modules/agents/service/agent-contributions'
 import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
@@ -206,8 +212,8 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   // take precedence over `/api/auth/*`. The catch-all hands everything else
   // to better-auth's handler.
   const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:5173'
-  app.route('/api/auth', createCliGrantRoutes({ auth, db, publicBaseUrl }))
-  app.route('/api/auth', createWhoamiRoute(db))
+  app.route('/api/auth', createCliGrantRoutes({ auth, publicBaseUrl }))
+  app.route('/api/auth', createWhoamiRoute(auth, db))
   app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
   const requireSession = createRequireSession(auth)
@@ -238,11 +244,13 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
     ctx: moduleCtx,
   })
 
-  // CLI catalog + verb-dispatch endpoints — gated by API key. The catalog
-  // owns `/api/cli/verbs`; the dispatcher owns POST `/api/cli/<verb-route>`.
-  // Mount the catalog first so its specific GET wins over the dispatcher's
-  // POST `/*` glob.
-  app.use('/api/cli/*', createRequireApiKey(db))
+  // CLI catalog + verb-dispatch endpoints. The CLI authenticates with
+  // `Authorization: Bearer vbt_<key>`; the `apiKey` plugin mocks a session
+  // from it, so the standard session → org → role chain resolves the caller.
+  // The catalog owns `/api/cli/verbs`; the dispatcher owns POST
+  // `/api/cli/<verb-route>`. Mount the catalog first so its specific GET wins
+  // over the dispatcher's POST `/*` glob.
+  app.use('/api/cli/*', requireSession, requireOrganization, createRequireRole(db, ['owner', 'admin', 'member']))
 
   // Latest published CLI version — included in catalog responses so old CLIs
   // can warn-once about an available upgrade.
@@ -250,30 +258,27 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
 
   app.route(
     '/api/cli',
-    createCatalogRoute<ApiKeyEnv>({
+    createCatalogRoute<RoleEnv>({
       registry: cli,
       // 'contact' is defense in depth — middleware blocks anonymous with 401 first.
       // `owner` outranks `admin` in better-auth's hierarchy; both map to admin tier.
       getAudience: (c): AudienceTier => {
-        const p = c.var.apiPrincipal
-        if (!p) return 'contact'
-        return p.role === 'admin' || p.role === 'owner' ? 'admin' : 'staff'
+        const role = c.get('memberRole')
+        if (!role) return 'contact'
+        return role === 'admin' || role === 'owner' ? 'admin' : 'staff'
       },
       clientLatestVersion: CLI_LATEST_VERSION,
     }),
   )
   app.route(
     '/api/cli',
-    createCliDispatchRoute<ApiKeyEnv>({
+    createCliDispatchRoute<RoleEnv>({
       registry: cli,
-      resolveContext: (c) => {
-        const p = c.get('apiPrincipal')
-        return {
-          organizationId: p.organizationId,
-          principal: { kind: 'apikey' as const, id: p.userId },
-          role: p.role,
-        }
-      },
+      resolveContext: (c) => ({
+        organizationId: c.get('organizationId'),
+        principal: { kind: 'apikey' as const, id: c.get('session').user.id },
+        role: c.get('memberRole'),
+      }),
     }),
   )
 

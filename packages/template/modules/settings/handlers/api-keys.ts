@@ -1,7 +1,12 @@
-import type { ApiKeySummary, CreatedApiKey } from '@auth/api-keys'
 import type { SessionEnv } from '@auth/middleware/require-session'
 import { zValidator } from '@hono/zod-validator'
-import { createKey, listKeys, revokeKey } from '@modules/settings/service/api-keys'
+import {
+  type ApiKeySummary,
+  type CreatedApiKey,
+  createKey,
+  listKeys,
+  revokeKey,
+} from '@modules/settings/service/api-keys'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
@@ -15,7 +20,7 @@ const invalidBody = (
 export interface ApiKeySummaryDto {
   id: string
   name: string | null
-  prefix: string
+  prefix: string | null
   start: string | null
   enabled: boolean
   lastRequest: string | null
@@ -44,19 +49,16 @@ function toCreatedDto(row: CreatedApiKey): CreatedApiKeyDto {
 
 const app = new Hono<SessionEnv>()
   .get('/api-keys', async (c) => {
-    const userId = c.get('session').user.id
-    const rows = await listKeys(userId)
+    const rows = await listKeys(c.req.raw.headers)
     return c.json(rows.map(toSummaryDto))
   })
   .post('/api-keys', zValidator('json', createSchema, invalidBody), async (c) => {
-    const userId = c.get('session').user.id
     const { name } = c.req.valid('json')
-    const created = await createKey(userId, name)
+    const created = await createKey(c.req.raw.headers, name)
     return c.json(toCreatedDto(created))
   })
   .delete('/api-keys/:id', async (c) => {
-    const userId = c.get('session').user.id
-    const ok = await revokeKey(userId, c.req.param('id'))
+    const ok = await revokeKey(c.req.raw.headers, c.req.param('id'))
     if (!ok) return c.json({ error: 'not_found' }, 404)
     return c.json({ ok: true })
   })

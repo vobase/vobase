@@ -1,7 +1,19 @@
 import { productName } from '@auth/branding'
 import { nameFromEmail } from '@auth/display-name'
+import { createNanoid, logger } from '@vobase/core'
+import { betterAuth } from 'better-auth'
+import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { and, eq } from 'drizzle-orm'
+
+import type { ScopedDb } from '~/runtime'
+import { devAuth } from './dev-plugin'
+import { renderInvitationEmail, renderOtpEmail } from './emails'
+import { sendEmail } from './emails/sender'
+import { platformAuth } from './platform-plugin'
+import { buildAuthPlugins } from './plugins'
 import {
   authAccount,
+  authApikey,
   authInvitation,
   authMember,
   authOrganization,
@@ -10,29 +22,14 @@ import {
   authTeamMember,
   authUser,
   authVerification,
-  createNanoid,
-  logger,
-} from '@vobase/core'
-import { type BetterAuthPlugin, betterAuth } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { anonymous } from 'better-auth/plugins/anonymous'
-import { bearer } from 'better-auth/plugins/bearer'
-import { emailOTP } from 'better-auth/plugins/email-otp'
-import { organization } from 'better-auth/plugins/organization'
-import { and, eq } from 'drizzle-orm'
-
-import type { ScopedDb } from '~/runtime'
-import { ac, roles } from './ac'
-import { devAuth } from './dev-plugin'
-import { renderInvitationEmail, renderOtpEmail } from './emails'
-import { sendEmail } from './emails/sender'
-import { platformAuth } from './platform-plugin'
+} from './schema'
 
 const authTableMap = {
   user: authUser,
   session: authSession,
   account: authAccount,
   verification: authVerification,
+  apikey: authApikey,
   organization: authOrganization,
   member: authMember,
   invitation: authInvitation,
@@ -55,14 +52,16 @@ export function createAuth(db: ScopedDb) {
   // sign-up flow dead simple for the common single-org case.
   const multiOrg = process.env.VOBASE_MULTI_ORG === 'true'
 
-  const plugins: BetterAuthPlugin[] = [
-    // Bearer tokens let the public /chat page authenticate via
-    // `Authorization: Bearer <token>` instead of cookies. That isolates the
-    // widget's anonymous session from the dashboard cookie session on the
-    // same origin.
-    bearer(),
-    anonymous(),
-    emailOTP({
+  const platformSecret = process.env.PLATFORM_HMAC_SECRET
+  const allowedDomains = parseAllowedEmailDomains()
+
+  // The plugin list is built as a single expression (rather than `push`-ing
+  // onto a `BetterAuthPlugin[]`) so TypeScript keeps the precise per-plugin
+  // types — that's what makes `auth.api.createApiKey` / `verifyApiKey` etc.
+  // visible on the returned `Auth` type.
+  const plugins = [
+    ...buildAuthPlugins({
+      multiOrg,
       sendVerificationOTP: async ({ email, otp, type }) => {
         try {
           const html = await renderOtpEmail({ otp, type })
@@ -79,18 +78,7 @@ export function createAuth(db: ScopedDb) {
           throw err
         }
       },
-      otpLength: 6,
-      expiresIn: 300,
-    }),
-    organization({
-      allowUserToCreateOrganization: multiOrg,
-      ac,
-      roles,
-      teams: {
-        enabled: true,
-        allowRemovingAllTeams: false,
-      },
-      async sendInvitationEmail({ email, inviter, organization: org, id: invitationId }) {
+      sendInvitationEmail: async ({ email, inviter, organization: org, id: invitationId }) => {
         try {
           const baseUrl = process.env.BETTER_AUTH_URL || 'http://localhost:5173'
           const signInUrl = `${baseUrl}/auth/login?invitationId=${encodeURIComponent(invitationId)}`
@@ -117,31 +105,26 @@ export function createAuth(db: ScopedDb) {
         }
       },
     }),
+    ...(platformSecret
+      ? [
+          platformAuth({
+            hmacSecret: platformSecret,
+            allowedEmailDomains: allowedDomains,
+            hasPendingInvitation: async (email) => {
+              // biome-ignore lint/suspicious/noExplicitAny: drizzle scoped-db typing
+              const dbAny = db as any
+              const rows = await dbAny
+                .select({ id: authInvitation.id })
+                .from(authInvitation)
+                .where(and(eq(authInvitation.email, email), eq(authInvitation.status, 'pending')))
+                .limit(1)
+              return rows.length > 0
+            },
+          }),
+        ]
+      : []),
+    ...(process.env.NODE_ENV !== 'production' ? [devAuth()] : []),
   ]
-
-  const platformSecret = process.env.PLATFORM_HMAC_SECRET
-  if (platformSecret) {
-    plugins.push(
-      platformAuth({
-        hmacSecret: platformSecret,
-        allowedEmailDomains: parseAllowedEmailDomains(),
-        hasPendingInvitation: async (email) => {
-          // biome-ignore lint/suspicious/noExplicitAny: drizzle scoped-db typing
-          const dbAny = db as any
-          const rows = await dbAny
-            .select({ id: authInvitation.id })
-            .from(authInvitation)
-            .where(and(eq(authInvitation.email, email), eq(authInvitation.status, 'pending')))
-            .limit(1)
-          return rows.length > 0
-        },
-      }),
-    )
-  }
-
-  if (process.env.NODE_ENV !== 'production') plugins.push(devAuth())
-
-  const allowedDomains = parseAllowedEmailDomains()
 
   // Auto-enroll new users so invited members land straight in /team. On
   // invitation accept we also mint a staff_profiles row so the invitee

@@ -11,10 +11,10 @@
  * structurally identical across wakes (cache stability).
  */
 
+import { authUser } from '@auth/schema'
 import { channelInstances } from '@modules/channels/schema'
 import { get as getContact } from '@modules/contacts/service/contacts'
 import type { Conversation } from '@modules/messaging/schema'
-import { authUser } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'

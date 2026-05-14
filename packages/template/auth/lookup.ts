@@ -9,10 +9,10 @@
  * than throwing, so wake assembly never fails on a stale staff reference.
  */
 
-import { authUser } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
+import { authUser } from './schema'
 
 export interface AuthLookup {
   getAuthDisplay(staffId: string): Promise<{ name: string | null; email: string | null } | null>

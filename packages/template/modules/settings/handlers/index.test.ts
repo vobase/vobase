@@ -22,7 +22,7 @@ beforeAll(() => {
         createdAt: new Date(),
       },
     ],
-    create: async (_userId, name) => ({
+    create: async (_headers, name) => ({
       id: 'apk_test',
       name,
       prefix: 'vbt_',

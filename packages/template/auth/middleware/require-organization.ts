@@ -1,9 +1,9 @@
-import { authMember } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import type { Context, MiddlewareHandler } from 'hono'
 
 import type { ScopedDb } from '~/runtime'
 import type { Auth } from '..'
+import { authMember } from '../schema'
 import type { SessionEnv } from './require-session'
 
 export interface OrganizationEnv {

@@ -4,15 +4,13 @@ import { __resetCliGrantsForTests, createCliGrantRoutes } from './cli-grant'
 
 afterEach(() => __resetCliGrantsForTests())
 
-// The confirm endpoint requires a real `Auth` + DB; that path is covered by
-// the e2e suite. These tests exercise the start + poll lifecycle and expiry
+// The confirm endpoint requires a real `Auth`; that path is covered by the
+// e2e suite. These tests exercise the start + poll lifecycle and expiry
 // behavior, which are pure logic against the in-memory grant store.
 function makeApp() {
-  // biome-ignore lint/suspicious/noExplicitAny: stubs for unit-only paths
+  // biome-ignore lint/suspicious/noExplicitAny: stub for unit-only paths
   const auth = {} as any
-  // biome-ignore lint/suspicious/noExplicitAny: stubs for unit-only paths
-  const db = {} as any
-  return createCliGrantRoutes({ auth, db, publicBaseUrl: 'https://acme.test' })
+  return createCliGrantRoutes({ auth, publicBaseUrl: 'https://acme.test' })
 }
 
 describe('cli-grant start', () => {

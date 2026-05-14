@@ -11,7 +11,7 @@ const settings: ModuleDef = {
   jobs: [],
   init(ctx) {
     installNotificationPrefsService(createNotificationPrefsService({ db: ctx.db }))
-    installApiKeysService(createApiKeysService({ db: ctx.db }))
+    installApiKeysService(createApiKeysService({ auth: ctx.auth }))
     installOrgSettingsService(createOrgSettingsService({ db: ctx.db }))
   },
 }
