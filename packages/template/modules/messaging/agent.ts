@@ -13,14 +13,15 @@
  *
  * The agent-bash verb `conv reassign` lives as a `defineCliVerb` definition
  * under `./verbs/`. Both the wake's bash sandbox and the runtime CLI binary
- * dispatch through the same `CliVerbRegistry`. Asking staff a question is
- * handled by `add_note` with `mentions` (see `./tools/add-note.ts`) — the
- * post-commit fan-out enqueues a staff-note wake per mentioned staff and
- * customer-facing tools stay available when staff replies.
+ * dispatch through the same `CliVerbRegistry`. Messaging a staff colleague is
+ * handled by `consult_staff` (see `./tools/consult-staff.ts`) — the note's
+ * mention fan-out notifies each addressed staff member and their reply
+ * enqueues a staff-note wake. `add_note` is the undirected breadcrumb variant
+ * with no recipient.
  */
 
 import { get as getContact } from '@modules/contacts/service/contacts'
-import type { Message } from '@modules/messaging/schema'
+import type { InternalNote, Message } from '@modules/messaging/schema'
 import type { MessagingIndexReader, MessagingReader } from '@modules/messaging/service/types'
 import {
   type AgentTool,
@@ -36,50 +37,59 @@ import type { WakeMaterializerFactory } from '~/wake/context'
 export type { MessagingIndexReader, MessagingReader }
 
 import { addNoteTool } from './tools/add-note'
+import { consultStaffTool } from './tools/consult-staff'
 import { draftEmailToReviewTool } from './tools/draft-email-to-review'
-import { replyTool } from './tools/reply'
+import { replyContactTool } from './tools/reply-contact'
 import { sendCardTool } from './tools/send-card'
 import { sendFileTool } from './tools/send-file'
 import { summarizeInboxTool } from './tools/summarize-inbox'
 
 /**
- * RO-error hints for messaging-owned derived files: the conversation
- * timeline (`MESSAGES.md`) and `INTERNAL-NOTES.md`. Both are rendered from
- * `conversation_events` and accept mutations only via tool calls
- * (`reply` / `send_card` / `send_file` for messages; staff-authored notes
- * for internal-notes).
+ * RO-error hints for messaging-owned derived files: the customer timeline
+ * (`MESSAGES.md`) and the staff thread (`INTERNAL-NOTES.md`). Both accept
+ * mutations only via tool calls — `reply_contact` / `send_card` / `send_file`
+ * for the customer timeline; `consult_staff` / `add_note` for the staff thread.
  */
 export const messagingRoHints: RoHintFn[] = [
   (path) => {
     if (path.endsWith('/MESSAGES.md')) {
-      return `bash: ${path}: Read-only filesystem.\n  The conversation timeline is derived from channel events. Use the \`reply\` tool (or \`send_card\`, \`send_file\`) to send a customer-visible message; do not append to this file.`
+      return `bash: ${path}: Read-only file.\n  This is the customer-visible conversation timeline. Use \`reply_contact\` (or \`send_card\`, \`send_file\`) to send the customer a message; do not append to this file.`
     }
     if (path.endsWith('/INTERNAL-NOTES.md')) {
-      return `bash: ${path}: Read-only filesystem.\n  Internal notes are derived from staff-authored events in the messaging module. This file reflects, but does not accept, new notes.`
+      return `bash: ${path}: Read-only file.\n  This is the staff thread for this conversation. Use \`consult_staff\` to message a colleague, or \`add_note\` to leave a breadcrumb; do not append to this file.`
     }
     return null
   },
 ]
 
 export const messagingTools: AgentTool[] = [
-  replyTool,
+  replyContactTool,
   sendCardTool,
   sendFileTool,
+  consultStaffTool,
   addNoteTool,
   summarizeInboxTool,
   draftEmailToReviewTool,
 ]
 
-export { addNoteTool, draftEmailToReviewTool, replyTool, sendCardTool, sendFileTool, summarizeInboxTool }
+export {
+  addNoteTool,
+  consultStaffTool,
+  draftEmailToReviewTool,
+  replyContactTool,
+  sendCardTool,
+  sendFileTool,
+  summarizeInboxTool,
+}
 
 const AGENTS_MD_FILE = 'AGENTS.md'
 
 // Cross-cutting prose only — describes the conversation FILES the agent
 // reads. Per-verb guidance ("when to use `conv reassign`") and per-tool
-// guidance ("when to use `reply` vs `send_card`") now live next to the
-// verb/tool definitions and render under `## Commands` / `## Tool guidance`
-// in AGENTS.md. Add behavioural caveats here only when they span multiple
-// verbs/tools (e.g. "the timeline is derived, never echo >> into it").
+// guidance ("when to use `reply_contact` vs `send_card`") now live next to
+// the verb/tool definitions and render under `## Commands` / `## Tool
+// guidance` in AGENTS.md. Add behavioural caveats here only when they span
+// multiple verbs/tools (e.g. "the timeline is read-only, never echo >> into it").
 export const messagingAgentsMdContributors: readonly IndexContributor[] = [
   defineIndexContributor({
     file: AGENTS_MD_FILE,
@@ -89,10 +99,12 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## Conversation surface',
         '',
-        '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — customer-visible timeline.',
-        '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — staff/agent notes.',
+        'This conversation has two threads, equal in standing — read both before you act:',
         '',
-        'Send customer-visible content via `reply` / `send_card` / `send_file`. Reassign with `vobase conv reassign`. Ask staff a question with `add_note` + `mentions`.',
+        '- `/contacts/<id>/<channelInstanceId>/MESSAGES.md` — the customer thread. What the customer sees.',
+        '- `/contacts/<id>/<channelInstanceId>/INTERNAL-NOTES.md` — the staff thread. You and your colleagues; the customer never sees it. A note here newer than your last action means a colleague is waiting on you.',
+        '',
+        'Write to the customer with `reply_contact` / `send_card` / `send_file`; to a staff colleague with `consult_staff`; an undirected breadcrumb with `add_note`. Reassign with `vobase conv reassign`. See `## Tool guidance` for when to use each.',
         '',
         'Your wake cue may end with `## Other recent activity (context)`, a read-only appendix of customer/staff messages and notes from non-self authors since your last reply (debounced bursts and any notes between wakes land here). The trigger at the top is why this wake fired; the appendix is the surrounding context.',
       ].join('\n')
@@ -101,8 +113,8 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
   // Lane-aware blocks. Conditional on `getWakeAgentsMdScratch(ctx)` — return
   // null when the wake doesn't match (or scratch is absent, e.g. UI preview
   // without synthetic context). These describe HARNESS facts that name
-  // messaging concepts (`reply`, `add_note`, mentions-as-ask-staff, internal
-  // notes), so the prose lives in messaging — not the framework.
+  // messaging concepts (`consult_staff`, `add_note`, the staff thread), so the
+  // prose lives in messaging — not the framework.
   defineIndexContributor({
     file: AGENTS_MD_FILE,
     priority: 60,
@@ -131,13 +143,13 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
         '- Contact field is wrong → `vobase contacts propose-change --id <id> --field <name> --to "..."`',
         '- Durable behaviour rule (no specific file) → `echo "- rule" >> /agents/<id>/MEMORY.md`',
         '- Per-staff preference → `echo "- pref" >> /staff/<staffId>/MEMORY.md`',
-        '- Note is staff answering a prior question of yours → relay the answer to the customer with `reply` or `send_card`',
+        '- Note is staff answering a prior question of yours → relay the answer to the customer with `reply_contact` or `send_card`',
         '',
-        '**Step 3 — acknowledge** with `add_note`. Short, conversational, ≤10 words; lead with the verb.',
+        '**Step 3 — reply to the staff member** with `consult_staff` (address the note author). Short, conversational, ≤10 words; lead with the verb.',
         'e.g. "Got it — rewrote stale-triage.", "Sent the answer to the customer.", "Pinned to Tarun\'s memory."',
         '',
-        'If the note is unclear after reading the artifact, call `add_note` with `mentions` populated to ask — do not guess.',
-        'An empty `add_note` ack with no preceding artifact write, customer reply, or question is a failure mode — never end the turn that way.',
+        'If the note is unclear after reading the artifact, use `consult_staff` to ask the author — do not guess.',
+        'An empty turn with no preceding artifact write, customer reply, or `consult_staff` message is a failure mode — never end the turn that way.',
       ].join('\n')
     },
   }),
@@ -151,7 +163,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## No customer is on the line (current wake)',
         '',
-        'Standalone wake — no customer is waiting. Customer-facing tools are absent. Use `add_note` to leave a note on a conversation, or write into the operator thread directly.',
+        'Standalone wake — no customer is waiting. Customer-facing tools are absent. Use `consult_staff` to message a colleague on a conversation, `add_note` to leave a breadcrumb, or write into the operator thread directly.',
       ].join('\n')
     },
   }),
@@ -252,8 +264,7 @@ export async function renderTranscript(
   return renderTranscriptFromMessages(msgs, driveFilesById ?? new Map())
 }
 
-export async function renderInternalNotes(messaging: MessagingReader, conversationId: string): Promise<string> {
-  const notes = await messaging.listInternalNotes(conversationId).catch(() => [])
+export function renderInternalNotesFromList(notes: readonly InternalNote[]): string {
   if (notes.length === 0) return '# Internal Notes\n\n_No notes yet._\n'
   const lines = ['# Internal Notes', '']
   for (const n of notes) {
@@ -262,6 +273,11 @@ export async function renderInternalNotes(messaging: MessagingReader, conversati
     lines.push(n.body, '')
   }
   return lines.join('\n')
+}
+
+export async function renderInternalNotes(messaging: MessagingReader, conversationId: string): Promise<string> {
+  const notes = await messaging.listInternalNotes(conversationId).catch(() => [])
+  return renderInternalNotesFromList(notes as InternalNote[])
 }
 
 /**
@@ -374,8 +390,9 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   // this contributor can flow through `collectAgentContributions` without
   // polluting standalone wakes.
   if (!ctx.contactId) return []
-  const [msgs, contact, driveFilesById] = await Promise.all([
+  const [msgs, notes, contact, driveFilesById] = await Promise.all([
     listMessages(ctx.conversationId, { limit: 200 }),
+    listInternalNotes(ctx.conversationId).catch(() => [] as InternalNote[]),
     getContact(ctx.contactId).catch(() => null),
     getAttachmentSnapshot(ctx.organizationId, ctx.conversationId),
   ])
@@ -386,12 +403,32 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   const instruction = [
     '# Task',
     '',
-    'Respond to the customer now. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Keep prose replies to 2–4 short sentences.',
+    'You serve two audiences on this conversation: the customer, and your staff colleagues.',
+    '',
+    "1. First check the staff thread. If a colleague is waiting on you, or the customer's request needs a judgment call, a policy exception, missing information, or anything you cannot ground in the workspace — use `consult_staff` to address them. Consulting staff before replying is the norm for non-trivial cases, not a last resort.",
+    '2. Then respond to the customer, grounded in what you have read. PREFER `send_card` whenever the reply has any structure or actionable choices — pricing, plans, refund confirmations, yes/no with consequences, 2+ options, next-step CTAs. Use plain `reply_contact` only for pure acknowledgements, free-form questions back to the customer, and single-sentence factual answers with no CTA. Keep prose replies to 2–4 short sentences.',
   ].join('\n')
+
+  // Unaddressed staff content: a staff/system note newer than the agent's
+  // last action (its last customer message or its last breadcrumb). Pushed
+  // into context so the staff thread is as unmissable as the customer
+  // transcript — not a file the agent has to remember to open.
+  const lastAgentActivityAt = Math.max(
+    0,
+    ...msgs.filter((m) => m.role === 'agent').map((m) => new Date(m.createdAt).getTime()),
+    ...notes.filter((n) => n.authorType === 'agent').map((n) => new Date(n.createdAt).getTime()),
+  )
+  const hasUnaddressedStaffNote = notes.some(
+    (n) => n.authorType !== 'agent' && new Date(n.createdAt).getTime() > lastAgentActivityAt,
+  )
+
   return [
-    { kind: 'custom', priority: 100, render: () => instruction },
-    { kind: 'custom', priority: 90, render: () => transcript },
-    { kind: 'custom', priority: 80, render: () => contactBlock },
+    { kind: 'custom' as const, priority: 100, render: () => instruction },
+    { kind: 'custom' as const, priority: 90, render: () => transcript },
+    ...(hasUnaddressedStaffNote
+      ? [{ kind: 'custom' as const, priority: 85, render: () => renderInternalNotesFromList(notes) }]
+      : []),
+    { kind: 'custom' as const, priority: 80, render: () => contactBlock },
   ]
 }
 

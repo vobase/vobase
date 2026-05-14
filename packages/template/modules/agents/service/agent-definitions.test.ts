@@ -15,15 +15,18 @@ describe('resolveAllowedTools', () => {
   })
 
   it('appends per-agent tools after built-ins in declaration order', () => {
-    expect(resolveAllowedTools({ skillAllowlist: ['reply', 'send_card'] })).toEqual([
+    expect(resolveAllowedTools({ skillAllowlist: ['reply_contact', 'send_card'] })).toEqual([
       ...BUILTIN_TOOL_NAMES,
-      'reply',
+      'reply_contact',
       'send_card',
     ])
   })
 
   it('dedupes when a built-in is also declared in the per-agent allowlist', () => {
-    expect(resolveAllowedTools({ skillAllowlist: ['bash', 'reply', 'bash'] })).toEqual([...BUILTIN_TOOL_NAMES, 'reply'])
+    expect(resolveAllowedTools({ skillAllowlist: ['bash', 'reply_contact', 'bash'] })).toEqual([
+      ...BUILTIN_TOOL_NAMES,
+      'reply_contact',
+    ])
   })
 
   it('preserves per-agent order when no overlap with built-ins', () => {

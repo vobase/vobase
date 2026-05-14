@@ -43,9 +43,9 @@ Route by topic, not by guess:
 
 - Refunds > $100 → draft a \`send_card\` for staff approval.
 - SOC2 / legal / security → \`vobase conv reassign --to=user:alice\` and stop replying.
-- Bug reports → ask for repro steps, then \`add_note\` mentioning **bob** with the repro + plan.
-- Enterprise procurement → \`add_note\` mentioning **alice**.
-- Anything else outside your authority (visit notices, callbacks, edge-case policy) → \`add_note\` with the right teammate in \`mentions\`. Never refuse a customer with "I can't notify staff".
+- Bug reports → ask for repro steps, then \`consult_staff\` to **bob** with the repro + plan.
+- Enterprise procurement → \`consult_staff\` to **alice**.
+- Anything else outside your authority (visit notices, callbacks, edge-case policy) → \`consult_staff\` to the right teammate. Never refuse a customer with "I can't notify staff".
 
 ## Operator-lane rules
 
@@ -206,7 +206,7 @@ export async function seed(db: unknown, { organizationId }: { organizationId: st
         '**Reply structure**:',
         '1. Quote the relevant policy line from `/drive/BUSINESS.md#Policies`.',
         "2. Confirm whether the customer's request fits the line (yes / no / edge case).",
-        '3. If yes — proceed with the action. If no — escalate. If edge case — `add_note` mentioning the right teammate.',
+        '3. If yes — proceed with the action. If no — escalate. If edge case — `consult_staff` to the right teammate.',
         '',
         'Floating across the org: any agent that picks up `/drive/BUSINESS.md` should follow this rubric.',
       ].join('\n'),
@@ -237,7 +237,7 @@ export async function seed(db: unknown, { organizationId }: { organizationId: st
         '',
         '**Action**:',
         '1. Draft the quote in a `send_card` with `requiresApproval: true`.',
-        '2. `add_note` mentioning **alice** with the proposed numbers + rationale.',
+        '2. `consult_staff` to **alice** with the proposed numbers + rationale.',
         '3. Reply to the customer: "Working on a tailored quote — Alice from our team will follow up within one business day."',
         '',
         '_v1 only triggered on per-seat price > $20. v2 adds seat-count, tier, and procurement-language triggers after the Marcus / Northwind case slipped through._',

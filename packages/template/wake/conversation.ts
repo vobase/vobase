@@ -84,7 +84,7 @@ export interface ConversationWakeConfigInput {
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
 
 /** Tools dropped from the registry on all staff_note wakes (default-deny). */
-const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply', 'send_card', 'send_file'])
+const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply_contact', 'send_card', 'send_file'])
 
 export async function conversationWakeConfig(input: ConversationWakeConfigInput): Promise<WakeConfig> {
   const { data, conv, agentId, agentDefinition, contributions, deps } = input

@@ -4,7 +4,7 @@ import { createMessagesService, installMessagesService } from '@modules/messagin
 import type { ToolContext } from '@vobase/core'
 import { setJournalDb } from '@vobase/core'
 
-import { replyTool } from './reply'
+import { replyContactTool } from './reply-contact'
 
 type Row = Record<string, unknown>
 
@@ -69,45 +69,45 @@ function makeCtx(): ToolContext {
   }
 }
 
-describe('replyTool', () => {
+describe('replyContactTool', () => {
   it('has stable name and no requiresApproval gate', () => {
-    expect(replyTool.name).toBe('reply')
-    expect(replyTool.requiresApproval).toBeFalsy()
+    expect(replyContactTool.name).toBe('reply_contact')
+    expect(replyContactTool.requiresApproval).toBeFalsy()
   })
 
   it('rejects empty text', async () => {
-    const result = await replyTool.execute({ text: '' }, makeCtx())
+    const result = await replyContactTool.execute({ text: '' }, makeCtx())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errorCode).toBe('VALIDATION_ERROR')
   })
 
   it('rejects missing text field', async () => {
-    const result = await replyTool.execute({} as { text: string }, makeCtx())
+    const result = await replyContactTool.execute({} as { text: string }, makeCtx())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errorCode).toBe('VALIDATION_ERROR')
   })
 
   it('happy path returns messageId and writes message + event in one tx', async () => {
-    const result = await replyTool.execute({ text: 'hello customer' }, makeCtx())
+    const result = await replyContactTool.execute({ text: 'hello customer' }, makeCtx())
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.content.messageId).toBe('msg-test-1')
     expect(messageStore).toHaveLength(1)
     expect(eventStore).toHaveLength(1)
     expect(messageStore[0]?.kind).toBe('text')
     expect(outboundCalls).toHaveLength(1)
-    expect(outboundCalls[0]?.toolName).toBe('reply')
+    expect(outboundCalls[0]?.toolName).toBe('reply_contact')
     expect(outboundCalls[0]?.organizationId).toBe('org-1')
     expect(outboundCalls[0]?.conversationId).toBe('conv-1')
   })
 
   it('accepts optional replyToMessageId', async () => {
-    const result = await replyTool.execute({ text: 'hi', replyToMessageId: 'msg-prev' }, makeCtx())
+    const result = await replyContactTool.execute({ text: 'hi', replyToMessageId: 'msg-prev' }, makeCtx())
     expect(result.ok).toBe(true)
   })
 
   it('surfaces window_expired as a tool failure with template-fallback hint', async () => {
     outboundResponder = () => Promise.resolve({ success: false, code: 'window_expired' })
-    const result = await replyTool.execute({ text: 'hello' }, makeCtx())
+    const result = await replyContactTool.execute({ text: 'hello' }, makeCtx())
     expect(result.ok).toBe(false)
     if (!result.ok) {
       const msg = (result.error ?? '').toLowerCase()

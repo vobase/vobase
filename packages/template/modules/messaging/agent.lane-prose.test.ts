@@ -38,7 +38,7 @@ describe('messaging staff-note contributor', () => {
     expect(out).toContain('/contacts/<id>/MEMORY.md')
     expect(out).toContain('/agents/<id>/MEMORY.md')
     expect(out).toContain('/staff/<staffId>/MEMORY.md')
-    expect(out).toContain('add_note')
+    expect(out).toContain('consult_staff')
   })
 
   it('returns null on inbound_message wake', () => {

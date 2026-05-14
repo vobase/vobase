@@ -226,7 +226,7 @@ describe('renderStaffNote (assignee branch)', () => {
       },
     )
     expect(text).toContain('You are NOT the conversation assignee')
-    expect(text).toContain('reply / send_card / send_file')
+    expect(text).toContain('reply_contact / send_card / send_file')
     // Body is still inlined in the peer-wake branch.
     expect(text).toContain('> @Atlas please confirm the SLA for tier-2 incidents')
   })

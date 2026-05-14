@@ -28,7 +28,7 @@ export const teamListVerb = defineCliVerb({
   audience: 'contact',
   readOnly: true,
   prompt:
-    'Always run before `conv reassign --to=user:...` or `add_note` with `mentions` so you use real userIds. Cheap, read-only.',
+    'Always run before `conv reassign --to=user:...` or `consult_staff` so you use real userIds. Cheap, read-only.',
   input: z.object({}),
   body: async ({ ctx }) => {
     const rows = await staff.list(ctx.organizationId)

@@ -30,7 +30,7 @@ export const convReassignVerb = defineCliVerb({
   audience: 'contact',
   prompt: `HANDOFF PLAYBOOK — call these tools in this order, never skip step 1:
   1. send_card or reply  — tell the customer you're handing off, who you're routing to, and roughly what to expect ("Alice handles SOC2 docs, she'll be in touch shortly"). Customer-facing acknowledgment is mandatory.
-  2. add_note            — leave context for the assignee with \`mentions\` populated (the @-mention drives their notification).
+  2. consult_staff       — message the assignee with the handoff context (they are notified, and their reply wakes you back).
   3. vobase conv reassign --to=user:<id> [--reason="..."] — actually flip the assignee.
 Use the verb for explicit human-handoff requests, legal/compliance, or large refunds. Run \`vobase team list\` first to look up real userIds — never invent them.`,
   input: z.object({

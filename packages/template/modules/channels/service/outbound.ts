@@ -164,7 +164,7 @@ export function cardToOutbound(card: CardElement, recipient: string, channelKind
 }
 
 function buildOutboundMessage(input: SendOutboundInput, recipient: string, channelKind: string): OutboundMessage {
-  if (input.toolName === 'reply' || input.toolName === 'staff_reply') {
+  if (input.toolName === 'reply_contact' || input.toolName === 'staff_reply') {
     const payload = input.payload as { text: string }
     return { to: recipient, text: payload.text }
   }

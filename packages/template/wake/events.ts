@@ -324,7 +324,7 @@ export type ChannelInboundAgentEvent = BaseEvent & {
 export type ChannelOutboundAgentEvent = BaseEvent & {
   type: 'channel_outbound'
   channelType: string
-  /** Tool that triggered the outbound dispatch (e.g. 'reply', 'send_card'). */
+  /** Tool that triggered the outbound dispatch (e.g. 'reply_contact', 'send_card'). */
   toolName: string
   contactId: string
 }

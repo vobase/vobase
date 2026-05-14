@@ -396,7 +396,7 @@ describe('staff-note mention fan-out', () => {
       })
 
       const toolNames = (config.tools as readonly AgentTool[]).map((t) => t.name)
-      expect(toolNames).toContain('reply')
+      expect(toolNames).toContain('reply_contact')
       expect(toolNames).toContain('send_card')
 
       // Trigger renderer recognises the mentionedAgentId variant.

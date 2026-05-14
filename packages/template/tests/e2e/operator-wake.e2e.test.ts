@@ -173,9 +173,9 @@ describe('standaloneWakeConfig (real PG)', () => {
     expect(toolNames).toContain('summarize_inbox')
     expect(toolNames).toContain('draft_email_to_review')
     expect(toolNames).toContain('propose_outreach')
-    // Conversation-lane tools (`reply`, `send_card`, etc.) MUST NOT leak into
-    // the standalone surface — they're a different lane's catalogue.
-    expect(toolNames).not.toContain('reply')
+    // Conversation-lane tools (`reply_contact`, `send_card`, etc.) MUST NOT leak
+    // into the standalone surface — they're a different lane's catalogue.
+    expect(toolNames).not.toContain('reply_contact')
     expect(toolNames).not.toContain('send_card')
 
     // `/INDEX.md` materializer is installed for both surfaces — verify it's

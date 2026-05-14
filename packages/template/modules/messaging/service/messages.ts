@@ -259,7 +259,7 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendTextMessage(input: AppendTextMessageInput): Promise<Message> {
-    return appendAgentMessage(input, 'text', { text: input.text }, 'reply', input.replyToMessageId)
+    return appendAgentMessage(input, 'text', { text: input.text }, 'reply_contact', input.replyToMessageId)
   }
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature

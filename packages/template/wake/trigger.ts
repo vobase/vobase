@@ -133,7 +133,7 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
   const ownership = youOwn
     ? `You are the conversation assignee.`
     : `You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread.`
-  return `${noteSection} ${ownership} Staff notes are internal coaching — the customer-facing tools (reply / send_card / send_file) are not available in this wake. Act on the note's request via memory updates, contact proposals, or add_note. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
+  return `${noteSection} ${ownership} Staff notes are internal coaching — the customer-facing tools (reply_contact / send_card / send_file) are not available in this wake. Act on the note's request via memory updates, contact proposals, or a workspace write, then reply to the staff member with \`consult_staff\`. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {
@@ -178,7 +178,7 @@ function renderChangeDecided(trigger: WakeTrigger, _refs: RenderRefs): string {
     return [
       `Staff just APPROVED ${summary}`,
       '',
-      'You MUST send a fresh customer-facing reply on this wake using the `reply` tool (or `send_card` if a card is more appropriate). Even if you previously told the customer the change was "logged for review" or "pending", a confirmation message is required now that the change is actually applied — staff are watching this conversation for closure. Do not end the wake without sending one.',
+      'You MUST send a fresh customer-facing reply on this wake using the `reply_contact` tool (or `send_card` if a card is more appropriate). Even if you previously told the customer the change was "logged for review" or "pending", a confirmation message is required now that the change is actually applied — staff are watching this conversation for closure. Do not end the wake without sending one.',
       '',
       'Keep the reply brief (one or two sentences). Do NOT re-list the fields the customer asked about; they remember. Example phrasing: "All set — your update is live now. Let me know if there\'s anything else."',
       '',
