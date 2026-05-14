@@ -17,6 +17,7 @@ test-results
 .stitch
 drizzle/
 schema.generated.ts
+.auth-gen/
 .claude/*.lock
 openspec/
 # Project-local vobase CLI configs (`vobase auth login --local`) — holds an API key.

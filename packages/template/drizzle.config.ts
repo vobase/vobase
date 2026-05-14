@@ -10,6 +10,8 @@ export default defineConfig({
   schema: [
     join(coreSrc, 'db/pg-schemas.ts'),
     join(coreSrc, 'schemas/*.ts'),
+    './auth/pg-schema.ts',
+    './auth/schema-tables.ts',
     './runtime/index.ts',
     './modules/*/schema.ts',
   ],

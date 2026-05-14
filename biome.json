@@ -71,7 +71,10 @@
         "noBannedTypes": "off"
       },
       "correctness": {
-        "noUnusedImports": "error",
+        "noUnusedImports": {
+          "level": "error",
+          "fix": "none"
+        },
         "noUnusedVariables": {
           "level": "error",
           "fix": "none"

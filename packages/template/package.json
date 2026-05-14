@@ -16,6 +16,7 @@
     "db:migrate": "bun run scripts/db-migrate.ts",
     "db:generate": "bun run scripts/db-generate.ts",
     "db:studio": "drizzle-kit studio",
+    "gen:auth": "bun run scripts/gen-auth-schema.ts",
     "knip": "knip",
     "check": "conc --group --max-processes 1 bun:check:*",
     "check:shape": "bun run scripts/check-module-shape.ts",
@@ -25,6 +26,7 @@
     "check:trust-defaults": "bun run scripts/check-trust-defaults.ts",
     "check:error-shape": "bun run scripts/check-error-shape.ts",
     "check:contract": "bun run scripts/check-contract.ts",
+    "check:auth-schema": "bun run scripts/check-auth-schema.ts",
     "test": "bun test",
     "test:e2e": "bun test tests/e2e",
     "test:smoke": "for f in tests/smoke/*.ts; do bun run \"$f\" || exit 1; done",
@@ -35,6 +37,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.63",
+    "@better-auth/api-key": "^1.6.10",
     "@ariakit/react": "^0.4.26",
     "@diceui/combobox": "^1.2.2",
     "@diceui/mention": "^0.8.0",
@@ -108,6 +111,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
+    "auth": "^1.6.11",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/router-plugin": "^1.167.35",
