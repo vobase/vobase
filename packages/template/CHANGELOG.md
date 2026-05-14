@@ -1,5 +1,119 @@
 # @vobase/template
 
+## 3.14.0
+
+### Minor Changes
+
+- [`c518705`](https://github.com/vobase/vobase/commit/c5187054526d24ec29ad0e013af2621b2f95f1a5) Thanks [@mdluo](https://github.com/mdluo)! - feat(messaging): unify the customer transcript and staff thread into one CONVERSATION.md
+
+  The conversation workspace exposed two materialized files — `MESSAGES.md`
+  (the customer-visible transcript) and `INTERNAL-NOTES.md` (the staff thread).
+  That layout structurally encoded the staff thread as a secondary file the
+  agent had to remember to open, which worked against treating staff as a
+  co-equal audience.
+
+  ## One interleaved timeline
+
+  `MESSAGES.md` and `INTERNAL-NOTES.md` are replaced by a single
+  `/contacts/<id>/<channelInstanceId>/CONVERSATION.md` — customer messages, the
+  agent's replies, and internal staff notes interleaved in time order. Each row
+  is audience-labelled:
+
+  - Customer-visible: `**Customer**`, `**Agent → customer**`, `**Staff → customer**`
+  - Internal: `**[internal] Agent**`, `**[internal] Staff:<id>**`, `**[internal] System**`
+
+  A staff note that landed right before the current customer message is now the
+  next line in the file, not a different file — structurally unmissable. The
+  merge is deterministic (equal timestamps break ties by message-before-note,
+  then id), so the materialized file stays byte-stable across re-renders within
+  a wake and the frozen-snapshot `systemHash` invariant holds.
+
+  `conversationSideLoad` collapses accordingly: it pushes one merged timeline,
+  and the previous conditional whole-`INTERNAL-NOTES.md` re-dump becomes a
+  one-line banner when a colleague's note is newer than the agent's last action.
+
+  ## Audience-boundary hardening
+
+  With customer-visible and staff-only content now in one file, the `**…**` row
+  header is the only thing telling the agent which audience a row belongs to.
+  Untrusted body content (customer message text, staff note bodies) is
+  blockquoted so a column-0 `**` is renderer-only — a message or note body
+  cannot typographically forge a row header of a different audience. Mention
+  tokens in the note header are stripped to the id charset for the same reason.
+
+  ## One row format everywhere
+
+  The agent sees conversation content in three places — the `CONVERSATION.md`
+  timeline, the wake-cue trigger renderers, and the unread-activity appendix —
+  and they previously rendered it three different ways. A shared
+  `modules/messaging/lib/conversation-row.ts` now owns the row vocabulary
+  (`messageAudienceLabel` / `noteAudienceLabel`), the blockquoting of untrusted
+  body text, and the timestamp format, so all three render the same
+  `**<audience>** (<timestamp>) <note>:` header + blockquoted body. The
+  unread-activity appendix's note rows now carry the `[internal]` audience
+  marker that previously only `CONVERSATION.md` had.
+
+  ## Timezone-aware timestamps
+
+  Conversation timestamps render in the org timezone (`ORG_TIMEZONE`) with an
+  explicit offset — e.g. `2026-05-14 18:30 GMT+08:00` — instead of bare UTC.
+  `formatRowTimestamp` is deterministic for a fixed input (no clock read), so it
+  is safe inside the frozen-snapshot renderers.
+
+  ## Surface updates
+
+  The rename is threaded through the read-only config, RO-error hints, the
+  `conversation-surface` AGENTS.md contributor, the `wake/trigger.ts` cue
+  renderers (inbound / staff-note / caption-ready), `wake/unread-activity.ts`
+  overflow pointers, the frozen-prompt preamble, the INDEX.md conversation
+  links, and the WhatsApp echo-coexistence prose.
+
+### Patch Changes
+
+- [`4bdf1c7`](https://github.com/vobase/vobase/commit/4bdf1c771aa68b3eedb519dcf60b4871c0363281) Thanks [@mdluo](https://github.com/mdluo)! - Fire mention notifications from the `consult_staff` agent tool
+
+  `consult_staff` wrote the internal note with resolved `mentions` but never
+  fired `fanOutNoteMentions` — so addressed staff got no WhatsApp ping when
+  offline, and no `pending_mention_pings` ledger row was recorded (the row that
+  correlates a staff member's WA reply back to the conversation and wakes the
+  agent). The fan-out only ran from the HTTP notes handler, not the agent
+  write path.
+
+  `consult_staff` now fires `fanOutNoteMentions(row)` after the note write,
+  fire-and-forget so a flaky provider can't fail the note. This makes the tool
+  the agent-write-path twin of the HTTP notes handler. Failures log via the
+  structured `logger`; the synchronous "service not installed" path (unit-test
+  contexts) is guarded and logged at `warn`.
+
+- [`077678d`](https://github.com/vobase/vobase/commit/077678dffe3032a09b5d8f5616c10e6808e09b81) Thanks [@mdluo](https://github.com/mdluo)! - Move the WhatsApp mention fan-out behind a durable pg-boss job
+
+  `fanOutNoteMentions` does WhatsApp I/O per mentioned staff member and writes
+  the `pending_mention_pings` correlation row that wakes the asking agent on a
+  reply. It was invoked fire-and-forget (`void ...catch()`) from the
+  `consult_staff` agent tool and the HTTP notes handler — so a process recycle
+  mid-send silently lost the fan-out and its ledger row.
+
+  It now runs behind a `team:fanout-mention-pings` pg-boss job: producers call
+  `enqueueMentionFanOut`, the team job handler runs `fanOutNoteMentions` on the
+  worker. The work survives a process recycle and gets pg-boss retry semantics,
+  with a per-note `singletonKey` deduping retries. The job payload is
+  Zod-validated at the handler boundary and carries only the note fields the
+  fan-out consumes.
+
+- [`7a95f87`](https://github.com/vobase/vobase/commit/7a95f87cc1501f556d4c2566956fc5abac159f69) Thanks [@mdluo](https://github.com/mdluo)! - Add a static `## Execution Bias` section to the frozen system prompt
+
+  The agent had per-turn behavioral guidance (the conversation-lane `# Task`
+  side-load, which frames _who_ to address first) but nothing static and
+  every-wake encoding _how_ to work — explore before acting, finish actionable
+  requests, ground answers in evidence, vary approach on weak results, continue
+  until resolved or genuinely blocked, check live state. Agents would jump
+  straight to a reply off the wake cue without reading the workspace.
+
+  `buildFrozenPrompt` now renders an `## Execution Bias` section as its own
+  `execution-bias` prompt region. It is fully static (no per-wake
+  interpolation, so `systemHash` stays byte-stable) and reaches every lane,
+  including standalone wakes. Adapted from openclaw's equivalent section.
+
 ## 3.13.0
 
 ### Minor Changes
