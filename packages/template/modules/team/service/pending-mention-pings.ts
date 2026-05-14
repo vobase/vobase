@@ -101,6 +101,21 @@ interface RawPingRow extends Record<string, unknown> {
   live_count?: number | string | null
 }
 
+/**
+ * A `RawPingRow` whose payload columns are populated — a real
+ * `DELETE … RETURNING` row, not the empty-spine row the count-aware CTE yields
+ * when nothing was deleted. `isClaimedRow` is the only way to obtain one.
+ */
+interface ClaimedPingRow extends RawPingRow {
+  id: string
+  conversation_id: string
+  staff_user_id: string
+  organization_id: string
+  asking_agent_id: string
+  original_note_id: string
+  created_at: string | Date
+}
+
 const PING_COLUMNS = sql`id, conversation_id, staff_user_id, organization_id, asking_agent_id, original_note_id, outbound_wamid, created_at`
 
 /** Normalise drizzle's `db.execute` return (postgres-js array vs `{ rows }`). */
@@ -109,16 +124,23 @@ function extractRows(result: unknown): RawPingRow[] {
   return (result as { rows?: RawPingRow[] }).rows ?? []
 }
 
-/** Caller must have verified the payload columns are non-null. */
-function rowToPing(row: RawPingRow): PendingMentionPing {
+/**
+ * A populated `id` only ever comes back on a real deleted row, and the table's
+ * payload columns are all `.notNull()` — so a present `id` implies the rest.
+ */
+function isClaimedRow(row: RawPingRow | undefined): row is ClaimedPingRow {
+  return typeof row?.id === 'string'
+}
+
+function rowToPing(row: ClaimedPingRow): PendingMentionPing {
   return {
-    conversationId: String(row.conversation_id),
-    staffUserId: String(row.staff_user_id),
-    organizationId: String(row.organization_id),
-    askingAgentId: String(row.asking_agent_id),
-    originalNoteId: String(row.original_note_id),
-    outboundWamid: row.outbound_wamid == null ? null : String(row.outbound_wamid),
-    createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    conversationId: row.conversation_id,
+    staffUserId: row.staff_user_id,
+    organizationId: row.organization_id,
+    askingAgentId: row.asking_agent_id,
+    originalNoteId: row.original_note_id,
+    outboundWamid: row.outbound_wamid,
+    createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
   }
 }
 
@@ -170,7 +192,7 @@ export function createPendingMentionPingService(deps: PingDeps): PendingMentionP
       RETURNING ${PING_COLUMNS}
     `)
     const row = extractRows(result)[0]
-    return row?.id ? rowToPing(row) : null
+    return isClaimedRow(row) ? rowToPing(row) : null
   }
 
   /**
@@ -201,7 +223,7 @@ export function createPendingMentionPingService(deps: PingDeps): PendingMentionP
     `)
     const row = extractRows(result)[0]
     const liveCount = Number(row?.live_count ?? 0)
-    if (liveCount === 1 && row?.id) return { status: 'claimed', ping: rowToPing(row) }
+    if (liveCount === 1 && isClaimedRow(row)) return { status: 'claimed', ping: rowToPing(row) }
     if (liveCount >= 2) return { status: 'ambiguous', liveCount }
     return { status: 'none' }
   }
@@ -218,13 +240,12 @@ export function createPendingMentionPingService(deps: PingDeps): PendingMentionP
 
   async function pruneOlderThan(cutoff: Date): Promise<number> {
     const cutoffIso = cutoff.toISOString()
-    const result = await db.execute(sql`
+    const result = await db.execute<RawPingRow>(sql`
       DELETE FROM ${pendingMentionPings}
       WHERE created_at < ${cutoffIso}::timestamptz
       RETURNING id
     `)
-    const rows = (Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? [])) as unknown[]
-    return rows.length
+    return extractRows(result).length
   }
 
   return { recordPing, claimPing, pruneOlderThan }
