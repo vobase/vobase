@@ -27,11 +27,16 @@ export function messageAudienceLabel(role: Message['role']): string {
  * Audience label for an internal-note row. The `[internal]` prefix marks the
  * staff thread the customer never sees — it is the boundary the agent reads to
  * tell customer-visible content from staff-only content.
+ *
+ * `authorId` is only consulted for the `staff` branch (agent/system notes have
+ * no per-author label) and is stripped to the id charset — the label sits on
+ * the audience-boundary header line, so a malformed id must not break it.
  */
-export function noteAudienceLabel(authorType: InternalNote['authorType'], authorId: string): string {
-  if (authorType === 'staff') return `[internal] Staff:${authorId}`
+export function noteAudienceLabel(authorType: InternalNote['authorType'], authorId?: string): string {
   if (authorType === 'agent') return '[internal] Agent'
-  return '[internal] System'
+  if (authorType === 'system') return '[internal] System'
+  const safeId = (authorId ?? '').replace(/[^\w:.-]/g, '') || 'unknown'
+  return `[internal] Staff:${safeId}`
 }
 
 /**
@@ -77,16 +82,16 @@ export interface ConversationRowOpts {
   body: string
   /** Org-timezone timestamp from `formatRowTimestamp`. Omitted for the wake cue (the triggering row is "happening now"). */
   timestamp?: string
-  /** Extra header annotation before the colon — e.g. `(@staff:u1)` mention tags or a `[card]` action kind. */
-  headerNote?: string
+  /** Freeform header insert before the colon — e.g. `(@staff:u1)` mention tags or a `[card]` action kind. */
+  annotation?: string
 }
 
 /**
- * One audience-labelled conversation row: a `**<label>** (<ts>) <note>:` header
- * followed by the blockquoted body.
+ * One audience-labelled conversation row: a `**<label>** (<ts>) <annotation>:`
+ * header followed by the blockquoted body.
  */
 export function conversationRow(opts: ConversationRowOpts): string {
   const ts = opts.timestamp ? ` (${opts.timestamp})` : ''
-  const note = opts.headerNote ? ` ${opts.headerNote}` : ''
-  return `**${opts.label}**${ts}${note}:\n${blockquoteBody(opts.body)}`
+  const annotation = opts.annotation ? ` ${opts.annotation}` : ''
+  return `**${opts.label}**${ts}${annotation}:\n${blockquoteBody(opts.body)}`
 }

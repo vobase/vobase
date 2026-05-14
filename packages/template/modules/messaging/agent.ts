@@ -257,7 +257,7 @@ function noteEntry(n: InternalNote): ConversationEntry {
         label: noteAudienceLabel(n.authorType, n.authorId),
         timestamp: formatRowTimestamp(created),
         body: n.body,
-        headerNote: tokens.length > 0 ? `(@${tokens.join(' @')})` : undefined,
+        annotation: tokens.length > 0 ? `(@${tokens.join(' @')})` : undefined,
       }),
     ],
   }

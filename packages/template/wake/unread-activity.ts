@@ -254,10 +254,10 @@ export function renderUnreadActivity(snapshot: UnreadActivitySnapshot, folder: s
     for (const a of snapshot.selfActivity) {
       lines.push(
         conversationRow({
-          label: a.kind === 'note' ? noteAudienceLabel('agent', '') : messageAudienceLabel('agent'),
+          label: a.kind === 'note' ? noteAudienceLabel('agent') : messageAudienceLabel('agent'),
           timestamp: formatRowTimestamp(a.ts),
           body: a.body,
-          headerNote: `[${a.kind}]`,
+          annotation: `[${a.kind}]`,
         }),
       )
       lines.push('')

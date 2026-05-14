@@ -7,6 +7,7 @@
 import { defineCliVerb } from '@vobase/core'
 import { z } from 'zod'
 
+import { formatRowTimestamp } from './lib/conversation-row'
 import * as conversationsSvc from './service/conversations'
 import { list as listMessagesSvc } from './service/messages'
 import { listNotes } from './service/notes'
@@ -23,7 +24,7 @@ function renderInternalNotesMd(
   const lines = ['# Internal Notes', '']
   for (const n of notes) {
     const mentions = n.mentions.length > 0 ? ` (@${n.mentions.join(' @')})` : ''
-    lines.push(`**${n.authorType}:${n.authorId}** (${new Date(n.createdAt).toISOString()})${mentions}:`)
+    lines.push(`**${n.authorType}:${n.authorId}** (${formatRowTimestamp(new Date(n.createdAt))})${mentions}:`)
     lines.push(n.body, '')
   }
   return lines.join('\n')
