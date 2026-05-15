@@ -103,6 +103,13 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
       // A valid API key mocks a session, so `requireSession` / `requireOrganization`
       // work uniformly for cookie callers (dashboard) and bearer callers (CLI).
       enableSessionForAPIKeys: true,
+      // Plugin default is 10 requests / 24h per key, which is way too tight
+      // for an operator CLI that fans out catalog + verb calls (and re-fetches
+      // the catalog on `--refresh`). The plugin renders a tripped limit as
+      // `RATE_LIMITED` which `requireSession` re-throws as a plain-text 500,
+      // making it look like the key was revoked. Surface a generous cap until
+      // we wire a real rate-limit policy.
+      rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 600 },
     }),
   ]
 }
