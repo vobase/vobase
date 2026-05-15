@@ -170,10 +170,19 @@ function buildColumns(
       cell: ({ row }) => {
         const placeholderKind = row.original.placeholderKind
         if (placeholderKind) {
+          // Match `ChannelRowMenu`'s right-aligned wrapper so the button
+          // lines up with menu triggers in non-placeholder rows.
           return (
-            <Button size="sm" variant="outline" onClick={() => onConnectPlaceholder?.(placeholderKind)}>
-              Connect
-            </Button>
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => onConnectPlaceholder?.(placeholderKind)}
+              >
+                <span className="text-xs">Connect</span>
+              </Button>
+            </div>
           )
         }
         const isWhatsApp = row.original.channel === 'whatsapp' || row.original.channel === 'whatsapp_notif'
