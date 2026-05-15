@@ -29,6 +29,13 @@ export interface ChannelInstanceRow {
    * field.
    */
   placeholderKind?: ManagedChannelKind
+  /**
+   * Number of free pool slots reported by the platform for this kind. `null`
+   * means availability is still loading or the platform hasn't returned a
+   * count. `0` flips the row from "Not connected" → "Pool exhausted" and
+   * disables the Connect button so operators don't click into a 503.
+   */
+  placeholderAvailable?: number | null
 }
 
 /** Maps (channel, mode, coexistence) → mode chip label + variant. Single source of truth. */
@@ -136,6 +143,9 @@ function buildColumns(
       cell: ({ row }) => {
         const instance = row.original
         if (instance.placeholderKind) {
+          if (instance.placeholderAvailable === 0) {
+            return <Status variant="warning" label="Pool exhausted" />
+          }
           return <Status variant="neutral" label="Not connected" />
         }
         const isManagedWhatsApp =
@@ -171,7 +181,10 @@ function buildColumns(
         const placeholderKind = row.original.placeholderKind
         if (placeholderKind) {
           // Match `ChannelRowMenu`'s right-aligned wrapper so the button
-          // lines up with menu triggers in non-placeholder rows.
+          // lines up with menu triggers in non-placeholder rows. Disabled
+          // when the platform reports 0 free slots — clicking would just
+          // 503 with `pool_exhausted`.
+          const exhausted = row.original.placeholderAvailable === 0
           return (
             <div className="flex items-center justify-end gap-1">
               <Button
@@ -179,6 +192,8 @@ function buildColumns(
                 variant="outline"
                 className="h-8 gap-1.5"
                 onClick={() => onConnectPlaceholder?.(placeholderKind)}
+                disabled={exhausted}
+                title={exhausted ? 'Platform pool is empty — ask your operator to add a number.' : undefined}
               >
                 <span className="text-xs">Connect</span>
               </Button>

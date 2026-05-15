@@ -103,6 +103,22 @@ async function fetchAllInstances(): Promise<ChannelInstanceRow[]> {
   return rows
 }
 
+// Pool availability — `null` when the platform isn't reachable or hasn't
+// responded yet; UI treats null as "unknown, don't gate the button".
+async function fetchSandboxAvailability(): Promise<number | null> {
+  const r = await channelsClient.whatsapp.managed.availability.$get()
+  if (!r.ok) return null
+  const data = (await r.json()) as { sandboxPoolAvailable: number; configured: boolean }
+  return data.configured ? data.sandboxPoolAvailable : null
+}
+
+async function fetchNotifAvailability(): Promise<number | null> {
+  const r = await channelsClient.whatsapp.managed.notification.availability.$get()
+  if (!r.ok) return null
+  const data = (await r.json()) as { notificationPoolAvailable: number; configured: boolean }
+  return data.configured ? data.notificationPoolAvailable : null
+}
+
 function configFromCreate(body: CreateBody): Record<string, unknown> {
   const next: { defaultAssignee?: string; origin?: string } = {}
   if (body.defaultAssignee) next.defaultAssignee = body.defaultAssignee
@@ -286,6 +302,22 @@ export function ChannelsPage() {
     queryKey: ALL_INSTANCES_KEY,
     queryFn: fetchAllInstances,
   })
+  // Availability for the two managed kinds — gates the placeholder rows'
+  // Connect button so an exhausted pool surfaces in the UI instead of
+  // throwing a 503 on click. Disabled entirely when the tenant isn't wired
+  // to a platform; the placeholders themselves are suppressed in that case.
+  const { data: sandboxAvailable = null } = useQuery({
+    queryKey: ['channels', 'managed', 'availability', 'sandbox'] as const,
+    queryFn: fetchSandboxAvailability,
+    enabled: PLATFORM_CONFIGURED,
+    staleTime: 30_000,
+  })
+  const { data: notifAvailable = null } = useQuery({
+    queryKey: ['channels', 'managed', 'availability', 'notification'] as const,
+    queryFn: fetchNotifAvailability,
+    enabled: PLATFORM_CONFIGURED,
+    staleTime: 30_000,
+  })
 
   const [connectWaOpen, setConnectWaOpen] = useState(false)
   // Single state for both managed-kind connect dialogs (sandbox + notification).
@@ -334,37 +366,50 @@ export function ChannelsPage() {
   // yet. They render in the table with a "Connect" button so operators don't
   // have to discover the kind from a dropdown. Suppressed entirely when the
   // tenant isn't wired to a platform (no `VITE_PLATFORM_URL`).
+  //
+  // Rows are then sorted by `groupRank` so the two platform-managed rows
+  // (sandbox + notification — real or placeholder) always sit at the bottom
+  // of the table, regardless of how the API ordered the underlying instances.
   const tableRows = useMemo<ChannelInstanceRow[]>(() => {
-    if (!PLATFORM_CONFIGURED) return instances
-    const placeholders: ChannelInstanceRow[] = []
-    if (!instances.some((i) => i.channel === 'whatsapp' && i.config.mode === 'managed')) {
-      placeholders.push({
-        id: '__placeholder__-sandbox',
-        organizationId: '',
-        channel: 'whatsapp',
-        displayName: 'Platform sandbox',
-        config: { mode: 'managed' },
-        status: null,
-        createdAt: '',
-        updatedAt: '',
-        placeholderKind: 'sandbox',
-      })
+    const all: ChannelInstanceRow[] = [...instances]
+    if (PLATFORM_CONFIGURED) {
+      if (!instances.some((i) => i.channel === 'whatsapp' && i.config.mode === 'managed')) {
+        all.push({
+          id: '__placeholder__-sandbox',
+          organizationId: '',
+          channel: 'whatsapp',
+          displayName: 'Platform sandbox',
+          config: { mode: 'managed' },
+          status: null,
+          createdAt: '',
+          updatedAt: '',
+          placeholderKind: 'sandbox',
+          placeholderAvailable: sandboxAvailable,
+        })
+      }
+      if (!hasWhatsAppNotif) {
+        all.push({
+          id: '__placeholder__-notification',
+          organizationId: '',
+          channel: 'whatsapp_notif',
+          displayName: 'Platform notification',
+          config: { mode: 'managed-notif' },
+          status: null,
+          createdAt: '',
+          updatedAt: '',
+          placeholderKind: 'notification',
+          placeholderAvailable: notifAvailable,
+        })
+      }
     }
-    if (!hasWhatsAppNotif) {
-      placeholders.push({
-        id: '__placeholder__-notification',
-        organizationId: '',
-        channel: 'whatsapp_notif',
-        displayName: 'Platform notification',
-        config: { mode: 'managed-notif' },
-        status: null,
-        createdAt: '',
-        updatedAt: '',
-        placeholderKind: 'notification',
-      })
+    const groupRank = (row: ChannelInstanceRow): number => {
+      if (row.channel === 'whatsapp_notif') return 3
+      if (row.channel === 'whatsapp' && row.config.mode === 'managed') return 2
+      if (row.channel === 'whatsapp') return 1
+      return 0
     }
-    return [...instances, ...placeholders]
-  }, [instances, hasWhatsAppNotif])
+    return all.sort((a, b) => groupRank(a) - groupRank(b))
+  }, [instances, hasWhatsAppNotif, sandboxAvailable, notifAvailable])
 
   return (
     <PageLayout>
