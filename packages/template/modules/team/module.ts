@@ -1,5 +1,6 @@
 import { registerChangeMaterializer } from '@modules/changes/service/proposals'
 import { registerDriveOverlay } from '@modules/drive/service/overlays'
+import { sendNotificationTemplate } from '@modules/integrations/service/handshake'
 
 import type { ModuleDef } from '~/runtime'
 import { teamAgent } from './agent'
@@ -7,7 +8,7 @@ import { jobs as teamJobs } from './jobs'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
-import { createMentionNotifyService, installMentionNotifyService } from './service/mention-notify'
+import { createMentionNotifyService, installMentionNotifyService, type SendTemplateFn } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
 import { createPendingMentionPingService, installPendingMentionPingService } from './service/pending-mention-pings'
 import { createStaffService, installStaffService } from './service/staff'
@@ -36,7 +37,25 @@ const team: ModuleDef = {
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))
-    installMentionNotifyService(createMentionNotifyService({ db: ctx.db, jobs: ctx.jobs }))
+    // Build the platform-call closure once: env reads happen at boot (not on
+    // every send), and tests inject their own `sendTemplate` stub instead of
+    // mocking global fetch + env.
+    const sendTemplate: SendTemplateFn | undefined = (() => {
+      const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
+      const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+      const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+      if (!platformBaseUrl || !tenantId || !tenantHmacSecret) return undefined
+      return ({ staffPhoneE164, bodyParams, buttonUrlSuffix }) =>
+        sendNotificationTemplate({
+          platformBaseUrl,
+          tenantId,
+          tenantHmacSecret,
+          staffPhoneE164,
+          bodyParams,
+          buttonUrlSuffix,
+        })
+    })()
+    installMentionNotifyService(createMentionNotifyService({ db: ctx.db, jobs: ctx.jobs, sendTemplate }))
     installPendingMentionPingService(createPendingMentionPingService({ db: ctx.db }))
     installTeamJobsState({ jobs: ctx.jobs })
     installTeamOrgEnumerator({ db: ctx.db })

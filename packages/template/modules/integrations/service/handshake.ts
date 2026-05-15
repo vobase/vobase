@@ -466,6 +466,57 @@ export async function registerWebhookWithPlatform(input: {
   }
 }
 
+/**
+ * Send the `vobase_tenant_notification` template to a staff phone via the
+ * platform's notification-tier pool. Thin tenant-side wrapper around the
+ * platform's `POST /api/managed-whatsapp/notification/send` — the platform
+ * looks up the underlying pool row's `phone_number_id + access_token` from
+ * the tenant's existing notification claim and calls Meta Cloud API.
+ *
+ * The template body has 3 text placeholders (mentioner, snippet, agent name)
+ * plus a URL-button `{{1}}` whose suffix is appended to the platform's
+ * `https://platform.voltade.app/` base — typically the tenant slug today,
+ * later a conversation-scoped deep link.
+ */
+export async function sendNotificationTemplate(input: {
+  platformBaseUrl: string
+  tenantId: string
+  tenantHmacSecret: string
+  staffPhoneE164: string
+  bodyParams: [string, string, string]
+  buttonUrlSuffix: string
+}): Promise<{ ok: true; messageId: string | null }> {
+  const body = JSON.stringify({
+    staffPhoneE164: input.staffPhoneE164,
+    bodyParams: input.bodyParams,
+    buttonUrlSuffix: input.buttonUrlSuffix,
+  })
+  const { res } = await signedPlatformRequest({
+    method: 'POST',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path: '/api/managed-whatsapp/notification/send',
+    body,
+  })
+  if (!res.ok) {
+    let payload: unknown
+    try {
+      payload = await res.json()
+    } catch {
+      payload = null
+    }
+    const code = (payload as { code?: string } | null)?.code
+    throw new PlatformHandshakeError(
+      `platform notification send failed (${res.status}${code ? `: ${code}` : ''})`,
+      res.status,
+      code ?? undefined,
+    )
+  }
+  const parsed = (await res.json()) as { messageId?: string | null }
+  return { ok: true, messageId: parsed.messageId ?? null }
+}
+
 export interface WebhookEndpointStatus {
   id: string
   channelInstanceId: string

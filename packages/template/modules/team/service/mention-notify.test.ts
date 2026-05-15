@@ -18,14 +18,10 @@ import {
   installChannelInstancesService,
 } from '@modules/channels/service/instances'
 import {
-  __resetForTests as __resetChannelRegistryForTests,
-  register as registerAdapter,
-} from '@modules/channels/service/registry'
-import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
-import type { ChannelAdapter, HarnessLogger } from '@vobase/core'
+import type { HarnessLogger } from '@vobase/core'
 
 import {
   __resetMentionNotifyServiceForTests,
@@ -34,6 +30,7 @@ import {
   FanOutMentionPingsPayloadSchema,
   fanOutNoteMentions,
   installMentionNotifyService,
+  type SendTemplateFn,
 } from './mention-notify'
 import {
   __resetPendingMentionPingServiceForTests,
@@ -60,10 +57,18 @@ const STAFF_PHONE = '+6581234567'
 
 interface SentMsg {
   to: string
-  text?: string
+  bodyParams: [string, string, string]
+  buttonUrlSuffix: string
 }
 
 const sent: SentMsg[] = []
+let nextSendOk = true
+
+const stubSendTemplate: SendTemplateFn = async ({ staffPhoneE164, bodyParams, buttonUrlSuffix }) => {
+  sent.push({ to: staffPhoneE164, bodyParams, buttonUrlSuffix })
+  if (!nextSendOk) throw new Error('stub_fail')
+  return { ok: true, messageId: 'stub' }
+}
 const recordedPings: Array<{
   conversationId: string
   staffUserId: string
@@ -113,33 +118,10 @@ function installStubs(): void {
     remove: async () => undefined,
   })
 
-  // Stub adapter — capture sends, success-or-fail per a switch.
-  let nextSendOk = true
-  const stub: ChannelAdapter = {
-    name: 'whatsapp_notif',
-    inboundMode: 'push',
-    capabilities: {
-      templates: false,
-      media: false,
-      reactions: false,
-      readReceipts: false,
-      typingIndicators: false,
-      streaming: false,
-      messagingWindow: false,
-      nativeThreading: false,
-    },
-    send: async (msg) => {
-      sent.push({ to: msg.to, text: msg.text })
-      return nextSendOk
-        ? { success: true as const, messageId: 'stub' }
-        : { success: false as const, code: 'stub_fail' as never, error: 'stub' }
-    },
-  }
-  // Expose nextSendOk via a global helper
-  ;(globalThis as unknown as { __setStubSendOk: (ok: boolean) => void }).__setStubSendOk = (ok: boolean) => {
-    nextSendOk = ok
-  }
-  registerAdapter('whatsapp_notif', () => stub, stub.capabilities)
+  // The platform-call seam used to be an adapter behind the channel
+  // registry; now it's a DI'd `sendTemplate` closure on the service. Tests
+  // capture sends + toggle success via the `stubSendTemplate` closed-over
+  // `nextSendOk` flag declared at module scope.
 
   // Staff service stub: 3 fixed staff.
   installStaffService({
@@ -222,7 +204,7 @@ function installStubs(): void {
   installPendingMentionPingService(pingStub)
 
   // The system-under-test
-  installMentionNotifyService(createMentionNotifyService({ db: null as unknown }))
+  installMentionNotifyService(createMentionNotifyService({ db: null as unknown, sendTemplate: stubSendTemplate }))
 }
 
 beforeAll(() => {
@@ -231,7 +213,6 @@ beforeAll(() => {
 
 afterAll(() => {
   __resetChannelInstancesServiceForTests()
-  __resetChannelRegistryForTests()
   __resetStaffServiceForTests()
   __resetNotificationPrefsServiceForTests()
   __resetPendingMentionPingServiceForTests()
@@ -242,7 +223,7 @@ afterEach(() => {
   sent.length = 0
   recordedPings.length = 0
   installedNotifChannel = true
-  ;(globalThis as unknown as { __setStubSendOk: (ok: boolean) => void }).__setStubSendOk(true)
+  nextSendOk = true
 })
 
 // biome-ignore lint/suspicious/noExplicitAny: minimal note shape for the fan-out
@@ -264,7 +245,9 @@ describe('mention-notify rewrite (Unit 8)', () => {
   it('sends WA + records ping when agent mentions an offline staff with phone', async () => {
     const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_X}`]))
     expect(result.notified).toEqual([STAFF_X])
-    expect(sent).toEqual([{ to: STAFF_PHONE, text: expect.stringContaining('mentioned') }])
+    expect(sent.length).toBe(1)
+    expect(sent[0]?.to).toBe(STAFF_PHONE)
+    expect(sent[0]?.bodyParams[1]).toBe('Need answer')
     expect(recordedPings).toEqual([
       { conversationId: 'conv-test', staffUserId: STAFF_X, askingAgentId: AGENT_ID, outboundWamid: 'stub' },
     ])
@@ -294,9 +277,9 @@ describe('mention-notify rewrite (Unit 8)', () => {
   })
 
   it('does NOT record ping when WA send fails', async () => {
-    ;(globalThis as unknown as { __setStubSendOk: (ok: boolean) => void }).__setStubSendOk(false)
+    nextSendOk = false
     const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_X}`]))
-    expect(result.skipped[0]?.reason).toBe('adapter_error')
+    expect(result.skipped[0]?.reason).toBe('stub_fail')
     expect(sent.length).toBe(1)
     expect(recordedPings.length).toBe(0)
   })

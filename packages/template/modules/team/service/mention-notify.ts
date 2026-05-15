@@ -25,13 +25,15 @@
  * path, so they survive a process recycle and get pg-boss retry semantics.
  */
 
+import { agentDefinitions } from '@modules/agents/schema'
 import { findNotificationChannel } from '@modules/channels/service/instances'
-import { get as channelRegistryGet } from '@modules/channels/service/registry'
+import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
 import type { InternalNote } from '@modules/messaging/schema'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { recordPing } from '@modules/team/service/pending-mention-pings'
 import { find as findStaff } from '@modules/team/service/staff'
 import { logger, type ScopedScheduler } from '@vobase/core'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
@@ -61,10 +63,24 @@ export type MentionFanOutNote = z.infer<typeof MentionFanOutNoteSchema>
 export const FanOutMentionPingsPayloadSchema = z.object({ note: MentionFanOutNoteSchema })
 export type FanOutMentionPingsPayload = z.infer<typeof FanOutMentionPingsPayloadSchema>
 
+/**
+ * Test seam: send a `vobase_tenant_notification` template to a staff phone.
+ * Production wires the real `sendNotificationTemplate` closure with platform
+ * creds resolved once at boot; tests pass a stub so they don't have to mock
+ * global fetch + platform env.
+ */
+export type SendTemplateFn = (input: {
+  staffPhoneE164: string
+  bodyParams: [string, string, string]
+  buttonUrlSuffix: string
+}) => Promise<{ ok: true; messageId: string | null }>
+
 interface MentionNotifyDeps {
   db: unknown
   /** pg-boss queue for the durable fan-out enqueue. Omitted in unit-test contexts — `enqueueFanOut` then no-ops. */
   jobs?: Pick<ScopedScheduler, 'send'> | null
+  /** Template-send seam. Omitted in unit-test contexts — `sendNotification` returns `platform_not_configured`. */
+  sendTemplate?: SendTemplateFn
 }
 
 export interface FanOutResult {
@@ -88,13 +104,47 @@ function isOffline(lastSeenAt: Date | null): boolean {
   return Date.now() - new Date(lastSeenAt).getTime() > PRESENCE_THRESHOLD_MS
 }
 
-function buildNotificationText(note: MentionFanOutNote): string {
-  const preview = note.body.length > 200 ? `${note.body.slice(0, 197)}…` : note.body
-  return `You were mentioned in a note:\n\n${preview}`
+function trimSnippet(body: string): string {
+  return body.length > 200 ? `${body.slice(0, 197)}…` : body
+}
+
+interface DrizzleAgentSelect {
+  select: (fields?: unknown) => {
+    from: (t: unknown) => {
+      where: (c: unknown) => { limit: (n: number) => Promise<Array<{ name: string }>> }
+    }
+  }
+}
+
+async function resolveAgentName(db: unknown, agentId: string): Promise<string> {
+  try {
+    const rows = await (db as DrizzleAgentSelect)
+      .select({ name: agentDefinitions.name })
+      .from(agentDefinitions)
+      .where(eq(agentDefinitions.id, agentId))
+      .limit(1)
+    return rows[0]?.name ?? 'your agent'
+  } catch {
+    return 'your agent'
+  }
+}
+
+async function resolveMentionerName(db: unknown, note: MentionFanOutNote): Promise<string> {
+  if (note.authorType === 'agent') return resolveAgentName(db, note.authorId)
+  if (note.authorType === 'staff') {
+    try {
+      const profile = await findStaff(note.authorId)
+      return profile?.displayName ?? note.authorId
+    } catch {
+      return note.authorId
+    }
+  }
+  return 'System'
 }
 
 export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNotifyService {
   const jobs = deps.jobs ?? null
+  const sendTemplate = deps.sendTemplate ?? null
 
   // Preserve "WHEN" semantics — only the WHERE (notification channel + staff
   // phone) changed. Staff-authored notes do NOT trigger mention fan-out (the
@@ -105,22 +155,33 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   async function sendNotification(
     organizationId: string,
     profile: StaffProfile,
-    text: string,
+    params: {
+      mentionerName: string
+      snippet: string
+      agentName: string
+      buttonUrlSuffix: string
+    },
   ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
+    // `findNotificationChannel` is the existence gate — without an active
+    // notification claim the platform endpoint will 409 `no_claim` anyway,
+    // so failing early gives a more useful skip reason in the result.
     const channel = await findNotificationChannel(organizationId)
     if (!channel) return { ok: false, reason: 'no_notification_channel' }
     if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
-    // Route through the registry — same seam `outbound.ts` uses, so tests
-    // can swap the adapter via `register('whatsapp_notif', stubFactory, ...)`
-    // without touching the integrations vault.
-    const adapter = await channelRegistryGet(channel.channel, channel.config ?? {}, channel.id)
-    if (!adapter) return { ok: false, reason: 'no_adapter_registered' }
-    const res = await adapter.send({ to: profile.phoneNumber, text })
-    if (!res.success) return { ok: false, reason: 'adapter_error' }
-    // `messageId` is the WA wamid — recorded on the ping so a staff reply that
-    // quotes this message can exact-match back. Null when the provider/stub
-    // returned no id.
-    return { ok: true, messageId: res.messageId ?? null }
+    if (!sendTemplate) return { ok: false, reason: 'platform_not_configured' }
+    try {
+      const res = await sendTemplate({
+        staffPhoneE164: profile.phoneNumber,
+        bodyParams: [params.mentionerName, params.snippet, params.agentName],
+        buttonUrlSuffix: params.buttonUrlSuffix,
+      })
+      return { ok: true, messageId: res.messageId }
+    } catch (err) {
+      if (err instanceof PlatformHandshakeError) {
+        return { ok: false, reason: err.code ?? `platform_${err.status ?? 'error'}` }
+      }
+      return { ok: false, reason: err instanceof Error ? err.message : 'send_failed' }
+    }
   }
 
   async function fanOutNoteMentions(note: MentionFanOutNote): Promise<FanOutResult> {
@@ -132,6 +193,22 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     // to wake on reply otherwise). Staff-authored notes still send the WA
     // ping (preserving today's semantics) but skip the ping ledger.
     const askingAgentId: string | null = note.authorType === 'agent' ? note.authorId : null
+
+    // Resolve template params once per note — every recipient gets the same
+    // mentioner/snippet/agent triple, so the DB lookups are batched outside
+    // the per-staff Promise.all.
+    const [mentionerName, agentName] = await Promise.all([
+      resolveMentionerName(deps.db, note),
+      askingAgentId ? resolveAgentName(deps.db, askingAgentId) : Promise.resolve('your agent'),
+    ])
+    const snippet = trimSnippet(note.body)
+    // Deep-link target the URL button appends after `https://platform.voltade.app/`.
+    // The redirect endpoint isn't built yet; this still renders the template
+    // and gives us a stable shape to wire up later.
+    const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+    const buttonUrlSuffix = tenantSlug
+      ? `${tenantSlug}/conversations/${note.conversationId}`
+      : `conversations/${note.conversationId}`
 
     await Promise.all(
       staffIds.map(async (userId) => {
@@ -154,7 +231,12 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
             result.skipped.push({ userId, reason: 'channel_disabled' })
             return
           }
-          const send = await sendNotification(note.organizationId, profile, buildNotificationText(note))
+          const send = await sendNotification(note.organizationId, profile, {
+            mentionerName,
+            snippet,
+            agentName,
+            buttonUrlSuffix,
+          })
           if (!send.ok) {
             result.skipped.push({ userId, reason: send.reason })
             return
