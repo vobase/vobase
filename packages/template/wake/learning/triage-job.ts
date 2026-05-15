@@ -118,9 +118,12 @@ async function handleTriageJob(raw: unknown): Promise<void> {
 
   const lastCreated = debounceRows[0]?.lastCreated
   if (lastCreated) {
+    // drizzle 1.0's `max()` over a timestamp column returns the driver string
+    // rather than applying the column's Date transform — TS still types it as
+    // Date, so the cast lies. Re-wrap (no-op when already a Date).
     // Math.abs guards against DB/app clock skew where lastCreated is "in the future"
     // — without it a negative elapsed would always pass the < check and over-debounce.
-    const elapsed = Math.abs(Date.now() - lastCreated.getTime())
+    const elapsed = Math.abs(Date.now() - new Date(lastCreated).getTime())
     if (elapsed < thresholds.triageDebounceMs) {
       console.info(
         { organizationId, agentId, conversationId, signalKind: signal.kind, elapsedMs: elapsed },
