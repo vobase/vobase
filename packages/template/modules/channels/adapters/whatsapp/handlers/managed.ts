@@ -45,13 +45,21 @@ import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const claimBodySchema = z.object({ defaultAssignee: z.string().min(1).optional() })
+// Full assignee token (`agent:<id>` or `user:<id>`) — matches the format the
+// inbox `AssigneeBadge` emits and the format `config.defaultAssignee` stores
+// elsewhere. Bare ids are rejected to keep one canonical shape on the wire.
+const claimBodySchema = z.object({
+  defaultAssignee: z
+    .string()
+    .regex(/^(agent|user):[A-Za-z0-9_-]+$/)
+    .optional(),
+})
 
 /**
  * Tolerant parse of the optional `POST /managed/(notification/)?claim` body.
- * Returns the bare agent id (no `agent:` prefix) the dialog selected, or
- * `null` when the body is absent / malformed / empty — letting the caller
- * fall through to the legacy "auto-pick first enabled agent" behaviour.
+ * Returns the assignee token the dialog selected, or `null` when the body is
+ * absent / malformed / empty — letting the caller fall through to the legacy
+ * "auto-pick first enabled agent" behaviour.
  */
 async function parseOptionalAgentBody(c: Context): Promise<string | null> {
   let raw: unknown
@@ -225,19 +233,19 @@ const app = new Hono<OrganizationEnv>()
       betterAuthSecret,
     })
 
-    // Resolve the default assignee: explicit body wins, else pick the org's
-    // first enabled AI agent so re-clicks from auto-tooling still route. Null
-    // when the org has no agents yet; webhook handler tolerates null (skips
-    // auto-assignment).
-    let assigneeAgentId: string | null = bodyAssignee
-    if (assigneeAgentId === null) {
+    // Resolve the default assignee: explicit body wins, else fall back to the
+    // org's first enabled AI agent (formatted as `agent:<id>`) so re-clicks
+    // from auto-tooling still route. Null when the org has no agents yet;
+    // webhook handler tolerates null (skips auto-assignment).
+    let assigneeToken: string | null = bodyAssignee
+    if (assigneeToken === null) {
       const [firstAgent] = await getInstalledDb()
         .select({ id: agentDefinitions.id })
         .from(agentDefinitions)
         .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.enabled, true)))
         .orderBy(asc(agentDefinitions.createdAt))
         .limit(1)
-      assigneeAgentId = firstAgent?.id ?? null
+      assigneeToken = firstAgent ? `agent:${firstAgent.id}` : null
     }
 
     try {
@@ -258,7 +266,7 @@ const app = new Hono<OrganizationEnv>()
         // every reader expects (`<Principal id=…>`, mention rendering,
         // hover cards), and the `conversations.assignee` column receives
         // verbatim via `initialAssignee` in `dispatchInbound`.
-        defaultAssignee: assigneeAgentId ? `agent:${assigneeAgentId}` : null,
+        defaultAssignee: assigneeToken,
       })
       const webhook = result.webhookOk
         ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)

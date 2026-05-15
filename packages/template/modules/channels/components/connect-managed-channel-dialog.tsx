@@ -11,10 +11,11 @@
  * `org_settings.defaultOperatorAgentId`, not the channel row), so the
  * picker is shown for UX consistency but doesn't drive behaviour there.
  */
-import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
 import type { ManagedChannelKind } from '@modules/channels/managed/registry'
+import { AssigneeBadge } from '@modules/messaging/components/assignee-badge'
+import { usePrincipalDirectory } from '@modules/messaging/components/principal'
 import { useMutation } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -26,7 +27,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { channelsClient } from '@/lib/api-client'
 
 interface ClaimSuccessResponse {
@@ -57,6 +57,8 @@ const KIND_COPY: Record<ManagedChannelKind, { title: string; description: string
 }
 
 async function postClaim(kind: ManagedChannelKind, defaultAssignee: string | null): Promise<ClaimSuccessResponse> {
+  // `defaultAssignee` is the full assignee token (`agent:<id>` / `user:<id>`)
+  // emitted by `AssigneeBadge`. Server stores it verbatim.
   const body = defaultAssignee !== null ? { defaultAssignee } : {}
   const r =
     kind === 'sandbox'
@@ -90,23 +92,23 @@ export function ConnectManagedChannelDialog({
   onConnected,
 }: ConnectManagedChannelDialogProps) {
   const copy = KIND_COPY[kind]
-  const agents = useAgentDefinitions()
-  const enabledAgents = useMemo(() => (agents.data ?? []).filter((a) => a.enabled), [agents.data])
+  const { agents } = usePrincipalDirectory()
 
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  // Auto-pick the first enabled agent once the list loads. The operator can
-  // still change it; we don't reset on subsequent renders so a manual pick
-  // sticks across re-fetches.
+  // Full assignee token (`agent:<id>` / `user:<id>`) — same shape the inbox
+  // emits, same shape `config.defaultAssignee` stores everywhere else.
+  const [assignee, setAssignee] = useState<string | null>(null)
+  // Auto-pick the first agent once the directory loads. Manual picks stick
+  // across re-renders because we only fire on the null → first transition.
   useEffect(() => {
-    if (selectedAgentId === null && enabledAgents.length > 0) {
-      setSelectedAgentId(enabledAgents[0].id)
+    if (assignee === null && agents.length > 0) {
+      setAssignee(`agent:${agents[0].id}`)
     }
-  }, [enabledAgents, selectedAgentId])
+  }, [agents, assignee])
 
   const [softWarn, setSoftWarn] = useState<string | null>(null)
 
   const claim = useMutation({
-    mutationFn: () => postClaim(kind, selectedAgentId),
+    mutationFn: () => postClaim(kind, assignee),
     onSuccess: (data) => {
       if (data.webhook && data.webhook.ok === false) {
         setSoftWarn(
@@ -140,31 +142,8 @@ export function ConnectManagedChannelDialog({
 
         <div className="space-y-3 py-2">
           <div className="space-y-2">
-            <Label htmlFor="connect-channel-agent">Assign to agent</Label>
-            <Select
-              value={selectedAgentId ?? ''}
-              onValueChange={(v) => setSelectedAgentId(v === '' ? null : v)}
-              disabled={agents.isLoading || enabledAgents.length === 0}
-            >
-              <SelectTrigger id="connect-channel-agent">
-                <SelectValue
-                  placeholder={
-                    agents.isLoading
-                      ? 'Loading agents…'
-                      : enabledAgents.length === 0
-                        ? 'No enabled agents yet'
-                        : 'Pick an agent'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {enabledAgents.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Default assignee</Label>
+            <AssigneeBadge assignee={assignee} onSelect={(val) => setAssignee(val)} />
             {kind === 'notification' && (
               <p className="text-muted-foreground text-xs">
                 Optional for notification channels — staff replies route via the default operator agent setting.
