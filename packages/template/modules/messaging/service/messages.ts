@@ -62,7 +62,12 @@ export interface AppendMediaMessageInput {
   wakeId: string
   turnIndex: number
   toolCallId: string
-  driveFileId: string
+  /** Drive-resident artefact. Exactly one of `driveFileId` or `url` must be set. */
+  driveFileId?: string
+  /** Public http(s) URL when the artefact lives outside the drive (e.g. a product image). */
+  url?: string
+  /** Media kind; only meaningful (and only persisted) for url-mode messages. */
+  type?: 'image' | 'document' | 'video' | 'audio'
   caption?: string
 }
 
@@ -269,12 +274,16 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function appendMediaMessage(input: AppendMediaMessageInput): Promise<Message> {
-    return appendAgentMessage(
-      input,
-      'image',
-      { driveFileId: input.driveFileId, caption: input.caption ?? null },
-      'send_file',
-    )
+    if (!input.driveFileId && !input.url) {
+      throw new Error('appendMediaMessage: driveFileId or url is required')
+    }
+    if (input.driveFileId && input.url) {
+      throw new Error('appendMediaMessage: driveFileId and url are mutually exclusive')
+    }
+    const content = input.url
+      ? { url: input.url, type: input.type ?? 'image', caption: input.caption ?? null }
+      : { driveFileId: input.driveFileId, caption: input.caption ?? null }
+    return appendAgentMessage(input, 'image', content, 'send_file')
   }
 
   // biome-ignore lint/suspicious/useAwait: contract requires async signature

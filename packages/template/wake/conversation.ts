@@ -84,7 +84,13 @@ export interface ConversationWakeConfigInput {
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
 
 /** Tools dropped from the registry on all staff_note wakes (default-deny). */
-const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply_contact', 'send_card', 'send_file'])
+// Staff-note default-deny set. `send_file` is intentionally NOT included:
+// a staff @-mention is a clear directive when the artefact (drive file id or
+// public URL) is already named, and the tool still goes through
+// `requiresApproval: true`. `reply_contact` / `send_card` stay banned because
+// their content is agent-authored and risks pushing a customer message that
+// staff only intended as coaching.
+const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply_contact', 'send_card'])
 
 export async function conversationWakeConfig(input: ConversationWakeConfigInput): Promise<WakeConfig> {
   const { data, conv, agentId, agentDefinition, contributions, deps } = input

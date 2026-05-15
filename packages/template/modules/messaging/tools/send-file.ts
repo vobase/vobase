@@ -7,8 +7,17 @@ import { defineAgentTool, type OutboundMedia } from '@vobase/core'
 import { get as getConversation } from '../service/conversations'
 import { appendMediaMessage } from '../service/messages'
 
+const MediaTypeSchema = Type.Union([
+  Type.Literal('image'),
+  Type.Literal('document'),
+  Type.Literal('video'),
+  Type.Literal('audio'),
+])
+
 export const SendFileInputSchema = Type.Object({
-  driveFileId: Type.String({ minLength: 1 }),
+  driveFileId: Type.Optional(Type.String({ minLength: 1 })),
+  url: Type.Optional(Type.String({ minLength: 1 })),
+  type: Type.Optional(MediaTypeSchema),
   caption: Type.Optional(Type.String()),
 })
 
@@ -28,17 +37,69 @@ function mediaTypeFor(mime: string | null | undefined): OutboundMedia['type'] {
   return 'document'
 }
 
+function mediaTypeForUrl(url: string, explicit: OutboundMedia['type'] | undefined): OutboundMedia['type'] {
+  if (explicit) return explicit
+  const pathname = (() => {
+    try {
+      return new URL(url).pathname.toLowerCase()
+    } catch {
+      return url.toLowerCase()
+    }
+  })()
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/u.test(pathname)) return 'image'
+  if (/\.(mp4|mov|webm|m4v)$/u.test(pathname)) return 'video'
+  if (/\.(mp3|wav|ogg|m4a|aac)$/u.test(pathname)) return 'audio'
+  return 'document'
+}
+
 export const sendFileTool = defineAgentTool({
   name: 'send_file',
-  description: 'Send a drive file to the customer. Requires staff approval if agent.fileApprovalRequired=true.',
+  description:
+    'Send a file to the customer — either an artefact from `/drive/` (driveFileId) or a public http(s) URL (url). Requires staff approval if agent.fileApprovalRequired=true.',
   schema: SendFileInputSchema,
   errorCode: 'SEND_FILE_ERROR',
   requiresApproval: true,
   lane: 'conversation',
   prompt:
-    "Use when the customer needs an artefact (PDF, image, doc) that already exists in `/drive/`. The drive file id comes from `cat`-ing the file or grepping the drive listing — never fabricate ids. Captions are optional but help the customer understand what they're receiving.",
+    "**This is the only tool for image / file delivery — never inline an image or download URL inside a `reply_contact` text reply. `send_file` renders the image inline in the customer's chat client; a URL pasted into a text reply shows as a bare link they have to click.**\n\nPass `driveFileId` for an artefact that lives in `/drive/` (id comes from `cat`-ing or grepping the drive — never fabricate). Pass `url` for a public http(s) link (e.g. a product image on the company website); optionally set `type` (image/document/video/audio) when the extension is ambiguous. Exactly one of `driveFileId` or `url` must be supplied. Captions are optional. If you also need to say something alongside the photo, put it in `caption` — do not split the photo across `send_file` and a separate `reply_contact`.",
   async run(args, ctx) {
-    const scan = await runThreatScan(args.driveFileId)
+    if (!args.driveFileId && !args.url) {
+      throw new Error('send_file: either driveFileId or url is required')
+    }
+    if (args.driveFileId && args.url) {
+      throw new Error('send_file: driveFileId and url are mutually exclusive')
+    }
+
+    if (args.url) {
+      if (!/^https?:\/\//u.test(args.url)) {
+        throw new Error('send_file: url must be http(s)')
+      }
+      const type = mediaTypeForUrl(args.url, args.type)
+      const msg = await appendMediaMessage({
+        conversationId: ctx.conversationId,
+        organizationId: ctx.organizationId,
+        agentId: ctx.agentId,
+        wakeId: ctx.wakeId,
+        turnIndex: ctx.turnIndex,
+        toolCallId: ctx.toolCallId,
+        url: args.url,
+        type,
+        caption: args.caption,
+      })
+      const media: OutboundMedia = { type, url: args.url, caption: args.caption }
+      const result = await sendOutbound({
+        organizationId: ctx.organizationId,
+        conversationId: ctx.conversationId,
+        persisted: { id: msg.id },
+        toolName: 'send_file',
+        payload: { media },
+      })
+      throwIfFailed(result, 'send_file')
+      return { messageId: msg.id }
+    }
+
+    const driveFileId = args.driveFileId as string
+    const scan = await runThreatScan(driveFileId)
     if (!scan.ok) {
       throw new Error('File failed threat scan')
     }
@@ -49,13 +110,13 @@ export const sendFileTool = defineAgentTool({
       wakeId: ctx.wakeId,
       turnIndex: ctx.turnIndex,
       toolCallId: ctx.toolCallId,
-      driveFileId: args.driveFileId,
+      driveFileId,
       caption: args.caption,
     })
 
     // Resolve the drive row + bytes here so `outbound.ts` stays payload-
     // agnostic. Virtual files (no storageKey) cannot be sent as media.
-    const file = await filesServiceFor(ctx.organizationId).get(args.driveFileId)
+    const file = await filesServiceFor(ctx.organizationId).get(driveFileId)
     if (!file) throw new Error('Drive file not found')
     if (!file.storageKey) throw new Error('Cannot send virtual drive file as media')
 

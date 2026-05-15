@@ -61,6 +61,8 @@ interface CardContent {
 
 interface ImageContent {
   driveFileId?: string
+  url?: string
+  type?: 'image' | 'document' | 'video' | 'audio'
   caption?: string
 }
 
@@ -228,9 +230,24 @@ export function MessageCard({
 
   if (message.kind === 'image') {
     const content = message.content as ImageContent
+    if (content.url && (content.type ?? 'image') === 'image') {
+      return (
+        <div className="overflow-hidden rounded-lg border border-border bg-muted/40">
+          <img alt={content.caption ?? 'attachment'} className="max-h-80 w-full object-contain" src={content.url} />
+          {content.caption && <p className="px-3 py-2 text-muted-foreground text-xs">{content.caption}</p>}
+        </div>
+      )
+    }
+    const label = content.caption ?? content.driveFileId ?? content.url ?? 'Attachment'
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-        <span className="text-xs">📎 {content.caption ?? content.driveFileId ?? 'Image'}</span>
+        {content.url ? (
+          <a className="text-xs underline" href={content.url} rel="noreferrer" target="_blank">
+            📎 {label}
+          </a>
+        ) : (
+          <span className="text-xs">📎 {label}</span>
+        )}
       </div>
     )
   }

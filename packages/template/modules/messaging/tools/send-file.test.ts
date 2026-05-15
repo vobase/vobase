@@ -176,10 +176,22 @@ describe('sendFileTool', () => {
     if (!result.ok) expect(result.errorCode).toBe('VALIDATION_ERROR')
   })
 
-  it('rejects missing driveFileId', async () => {
-    const result = await sendFileTool.execute({} as { driveFileId: string }, makeCtx())
+  it('rejects empty input (neither driveFileId nor url)', async () => {
+    const result = await sendFileTool.execute({}, makeCtx())
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.errorCode).toBe('VALIDATION_ERROR')
+  })
+
+  it('rejects both driveFileId and url set', async () => {
+    const result = await sendFileTool.execute(
+      { driveFileId: 'file-abc', url: 'https://example.com/x.png' },
+      makeCtx(),
+    )
+    expect(result.ok).toBe(false)
+  })
+
+  it('rejects non-http url', async () => {
+    const result = await sendFileTool.execute({ url: 'file:///etc/passwd' }, makeCtx())
+    expect(result.ok).toBe(false)
   })
 
   it('happy path returns messageId and writes media message + event in one tx', async () => {
@@ -202,5 +214,27 @@ describe('sendFileTool', () => {
   it('threat-scan stub always passes (Phase 2)', async () => {
     const result = await sendFileTool.execute({ driveFileId: 'any-file' }, makeCtx())
     expect(result.ok).toBe(true)
+  })
+
+  it('url path: writes media message and outbound media carries url + inferred type', async () => {
+    const result = await sendFileTool.execute(
+      { url: 'https://example.com/menu.jpg', caption: 'Seminar package' },
+      makeCtx(),
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.content.messageId).toBe('msg-file-1')
+    expect(messageStore).toHaveLength(1)
+    expect(outboundCalls).toHaveLength(1)
+    const payload = outboundCalls[0]?.payload as { media: { url?: string; type?: string; caption?: string } }
+    expect(payload.media.url).toBe('https://example.com/menu.jpg')
+    expect(payload.media.type).toBe('image')
+    expect(payload.media.caption).toBe('Seminar package')
+  })
+
+  it('url path: explicit type overrides inferred', async () => {
+    const result = await sendFileTool.execute({ url: 'https://example.com/file', type: 'document' }, makeCtx())
+    expect(result.ok).toBe(true)
+    const payload = outboundCalls[0]?.payload as { media: { type?: string } }
+    expect(payload.media.type).toBe('document')
   })
 })
