@@ -1,3 +1,4 @@
+import type { ManagedChannelKind } from '@modules/channels/managed/registry'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Globe, MessageCircle } from 'lucide-react'
 import { useMemo } from 'react'
@@ -5,6 +6,7 @@ import { useMemo } from 'react'
 import { DataTable } from '@/components/data-table/data-table'
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
 import { Principal } from '@/components/principal'
+import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { Status } from '@/components/ui/status'
 import { useDataTable } from '@/hooks/use-data-table'
@@ -20,6 +22,13 @@ export interface ChannelInstanceRow {
   status: string | null
   createdAt: string
   updatedAt: string
+  /**
+   * Synthetic rows the table renders for each unclaimed managed kind. They
+   * never exist in the database — the only mutation they accept is the
+   * "Connect" CTA which opens the connect dialog. Real rows always omit the
+   * field.
+   */
+  placeholderKind?: ManagedChannelKind
 }
 
 /** Maps (channel, mode, coexistence) → mode chip label + variant. Single source of truth. */
@@ -27,6 +36,7 @@ export const MODE_CHIP_MAP = {
   self_cloud: { label: 'Cloud API', variant: 'info' },
   self_coexistence: { label: 'Business App', variant: 'success' },
   managed: { label: 'Platform sandbox', variant: 'info' },
+  'managed-notif': { label: 'Platform notification', variant: 'success' },
 } as const
 
 export type ModeChipKey = keyof typeof MODE_CHIP_MAP
@@ -39,6 +49,7 @@ export function getModeChip(config: Record<string, unknown>): {
   const coexistence = config.coexistence === true
 
   if (mode === 'managed') return MODE_CHIP_MAP.managed
+  if (mode === 'managed-notif') return MODE_CHIP_MAP['managed-notif']
   if (mode === 'self' && coexistence) return MODE_CHIP_MAP.self_coexistence
   if (mode === 'self' && !coexistence) return MODE_CHIP_MAP.self_cloud
   return { label: '', variant: 'neutral' }
@@ -60,7 +71,9 @@ function getHealthChip(status: string | null): { variant: 'success' | 'warning' 
 }
 
 function ChannelGlyph({ channel }: { channel: string }) {
-  if (channel === 'whatsapp') {
+  // `whatsapp_notif` is the notification-tier managed channel and shares
+  // the WhatsApp brand mark with the customer-facing `whatsapp` row.
+  if (channel === 'whatsapp' || channel === 'whatsapp_notif') {
     return <MessageCircle className="size-4 text-[#25d366]" />
   }
   return <Globe className="size-4 text-muted-foreground" />
@@ -77,6 +90,7 @@ function buildColumns(
   onEditManaged: (row: ChannelInstanceRow) => void,
   onDeleteWeb: (row: ChannelInstanceRow) => void,
   onOpenDetails: (id: string) => void,
+  onConnectPlaceholder: ((kind: ManagedChannelKind) => void) | undefined,
 ): ColumnDef<ChannelInstanceRow>[] {
   return [
     {
@@ -85,10 +99,13 @@ function buildColumns(
       header: 'Channel',
       cell: ({ row }) => {
         const instance = row.original
-        // Managed channels carry their type in the displayName ("Platform
-        // sandbox (production)") — a mode chip would just repeat it.
-        const modeChip =
-          instance.channel === 'whatsapp' && instance.config.mode !== 'managed' ? getModeChip(instance.config) : null
+        // Show the mode chip for every WhatsApp row (self-cloud, business-app,
+        // platform sandbox, platform notification). The chip is the only
+        // place the channel kind is surfaced once the `displayName` is set
+        // from the platform `label` instead of `${kindSpec.displayLabel}
+        // (${env})`.
+        const isWhatsApp = instance.channel === 'whatsapp' || instance.channel === 'whatsapp_notif'
+        const modeChip = isWhatsApp ? getModeChip(instance.config) : null
         return (
           <div className="flex flex-wrap items-center gap-2">
             <ChannelGlyph channel={instance.channel} />
@@ -103,10 +120,10 @@ function buildColumns(
       header: 'Number / Origin',
       cell: ({ row }) => {
         const { channel, config } = row.original
-        const text =
-          channel === 'whatsapp'
-            ? ((config.displayPhoneNumber as string | undefined) ?? (config.phoneNumberId as string | undefined) ?? '—')
-            : ((config.origin as string | undefined) ?? '—')
+        const isWhatsApp = channel === 'whatsapp' || channel === 'whatsapp_notif'
+        const text = isWhatsApp
+          ? ((config.displayPhoneNumber as string | undefined) ?? (config.phoneNumberId as string | undefined) ?? '—')
+          : ((config.origin as string | undefined) ?? '—')
         return <span className="font-mono text-muted-foreground text-xs">{text}</span>
       },
     },
@@ -118,7 +135,13 @@ function buildColumns(
       // row would just duplicate (or worse, contradict) it.
       cell: ({ row }) => {
         const instance = row.original
-        if (instance.channel === 'whatsapp' && instance.config.mode === 'managed') {
+        if (instance.placeholderKind) {
+          return <Status variant="neutral" label="Not connected" />
+        }
+        const isManagedWhatsApp =
+          (instance.channel === 'whatsapp' && instance.config.mode === 'managed') ||
+          (instance.channel === 'whatsapp_notif' && instance.config.mode === 'managed-notif')
+        if (isManagedWhatsApp) {
           return <WebhookStatusBadge instanceId={instance.id} />
         }
         const { variant, label } = getHealthChip(instance.status)
@@ -136,13 +159,24 @@ function buildColumns(
     {
       id: 'lastActivity',
       header: 'Last activity',
-      cell: ({ row }) => <RelativeTimeCard date={new Date(row.original.updatedAt)} length="short" />,
+      cell: ({ row }) => {
+        if (row.original.placeholderKind) return <span className="text-muted-foreground text-xs">—</span>
+        return <RelativeTimeCard date={new Date(row.original.updatedAt)} length="short" />
+      },
     },
     {
       id: 'actions',
       header: '',
       cell: ({ row }) => {
-        const isWhatsApp = row.original.channel === 'whatsapp'
+        const placeholderKind = row.original.placeholderKind
+        if (placeholderKind) {
+          return (
+            <Button size="sm" variant="outline" onClick={() => onConnectPlaceholder?.(placeholderKind)}>
+              Connect
+            </Button>
+          )
+        }
+        const isWhatsApp = row.original.channel === 'whatsapp' || row.original.channel === 'whatsapp_notif'
         return (
           <ChannelRowMenu
             row={row.original}
@@ -165,6 +199,8 @@ interface ChannelsTableProps {
   onEditManaged: (row: ChannelInstanceRow) => void
   onDeleteWeb: (row: ChannelInstanceRow) => void
   onOpenDetails: (id: string) => void
+  /** Fires when the operator clicks "Connect" on a placeholder row. */
+  onConnectPlaceholder?: (kind: ManagedChannelKind) => void
 }
 
 export function ChannelsTable({
@@ -175,10 +211,11 @@ export function ChannelsTable({
   onEditManaged,
   onDeleteWeb,
   onOpenDetails,
+  onConnectPlaceholder,
 }: ChannelsTableProps) {
   const columns = useMemo(
-    () => buildColumns(listQueryKey, onEditWeb, onEditManaged, onDeleteWeb, onOpenDetails),
-    [listQueryKey, onEditWeb, onEditManaged, onDeleteWeb, onOpenDetails],
+    () => buildColumns(listQueryKey, onEditWeb, onEditManaged, onDeleteWeb, onOpenDetails, onConnectPlaceholder),
+    [listQueryKey, onEditWeb, onEditManaged, onDeleteWeb, onOpenDetails, onConnectPlaceholder],
   )
 
   const { table } = useDataTable({

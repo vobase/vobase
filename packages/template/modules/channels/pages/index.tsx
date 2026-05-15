@@ -1,4 +1,5 @@
 import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
+import type { ManagedChannelKind } from '@modules/channels/managed/registry'
 import { PrincipalAvatar } from '@modules/messaging/components/principal'
 import { useStaffList } from '@modules/team/hooks/use-staff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -47,8 +48,7 @@ import {
 import { channelsClient } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { type ChannelInstanceRow, ChannelsTable } from '../components/channels-table'
-import { ClaimSandboxDialog } from '../components/claim-sandbox-dialog'
-import { ConnectManagedChannelSheet } from '../components/connect-managed-channel-sheet'
+import { ConnectManagedChannelDialog } from '../components/connect-managed-channel-dialog'
 import { ConnectWhatsAppSheet } from '../components/connect-whatsapp-sheet'
 import { WebChannelDetailsSheet } from '../components/web-channel-details-sheet'
 import { WhatsAppEmptyState } from '../components/whatsapp-empty-state'
@@ -288,8 +288,9 @@ export function ChannelsPage() {
   })
 
   const [connectWaOpen, setConnectWaOpen] = useState(false)
-  const [claimSandboxOpen, setClaimSandboxOpen] = useState(false)
-  const [claimNotifOpen, setClaimNotifOpen] = useState(false)
+  // Single state for both managed-kind connect dialogs (sandbox + notification).
+  // Triggered from the in-table placeholder rows' "Connect" button.
+  const [connectKind, setConnectKind] = useState<ManagedChannelKind | null>(null)
   const [createWebOpen, setCreateWebOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<WebInstance | null>(null)
   // Managed-WhatsApp edit target — separate from `editTarget` because managed
@@ -329,6 +330,42 @@ export function ChannelsPage() {
     qc.invalidateQueries({ queryKey: ALL_INSTANCES_KEY })
   }
 
+  // Synthetic "placeholder" rows for managed kinds the org hasn't claimed
+  // yet. They render in the table with a "Connect" button so operators don't
+  // have to discover the kind from a dropdown. Suppressed entirely when the
+  // tenant isn't wired to a platform (no `VITE_PLATFORM_URL`).
+  const tableRows = useMemo<ChannelInstanceRow[]>(() => {
+    if (!PLATFORM_CONFIGURED) return instances
+    const placeholders: ChannelInstanceRow[] = []
+    if (!instances.some((i) => i.channel === 'whatsapp' && i.config.mode === 'managed')) {
+      placeholders.push({
+        id: '__placeholder__-sandbox',
+        organizationId: '',
+        channel: 'whatsapp',
+        displayName: 'Platform sandbox',
+        config: { mode: 'managed' },
+        status: null,
+        createdAt: '',
+        updatedAt: '',
+        placeholderKind: 'sandbox',
+      })
+    }
+    if (!hasWhatsAppNotif) {
+      placeholders.push({
+        id: '__placeholder__-notification',
+        organizationId: '',
+        channel: 'whatsapp_notif',
+        displayName: 'Platform notification',
+        config: { mode: 'managed-notif' },
+        status: null,
+        createdAt: '',
+        updatedAt: '',
+        placeholderKind: 'notification',
+      })
+    }
+    return [...instances, ...placeholders]
+  }, [instances, hasWhatsAppNotif])
+
   return (
     <PageLayout>
       <PageHeader
@@ -344,14 +381,6 @@ export function ChannelsPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setConnectWaOpen(true)}>WhatsApp</DropdownMenuItem>
-              {PLATFORM_CONFIGURED && (
-                <DropdownMenuItem onClick={() => setClaimSandboxOpen(true)}>
-                  Platform sandbox (WhatsApp)
-                </DropdownMenuItem>
-              )}
-              {PLATFORM_CONFIGURED && !hasWhatsAppNotif && (
-                <DropdownMenuItem onClick={() => setClaimNotifOpen(true)}>Staff WhatsApp notification</DropdownMenuItem>
-              )}
               <DropdownMenuItem onClick={() => setCreateWebOpen(true)}>Web chat</DropdownMenuItem>
               {hasWhatsApp && wabaId && (
                 <>
@@ -378,13 +407,14 @@ export function ChannelsPage() {
           <WhatsAppEmptyState onConnected={handleWhatsAppConnected} onAddWebChannel={() => setCreateWebOpen(true)} />
         ) : (
           <ChannelsTable
-            rows={instances}
+            rows={tableRows}
             isLoading={isLoading}
             listQueryKey={ALL_INSTANCES_KEY}
             onEditWeb={(row) => setEditTarget(toWebInstance(row))}
             onEditManaged={setEditManagedTarget}
             onDeleteWeb={(row) => setDeleteTarget(toWebInstance(row))}
             onOpenDetails={setDetailsTarget}
+            onConnectPlaceholder={setConnectKind}
           />
         )}
       </PageBody>
@@ -396,21 +426,18 @@ export function ChannelsPage() {
         onConnected={handleWhatsAppConnected}
       />
 
-      {/* Platform sandbox claim dialog (replaces boot-time auto-provision) */}
-      <ClaimSandboxDialog
-        open={claimSandboxOpen}
-        onOpenChange={setClaimSandboxOpen}
-        onClaimed={handleWhatsAppConnected}
-      />
-
-      {/* Staff WhatsApp notification claim sheet — kind-parameterised
-          generic. Sandbox still uses the older dialog above. */}
-      <ConnectManagedChannelSheet
-        open={claimNotifOpen}
-        kind="notification"
-        onOpenChange={setClaimNotifOpen}
-        onConnected={handleWhatsAppConnected}
-      />
+      {/* Unified platform-channel connect dialog. The `kind` is set when the
+          operator clicks "Connect" on a placeholder row in the table. */}
+      {connectKind && (
+        <ConnectManagedChannelDialog
+          open={connectKind !== null}
+          kind={connectKind}
+          onOpenChange={(o) => {
+            if (!o) setConnectKind(null)
+          }}
+          onConnected={(id) => handleWhatsAppConnected(id)}
+        />
+      )}
 
       {/* Managed-WhatsApp edit dialog — same form shape as web (only edits
           displayName + defaultAssignee), but submits via the generic

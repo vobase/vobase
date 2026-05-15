@@ -41,7 +41,29 @@ import {
 import { getInstalledDb, getVaultFor } from '@modules/integrations/service/registry'
 import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
 import { and, asc, eq } from 'drizzle-orm'
+import type { Context } from 'hono'
 import { Hono } from 'hono'
+import { z } from 'zod'
+
+const claimBodySchema = z.object({ defaultAssignee: z.string().min(1).optional() })
+
+/**
+ * Tolerant parse of the optional `POST /managed/(notification/)?claim` body.
+ * Returns the bare agent id (no `agent:` prefix) the dialog selected, or
+ * `null` when the body is absent / malformed / empty — letting the caller
+ * fall through to the legacy "auto-pick first enabled agent" behaviour.
+ */
+async function parseOptionalAgentBody(c: Context): Promise<string | null> {
+  let raw: unknown
+  try {
+    raw = await c.req.json()
+  } catch {
+    return null
+  }
+  const parsed = claimBodySchema.safeParse(raw)
+  if (!parsed.success || !parsed.data.defaultAssignee) return null
+  return parsed.data.defaultAssignee
+}
 
 interface ManagedConfig {
   mode: 'managed'
@@ -150,8 +172,15 @@ const app = new Hono<OrganizationEnv>()
   // channel-instances row was wiped (e.g. tenant `db:reset`), falls through
   // to re-handshake — the platform's `readExistingClaim` returns the same
   // secret pair, vault upsert is a no-op, and the row is recreated.
+  //
+  // Optional body `{ defaultAssignee?: string }`: agent UUID (no `agent:`
+  // prefix — server adds it). Falls back to the org's first enabled agent
+  // when omitted, preserving the original UI's "auto-pick" behaviour for
+  // callers that don't send a body.
   .post('/managed/claim', async (c) => {
     const organizationId = c.get('organizationId')
+
+    const bodyAssignee = await parseOptionalAgentBody(c)
     // The Dockerfile pins `NODE_ENV=production` for every tenant container
     // (both production and staging Railway envs), so NODE_ENV can't
     // distinguish them. The provisioning job stamps `STAGING=true` only on
@@ -196,16 +225,20 @@ const app = new Hono<OrganizationEnv>()
       betterAuthSecret,
     })
 
-    // Pick the org's first enabled AI agent as the channel's default
-    // assignee — so new inbound conversations route to it without operator
-    // setup. Null when the org has no agents yet; webhook handler tolerates
-    // null (skips auto-assignment).
-    const [firstAgent] = await getInstalledDb()
-      .select({ id: agentDefinitions.id })
-      .from(agentDefinitions)
-      .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.enabled, true)))
-      .orderBy(asc(agentDefinitions.createdAt))
-      .limit(1)
+    // Resolve the default assignee: explicit body wins, else pick the org's
+    // first enabled AI agent so re-clicks from auto-tooling still route. Null
+    // when the org has no agents yet; webhook handler tolerates null (skips
+    // auto-assignment).
+    let assigneeAgentId: string | null = bodyAssignee
+    if (assigneeAgentId === null) {
+      const [firstAgent] = await getInstalledDb()
+        .select({ id: agentDefinitions.id })
+        .from(agentDefinitions)
+        .where(and(eq(agentDefinitions.organizationId, organizationId), eq(agentDefinitions.enabled, true)))
+        .orderBy(asc(agentDefinitions.createdAt))
+        .limit(1)
+      assigneeAgentId = firstAgent?.id ?? null
+    }
 
     try {
       const result = await claimAndBootstrap({
@@ -225,7 +258,7 @@ const app = new Hono<OrganizationEnv>()
         // every reader expects (`<Principal id=…>`, mention rendering,
         // hover cards), and the `conversations.assignee` column receives
         // verbatim via `initialAssignee` in `dispatchInbound`.
-        defaultAssignee: firstAgent ? `agent:${firstAgent.id}` : null,
+        defaultAssignee: assigneeAgentId ? `agent:${assigneeAgentId}` : null,
       })
       const webhook = result.webhookOk
         ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)
