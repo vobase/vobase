@@ -182,10 +182,7 @@ describe('sendFileTool', () => {
   })
 
   it('rejects both driveFileId and url set', async () => {
-    const result = await sendFileTool.execute(
-      { driveFileId: 'file-abc', url: 'https://example.com/x.png' },
-      makeCtx(),
-    )
+    const result = await sendFileTool.execute({ driveFileId: 'file-abc', url: 'https://example.com/x.png' }, makeCtx())
     expect(result.ok).toBe(false)
   })
 
