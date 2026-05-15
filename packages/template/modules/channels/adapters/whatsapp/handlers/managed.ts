@@ -88,13 +88,16 @@ function readPlatformCreds(rowPlatformBaseUrl: string | undefined): PlatformCred
   return { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret }
 }
 
-function tenantWebhookUrl(instanceId: string): string {
+function tenantWebhookUrl(channelName: string, instanceId: string): string {
   const base =
     process.env.WEBHOOK_BASE_URL ??
     process.env.PUBLIC_BASE_URL ??
     process.env.BETTER_AUTH_URL ??
     `http://localhost:${process.env.PORT ?? '3000'}`
-  return `${base.replace(/\/$/, '')}/api/channels/webhook/whatsapp/${instanceId}`
+  // Path segment must match the row's `channel` column — the generic webhook
+  // router (`modules/channels/handlers/webhook.ts`) returns 404 on mismatch.
+  // For notification-tier rows that's `whatsapp_notif`, not `whatsapp`.
+  return `${base.replace(/\/$/, '')}/api/channels/webhook/${channelName}/${instanceId}`
 }
 
 /**
@@ -185,7 +188,7 @@ const app = new Hono<OrganizationEnv>()
     // place and is unit-testable without HTTP. The handler stays thin:
     // bind handler-only context (db, webhook URL, verify-token derivation),
     // map `PlatformHandshakeError` to HTTP status, return the response.
-    const webhookUrl = tenantWebhookUrl(channelInstanceId)
+    const webhookUrl = tenantWebhookUrl('whatsapp', channelInstanceId)
     const verifyToken = deriveVerifyToken({
       tenantSlug,
       environment,
@@ -352,7 +355,7 @@ const app = new Hono<OrganizationEnv>()
       }
     }
 
-    const webhookUrl = tenantWebhookUrl(channelInstanceId)
+    const webhookUrl = tenantWebhookUrl(kindSpec.channelName, channelInstanceId)
     const verifyToken = deriveVerifyToken({
       tenantSlug,
       environment,
@@ -441,11 +444,17 @@ const app = new Hono<OrganizationEnv>()
     if (!creds) return c.json({ error: 'platform_not_configured' }, 500)
 
     const environment = managed.environment ?? 'production'
-    const webhookUrl = tenantWebhookUrl(instanceId)
+    // Use the row's `channel` value (sandbox = 'whatsapp', notification =
+    // 'whatsapp_notif') for both the URL path segment and the verify-token
+    // derivation — hardcoding 'whatsapp' would 404 the platform handshake
+    // for notification-tier rows (their webhook router is keyed on
+    // `instance.channel`, not the literal 'whatsapp').
+    const provider = row.channel
+    const webhookUrl = tenantWebhookUrl(provider, instanceId)
     const verifyToken = deriveVerifyToken({
       tenantSlug: creds.tenantSlug,
       environment,
-      provider: 'whatsapp',
+      provider,
       betterAuthSecret: creds.betterAuthSecret,
     })
 
@@ -454,7 +463,7 @@ const app = new Hono<OrganizationEnv>()
         platformBaseUrl: creds.platformBaseUrl,
         tenantId: creds.tenantId,
         tenantHmacSecret: creds.tenantHmacSecret,
-        provider: 'whatsapp',
+        provider,
         webhookUrl,
         verifyToken,
       })
