@@ -371,6 +371,8 @@ const app = new Hono<OrganizationEnv>()
     const organizationId = c.get('organizationId')
     const environment: 'production' | 'staging' = process.env.STAGING === 'true' ? 'staging' : 'production'
 
+    const bodyAssignee = await parseOptionalAgentBody(c)
+
     const creds = readPlatformCreds(undefined)
     if (!creds) return c.json({ error: 'platform_not_configured' }, 503)
     const { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret } = creds
@@ -417,10 +419,11 @@ const app = new Hono<OrganizationEnv>()
         organizationId,
         webhookUrl,
         verifyToken,
-        // Staff WA replies route via `dispatchStaffReply` (reads
-        // `defaultOperatorAgentId` from `org_settings`), not via this row's
-        // `config.defaultAssignee`. Null avoids storing a misleading pointer.
-        defaultAssignee: null,
+        // Stored for display in the channels table so operators see who's
+        // nominally owning the row. Staff WA replies route via
+        // `dispatchStaffReply` (`defaultOperatorAgentId` from
+        // `org_settings`), so this value is informational, not behavioural.
+        defaultAssignee: bodyAssignee,
       })
       const webhook = result.webhookOk
         ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)
