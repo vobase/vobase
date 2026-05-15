@@ -1,0 +1,41 @@
+#!/usr/bin/env expect -f
+# Drives `bunx drizzle-kit generate --name <name>` through its interactive
+# rename prompts in non-interactive environments (e.g. CI). drizzle-kit
+# insists on a real TTY (process.stdin.isTTY must be true) and any non-trivial
+# schema diff produces "is X a rename of Y?" prompts that have no CLI bypass.
+# This wrapper provides a pty and auto-presses Enter on every inquirer prompt
+# — the highlighted default is "+ Create" (create new rather than collapse a
+# rename), which is the right answer when we don't want to merge renames.
+#
+# Invoked by scripts/db-generate.ts. See that file's header for context.
+#
+# Usage: drizzle-generate.exp <migration-name>
+
+if {[llength $argv] < 1} {
+  send_user "usage: drizzle-generate.exp <migration-name>\n"
+  exit 2
+}
+set name [lindex $argv 0]
+
+# Generous timeout — drizzle-kit can stall briefly per prompt on a big diff.
+set timeout 180
+log_user 1
+
+spawn bunx drizzle-kit generate --name $name
+
+# Auto-press Enter on every inquirer question (`? ` at the start of a prompt
+# line) and on every selection cursor glyph (`❯`). Either match accepts
+# whatever drizzle-kit is highlighting — on a rename prompt that is "+ Create",
+# which preserves the column rather than collapsing it into a rename.
+expect {
+  -re {❯|\? } {
+    send -- "\r"
+    exp_continue
+  }
+  eof
+}
+
+# Propagate drizzle-kit's exit code so the Bun caller's `proc.exitCode` is
+# meaningful.
+catch wait result
+exit [lindex $result 3]
