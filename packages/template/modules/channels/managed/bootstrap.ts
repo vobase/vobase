@@ -176,12 +176,16 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
     previous,
   })
 
+  // Prefer the platform-assigned `label` so the tenant row matches what the
+  // platform admin chose (e.g. "Vobase Sandbox SG"). Fall back to the generic
+  // per-kind label when the platform didn't return one (pre-label deploy).
+  const displayName = allocation.label?.trim() || `${kindSpec.displayLabel} (${opts.environment})`
   const { instance } = await opts.upsertInstance({
     id: opts.channelInstanceId,
     organizationId: opts.organizationId,
     channel: kindSpec.channelName,
     platformChannelId: allocation.platformChannelId,
-    displayName: `${kindSpec.displayLabel} (${opts.environment})`,
+    displayName,
     role: kindSpec.role,
     mode: kindSpec.instanceMode,
     config: {
@@ -235,7 +239,7 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
       organizationId: opts.organizationId,
       channel: kindSpec.channelName,
       platformChannelId: allocation.platformChannelId,
-      displayName: instance.displayName ?? `${kindSpec.displayLabel} (${opts.environment})`,
+      displayName: instance.displayName ?? displayName,
       role: kindSpec.role,
       mode: kindSpec.instanceMode,
       config: {

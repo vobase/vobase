@@ -24,6 +24,14 @@ export interface HandshakeAllocation {
   wabaId: string
   phoneNumberId: string
   displayPhoneNumber: string
+  /**
+   * Human label the platform operator assigned to this pool row (e.g.
+   * "Vobase Sandbox SG", "Acme Staff Notif"). Tenant uses it as the
+   * channel-instance `displayName` so the row in the UI matches what the
+   * platform admin chose, instead of a generic per-kind fallback.
+   * Optional for back-compat with platforms that pre-date the field.
+   */
+  label?: string
   routineSecret: string
   rotationKey: string
   keyVersion: number
@@ -37,6 +45,7 @@ const handshakeAllocationSchema = z.object({
   wabaId: z.string(),
   phoneNumberId: z.string(),
   displayPhoneNumber: z.string(),
+  label: z.string().optional(),
   routineSecret: z.string(),
   rotationKey: z.string(),
   keyVersion: z.number(),
