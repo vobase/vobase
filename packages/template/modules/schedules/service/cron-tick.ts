@@ -16,6 +16,14 @@ import { schedules } from '@modules/schedules/service/schedules'
 
 export interface CronTickDeps {
   emitHeartbeat: (trigger: HeartbeatTrigger) => Promise<void>
+  /**
+   * Returns the set of `organizationId`s that have opted out of heartbeat wakes.
+   * Called once per tick so a 1000-org sweep does one batched read instead of
+   * one round-trip per schedule. Disabled orgs are filtered before
+   * `recordTick`, so they don't burn idempotency rows either. Optional — when
+   * omitted no orgs are filtered (used by unit tests).
+   */
+  disabledOrgIds?: () => Promise<Set<string>>
   /** Override clock — tests pin to a deterministic now. */
   now?: () => Date
   log?: (msg: string, meta?: Record<string, unknown>) => void
@@ -41,8 +49,17 @@ export async function tickSchedules(deps: CronTickDeps): Promise<CronTickResult>
   const intendedRunAt = roundDownToMinute(now)
   const result: CronTickResult = { fired: 0, duplicates: 0, errors: 0 }
 
+  const disabledOrgs = (await deps.disabledOrgIds?.()) ?? new Set<string>()
+
   const enabled = await schedules.listAllEnabled()
   for (const row of enabled) {
+    if (disabledOrgs.has(row.organizationId)) {
+      deps.log?.('schedules.tick: org has heartbeats disabled — skipping', {
+        scheduleId: row.id,
+        organizationId: row.organizationId,
+      })
+      continue
+    }
     try {
       const tick = await schedules.recordTick({ scheduleId: row.id, intendedRunAt })
       if (!tick.firstFire) {

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
 import type { ApiKeySummaryDto, CreatedApiKeyDto } from '@modules/settings/handlers/api-keys'
+import { useOrgSetting } from '@modules/settings/hooks/use-org-setting'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { NotificationsValues } from '@modules/settings/pages/schemas'
 import { notificationsSchema } from '@modules/settings/pages/schemas'
@@ -191,33 +192,11 @@ function NotificationsSection() {
 }
 
 function OperatorAgentSection() {
-  const qc = useQueryClient()
   const { data: agents = [], isLoading: agentsLoading } = useAgentDefinitions()
+  const operator = useOrgSetting('defaultOperatorAgentId')
+  const heartbeat = useOrgSetting('operatorHeartbeatEnabled')
 
-  const { data: setting } = useQuery({
-    queryKey: ['settings', 'org-settings', 'defaultOperatorAgentId'],
-    queryFn: async (): Promise<{ key: string; value: string | null }> => {
-      const r = await settingsClient['org-settings'][':key'].$get({ param: { key: 'defaultOperatorAgentId' } })
-      if (!r.ok) throw new Error(`org-settings.get failed: ${r.status}`)
-      return (await r.json()) as { key: string; value: string | null }
-    },
-  })
-
-  const setMut = useMutation({
-    mutationFn: async (value: string | null): Promise<void> => {
-      const r = await settingsClient['org-settings'][':key'].$put({
-        param: { key: 'defaultOperatorAgentId' },
-        json: { value },
-      })
-      if (!r.ok) throw new Error(`org-settings.put failed: ${r.status}`)
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings', 'org-settings', 'defaultOperatorAgentId'] })
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Save failed'),
-  })
-
-  const currentValue = setting?.value ?? ''
+  const heartbeatEnabled = heartbeat.value !== 'false'
 
   return (
     <InfoSection
@@ -231,9 +210,9 @@ function OperatorAgentSection() {
               <span className="text-muted-foreground text-sm">Loading agents…</span>
             ) : (
               <Select
-                value={currentValue}
-                onValueChange={(v) => setMut.mutate(v === '__auto__' ? null : v)}
-                disabled={setMut.isPending}
+                value={operator.value ?? ''}
+                onValueChange={(v) => operator.setValue(v === '__auto__' ? null : v)}
+                disabled={operator.isPending}
               >
                 <SelectTrigger className="w-[280px]">
                   <SelectValue placeholder="Auto (first enabled)" />
@@ -254,6 +233,12 @@ function OperatorAgentSection() {
             </p>
           </div>
         </InfoRow>
+        <SettingsToggle
+          label="Scheduled heartbeats"
+          description="Run cron-scheduled review-and-plan wakes for operator agents. Turn off to suppress all heartbeat-triggered standalone wakes."
+          checked={heartbeatEnabled}
+          onCheckedChange={(v) => heartbeat.setValue(v ? 'true' : 'false')}
+        />
       </InfoCard>
     </InfoSection>
   )
@@ -358,10 +343,7 @@ function ApiKeysSection() {
           <InfoRow key={k.id} label={k.name ?? '(unnamed)'}>
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col">
-                <code className="font-mono text-muted-foreground text-xs">
-                  {k.prefix}
-                  {k.start}…
-                </code>
+                <code className="font-mono text-muted-foreground text-xs">{k.start ?? k.prefix ?? ''}…</code>
                 <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
                   Created <RelativeTimeCard date={new Date(k.createdAt)} length="short" />
                   {k.lastRequest && (

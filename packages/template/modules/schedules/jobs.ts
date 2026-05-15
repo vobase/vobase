@@ -14,6 +14,7 @@
 
 import { tickSchedules } from '@modules/schedules/service/cron-tick'
 import { getHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
+import { listOrgsWithSetting } from '@modules/settings/service/org-settings'
 import type { JobDef } from '@vobase/core'
 
 export const SCHEDULES_TICK_JOB = 'schedules:cron-tick'
@@ -40,6 +41,7 @@ export const jobs: JobDef[] = [
           const emit = getHeartbeatEmitter()
           if (emit) await emit(trigger)
         },
+        disabledOrgIds: () => listOrgsWithSetting('operatorHeartbeatEnabled', 'false'),
       })
     },
   },

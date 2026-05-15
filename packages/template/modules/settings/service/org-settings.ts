@@ -15,11 +15,13 @@ import type { ScopedDb } from '~/runtime'
  * String-typed key union — extend as new keys are added so callers cannot
  * fat-finger the namespace.
  */
-export type OrgSettingKey = 'defaultOperatorAgentId'
+export type OrgSettingKey = 'defaultOperatorAgentId' | 'operatorHeartbeatEnabled'
 
 export interface OrgSettingsService {
   get(organizationId: string, key: OrgSettingKey): Promise<string | null>
   set(organizationId: string, key: OrgSettingKey, value: string | null): Promise<void>
+  /** All orgs where `(key, value)` matches exactly. Used by the cron-tick driver to filter disabled orgs in one query. */
+  listOrgsWithValue(key: OrgSettingKey, value: string): Promise<Set<string>>
 }
 
 interface OrgSettingsDeps {
@@ -48,7 +50,15 @@ export function createOrgSettingsService(deps: OrgSettingsDeps): OrgSettingsServ
       })
   }
 
-  return { get, set }
+  async function listOrgsWithValue(key: OrgSettingKey, value: string): Promise<Set<string>> {
+    const rows = await db
+      .select({ organizationId: orgSettings.organizationId })
+      .from(orgSettings)
+      .where(and(eq(orgSettings.key, key), eq(orgSettings.value, value)))
+    return new Set(rows.map((r) => r.organizationId))
+  }
+
+  return { get, set, listOrgsWithValue }
 }
 
 let _current: OrgSettingsService | null = null
@@ -67,3 +77,5 @@ export const getOrgSetting = (organizationId: string, key: OrgSettingKey): Promi
   current().get(organizationId, key)
 export const setOrgSetting = (organizationId: string, key: OrgSettingKey, value: string | null): Promise<void> =>
   current().set(organizationId, key, value)
+export const listOrgsWithSetting = (key: OrgSettingKey, value: string): Promise<Set<string>> =>
+  current().listOrgsWithValue(key, value)
