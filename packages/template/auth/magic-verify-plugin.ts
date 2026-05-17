@@ -213,13 +213,12 @@ export function magicVerifyHmacPlugin(db: ScopedDb): BetterAuthPlugin {
             throw new APIError('UNAUTHORIZED', { message: 'unauthorized' })
           }
 
-          // Read raw body before HMAC check
-          let rawBody: string
-          try {
-            rawBody = (await ctx.request?.text()) ?? ''
-          } catch {
-            rawBody = ''
-          }
+          // better-auth's router parses the JSON body before the endpoint runs,
+          // so ctx.request?.text() returns '' (stream already consumed).
+          // We re-serialize ctx.body to reconstruct the raw body string for the
+          // HMAC digest check. The platform serializes with JSON.stringify so
+          // key ordering is preserved through parse → stringify.
+          const rawBody = ctx.body !== undefined && ctx.body !== null ? JSON.stringify(ctx.body) : ''
 
           const hmacResult = verifyExtendedV2Hmac({
             method: 'POST',
@@ -237,11 +236,11 @@ export function magicVerifyHmacPlugin(db: ScopedDb): BetterAuthPlugin {
             throw new APIError('UNAUTHORIZED', { message: 'unauthorized' })
           }
 
-          // Parse body after HMAC passes
+          // Parse body — ctx.body is already the parsed object
           let parsed: { token: string; nonce: string }
           try {
             const bodySchema = z.object({ token: z.string().min(1), nonce: z.string().min(1) })
-            parsed = bodySchema.parse(JSON.parse(rawBody))
+            parsed = bodySchema.parse(ctx.body)
           } catch {
             throw new APIError('BAD_REQUEST', { message: 'invalid_body' })
           }
@@ -339,13 +338,10 @@ export function magicVerifyHmacPlugin(db: ScopedDb): BetterAuthPlugin {
             throw new APIError('UNAUTHORIZED', { message: 'unauthorized' })
           }
 
-          // Read raw body before HMAC check
-          let rawBody: string
-          try {
-            rawBody = (await ctx.request?.text()) ?? ''
-          } catch {
-            rawBody = ''
-          }
+          // Same as verify-magic-link: better-auth parses the JSON body before the
+          // endpoint runs, so ctx.request?.text() returns '' (stream already consumed).
+          // Re-serialize ctx.body to reconstruct the canonical raw body string.
+          const rawBody = ctx.body !== undefined && ctx.body !== null ? JSON.stringify(ctx.body) : ''
 
           const hmacResult = verifyExtendedV2Hmac({
             method: 'POST',
@@ -363,7 +359,7 @@ export function magicVerifyHmacPlugin(db: ScopedDb): BetterAuthPlugin {
             throw new APIError('UNAUTHORIZED', { message: 'unauthorized' })
           }
 
-          // Parse body
+          // Parse body — ctx.body is already the parsed object
           let parsed: { sessionToken: string; organizationId: string; nonce: string }
           try {
             const bodySchema = z.object({
@@ -371,7 +367,7 @@ export function magicVerifyHmacPlugin(db: ScopedDb): BetterAuthPlugin {
               organizationId: z.string().min(1),
               nonce: z.string().min(1),
             })
-            parsed = bodySchema.parse(JSON.parse(rawBody))
+            parsed = bodySchema.parse(ctx.body)
           } catch {
             throw new APIError('BAD_REQUEST', { message: 'invalid_body' })
           }
