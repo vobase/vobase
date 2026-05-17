@@ -68,7 +68,7 @@ export class PhoneOtpMintError extends Error {
   }
 }
 
-/** 5 s — matches §8a.11.1 captor timeout discipline. */
+/** OTP captor timeout — 5 s. */
 const CAPTOR_TIMEOUT_MS = 5_000
 
 /** OTP TTL relayed to the platform — matches better-auth's `expiresIn: 600`. */
@@ -166,7 +166,7 @@ export interface MintResult {
  * - Captor timeout: 5 s — if better-auth's `sendOTP` is skipped (future config
  *   change), the mint rejects with `captor_timeout` wrapped in
  *   `PhoneOtpMintError`.
- * - This function MUST only be called post-commit (Principle 6 — plan §8a.1).
+ * - This function MUST only be called post-commit (Principle 6).
  *   Never call from inside a wake-trigger renderer or `WorkspaceMaterializerFactory`.
  *
  * @param auth - better-auth instance (from `createAuth(db)`)

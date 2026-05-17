@@ -19,9 +19,8 @@
  * `db.transaction(...)` block. The platform base URL is stripped from the mint
  * result to produce the `buttonUrlSuffix` the Meta template expects.
  *
- * Renamed in US-009 from `mention-notify.ts` → `staff-ping.ts`. The existing
- * mention fan-out APIs (`fanOutNoteMentions`, `enqueueMentionFanOut`,
- * `createMentionNotifyService`) are preserved verbatim for back-compat with
+ * The existing mention fan-out APIs (`fanOutNoteMentions`, `enqueueMentionFanOut`,
+ * `createMentionNotifyService`) are preserved for back-compat with
  * `messaging/handlers/notes.ts` + `messaging/tools/consult-staff.ts`.
  */
 

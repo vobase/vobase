@@ -57,7 +57,7 @@ export class CaptorMintError extends Error {
 /** Constructor shape for the optional `errorClass` parameter. */
 export type CaptorErrorClass = new (message: string, options?: { cause?: unknown }) => Error
 
-/** Default 5 s — matches §8a.11.1 captor timeout discipline. */
+/** Default captor timeout — 5 s. */
 const DEFAULT_TIMEOUT_MS = 5_000
 
 /** Generate a 16-byte URL-safe-base64 nonce (22 chars). */

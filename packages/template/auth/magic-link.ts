@@ -14,16 +14,16 @@
  * `auth/captor-pattern.ts`. This file owns the magic-link-specific URL construction +
  * pre-flight user existence check.
  *
- * ## Why the URL is constructed, not stripped (plan §8a.3 Blockers 1+2, iteration-3)
+ * ## Why the URL is constructed, not stripped
  *
- * Blocker 1: better-auth's `sendMagicLink` callback receives `url` =
+ * better-auth's `sendMagicLink` callback receives `url` =
  *   `${tenantBaseURL}${basePath}/magic-link/verify?token=…&callbackURL=…`
  *   That is the TENANT's own verify endpoint — it can't be used as a platform
  *   notification link. We DISCARD it entirely.
  *
- * Blocker 2: `callbackURL` is NOT included in the `sendMagicLink` payload. We
- *   round-trip it through `metadata.callbackURL` so the captor can reconstruct the
- *   full platform deep-link URL:
+ * `callbackURL` is NOT included in the `sendMagicLink` payload, so we round-trip
+ *   it through `metadata.callbackURL` so the captor can reconstruct the full
+ *   platform deep-link URL:
  *   `https://platform.voltade.app/auth/magic?tenant=<tid>&token=<tok>&redirect=<path>&organization=<oid>`
  */
 
@@ -92,7 +92,7 @@ export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
           tenantId: payload.tenantId,
           organizationId: payload.organizationId,
           // Round-trip callbackURL through metadata because better-auth does not
-          // include callbackURL in the sendMagicLink payload (plan §8a.3 step 4).
+          // include callbackURL in the sendMagicLink payload.
           callbackURL: payload.redirectPath,
         },
       },
@@ -156,7 +156,7 @@ export interface MintResult {
  *   user, this function throws `notFound('staff_user_not_found')`.
  * - Tokens are stored hashed (`storeToken: 'hashed'`) — plain-text tokens never
  *   appear in the database.
- * - This function MUST only be called post-commit (Principle 6 — plan §8a.1).
+ * - This function MUST only be called post-commit (Principle 6).
  *   Never call from inside a wake-trigger renderer or WorkspaceMaterializerFactory
  *   — `check:shape` enforces the import boundary.
  *
