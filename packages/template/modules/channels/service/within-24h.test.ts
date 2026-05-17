@@ -116,7 +116,7 @@ describe('checkWithin24h (real Postgres)', () => {
     if (!handle) return
     await insertLog(handle.db, {
       direction: 'outbound',
-      from: null,
+      from: undefined,
       to: PHONE,
       channel: 'whatsapp',
       offsetInterval: '1 hour',
