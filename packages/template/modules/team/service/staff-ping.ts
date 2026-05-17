@@ -26,6 +26,7 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
+import { authUser as authUserTable } from '@auth/schema'
 import { agentDefinitions } from '@modules/agents/schema'
 import { decideChangeProposal } from '@modules/changes/service/proposals'
 import { findNotificationChannel } from '@modules/channels/service/instances'
@@ -445,8 +446,6 @@ function isOffline(lastSeenAt: Date | null): boolean {
 function trimSnippet(body: string): string {
   return body.length > 200 ? `${body.slice(0, 197)}…` : body
 }
-
-import { authUser as authUserTable } from '@auth/schema'
 
 interface DrizzleAgentSelect {
   select: (fields?: unknown) => {

@@ -21,7 +21,6 @@ import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
-import type { HarnessLogger } from '@vobase/core'
 
 import {
   __resetPendingStaffPingServiceForTests as __resetPendingMentionPingServiceForTests,
@@ -40,14 +39,6 @@ import {
   type SendTemplateFn,
   urlToSuffix,
 } from './staff-ping'
-
-const NOOP_LOGGER: HarnessLogger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-}
-void NOOP_LOGGER
 
 const ORG = 'org-test-mn'
 const STAFF_X = 'usr-test-mn-x'

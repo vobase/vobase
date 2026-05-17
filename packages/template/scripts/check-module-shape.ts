@@ -61,10 +61,8 @@ const SESSIONS_WRITE_ALLOWED = ['modules/messaging/service/sessions.ts']
 const SIGNUP_NONCES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*signupNonces\b/
 const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/service/signup-nonces.ts']
 
-// Automations module sole-writer guards. Defensive scaffolding — the tables
-// (`automations`, `automation_runs`, `tenant_budget_caps`, `pending_staff_pings`)
-// don't exist yet; the rules fire as soon as Slice A.1 / B introduce the Drizzle
-// tables. Pattern mirrors `JOURNAL_WRITE_RE`/`JOURNAL_WRITE_ALLOWED` above.
+// Automations module sole-writer guards. Pattern mirrors
+// `JOURNAL_WRITE_RE`/`JOURNAL_WRITE_ALLOWED` above.
 
 const AUTOMATIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automations\b/
 const AUTOMATIONS_WRITE_ALLOWED = ['modules/automations/service/automations.ts', 'modules/automations/seed.ts']

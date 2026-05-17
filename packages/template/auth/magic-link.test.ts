@@ -49,9 +49,9 @@ describe('mintMagicLink', () => {
   })
 
   it('throws MagicLinkMintError wrapping staff_user_not_found for a nonexistent user', async () => {
-    // US-011b changed mintMagicLink to wrap all inner errors in MagicLinkMintError
-    // (so dispatcher's `instanceof MagicLinkMintError` catch works uniformly).
-    // The original `staff_user_not_found` notFound error is preserved as `.cause`.
+    // All inner errors are wrapped in MagicLinkMintError so the dispatcher's
+    // `instanceof MagicLinkMintError` catch works uniformly. The original cause
+    // is preserved as `.cause`.
     try {
       await mintMagicLink(auth, handle.db, {
         userId: 'nonexistent-user-id',
@@ -126,7 +126,7 @@ describe('mintMagicLink captor timeout', () => {
       } as unknown as typeof realAuth
 
       const startMs = Date.now()
-      // US-011b wraps captor_timeout in MagicLinkMintError; inner cause preserves the original.
+      // captor_timeout is wrapped in MagicLinkMintError; inner cause preserves the original.
       try {
         await mintMagicLink(stubAuth, handle2.db, {
           userId: ALICE_USER_ID,

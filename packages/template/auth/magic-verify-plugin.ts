@@ -338,9 +338,7 @@ export function magicVerifyHmacPlugin(db: ScopedDb): BetterAuthPlugin {
             throw new APIError('UNAUTHORIZED', { message: 'unauthorized' })
           }
 
-          // Same as verify-magic-link: better-auth parses the JSON body before the
-          // endpoint runs, so ctx.request?.text() returns '' (stream already consumed).
-          // Re-serialize ctx.body to reconstruct the canonical raw body string.
+          // Re-serialize ctx.body — same reason as verify-magic-link (stream already consumed).
           const rawBody = ctx.body !== undefined && ctx.body !== null ? JSON.stringify(ctx.body) : ''
 
           const hmacResult = verifyExtendedV2Hmac({
