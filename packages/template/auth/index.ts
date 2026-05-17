@@ -265,6 +265,10 @@ export function createAuth(db: ScopedDb) {
     database: drizzleAdapter(db as any, { provider: 'pg', schema: authTableMap }),
     emailAndPassword: { enabled: false },
     plugins,
+    trustedOrigins: [
+      'https://platform.voltade.app',
+      // baseURL's own origin is implicitly trusted by better-auth — this list is additive.
+    ],
     databaseHooks: {
       user: {
         create: {

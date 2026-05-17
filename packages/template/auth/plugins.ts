@@ -16,11 +16,13 @@ import { APIError } from 'better-auth/api'
 import { anonymous } from 'better-auth/plugins/anonymous'
 import { bearer } from 'better-auth/plugins/bearer'
 import { emailOTP } from 'better-auth/plugins/email-otp'
+import { magicLink } from 'better-auth/plugins/magic-link'
 import { organization } from 'better-auth/plugins/organization'
 import { phoneNumber } from 'better-auth/plugins/phone-number'
 
 import { ac, roles } from './ac'
 import { E164_RE } from './e164'
+import { magicLinkCaptor } from './magic-link'
 
 /** Bearer-token shape the vobase CLI sends: `Authorization: Bearer vbt_<key>`. */
 const BEARER_API_KEY_RE = /^Bearer\s+(vbt_[A-Za-z0-9_-]+)$/u
@@ -66,6 +68,17 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
         })
       },
       phoneNumberValidator: (value) => E164_RE.test(value),
+    }),
+    magicLink({
+      storeToken: 'hashed', // REQUIRED — defaults to 'plain' (verified at .../plugins/magic-link/index.mjs:26)
+      expiresIn: 60 * 60 * 24, // 24h, matches Meta UTILITY re-engagement window
+      disableSignUp: true, // staff already provisioned via org-invite path
+      sendMagicLink: async ({ token, metadata }) => {
+        // url arg is the tenant's own /magic-link/verify URL — DISCARDED.
+        // metadata.{nonce,tenantId,organizationId,callbackURL} are used by the captor
+        // to construct the platform URL. See auth/magic-link.ts for details.
+        magicLinkCaptor.deliver({ token, metadata })
+      },
     }),
     organization({
       allowUserToCreateOrganization: opts.multiOrg,

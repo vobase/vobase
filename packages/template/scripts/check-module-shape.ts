@@ -89,6 +89,42 @@ const TENANT_BUDGET_CAPS_WRITE_ALLOWED = ['modules/automations/service/budget-ca
 const STAFF_PINGS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*pendingStaffPings\b/
 const STAFF_PINGS_WRITE_ALLOWED = ['modules/team/service/pending-staff-pings.ts']
 
+// `mintMagicLink` is a post-commit token issuance side effect (Principle 6 — plan §8a.1).
+// Only 3 files may import it; wake-trigger renderers and WorkspaceMaterializerFactory cannot,
+// to prevent agent-tool authors from accidentally minting magic-links inside a producer tx.
+// The regex matches only imports that name `mintMagicLink` specifically — other exports from
+// `auth/magic-link` (e.g. `magicLinkCaptor`, types) are not gated.
+const MINT_MAGIC_LINK_IMPORT_RE =
+  /import\s*\{[^}]*\bmintMagicLink\b[^}]*\}.*from\s+['"](?:@auth\/magic-link|.*\/auth\/magic-link)['"]/
+const MINT_MAGIC_LINK_ALLOWED = [
+  'modules/team/service/staff-ping.ts',
+  'modules/automations/service/admin-alert.ts',
+  'modules/automations/service/dispatcher.ts',
+]
+
+/**
+ * Pure import-boundary checker for `mintMagicLink` — exported for unit tests.
+ *
+ * @param relFromRoot - path relative to template root, e.g. `modules/foo/bar.ts` or `wake/trigger.ts`
+ * @param lines - file lines (without trailing newlines)
+ * @returns array of error messages; empty = clean
+ */
+export function lintMintMagicLinkImports(relFromRoot: string, lines: readonly string[]): string[] {
+  // Allowed files are modules-relative; wake/ is always forbidden.
+  if (MINT_MAGIC_LINK_ALLOWED.some((p) => relFromRoot === p)) return []
+  const errs: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+    if (MINT_MAGIC_LINK_IMPORT_RE.test(line)) {
+      errs.push(
+        `mintMagicLink import disallowed from ${relFromRoot}:${i + 1} — Principle 6 (token issuance never blocks the wake transaction); allowed in [modules/team/service/staff-ping.ts, modules/automations/service/admin-alert.ts, modules/automations/service/dispatcher.ts]`,
+      )
+    }
+  }
+  return errs
+}
+
 /**
  * `learning_proposals` migration guard. After Slice C the table, schema, and
  * service are deleted; any code-resurrection (typo, copy-paste, partial
@@ -202,6 +238,57 @@ async function checkJournalWriteAuthority(): Promise<void> {
           file: fullPath,
           line: i + 1,
           message: `forbidden reference to "${residue[1]}" — Slice C removed this table; use modules/changes (changeProposals / changeHistory) instead`,
+        })
+      }
+    }
+  }
+
+  // Second pass: scan wake/ for mintMagicLink import violations.
+  // wake/ is excluded from the modules/ scan above (different cwd) but must
+  // also be covered — wake-trigger renderers and lane builders run inside the
+  // producer transaction and must never issue tokens (Principle 6).
+  // Decision: keep a second Glob pass over wake/ rather than changing the scan
+  // root to TEMPLATE_ROOT, to avoid accidentally gating modules-only rules on
+  // auth/ or scripts/ files that legitimately import from auth/magic-link.
+  const wakeDir = join(TEMPLATE_ROOT, 'wake')
+  const wakeGlob = new Bun.Glob('**/*.ts')
+  for await (const entry of wakeGlob.scan({ cwd: wakeDir })) {
+    if (entry.endsWith('.test.ts') || entry.includes('__tests__/')) continue
+    const fullPath = join(wakeDir, entry)
+    const relFromModules = `wake/${entry}`
+    const lines = (await Bun.file(fullPath).text()).split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+      if (MINT_MAGIC_LINK_IMPORT_RE.test(line)) {
+        errors.push({
+          file: fullPath,
+          line: i + 1,
+          message: `mintMagicLink import disallowed from ${relFromModules} — Principle 6 (token issuance never blocks the wake transaction); allowed in [modules/team/service/staff-ping.ts, modules/automations/service/admin-alert.ts, modules/automations/service/dispatcher.ts]`,
+        })
+      }
+    }
+  }
+
+  // Third pass: enforce mintMagicLink import boundary within modules/
+  // (re-scan same files as the first pass but only for the import boundary rule,
+  // since MINT_MAGIC_LINK_ALLOWED is modules-relative and the first pass was
+  // already iterating; avoiding a second full Glob by inlining the check
+  // would make the first loop too long — keep it as a focused separate pass).
+  for await (const entry of glob.scan({ cwd: MODULES_DIR })) {
+    if (entry.endsWith('.test.ts') || entry.includes('__tests__/')) continue
+    const fullPath = join(MODULES_DIR, entry)
+    const relFromModules = `modules/${entry}`
+    if (MINT_MAGIC_LINK_ALLOWED.some((p) => relFromModules === p)) continue
+    const lines = (await Bun.file(fullPath).text()).split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+      if (MINT_MAGIC_LINK_IMPORT_RE.test(line)) {
+        errors.push({
+          file: fullPath,
+          line: i + 1,
+          message: `mintMagicLink import disallowed from ${relFromModules} — Principle 6 (token issuance never blocks the wake transaction); allowed in [modules/team/service/staff-ping.ts, modules/automations/service/admin-alert.ts, modules/automations/service/dispatcher.ts]`,
         })
       }
     }
@@ -454,21 +541,23 @@ async function checkRouteSurfaces(): Promise<void> {
   }
 }
 
-await checkJournalWriteAuthority()
-await checkCapabilityLiterals()
-await checkModuleTsShape()
-await checkRouteSurfaces()
-checkModuleContracts()
+if (import.meta.main) {
+  await checkJournalWriteAuthority()
+  await checkCapabilityLiterals()
+  await checkModuleTsShape()
+  await checkRouteSurfaces()
+  checkModuleContracts()
 
-if (errors.length > 0) {
-  console.error('\ncheck-module-shape: FAILED\n')
-  for (const err of errors) {
-    const loc = err.line ? `${err.file}:${err.line}` : err.file
-    console.error(`  ${loc}: ${err.message}`)
+  if (errors.length > 0) {
+    console.error('\ncheck-module-shape: FAILED\n')
+    for (const err of errors) {
+      const loc = err.line ? `${err.file}:${err.line}` : err.file
+      console.error(`  ${loc}: ${err.message}`)
+    }
+    console.error(`\n${errors.length} error(s) found.`)
+    process.exit(1)
   }
-  console.error(`\n${errors.length} error(s) found.`)
-  process.exit(1)
-}
 
-console.log('check-module-shape: OK')
-process.exit(0)
+  console.log('check-module-shape: OK')
+  process.exit(0)
+}
