@@ -116,6 +116,7 @@ function installStubs(): void {
     // biome-ignore lint/suspicious/noExplicitAny: stub
     update: async () => notifInstance as any,
     remove: async () => undefined,
+    hardRemove: async () => undefined,
   })
 
   // The platform-call seam used to be an adapter behind the channel

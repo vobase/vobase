@@ -61,6 +61,23 @@ const SESSIONS_WRITE_ALLOWED = ['modules/messaging/service/sessions.ts']
 const SIGNUP_NONCES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*signupNonces\b/
 const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/service/signup-nonces.ts']
 
+// Automations module sole-writer guards. Defensive scaffolding — the tables
+// (`automations`, `automation_runs`, `tenant_budget_caps`, `pending_staff_pings`)
+// don't exist yet; the rules fire as soon as Slice A.1 / B introduce the Drizzle
+// tables. Pattern mirrors `JOURNAL_WRITE_RE`/`JOURNAL_WRITE_ALLOWED` above.
+
+const AUTOMATIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automations\b/
+const AUTOMATIONS_WRITE_ALLOWED = ['modules/automations/service/automations.ts']
+
+const AUTOMATION_RUNS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automationRuns\b/
+const AUTOMATION_RUNS_WRITE_ALLOWED = ['modules/automations/service/dispatcher.ts']
+
+const TENANT_BUDGET_CAPS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*tenantBudgetCaps\b/
+const TENANT_BUDGET_CAPS_WRITE_ALLOWED = ['modules/automations/service/budget-caps.ts']
+
+const STAFF_PINGS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*pendingStaffPings\b/
+const STAFF_PINGS_WRITE_ALLOWED = ['modules/team/service/pending-staff-pings.ts']
+
 /**
  * `learning_proposals` migration guard. After Slice C the table, schema, and
  * service are deleted; any code-resurrection (typo, copy-paste, partial
@@ -125,6 +142,46 @@ async function checkJournalWriteAuthority(): Promise<void> {
             file: fullPath,
             line: i + 1,
             message: `writes to "${m[2]}" only allowed in channels/service/signup-nonces.ts (one-write-path)`,
+          })
+        }
+      }
+      if (!AUTOMATIONS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = AUTOMATIONS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "automations" only allowed in automations/service/automations.ts — route via pauseRule/resumeRule/createRule/updateRule wrappers (one-write-path)`,
+          })
+        }
+      }
+      if (!AUTOMATION_RUNS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = AUTOMATION_RUNS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "automationRuns" only allowed in automations/service/dispatcher.ts (one-write-path)`,
+          })
+        }
+      }
+      if (!TENANT_BUDGET_CAPS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = TENANT_BUDGET_CAPS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "tenantBudgetCaps" only allowed in automations/service/budget-caps.ts — route via setBudget wrapper (one-write-path)`,
+          })
+        }
+      }
+      if (!STAFF_PINGS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
+        const m = STAFF_PINGS_WRITE_RE.exec(line)
+        if (m) {
+          errors.push({
+            file: fullPath,
+            line: i + 1,
+            message: `writes to "pendingStaffPings" only allowed in team/service/pending-staff-pings.ts (one-write-path)`,
           })
         }
       }

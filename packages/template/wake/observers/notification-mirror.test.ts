@@ -77,6 +77,7 @@ function installStubChannels(): void {
     // biome-ignore lint/suspicious/noExplicitAny: stub
     update: async () => stubInstance as any,
     remove: async () => undefined,
+    hardRemove: async () => undefined,
   })
 }
 
