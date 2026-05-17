@@ -10,6 +10,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { __resetAdminAlertForTests, installAdminAlertDeps } from '@modules/automations/service/admin-alert'
 import {
   __resetAutomationsServiceForTests,
   createAutomationsService,
@@ -33,10 +34,15 @@ describe('budget-watcher tick', () => {
         db: handle.db as unknown as Parameters<typeof createAutomationsService>[0]['db'],
       }),
     )
+    __resetAdminAlertForTests()
+    installAdminAlertDeps({
+      db: handle.db as unknown as Parameters<typeof installAdminAlertDeps>[0]['db'],
+    })
   })
 
   afterAll(async () => {
     __resetAutomationsServiceForTests()
+    __resetAdminAlertForTests()
     await handle.teardown()
   })
 
@@ -99,6 +105,8 @@ describe('budget-watcher tick', () => {
 
     // Cleanup
     await db.execute(sql`DELETE FROM harness.conversation_events WHERE organization_id = ${orgId}`)
+    // Admin-alert (US-015) inserts run rows under a sentinel rule id — wipe by org.
+    await db.execute(sql`DELETE FROM automations.automation_runs WHERE organization_id = ${orgId}`)
     await db.execute(sql`DELETE FROM automations.automations WHERE id = ${ruleId}`)
     await db.execute(sql`DELETE FROM automations.tenant_budget_caps WHERE organization_id = ${orgId}`)
   })

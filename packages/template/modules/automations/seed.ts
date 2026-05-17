@@ -29,6 +29,18 @@ export const PENDING_STAFF_PINGS_PRUNE_RULE_NAME = 'pending-staff-pings-prune'
 export const PENDING_STAFF_PINGS_PRUNE_CRON = '*/15 * * * *' // every 15 minutes
 
 /**
+ * Rule name for the nightly `automation_runs` retention sweep (US-015).
+ *
+ * The actual DELETE fires from a dedicated pg-boss recurring job
+ * (`automations:runs-prune`, see `jobs.ts`); this automations row is
+ * documentation + dashboard visibility so operators can see retention
+ * activity surface in `/system/activity` alongside the live automations.
+ */
+export const AUTOMATION_RUNS_PRUNE_RULE_NAME_SEED = 'automation-runs-prune'
+export const AUTOMATION_RUNS_PRUNE_CRON_SEED = '0 3 * * *' // 03:00 UTC nightly
+export const SYSTEM_PRUNE_AGENT_ID_SEED = 'agent:automation-runs-prune-system'
+
+/**
  * Seeds `automations.automations` from `automations.automation_rules`,
  * then seeds the system-owned `pending-decision-followup` cron row.
  *
@@ -145,6 +157,27 @@ export async function seedAutomations(db: unknown, opts?: { organizationId?: str
         },
         paused: false,
         cron: PENDING_STAFF_PINGS_PRUNE_CRON,
+      })
+      .onConflictDoNothing()
+
+    // automation-runs-prune (US-015) — dashboard placeholder for the nightly
+    // retention sweep. The actual DELETE runs from the pg-boss
+    // `automations:runs-prune` job (registered in `module.ts`), independent
+    // of the dispatcher — but operators see this row in /system/activity so
+    // the retention behaviour is visible alongside live automations.
+    await d
+      .insert(automations)
+      .values({
+        organizationId,
+        name: AUTOMATION_RUNS_PRUNE_RULE_NAME_SEED,
+        eventName: 'cron',
+        action: {
+          type: 'wake',
+          agentId: SYSTEM_PRUNE_AGENT_ID_SEED,
+          lane: 'standalone',
+        },
+        paused: false,
+        cron: AUTOMATION_RUNS_PRUNE_CRON_SEED,
       })
       .onConflictDoNothing()
   }

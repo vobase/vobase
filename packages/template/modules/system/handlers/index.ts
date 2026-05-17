@@ -1,3 +1,4 @@
+import automationsHealthApp from '@modules/automations/handlers/health'
 import { auditLog, sequences } from '@vobase/core'
 import { desc, lt } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -7,6 +8,7 @@ import activityApp from './activity'
 
 const app = new Hono()
   .route('/', activityApp)
+  .route('/', automationsHealthApp)
   .get('/health', (c) => c.json({ module: 'system', status: 'ok' }))
   .get('/', (c) => {
     const pkg = { version: '0.1.0' }

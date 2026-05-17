@@ -14,12 +14,20 @@
  * — wiring the event bus to actually drive wakes.
  */
 
-import { AUTOMATIONS_TICK_CRON, AUTOMATIONS_TICK_JOB, jobs } from '@modules/automations/jobs'
+import {
+  AUTOMATIONS_RUNS_PRUNE_CRON,
+  AUTOMATIONS_RUNS_PRUNE_JOB,
+  AUTOMATIONS_TICK_CRON,
+  AUTOMATIONS_TICK_JOB,
+  jobs,
+} from '@modules/automations/jobs'
+import { installAdminAlertDeps } from '@modules/automations/service/admin-alert'
 import { createAutomationsService, installAutomationsService } from '@modules/automations/service/automations'
 import { createBudgetCapsService, installBudgetCapsService } from '@modules/automations/service/budget-caps'
 import { installBudgetWatcherDb } from '@modules/automations/service/budget-watcher'
 import { dispatchEvent, installDispatcher } from '@modules/automations/service/dispatcher'
 import { setDispatcher } from '@modules/automations/service/events'
+import { installRunsPruneDb } from '@modules/automations/service/runs-prune-job'
 
 import type { ModuleDef } from '~/runtime'
 import { automationsTools } from './agent'
@@ -40,6 +48,8 @@ const automations: ModuleDef = {
     installBudgetCapsService(createBudgetCapsService({ db: ctx.db, realtime: ctx.realtime }))
     installBudgetWatcherDb(ctx.db)
     installDispatcher({ db: ctx.db, jobs: ctx.jobs, realtime: ctx.realtime })
+    installAdminAlertDeps({ db: ctx.db })
+    installRunsPruneDb(ctx.db)
     // Adapt to the void-returning DispatcherFn — emit() doesn't care about the
     // per-rule DispatchResult[] return shape.
     setDispatcher(async (name, payload, eventCtx) => {
@@ -47,6 +57,10 @@ const automations: ModuleDef = {
     })
     void ctx.jobs.schedule?.(AUTOMATIONS_TICK_JOB, AUTOMATIONS_TICK_CRON, undefined, {
       singletonKey: AUTOMATIONS_TICK_JOB,
+    })
+    // US-015: nightly automation_runs prune at 03:00 UTC.
+    void ctx.jobs.schedule?.(AUTOMATIONS_RUNS_PRUNE_JOB, AUTOMATIONS_RUNS_PRUNE_CRON, undefined, {
+      singletonKey: AUTOMATIONS_RUNS_PRUNE_JOB,
     })
     ctx.cli.registerAll(automationsVerbs)
   },

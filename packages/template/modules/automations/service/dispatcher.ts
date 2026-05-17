@@ -26,7 +26,7 @@ import { automationRuns } from '@modules/automations/schema'
 import { automationsService } from '@modules/automations/service/automations'
 import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
-import type { ScopedScheduler } from '@vobase/core'
+import { logger, type ScopedScheduler } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
 import { type RealtimeService, type ScopedDb, safeNotify, type Tx } from '~/runtime'
@@ -159,6 +159,10 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
   // 2. Paused rule → suppressed_paused.
   if (rule.paused) {
     await finishRun(t, runId, 'suppressed_paused', startedAt)
+    logger.warn(
+      { ruleId: rule.id, eventName, automationRunId: runId, suppressionReason: 'rule_paused' },
+      '[automations/dispatcher] suppressed_paused',
+    )
     return { runId, status: 'suppressed_paused' }
   }
 
@@ -182,6 +186,10 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
       })
       if (suppressed) {
         await finishRun(t, runId, 'suppressed_cooldown', startedAt)
+        logger.warn(
+          { ruleId: rule.id, eventName, automationRunId: runId, suppressionReason: 'staff_ping_cooldown' },
+          '[automations/dispatcher] suppressed_cooldown',
+        )
         return { runId, status: 'suppressed_cooldown' }
       }
     }
@@ -193,21 +201,44 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
   try {
     const triggerSpec = buildWakeTrigger(rule, eventName, payload)
     if (!triggerSpec) {
-      await finishRun(
-        t,
-        runId,
-        'failed',
-        startedAt,
-        `no trigger mapping for event '${eventName}' / action.type='${rule.action.type}'`,
+      const reason = `no trigger mapping for event '${eventName}' / action.type='${rule.action.type}'`
+      await finishRun(t, runId, 'failed', startedAt, reason)
+      logger.warn(
+        { ruleId: rule.id, eventName, automationRunId: runId, reason, action: rule.action.type },
+        '[automations/dispatcher] failed — no trigger mapping',
       )
       return { runId, status: 'failed' }
     }
     const jobId = await deps.jobs.send(triggerSpec.jobName, triggerSpec.jobPayload, triggerSpec.opts)
     await finishRunSucceeded(t, runId, startedAt, jobId)
+    const durationMs = Date.now() - startedAt.getTime()
+    logger.info(
+      {
+        ruleId: rule.id,
+        eventName,
+        automationRunId: runId,
+        action: rule.action.type,
+        wakeId: jobId,
+        durationMs,
+        status: 'succeeded',
+      },
+      '[automations/dispatcher] dispatched',
+    )
     return { runId, status: 'succeeded' }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await finishRun(t, runId, 'failed', startedAt, message)
+    logger.warn(
+      {
+        ruleId: rule.id,
+        eventName,
+        automationRunId: runId,
+        action: rule.action.type,
+        suppressionReason: null,
+        error: message,
+      },
+      '[automations/dispatcher] failed',
+    )
     return { runId, status: 'failed' }
   }
 }

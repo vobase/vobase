@@ -70,7 +70,18 @@ const AUTOMATIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automations\b/
 const AUTOMATIONS_WRITE_ALLOWED = ['modules/automations/service/automations.ts', 'modules/automations/seed.ts']
 
 const AUTOMATION_RUNS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automationRuns\b/
-const AUTOMATION_RUNS_WRITE_ALLOWED = ['modules/automations/service/dispatcher.ts']
+const AUTOMATION_RUNS_WRITE_ALLOWED = [
+  'modules/automations/service/dispatcher.ts',
+  // US-015 / Slice D.3 — admin-alert is a sole writer for its own sentinel
+  // event-name slice (`budget_watcher.admin_alert`); the dedup query reads
+  // from the same table the dispatcher writes to but admin-alert never
+  // touches dispatcher-owned rows.
+  'modules/automations/service/admin-alert.ts',
+  // US-015 / Slice D.3 — retention sweep DELETEs are tightly scoped to rows
+  // older than 30 days; pure function lives here, pg-boss handler in
+  // jobs.ts delegates.
+  'modules/automations/service/runs-prune.ts',
+]
 
 const TENANT_BUDGET_CAPS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*tenantBudgetCaps\b/
 const TENANT_BUDGET_CAPS_WRITE_ALLOWED = ['modules/automations/service/budget-caps.ts']

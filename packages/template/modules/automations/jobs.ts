@@ -14,12 +14,21 @@
 
 import { tickCron } from '@modules/automations/service/cron-tick'
 import { getHeartbeatEmitter } from '@modules/automations/service/heartbeat-emitter'
+import { runAutomationRunsPrune } from '@modules/automations/service/runs-prune-job'
 import { listOrgsWithSetting } from '@modules/settings/service/org-settings'
 import type { JobDef } from '@vobase/core'
 
 export const AUTOMATIONS_TICK_JOB = 'automations:cron-tick'
 export const AUTOMATIONS_TICK_CRON = '* * * * *'
-export type AutomationsJobName = typeof AUTOMATIONS_TICK_JOB
+
+/**
+ * Nightly retention sweep for `automation_runs` (US-015 / Slice D.3).
+ * Runs at 03:00 UTC; sole writer of DELETEs on the runs table.
+ */
+export const AUTOMATIONS_RUNS_PRUNE_JOB = 'automations:runs-prune'
+export const AUTOMATIONS_RUNS_PRUNE_CRON = '0 3 * * *'
+
+export type AutomationsJobName = typeof AUTOMATIONS_TICK_JOB | typeof AUTOMATIONS_RUNS_PRUNE_JOB
 
 /** Heartbeat trigger shape — emitted into the wake pipeline once per tick. */
 export interface HeartbeatTrigger {
@@ -43,6 +52,12 @@ export const jobs: JobDef[] = [
         },
         disabledOrgIds: () => listOrgsWithSetting('operatorHeartbeatEnabled', 'false'),
       })
+    },
+  },
+  {
+    name: AUTOMATIONS_RUNS_PRUNE_JOB,
+    handler: async () => {
+      await runAutomationRunsPrune()
     },
   },
 ]

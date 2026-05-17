@@ -22,7 +22,9 @@
  */
 
 import { tenantBudgetCaps } from '@modules/automations/schema'
+import { dispatchAdminAlert } from '@modules/automations/service/admin-alert'
 import { type Actor, automationsService, SYSTEM_BUDGET_WATCHER_ACTOR } from '@modules/automations/service/automations'
+import { logger } from '@vobase/core'
 import { sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
@@ -125,6 +127,32 @@ export async function runBudgetWatcherTick(opts: RunBudgetWatcherOpts = {}): Pro
         if (r.paused) continue
         await automationsService.pauseRule(r.id, 'budget_exceeded', { actor })
         pausedRuleIds.push(r.id)
+      }
+
+      // Post-pause admin alert (US-015 / Slice D.3). Dedup is keyed on the UTC
+      // calendar day so a repeated breach the next day re-alerts; multiple
+      // checks the same day collapse to one notification.
+      const dayString = dayStart.toISOString().slice(0, 10) // YYYY-MM-DD
+      try {
+        await dispatchAdminAlert(
+          {
+            orgId: cap.orgId,
+            kind: 'budget_breach',
+            bodyText: `Daily budget cap of $${capUsd.toFixed(2)} exceeded ($${spentUsd.toFixed(
+              2,
+            )} spent). All automations paused.`,
+            dedupKey: `budget_breach:${cap.orgId}:${dayString}`,
+          },
+          { now },
+        )
+      } catch (err) {
+        // Admin-alert dispatch is best-effort; never let it abort the watcher
+        // loop. The pauses already landed; the operator can still see the run
+        // via /system/activity.
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err), orgId: cap.orgId },
+          '[automations/budget-watcher] dispatchAdminAlert failed (non-fatal)',
+        )
       }
     }
 
