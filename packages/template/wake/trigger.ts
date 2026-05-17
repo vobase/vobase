@@ -174,6 +174,38 @@ function renderCaptionReady(trigger: WakeTrigger, refs: RenderRefs): string {
   return `Caption ready for ${fileLabel}:\n\n${quoteBody(caption)}\n\n${pointer}`
 }
 
+function renderConversationReassigned(trigger: WakeTrigger, refs: RenderRefs): string {
+  if (trigger.trigger !== 'conversation_reassigned') return ''
+  const from = trigger.fromAssignee ?? '(unassigned)'
+  const reasonPart = trigger.reason ? `Reason: ${trigger.reason}. ` : ''
+  return `Conversation reassigned from ${from} to ${trigger.toAssignee}. ${reasonPart}Acknowledge in your operator thread and continue handling. See ${convoFolder(refs)}/CONVERSATION.md for context.`
+}
+
+function renderApprovalFiled(trigger: WakeTrigger, _refs: RenderRefs): string {
+  if (trigger.trigger !== 'approval_filed') return ''
+  return `You have a new pending approval: ${trigger.approvalSummary}. Decide via the operator thread or wait for staff resolution.`
+}
+
+function renderApprovalDecided(trigger: WakeTrigger, _refs: RenderRefs): string {
+  if (trigger.trigger !== 'approval_decided') return ''
+  const notePart = trigger.note ? `: ${trigger.note}` : ''
+  return `Your approval ${trigger.approvalId} was ${trigger.decision} by ${trigger.decidedByLabel}${notePart}. Update your operator-thread record.`
+}
+
+function renderProposalFiled(trigger: WakeTrigger, _refs: RenderRefs): string {
+  if (trigger.trigger !== 'proposal_filed') return ''
+  return `A new change proposal was filed: ${trigger.proposalSummary} (${trigger.resourceModule}/${trigger.resourceType}). Awaiting staff decision.`
+}
+
+function renderProposalDecided(trigger: WakeTrigger, _refs: RenderRefs): string {
+  if (trigger.trigger !== 'proposal_decided') return ''
+  const notePart = trigger.note ? `: ${trigger.note}` : ''
+  if (trigger.conversationId !== null) {
+    return `Your proposal ${trigger.proposalId} was ${trigger.decision}${notePart}. Reply to the customer if appropriate.`
+  }
+  return `Your proposal ${trigger.proposalId} was ${trigger.decision}${notePart}.`
+}
+
 function renderChangeDecided(trigger: WakeTrigger, _refs: RenderRefs): string {
   if (trigger.trigger !== 'change_decided') return ''
   const summary = trigger.summary?.trim() ? trigger.summary.trim() : 'a change you proposed'
@@ -213,6 +245,16 @@ const REGISTRY: Record<WakeTriggerKind, TriggerSpec> = {
   heartbeat: { lane: 'standalone', logPrefix: 'wake:solo', render: renderHeartbeat },
   caption_ready: { lane: 'conversation', logPrefix: 'wake:conv', render: renderCaptionReady },
   change_decided: { lane: 'conversation', logPrefix: 'wake:conv', render: renderChangeDecided },
+  // US-006: 5 new trigger kinds. Routing fields (toAssignee, filedByAgentId, proposedByAgentId)
+  // are carried in the payload so the operator-thread dispatcher (US-013) can resolve the
+  // wake target purely from the trigger without additional DB lookups.
+  conversation_reassigned: { lane: 'conversation', logPrefix: 'wake:conv', render: renderConversationReassigned },
+  approval_filed: { lane: 'standalone', logPrefix: 'wake:solo', render: renderApprovalFiled },
+  approval_decided: { lane: 'standalone', logPrefix: 'wake:solo', render: renderApprovalDecided },
+  proposal_filed: { lane: 'standalone', logPrefix: 'wake:solo', render: renderProposalFiled },
+  // proposal_decided: lane is 'conversation' (static label); renderer branches on conversationId == null
+  // to produce the standalone-variant cue text. Lane-filtering on tools is independent of this label.
+  proposal_decided: { lane: 'conversation', logPrefix: 'wake:conv', render: renderProposalDecided },
 }
 
 export function resolveTriggerSpec(triggerKind: WakeTriggerKind): TriggerSpec {

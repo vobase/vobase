@@ -104,6 +104,56 @@ export type WakeTrigger =
       /** Staff user-id (`usr0...`) who made the decision. */
       decidedBy: string
     }
+  | {
+      trigger: 'conversation_reassigned'
+      conversationId: string
+      /** null when the conversation was previously unassigned. */
+      fromAssignee: string | null
+      /** e.g. 'agent:agt0abc' or 'user:usr0xyz' */
+      toAssignee: string
+      reason?: string
+    }
+  | {
+      trigger: 'approval_filed'
+      conversationId: string
+      approvalId: string
+      approvalSummary: string
+      /** Operator-thread routing target — the agent that filed the approval. */
+      filedByAgentId: string
+    }
+  | {
+      trigger: 'approval_decided'
+      /** Present so the renderer can reference if needed; routing uses filedByAgentId. */
+      conversationId: string
+      approvalId: string
+      decision: 'approve' | 'deny'
+      /** Pre-rendered at emit-time: 'staff Bob' / 'system' / etc. */
+      decidedByLabel: string
+      /** Carried through from approval_filed (denormalized at file-time). */
+      filedByAgentId: string
+      note?: string
+    }
+  | {
+      trigger: 'proposal_filed'
+      /** null when proposal isn't conversation-bound. */
+      conversationId: string | null
+      proposalId: string
+      proposalSummary: string
+      resourceModule: string
+      resourceType: string
+      /** Operator-thread routing target — the agent that filed the proposal. */
+      proposedByAgentId: string
+    }
+  | {
+      trigger: 'proposal_decided'
+      /** null when proposal isn't conversation-bound. */
+      conversationId: string | null
+      proposalId: string
+      decision: 'approve' | 'reject'
+      /** Routing target — carried through from proposal_filed. */
+      proposedByAgentId: string
+      note?: string
+    }
 
 export type WakeTriggerKind = WakeTrigger['trigger']
 
@@ -180,6 +230,46 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     summary: z.string().nullable(),
     decidedNote: z.string().nullable(),
     decidedBy: z.string(),
+  }),
+  z.object({
+    trigger: z.literal('conversation_reassigned'),
+    conversationId: z.string(),
+    fromAssignee: z.string().nullable(),
+    toAssignee: z.string(),
+    reason: z.string().optional(),
+  }),
+  z.object({
+    trigger: z.literal('approval_filed'),
+    conversationId: z.string(),
+    approvalId: z.string(),
+    approvalSummary: z.string(),
+    filedByAgentId: z.string(),
+  }),
+  z.object({
+    trigger: z.literal('approval_decided'),
+    conversationId: z.string(),
+    approvalId: z.string(),
+    decision: z.enum(['approve', 'deny']),
+    decidedByLabel: z.string(),
+    filedByAgentId: z.string(),
+    note: z.string().optional(),
+  }),
+  z.object({
+    trigger: z.literal('proposal_filed'),
+    conversationId: z.string().nullable(),
+    proposalId: z.string(),
+    proposalSummary: z.string(),
+    resourceModule: z.string(),
+    resourceType: z.string(),
+    proposedByAgentId: z.string(),
+  }),
+  z.object({
+    trigger: z.literal('proposal_decided'),
+    conversationId: z.string().nullable(),
+    proposalId: z.string(),
+    decision: z.enum(['approve', 'reject']),
+    proposedByAgentId: z.string(),
+    note: z.string().optional(),
   }),
 ])
 
