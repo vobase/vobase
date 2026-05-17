@@ -197,9 +197,6 @@ export interface PendingStaffPing {
   createdAt: Date
 }
 
-/** @deprecated Use {@link PendingStaffPing}. Alias kept for backwards compatibility during the US-007 transition. */
-export type PendingMentionPing = PendingStaffPing
-
 export const pendingStaffPings = teamPgSchema.table(
   'pending_staff_pings',
   {
