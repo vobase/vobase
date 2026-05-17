@@ -10,7 +10,7 @@ import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
 import { createMentionNotifyService, installMentionNotifyService, type SendTemplateFn } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
-import { createPendingMentionPingService, installPendingMentionPingService } from './service/pending-mention-pings'
+import { createPendingStaffPingService, installPendingStaffPingService } from './service/pending-staff-pings'
 import { createStaffService, installStaffService } from './service/staff'
 import {
   installTeamJobsState,
@@ -56,7 +56,7 @@ const team: ModuleDef = {
         })
     })()
     installMentionNotifyService(createMentionNotifyService({ db: ctx.db, jobs: ctx.jobs, sendTemplate }))
-    installPendingMentionPingService(createPendingMentionPingService({ db: ctx.db }))
+    installPendingStaffPingService(createPendingStaffPingService({ db: ctx.db }))
     installTeamJobsState({ jobs: ctx.jobs })
     installTeamOrgEnumerator({ db: ctx.db })
     // Daily cron — `ctx.jobs.schedule?` is optional on the ScopedScheduler

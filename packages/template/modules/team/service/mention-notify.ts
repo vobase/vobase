@@ -30,7 +30,7 @@ import { findNotificationChannel } from '@modules/channels/service/instances'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
 import type { InternalNote } from '@modules/messaging/schema'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
-import { recordPing } from '@modules/team/service/pending-mention-pings'
+import { recordPing } from '@modules/team/service/pending-staff-pings'
 import { find as findStaff } from '@modules/team/service/staff'
 import { logger, type ScopedScheduler } from '@vobase/core'
 import { eq } from 'drizzle-orm'
@@ -200,7 +200,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     )
     if (staffIds.length === 0) return result
 
-    // Only agent-authored notes spawn a `pendingMentionPings` row (no agent
+    // Only agent-authored notes spawn a `pendingStaffPings` row (no agent
     // to wake on reply otherwise). Staff-authored notes still send the WA
     // ping (preserving today's semantics) but skip the ping ledger.
     const askingAgentId: string | null = note.authorType === 'agent' ? note.authorId : null
@@ -262,6 +262,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
                 organizationId: note.organizationId,
                 askingAgentId,
                 originalNoteId: note.id,
+                kind: 'mention',
                 outboundWamid: send.messageId,
               })
             } catch (err) {

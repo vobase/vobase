@@ -26,7 +26,7 @@ import { threads as threadsApi } from '@modules/agents/service/threads'
 import { addNote } from '@modules/messaging/service/notes'
 import { getOrgSetting } from '@modules/settings/service/org-settings'
 import { staffProfiles } from '@modules/team/schema'
-import { claimPing } from '@modules/team/service/pending-mention-pings'
+import { claimPing } from '@modules/team/service/pending-staff-pings'
 import { logger } from '@vobase/core'
 import { and, asc, desc, eq } from 'drizzle-orm'
 

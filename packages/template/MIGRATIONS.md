@@ -54,3 +54,40 @@ For tenants that already have rows in `schedules.agent_schedules`:
 4. Verify with `SELECT COUNT(*) FROM automations.automations` matches `SELECT COUNT(*) FROM automations.automation_rules`.
 
 The template itself is scaffolding (not production-deployed), so this procedure is documented here for downstream forks rather than automated in core.
+
+## Slice B.2 case study — `pending_mention_pings` → `pending_staff_pings` same-schema rename + ADD COLUMN
+
+The plan at `.omc/plans/automations-and-notifications.md` §4 Scenario 6 (US-007) renames `team.pending_mention_pings` to `team.pending_staff_pings` and adds four new columns (`kind`, `reference_id`, `claimed_at`, `claimed_wamid`) to generalize the ledger to multi-kind pings and switch claims from DELETE…RETURNING to soft-delete.
+
+The hand-edited migration (`drizzle/20260517074429_migration_1779003866391/migration.sql`) does:
+
+```sql
+ALTER TABLE "team"."pending_mention_pings" RENAME TO "pending_staff_pings";
+ALTER TABLE "team"."pending_staff_pings" ADD COLUMN "kind" text NOT NULL DEFAULT 'mention';
+ALTER TABLE "team"."pending_staff_pings" ADD COLUMN "reference_id" text;
+ALTER TABLE "team"."pending_staff_pings" ADD COLUMN "claimed_at" timestamp with time zone;
+ALTER TABLE "team"."pending_staff_pings" ADD COLUMN "claimed_wamid" text;
+
+ALTER INDEX "team"."idx_pending_pings_staff"      RENAME TO "idx_pending_staff_pings_staff";
+ALTER INDEX "team"."idx_pending_pings_created"    RENAME TO "idx_pending_staff_pings_created";
+ALTER INDEX "team"."uq_pending_pings_conv_staff"  RENAME TO "uq_pending_staff_pings_conv_staff";
+
+CREATE INDEX "idx_pending_staff_pings_live"
+  ON "team"."pending_staff_pings" ("staff_user_id","organization_id")
+  WHERE "claimed_at" IS NULL;
+```
+
+Drizzle-kit inferred this as DROP+CREATE (data loss). We replaced it with ALTER TABLE RENAME + ADD COLUMN so live rows survive the deploy.
+
+A **paired down-migration** lives at `migrations/down/down-rename-staff-pings-to-mention-pings.sql`. It includes a safety gate that aborts if any row has `kind != 'mention'` (those rows have no home in the old schema) before reversing all the DDL. Run it manually against the live DB if a rollback is needed.
+
+## Deploying past Slice B.2 against an existing tenant DB
+
+For tenants that already have rows in `team.pending_mention_pings`:
+
+1. Take a `pg_dump` snapshot before deploy.
+2. Apply the forward migration DDL above against the live DB.
+3. Verify: `SELECT kind, COUNT(*) FROM team.pending_staff_pings GROUP BY kind` — all rows should have `kind = 'mention'`.
+4. To roll back: run `migrations/down/down-rename-staff-pings-to-mention-pings.sql` (safety gate will abort if non-mention rows exist).
+
+The `kind DEFAULT 'mention'` ensures all pre-existing rows are automatically classified as mention pings with no DML backfill needed.

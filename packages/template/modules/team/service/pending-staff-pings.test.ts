@@ -1,24 +1,27 @@
 /**
- * Claim-ladder + TTL behaviour for pending-mention pings.
+ * Claim-ladder + TTL behaviour for pending-staff pings.
  *
  * Uses a real Postgres seed (the canonical `connectTestDb` + reset pattern)
- * because every claim path is a SQL CTE atomic DELETE-RETURNING that cannot be
- * exercised against a mock. The table is cleared between tests so each case
- * starts from an empty ledger.
+ * because every claim path is a SQL CTE atomic UPDATE-RETURNING (soft-delete)
+ * that cannot be exercised against a mock. The table is cleared between tests
+ * so each case starts from an empty ledger.
+ *
+ * Updated in US-007 (Slice B.2): `pending_mention_pings` → `pending_staff_pings`,
+ * DELETE…RETURNING → soft-delete UPDATE…SET claimed_at, new `kind` column.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
-import { pendingMentionPings } from '@modules/team/schema'
+import { pendingStaffPings } from '@modules/team/schema'
 
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import {
-  __resetPendingMentionPingServiceForTests,
+  __resetPendingStaffPingServiceForTests,
   claimPing,
-  createPendingMentionPingService,
-  installPendingMentionPingService,
+  createPendingStaffPingService,
+  installPendingStaffPingService,
   PING_TTL_MS,
   recordPing,
-} from './pending-mention-pings'
+} from './pending-staff-pings'
 
 const ORG_A = 'org-test-aaaa'
 const ORG_B = 'org-test-bbbb'
@@ -34,13 +37,13 @@ let db: TestDbHandle
 
 async function clearPings(): Promise<void> {
   const del = db.db as unknown as { delete: (t: unknown) => Promise<unknown> }
-  await del.delete(pendingMentionPings)
+  await del.delete(pendingStaffPings)
 }
 
 beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
-  installPendingMentionPingService(createPendingMentionPingService({ db: db.db }))
+  installPendingStaffPingService(createPendingStaffPingService({ db: db.db }))
 }, 60_000)
 
 afterEach(async () => {
@@ -48,14 +51,14 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
-  __resetPendingMentionPingServiceForTests()
+  __resetPendingStaffPingServiceForTests()
   if (db) {
     await clearPings()
     await db.teardown()
   }
 })
 
-describe('pending-mention-pings', () => {
+describe('pending-staff-pings', () => {
   describe('count-aware fallback (no wamid)', () => {
     it("claims the staff member's sole live ping", async () => {
       await recordPing({
@@ -64,6 +67,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
       })
       const claimed = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
       expect(claimed.status).toBe('claimed')
@@ -71,8 +75,10 @@ describe('pending-mention-pings', () => {
         expect(claimed.ping.conversationId).toBe(CONV_1)
         expect(claimed.ping.askingAgentId).toBe(AGENT_1)
         expect(claimed.ping.originalNoteId).toBe(NOTE_1)
+        expect(claimed.ping.kind).toBe('mention')
+        expect(claimed.ping.claimedAt).toBeInstanceOf(Date)
       }
-      // Claimed atomically — a second claim sees an empty ledger.
+      // Claimed via soft-delete — a second claim sees no live rows (claimed_at IS NOT NULL).
       const second = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
       expect(second.status).toBe('none')
     })
@@ -89,6 +95,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
       })
       await recordPing({
         conversationId: CONV_2,
@@ -96,6 +103,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_2,
         originalNoteId: NOTE_2,
+        kind: 'mention',
       })
       const result = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
       expect(result.status).toBe('ambiguous')
@@ -112,6 +120,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
       })
       const wrongOrg = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_B })
       expect(wrongOrg.status).toBe('none')
@@ -128,6 +137,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
         outboundWamid: 'wamid-1',
       })
       await recordPing({
@@ -136,6 +146,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_2,
         originalNoteId: NOTE_2,
+        kind: 'mention',
         outboundWamid: 'wamid-2',
       })
       const result = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A, outboundWamid: 'wamid-2' })
@@ -157,6 +168,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
         outboundWamid: 'wamid-1',
       })
       // Unknown wamid → no exact hit → the sole live ping is claimed.
@@ -172,6 +184,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
         outboundWamid: 'wamid-1',
       })
       await recordPing({
@@ -180,10 +193,34 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_2,
         originalNoteId: NOTE_2,
+        kind: 'mention',
         outboundWamid: 'wamid-2',
       })
       const result = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A, outboundWamid: 'wamid-unknown' })
       expect(result.status).toBe('ambiguous')
+    })
+
+    it('stores the inboundWamid in claimed_wamid on soft-delete', async () => {
+      await recordPing({
+        conversationId: CONV_1,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_1,
+        originalNoteId: NOTE_1,
+        kind: 'mention',
+        outboundWamid: 'wamid-out-1',
+      })
+      const result = await claimPing({
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        outboundWamid: 'wamid-out-1',
+        inboundWamid: 'wamid-in-reply',
+      })
+      expect(result.status).toBe('claimed')
+      if (result.status === 'claimed') {
+        expect(result.ping.claimedWamid).toBe('wamid-in-reply')
+        expect(result.ping.claimedAt).toBeInstanceOf(Date)
+      }
     })
   })
 
@@ -195,6 +232,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
         outboundWamid: 'wamid-old',
       })
       await recordPing({
@@ -203,6 +241,7 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_2,
         originalNoteId: NOTE_2,
+        kind: 'mention',
         outboundWamid: 'wamid-new',
       })
       const claimed = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
@@ -221,10 +260,58 @@ describe('pending-mention-pings', () => {
         organizationId: ORG_A,
         askingAgentId: AGENT_1,
         originalNoteId: NOTE_1,
+        kind: 'mention',
       })
       const claimed = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
       expect(claimed.status).toBe('claimed')
       if (claimed.status === 'claimed') expect(claimed.ping.outboundWamid).toBeNull()
+    })
+
+    it('defaults referenceId to null for mention kind', async () => {
+      await recordPing({
+        conversationId: CONV_1,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_1,
+        originalNoteId: NOTE_1,
+        kind: 'mention',
+      })
+      const claimed = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
+      expect(claimed.status).toBe('claimed')
+      if (claimed.status === 'claimed') {
+        expect(claimed.ping.referenceId).toBeNull()
+        expect(claimed.ping.kind).toBe('mention')
+      }
+    })
+
+    it('re-ping resets claim state — upsert on already-claimed row makes it live again', async () => {
+      await recordPing({
+        conversationId: CONV_1,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_1,
+        originalNoteId: NOTE_1,
+        kind: 'mention',
+      })
+      // Claim it once.
+      const first = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
+      expect(first.status).toBe('claimed')
+      // Row is now claimed (claimed_at IS NOT NULL). Re-ping should reset it.
+      await recordPing({
+        conversationId: CONV_1,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_2,
+        originalNoteId: NOTE_2,
+        kind: 'mention',
+      })
+      // Should be live again with updated fields.
+      const second = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
+      expect(second.status).toBe('claimed')
+      if (second.status === 'claimed') {
+        expect(second.ping.askingAgentId).toBe(AGENT_2)
+        expect(second.ping.claimedAt).toBeInstanceOf(Date)
+      }
     })
   })
 

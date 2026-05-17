@@ -4,7 +4,7 @@
  * Covers the WHERE/WHO contract:
  *   - sends through `findNotificationChannel` (NOT the customer-WA channel)
  *   - dials the staff member's `phoneNumber` (joined from the better-auth user)
- *   - records a `pendingMentionPings` row ONLY on a successful WA send AND
+ *   - records a `pendingStaffPings` row ONLY on a successful WA send AND
  *     when an agent authored the note
  *
  * The integration with `addNote` post-commit fan-out is covered by
@@ -33,10 +33,10 @@ import {
   type SendTemplateFn,
 } from './mention-notify'
 import {
-  __resetPendingMentionPingServiceForTests,
-  installPendingMentionPingService,
-  type PendingMentionPingService,
-} from './pending-mention-pings'
+  __resetPendingStaffPingServiceForTests as __resetPendingMentionPingServiceForTests,
+  installPendingStaffPingService as installPendingMentionPingService,
+  type PendingStaffPingService as PendingMentionPingService,
+} from './pending-staff-pings'
 import { __resetStaffServiceForTests, installStaffService } from './staff'
 
 const NOOP_LOGGER: HarnessLogger = {

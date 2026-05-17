@@ -162,13 +162,16 @@ export const staffAttributeDefinitions = teamPgSchema.table(
 )
 
 /**
- * TTL ledger for outbound mention pings. Written by `mention-notify.ts` after
- * a successful WA send; read (atomic `DELETE … RETURNING`) by the inbound
- * notifications handler when a staff WA reply arrives. Single row per
- * `(conversationId, staffUserId)` — re-pinging the same staff for the same
- * conversation refreshes the row.
+ * TTL ledger for outbound staff pings. Written by `mention-notify.ts` (kind='mention') after
+ * a successful WA send; claimed by the inbound notifications handler when a staff WA reply
+ * arrives. Single row per `(conversationId, staffUserId)` — re-pinging refreshes the row.
+ *
+ * Generalized in US-007 (Slice B.2) to carry a `kind` discriminator so future ping types
+ * (`'approval'`, `'proposal'` — US-009) can share the same ledger. Claims are now soft-deletes
+ * (`claimed_at` + `claimed_wamid`) instead of DELETE…RETURNING, so the dispatcher can
+ * post-hoc inspect what each ping was answered with.
  */
-export interface PendingMentionPing {
+export interface PendingStaffPing {
   conversationId: string
   staffUserId: string
   organizationId: string
@@ -183,11 +186,22 @@ export interface PendingMentionPing {
    * exact-match back to this ping. Null when the send returned no id.
    */
   outboundWamid: string | null
+  /** Discriminator for the multi-kind ping: 'mention' | 'approval' | 'proposal'. */
+  kind: string
+  /** Carries the approvalId / proposalId for non-mention kinds; null for 'mention'. */
+  referenceId: string | null
+  /** Non-null marks the row as claimed (soft-delete sentinel). */
+  claimedAt: Date | null
+  /** The inbound wamid that claimed this row; null until claimed. */
+  claimedWamid: string | null
   createdAt: Date
 }
 
-export const pendingMentionPings = teamPgSchema.table(
-  'pending_mention_pings',
+/** @deprecated Use {@link PendingStaffPing}. Alias kept for backwards compatibility during the US-007 transition. */
+export type PendingMentionPing = PendingStaffPing
+
+export const pendingStaffPings = teamPgSchema.table(
+  'pending_staff_pings',
   {
     id: nanoidPrimaryKey(),
     organizationId: text('organization_id').notNull(),
@@ -196,12 +210,19 @@ export const pendingMentionPings = teamPgSchema.table(
     askingAgentId: text('asking_agent_id').notNull(),
     originalNoteId: text('original_note_id').notNull(),
     outboundWamid: text('outbound_wamid'),
+    kind: text('kind').notNull().default('mention'),
+    referenceId: text('reference_id'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    claimedWamid: text('claimed_wamid'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('idx_pending_pings_staff').on(t.staffUserId, t.organizationId),
-    index('idx_pending_pings_created').on(t.createdAt),
-    uniqueIndex('uq_pending_pings_conv_staff').on(t.conversationId, t.staffUserId),
+    index('idx_pending_staff_pings_staff').on(t.staffUserId, t.organizationId),
+    index('idx_pending_staff_pings_created').on(t.createdAt),
+    uniqueIndex('uq_pending_staff_pings_conv_staff').on(t.conversationId, t.staffUserId),
+    // Partial index for live-row scans (claimed_at IS NULL = unclaimed). Keeps
+    // the count-aware claim CTE and ambiguity check fast as the table grows.
+    index('idx_pending_staff_pings_live').on(t.staffUserId, t.organizationId).where(sql`${t.claimedAt} IS NULL`),
   ],
 )
 
@@ -222,11 +243,11 @@ type _StaffAttrDefAssert =
   InferSelectModel<typeof staffAttributeDefinitions> extends Omit<StaffAttributeDefinition, 'type' | 'options'>
     ? true
     : never
-type _PendingMentionPingAssert =
-  InferSelectModel<typeof pendingMentionPings> extends PendingMentionPing & { id: string } ? true : never
+type _PendingStaffPingAssert =
+  InferSelectModel<typeof pendingStaffPings> extends PendingStaffPing & { id: string } ? true : never
 const _profileOk: _StaffProfileAssert = true
 const _attrDefOk: _StaffAttrDefAssert = true
-const _pendingPingOk: _PendingMentionPingAssert = true
+const _pendingPingOk: _PendingStaffPingAssert = true
 void _profileOk
 void _attrDefOk
 void _pendingPingOk
