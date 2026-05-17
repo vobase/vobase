@@ -1,5 +1,4 @@
-// US-013 will populate setBudget. For US-002 this file exists to satisfy
-// check:shape's TENANT_BUDGET_CAPS_WRITE_ALLOWED allowlist.
+// Sole writer of `tenant_budget_caps`. Body lands in Slice D (US-013).
 export async function setBudget(_orgId: string, _capUsd: number): Promise<void> {
-  throw new Error('budget caps not implemented (US-013)')
+  throw new Error('budget caps not implemented')
 }

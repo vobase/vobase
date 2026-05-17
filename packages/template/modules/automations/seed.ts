@@ -1,16 +1,12 @@
-// US-010 will seed `pending-decision-followup` cron rule.
-// US-013/D.1 will seed `budget-watcher` cron rule.
-// US-015 will seed `automation-runs-prune` and `pending-staff-pings-prune` cron rules.
-
 /**
- * Seeds `automations.automations` from `automations.automation_rules` (US-005b).
+ * Seeds `automations.automations` from `automations.automation_rules`.
  *
- * For every cron schedule row in `automation_rules`, inserts a paired
- * `automations` row with eventName='cron' and action={type:'wake', agentId,
- * lane:'standalone'}. Idempotent via ON CONFLICT (organization_id, name) DO NOTHING.
+ * For every cron schedule row, inserts a paired automations row with
+ * `eventName='cron'` and `action={type:'wake', agentId, lane:'standalone'}`.
+ * Idempotent via ON CONFLICT (organization_id, name) DO NOTHING.
  *
- * This runs after `seedAgents` (which populates `automation_rules`) so the
- * agent FK is always satisfied.
+ * Runs after `seedAgents` (which populates `automation_rules`) so the agent
+ * FK is always satisfied.
  */
 export async function seedAutomations(db: unknown): Promise<void> {
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
