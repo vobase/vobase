@@ -6,10 +6,10 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { PhoneNumberInput } from '@/components/phone-number-input'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { authClient } from '@/lib/auth-client'
 
@@ -218,16 +218,8 @@ export function VerifyPhonePage() {
                 <FormItem>
                   <FormLabel>Phone number</FormLabel>
                   <FormControl>
-                    <Input
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="+6591234567"
-                      autoComplete="tel"
-                      autoFocus
-                      {...field}
-                    />
+                    <PhoneNumberInput id={field.name} value={field.value} onChange={field.onChange} autoFocus />
                   </FormControl>
-                  <FormDescription>Include your country code, starting with “+”.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

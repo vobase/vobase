@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { PhoneNumberInput } from '@/components/phone-number-input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -93,13 +94,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, onSave, isPendi
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="contact-phone">Phone</Label>
-              <Input
-                id="contact-phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+65 9110 0201"
-              />
+              <PhoneNumberInput id="contact-phone" value={phone} onChange={setPhone} optional />
             </div>
           </div>
           <div className="space-y-1.5">

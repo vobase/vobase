@@ -1,3 +1,4 @@
+import { E164_RE } from '@auth/e164'
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { recordChange } from '@modules/changes/service/proposals'
@@ -15,10 +16,17 @@ import type { Contact } from '../schema'
 import { CONTACT_RESOURCE } from '../service/changes'
 import attributeHandlers from './attributes'
 
+const e164Phone = z
+  .string()
+  .trim()
+  .regex(E164_RE, 'Phone must be E.164 format with leading + (e.g. +6591234567)')
+  .nullable()
+  .optional()
+
 const createContactBody = z.object({
   displayName: z.string().trim().min(1).max(200).nullable().optional(),
   email: z.string().trim().email().nullable().optional(),
-  phone: z.string().trim().min(1).max(40).nullable().optional(),
+  phone: e164Phone,
   segments: z.array(z.string().min(1)).optional(),
   marketingOptOut: z.boolean().optional(),
 })

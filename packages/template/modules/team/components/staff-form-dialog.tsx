@@ -9,6 +9,7 @@
 import { E164_RE } from '@auth/e164'
 import { useEffect, useState } from 'react'
 
+import { PhoneNumberInput } from '@/components/phone-number-input'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -156,16 +157,13 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="staff-whatsapp-phone">WhatsApp number</Label>
-            <Input
+            <PhoneNumberInput
               id="staff-whatsapp-phone"
-              type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+6591234567"
+              onChange={setPhone}
+              optional
+              helperText="Required to receive mention-ping notifications via WhatsApp."
             />
-            <p className="text-muted-foreground text-xs">
-              E.164 with leading <code>+</code>. Required to receive mention-ping notifications via WhatsApp.
-            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

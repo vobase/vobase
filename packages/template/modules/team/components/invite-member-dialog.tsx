@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
+import { PhoneNumberInput } from '@/components/phone-number-input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -111,17 +112,13 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="invite-phone">WhatsApp number (optional)</Label>
-            <Input
+            <PhoneNumberInput
               id="invite-phone"
-              type="tel"
-              placeholder="+6591234567"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={setPhone}
+              optional
+              helperText="Used for mention-ping notifications; editable later on the staff profile."
             />
-            <p className="text-muted-foreground text-xs">
-              E.164 with leading <code>+</code>. Used for mention-ping notifications; editable later on the staff
-              profile.
-            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
