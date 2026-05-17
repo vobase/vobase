@@ -21,6 +21,9 @@ import { z } from 'zod'
 
 import type { ScopedDb } from '~/runtime'
 import { runDefaultsInstall } from './install-defaults'
+import { automationsPauseVerb } from './verbs/automations-pause'
+import { automationsResumeVerb } from './verbs/automations-resume'
+import { budgetSetVerb } from './verbs/budget-set'
 
 interface AuthoredRow {
   body: unknown
@@ -158,4 +161,11 @@ export const installVerb = defineCliVerb({
   formatHint: 'json',
 })
 
-export const systemVerbs = [resourcesListVerb, resourcesExportVerb, installVerb] as const
+export const systemVerbs = [
+  resourcesListVerb,
+  resourcesExportVerb,
+  installVerb,
+  automationsPauseVerb,
+  automationsResumeVerb,
+  budgetSetVerb,
+] as const

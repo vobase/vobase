@@ -18,7 +18,7 @@ import { automationRules, automations, tickIdempotencyKey } from '@modules/autom
 import { auditLog } from '@vobase/core'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 
-import type { ScopedDb, Tx } from '~/runtime'
+import { type RealtimeService, type ScopedDb, safeNotify, type Tx } from '~/runtime'
 
 export interface CreateScheduleInput {
   organizationId: string
@@ -155,10 +155,18 @@ export interface AutomationsService {
 
 export interface AutomationsServiceDeps {
   db: ScopedDb
+  /**
+   * Optional realtime handle — when provided, pauseRule/resumeRule emit a
+   * `pg_notify` after commit so the `/system/activity` dashboard's
+   * AutomationsTable refetches without a manual reload. Omit in tests that
+   * don't exercise SSE.
+   */
+  realtime?: RealtimeService
 }
 
 export function createAutomationsService(deps: AutomationsServiceDeps): AutomationsService {
   const db = deps.db
+  const realtime = deps.realtime
 
   return {
     async create(input) {
@@ -301,6 +309,7 @@ export function createAutomationsService(deps: AutomationsServiceDeps): Automati
       // audit leak. The UPDATE…RETURNING gives us the orgId for the audit row
       // without a separate SELECT.
       const txDb = db as unknown as { transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> }
+      let notifyId: string | null = null
       await txDb.transaction(async (tx) => {
         const t = tx as unknown as typeof db
         const updated = await t
@@ -330,11 +339,16 @@ export function createAutomationsService(deps: AutomationsServiceDeps): Automati
             reason,
           }),
         })
+        notifyId = row.id
       })
+      if (realtime && notifyId) {
+        safeNotify(realtime, { table: 'automations', id: notifyId, action: 'paused' })
+      }
     },
 
     async resumeRule(ruleId, opts) {
       const txDb = db as unknown as { transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> }
+      let notifyId: string | null = null
       await txDb.transaction(async (tx) => {
         const t = tx as unknown as typeof db
         const updated = await t
@@ -363,7 +377,11 @@ export function createAutomationsService(deps: AutomationsServiceDeps): Automati
             ruleName: row.name,
           }),
         })
+        notifyId = row.id
       })
+      if (realtime && notifyId) {
+        safeNotify(realtime, { table: 'automations', id: notifyId, action: 'resumed' })
+      }
     },
 
     async getRuleById(ruleId) {

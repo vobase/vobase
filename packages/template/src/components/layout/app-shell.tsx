@@ -1,7 +1,18 @@
 import { usePendingChangesCount } from '@modules/changes/hooks/use-change-inbox'
 import { useUnreadMentionCount } from '@modules/team/hooks/use-unread-mentions'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Bot, GitPullRequestArrow, HardDrive, Inbox, Menu, Radio, Settings, UserCog, Users } from 'lucide-react'
+import {
+  Activity,
+  Bot,
+  GitPullRequestArrow,
+  HardDrive,
+  Inbox,
+  Menu,
+  Radio,
+  Settings,
+  UserCog,
+  Users,
+} from 'lucide-react'
 import type * as React from 'react'
 import { useState } from 'react'
 import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
@@ -44,6 +55,7 @@ const PRIMARY_NAV: NavItemDef[] = [
 const ADMIN_NAV: NavItemDef[] = [
   { icon: UserCog, label: 'Team', to: '/team', enabled: true },
   { icon: Radio, label: 'Channels', to: '/channels', enabled: true },
+  { icon: Activity, label: 'System', to: '/system/activity', enabled: true },
   { icon: Settings, label: 'Settings', to: '/settings', enabled: true },
 ]
 

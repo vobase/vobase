@@ -3,8 +3,10 @@ import { desc, lt } from 'drizzle-orm'
 import { Hono } from 'hono'
 
 import { requireDb } from '../service'
+import activityApp from './activity'
 
 const app = new Hono()
+  .route('/', activityApp)
   .get('/health', (c) => c.json({ module: 'system', status: 'ok' }))
   .get('/', (c) => {
     const pkg = { version: '0.1.0' }

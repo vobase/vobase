@@ -146,6 +146,25 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
+    // /system/activity dashboard. Each table fans out to the matching
+    // widget's TanStack Query key. Banner stats also reflect rule + cap
+    // changes, so we hit it on every dispatch event.
+    if (payload.table === 'automations' || payload.table === 'tenant_budget_caps') {
+      queryClient.invalidateQueries({ queryKey: ['system', 'activity', 'automations'] })
+      queryClient.invalidateQueries({ queryKey: ['system', 'activity', 'banner'] })
+      return
+    }
+    if (payload.table === 'automation_runs') {
+      queryClient.invalidateQueries({ queryKey: ['system', 'activity', 'runs'] })
+      queryClient.invalidateQueries({ queryKey: ['system', 'activity', 'banner'] })
+      return
+    }
+    if (payload.table === 'active_wakes') {
+      queryClient.invalidateQueries({ queryKey: ['system', 'activity', 'active-wakes'] })
+      queryClient.invalidateQueries({ queryKey: ['system', 'activity', 'banner'] })
+      return
+    }
+
     // Broad fallback
     queryClient.invalidateQueries({ queryKey: [payload.table] })
   })

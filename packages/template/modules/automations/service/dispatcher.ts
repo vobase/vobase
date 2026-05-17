@@ -29,7 +29,7 @@ import type { EventName, EventPayload } from '@modules/automations/service/regis
 import type { ScopedScheduler } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
-import type { ScopedDb, Tx } from '~/runtime'
+import { type RealtimeService, type ScopedDb, safeNotify, type Tx } from '~/runtime'
 
 export interface DispatchResult {
   runId: string
@@ -41,6 +41,12 @@ export interface DispatcherDeps {
   db: ScopedDb
   /** In-process or pg-boss scheduler — receives the wake-enqueue. */
   jobs: ScopedScheduler
+  /**
+   * Optional realtime handle — when provided, every dispatch emits a
+   * `pg_notify` on the `automation_runs` table so the `/system/activity`
+   * RecentRunsTable streams live without polling.
+   */
+  realtime?: RealtimeService
 }
 
 let _deps: DispatcherDeps | null = null
@@ -105,6 +111,19 @@ interface DispatchOneArgs<E extends EventName> {
  * the run too.
  */
 export async function dispatchAutomationRun<E extends EventName>(args: DispatchOneArgs<E>): Promise<DispatchResult> {
+  const result = await dispatchAutomationRunInner(args)
+  // Best-effort post-tx notify so the RecentRunsTable invalidates without
+  // polling. Notify *outside* the producer tx — pg_notify deduping makes a
+  // double-emit harmless but only the post-commit version is observable to
+  // SSE consumers in another connection.
+  const deps = getDeps()
+  if (deps.realtime) {
+    safeNotify(deps.realtime, { table: 'automation_runs', id: result.runId, action: result.status })
+  }
+  return result
+}
+
+async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOneArgs<E>): Promise<DispatchResult> {
   const { ruleId, eventName, payload, ctx } = args
   const deps = getDeps()
   const t = ctx.tx as unknown as ScopedDb

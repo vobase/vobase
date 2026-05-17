@@ -36,10 +36,10 @@ const automations: ModuleDef = {
   jobs: [...jobs],
   agent: { tools: automationsTools },
   init(ctx) {
-    installAutomationsService(createAutomationsService({ db: ctx.db }))
-    installBudgetCapsService(createBudgetCapsService({ db: ctx.db }))
+    installAutomationsService(createAutomationsService({ db: ctx.db, realtime: ctx.realtime }))
+    installBudgetCapsService(createBudgetCapsService({ db: ctx.db, realtime: ctx.realtime }))
     installBudgetWatcherDb(ctx.db)
-    installDispatcher({ db: ctx.db, jobs: ctx.jobs })
+    installDispatcher({ db: ctx.db, jobs: ctx.jobs, realtime: ctx.realtime })
     // Adapt to the void-returning DispatcherFn — emit() doesn't care about the
     // per-rule DispatchResult[] return shape.
     setDispatcher(async (name, payload, eventCtx) => {

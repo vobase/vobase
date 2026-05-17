@@ -18,7 +18,7 @@ import type { Actor } from '@modules/automations/service/automations'
 import { auditLog } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
-import type { ScopedDb, Tx } from '~/runtime'
+import { type RealtimeService, type ScopedDb, safeNotify, type Tx } from '~/runtime'
 
 export interface BudgetCapsService {
   /** Read the current cap for `orgId`. Returns null when no row exists (= no cap). */
@@ -32,10 +32,17 @@ export interface BudgetCapsService {
 
 export interface BudgetCapsServiceDeps {
   db: ScopedDb
+  /**
+   * Optional realtime handle — when provided, `setBudget` emits a `pg_notify`
+   * after commit so the `/system/activity` banner refetches the cap without
+   * a manual reload.
+   */
+  realtime?: RealtimeService
 }
 
 export function createBudgetCapsService(deps: BudgetCapsServiceDeps): BudgetCapsService {
   const db = deps.db
+  const realtime = deps.realtime
   const txDb = db as unknown as { transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> }
 
   return {
@@ -76,6 +83,9 @@ export function createBudgetCapsService(deps: BudgetCapsServiceDeps): BudgetCaps
           }),
         })
       })
+      if (realtime) {
+        safeNotify(realtime, { table: 'tenant_budget_caps', id: orgId, action: capUsd === null ? 'cleared' : 'set' })
+      }
     },
   }
 }
