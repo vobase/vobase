@@ -43,7 +43,7 @@ describe('dispatchAutomationRun', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   beforeEach(() => {
     scheduler = makeSchedulerStub()
@@ -63,7 +63,7 @@ describe('dispatchAutomationRun', () => {
   afterAll(async () => {
     __resetDispatcherForTests()
     __resetAutomationsServiceForTests()
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('non-paused cron rule → status="succeeded" + scheduler.send called', async () => {

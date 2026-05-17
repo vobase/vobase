@@ -42,7 +42,7 @@ describe('paused dispatcher drain', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   beforeEach(() => {
     scheduler = makeSchedulerStub()
@@ -62,7 +62,7 @@ describe('paused dispatcher drain', () => {
   afterAll(async () => {
     __resetDispatcherForTests()
     __resetAutomationsServiceForTests()
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('5 emits against a paused rule → 5 suppressed_paused rows + 0 wakes', async () => {

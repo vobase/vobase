@@ -19,10 +19,10 @@ describe('pruneAutomationRuns', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('deletes only rows older than 30 days; returns the deleted rowcount', async () => {

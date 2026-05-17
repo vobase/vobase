@@ -24,6 +24,24 @@ const TEST_DB_URL =
  * polluted DB for the next file. The skip is gone; correctness over speed.
  * If suite latency becomes a concern, swap the subprocess full-reset for an
  * in-process TRUNCATE ... CASCADE + reseed (see voltade/vobase#69).
+ *
+ * Alternative considered (architect-followup, Slice B+D): pg_advisory_lock
+ * inside resetAndSeedDb() using a dedicated pg connection:
+ *
+ *   const LOCK_KEY = 0x76626173n  // 'vbas' — stable int64 namespace
+ *   const client = await pool.connect()
+ *   await client.query('SELECT pg_advisory_lock($1)', [LOCK_KEY])
+ *   try { ... reset body ... }
+ *   finally { await client.query('SELECT pg_advisory_unlock($1)', [LOCK_KEY]); client.release() }
+ *
+ * This was NOT adopted because: (a) the reset body runs `db:reset` as a
+ * subprocess via Bun.spawnSync, so there is no long-lived pg connection to
+ * hold the advisory lock across the subprocess lifetime; wrapping a subprocess
+ * in an advisory lock requires an outer pg session that outlives the child
+ * process, adding connection-pool complexity with no correctness benefit over
+ * flock; (b) flock/lockf is a POSIX primitive available on both macOS (lockf)
+ * and Linux (flock) — the same cross-process serialisation guarantee at zero
+ * extra infrastructure cost.
  */
 const LOCK_FILE = '/tmp/vobase-test-db-reset.lock'
 

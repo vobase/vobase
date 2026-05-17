@@ -15,10 +15,10 @@ describe('budget-caps.setBudget', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('upserts a cap row and writes audit_log entry', async () => {

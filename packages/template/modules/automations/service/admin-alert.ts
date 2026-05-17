@@ -98,6 +98,19 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
   const now = opts.now ?? new Date()
   const cutoff = new Date(now.getTime() - DEDUP_WINDOW_MS)
 
+  /**
+   * Production index recommendation: the dedup query below uses
+   *   payload_snapshot ->> 'dedupKey' = $key
+   * which is a sequential scan today. For tenants with >10k automation_runs/day,
+   * add (manually, per tenant DB):
+   *
+   *   CREATE INDEX CONCURRENTLY idx_automation_runs_admin_dedup
+   *     ON automations.automation_runs ((payload_snapshot ->> 'dedupKey'), event_name)
+   *     WHERE status = 'succeeded';
+   *
+   * Not landed in core schema today because admin_alert volume is low (one per
+   * orgId per day per breach) — sequential scan over a single day's runs is fine.
+   */
   // Look for a prior succeeded alert with the same dedupKey within the window.
   const priors = await db
     .select({ id: automationRuns.id })

@@ -35,7 +35,7 @@ describe('budget pause → audit → manual resume → audit', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   beforeEach(() => {
     __resetAutomationsServiceForTests()
@@ -64,7 +64,7 @@ describe('budget pause → audit → manual resume → audit', () => {
     __resetDispatcherForTests()
     __resetAutomationsServiceForTests()
     __resetAdminAlertForTests()
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('budget breach pauses (system audit) then manual resume re-enables (user audit)', async () => {

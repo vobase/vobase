@@ -38,7 +38,7 @@ describe('bridgeTxForPgBoss', () => {
   })
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('assertion 1: executeSql returns correct scalar result', async () => {

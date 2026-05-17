@@ -29,10 +29,10 @@ describe('emit-rollback integration (Slice A.1 go/no-go gate)', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('rollback: emit + bridge write → tx rollback → zero new automation_runs rows', async () => {
@@ -79,7 +79,7 @@ describe('emit-commit integration (Slice A.1 go/no-go gate)', () => {
   })
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('commit: emit + bridge write → tx commit → one new automation_runs row', async () => {

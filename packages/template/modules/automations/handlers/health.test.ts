@@ -19,10 +19,10 @@ describe('GET /health/automations', () => {
     await resetAndSeedDb()
     handle = connectTestDb()
     installSystemService(createSystemService({ db: handle.db }))
-  })
+  }, 60_000)
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('exposes /health/automations', () => {

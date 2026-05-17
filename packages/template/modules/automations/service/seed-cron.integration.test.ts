@@ -19,10 +19,10 @@ describe('automations seed migration (cron rules from automation_rules)', () => 
     // automations table is pre-populated from automation_rules.
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   afterAll(async () => {
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('every automation_rules row has a paired automations row with eventName=cron', async () => {

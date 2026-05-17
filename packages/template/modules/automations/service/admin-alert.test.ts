@@ -26,7 +26,7 @@ describe('dispatchAdminAlert', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
-  })
+  }, 60_000)
 
   beforeEach(() => {
     __resetAdminAlertForTests()
@@ -37,7 +37,7 @@ describe('dispatchAdminAlert', () => {
 
   afterAll(async () => {
     __resetAdminAlertForTests()
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('first call returns "sent" + writes succeeded run; second call within 1h returns "suppressed_cooldown"', async () => {

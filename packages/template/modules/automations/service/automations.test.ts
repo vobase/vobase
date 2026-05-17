@@ -27,11 +27,11 @@ describe('automationsService.pauseRule + resumeRule (audit-log invariant)', () =
         db: handle.db as unknown as Parameters<typeof createAutomationsService>[0]['db'],
       }),
     )
-  })
+  }, 60_000)
 
   afterAll(async () => {
     __resetAutomationsServiceForTests()
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('pauseRule writes an audit_log row inside the same tx as the UPDATE', async () => {

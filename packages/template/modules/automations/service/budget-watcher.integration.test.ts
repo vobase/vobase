@@ -38,12 +38,12 @@ describe('budget-watcher tick', () => {
     installAdminAlertDeps({
       db: handle.db as unknown as Parameters<typeof installAdminAlertDeps>[0]['db'],
     })
-  })
+  }, 60_000)
 
   afterAll(async () => {
     __resetAutomationsServiceForTests()
     __resetAdminAlertForTests()
-    await handle.teardown()
+    if (handle) await handle.teardown()
   })
 
   it('pauses every non-paused rule when spend exceeds cap and writes system-actor audit rows', async () => {
