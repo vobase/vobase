@@ -24,6 +24,7 @@ import { Route as IndexRouteImport } from './../modules/messaging/pages/index'
 import { Route as DriveIndexRouteImport } from './../modules/drive/pages/index'
 import { Route as ContactsIndexRouteImport } from './../modules/contacts/pages/index'
 import { Route as AgentsIndexRouteImport } from './../modules/agents/pages/index'
+import { Route as shellAuthVerifyPhoneRouteImport } from './shell/auth/verify-phone'
 import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as shellAuthCliGrantRouteImport } from './shell/auth/cli-grant'
@@ -116,6 +117,11 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
+const shellAuthVerifyPhoneRoute = shellAuthVerifyPhoneRouteImport.update({
+  id: '/onboard/verify-phone',
+  path: '/onboard/verify-phone',
+  getParentRoute: () => shellAuthLayoutRoute,
+} as any)
 const shellAuthPendingRoute = shellAuthPendingRouteImport.update({
   id: '/auth/pending',
   path: '/auth/pending',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/auth/login': typeof shellAuthLoginRoute
   '/auth/pending': typeof shellAuthPendingRoute
+  '/onboard/verify-phone': typeof shellAuthVerifyPhoneRoute
   '/agents/': typeof AgentsIndexRoute
   '/contacts/': typeof ContactsIndexRoute
   '/drive/': typeof DriveIndexRoute
@@ -231,6 +238,7 @@ export interface FileRoutesByTo {
   '/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/auth/login': typeof shellAuthLoginRoute
   '/auth/pending': typeof shellAuthPendingRoute
+  '/onboard/verify-phone': typeof shellAuthVerifyPhoneRoute
   '/agents': typeof AgentsIndexRoute
   '/contacts': typeof ContactsIndexRoute
   '/drive': typeof DriveIndexRoute
@@ -262,6 +270,7 @@ export interface FileRoutesById {
   '/_auth/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/_auth/auth/login': typeof shellAuthLoginRoute
   '/_auth/auth/pending': typeof shellAuthPendingRoute
+  '/_auth/onboard/verify-phone': typeof shellAuthVerifyPhoneRoute
   '/_app/agents/': typeof AgentsIndexRoute
   '/_app/contacts/': typeof ContactsIndexRoute
   '/_app/drive/': typeof DriveIndexRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/auth/cli-grant'
     | '/auth/login'
     | '/auth/pending'
+    | '/onboard/verify-phone'
     | '/agents/'
     | '/contacts/'
     | '/drive/'
@@ -319,6 +329,7 @@ export interface FileRouteTypes {
     | '/auth/cli-grant'
     | '/auth/login'
     | '/auth/pending'
+    | '/onboard/verify-phone'
     | '/agents'
     | '/contacts'
     | '/drive'
@@ -349,6 +360,7 @@ export interface FileRouteTypes {
     | '/_auth/auth/cli-grant'
     | '/_auth/auth/login'
     | '/_auth/auth/pending'
+    | '/_auth/onboard/verify-phone'
     | '/_app/agents/'
     | '/_app/contacts/'
     | '/_app/drive/'
@@ -470,6 +482,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/agents/'
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_auth/onboard/verify-phone': {
+      id: '/_auth/onboard/verify-phone'
+      path: '/onboard/verify-phone'
+      fullPath: '/onboard/verify-phone'
+      preLoaderRoute: typeof shellAuthVerifyPhoneRouteImport
+      parentRoute: typeof shellAuthLayoutRoute
     }
     '/_auth/auth/pending': {
       id: '/_auth/auth/pending'
@@ -634,12 +653,14 @@ interface shellAuthLayoutRouteChildren {
   shellAuthCliGrantRoute: typeof shellAuthCliGrantRoute
   shellAuthLoginRoute: typeof shellAuthLoginRoute
   shellAuthPendingRoute: typeof shellAuthPendingRoute
+  shellAuthVerifyPhoneRoute: typeof shellAuthVerifyPhoneRoute
 }
 
 const shellAuthLayoutRouteChildren: shellAuthLayoutRouteChildren = {
   shellAuthCliGrantRoute: shellAuthCliGrantRoute,
   shellAuthLoginRoute: shellAuthLoginRoute,
   shellAuthPendingRoute: shellAuthPendingRoute,
+  shellAuthVerifyPhoneRoute: shellAuthVerifyPhoneRoute,
 }
 
 const shellAuthLayoutRouteWithChildren = shellAuthLayoutRoute._addFileChildren(

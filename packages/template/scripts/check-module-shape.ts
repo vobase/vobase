@@ -536,6 +536,7 @@ function checkModuleContracts(): void {
  * Allowlist entries:
  *   - `/`                    — home redirect to /inbox
  *   - `/auth/*`              — login + pending (auth layout)
+ *   - `/onboard/*`           — post-invite onboarding (phone verify, etc.; auth layout)
  *   - `/inbox`               — canonical messaging surface
  *   - `/messaging`           — legacy redirect → /inbox
  *   - `/settings`            — admin / personal settings (cross-cutting)
@@ -547,6 +548,7 @@ function checkModuleContracts(): void {
 const ALLOWED_ROUTE_PREFIXES = [
   '/',
   '/auth',
+  '/onboard',
   '/inbox',
   '/messaging',
   '/settings',
