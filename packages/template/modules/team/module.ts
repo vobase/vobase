@@ -5,9 +5,11 @@ import { sendNotificationTemplate } from '@modules/integrations/service/handshak
 import type { ModuleDef } from '~/runtime'
 import { teamAgent } from './agent'
 import { jobs as teamJobs } from './jobs'
+import { installTeamAdminGate } from './service/admin-gate'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
+import { createInvitationsService, installInvitationsService } from './service/invitations'
 import { createVerificationGating, installVerificationGating } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
 import { createPendingStaffPingService, installPendingStaffPingService } from './service/pending-staff-pings'
@@ -37,6 +39,8 @@ const team: ModuleDef = {
     installStaffService(createStaffService({ db: ctx.db, realtime: ctx.realtime }))
     installVerificationGating(createVerificationGating({ db: ctx.db }))
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))
+    installInvitationsService(createInvitationsService({ db: ctx.db, realtime: ctx.realtime }))
+    installTeamAdminGate({ db: ctx.db })
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))
     // Build the platform-call closure once: env reads happen at boot (not on

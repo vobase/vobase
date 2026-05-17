@@ -17,6 +17,7 @@ import type { StaffProfile } from '../schema'
 import attributeHandlers from './attributes'
 import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'
+import invitationHandlers from './invitations'
 import mentionHandlers from './mentions'
 
 /** Accept `+E164` only (digits, leading `+`, 8-16 chars total). Empty/null clears. */
@@ -70,6 +71,7 @@ const app = new Hono<OrganizationEnv>()
   .route('/', attributeHandlers)
   .route('/', descriptionHandlers)
   .route('/', heartbeatHandlers)
+  .route('/', invitationHandlers)
   .route('/', mentionHandlers)
   .get('/staff', async (c) => {
     const rows = await listStaff(c.get('organizationId'))

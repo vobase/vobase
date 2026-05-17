@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { InviteMemberDialog } from '../components/invite-member-dialog'
+import { PendingInvitationsCard } from '../components/pending-invitations-card'
 import { canInviteMembers, useActiveMember } from '../hooks/use-active-member'
 import { useAttributeDefinitions } from '../hooks/use-attributes'
 import { useStaffList } from '../hooks/use-staff'
@@ -330,6 +331,7 @@ export function StaffListPage() {
       />
       <PageBody>
         {error && <ErrorBanner className="mb-3">Failed to load staff</ErrorBanner>}
+        <PendingInvitationsCard canManage={canInvite} />
         {isLoading && !staff.length ? (
           <DataTableSkeleton columnCount={columns.length} filterCount={2} />
         ) : (

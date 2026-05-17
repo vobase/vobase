@@ -119,6 +119,13 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
+    // Pending-invitation mutations (mint via better-auth, resend/revoke via
+    // /api/team/invitations). Keep the list fresh in the team roster page.
+    if (payload.table === 'auth_invitation') {
+      queryClient.invalidateQueries({ queryKey: ['auth_invitation'] })
+      return
+    }
+
     // Staff profile mutations — same directory fan-out as agent_definitions.
     // useStaffList reads ['staff', 'list']; the ['staff'] prefix covers it
     // plus detail queries. Memory/profile column writes also surface in the

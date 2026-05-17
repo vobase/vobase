@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { authClient } from '@/lib/auth-client'
+import { invitationsKeys } from '../hooks/use-invitations'
 import { teamsKeys } from '../hooks/use-teams'
 
 const inviteSchema = z.object({
@@ -58,6 +59,7 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
       toast.success('Invitation sent')
       qc.invalidateQueries({ queryKey: teamsKeys.orgMembers })
       qc.invalidateQueries({ queryKey: ['staff'] })
+      qc.invalidateQueries({ queryKey: invitationsKeys.list })
       setEmail('')
       setRole('member')
       setPhone('')
