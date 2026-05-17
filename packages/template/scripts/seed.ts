@@ -15,6 +15,7 @@
 
 import { authOrganization } from '@auth/schema'
 import { seed as seedAgents } from '@modules/agents/seed'
+import { seedAutomations } from '@modules/automations/seed'
 import { seed as seedChanges } from '@modules/changes/seed'
 import { seed as seedContacts } from '@modules/contacts/seed'
 import { seed as seedDrive } from '@modules/drive/seed'
@@ -56,6 +57,9 @@ async function main() {
 
   console.log('Seeding agents...')
   await seedAgents(db, ctx)
+
+  console.log('Seeding automations...')
+  await seedAutomations(db)
 
   console.log('Seeding messaging...')
   await seedMessaging(db, ctx)

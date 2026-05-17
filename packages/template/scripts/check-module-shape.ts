@@ -67,7 +67,7 @@ const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/service/signup-nonces.ts'
 // tables. Pattern mirrors `JOURNAL_WRITE_RE`/`JOURNAL_WRITE_ALLOWED` above.
 
 const AUTOMATIONS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automations\b/
-const AUTOMATIONS_WRITE_ALLOWED = ['modules/automations/service/automations.ts']
+const AUTOMATIONS_WRITE_ALLOWED = ['modules/automations/service/automations.ts', 'modules/automations/seed.ts']
 
 const AUTOMATION_RUNS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*automationRuns\b/
 const AUTOMATION_RUNS_WRITE_ALLOWED = ['modules/automations/service/dispatcher.ts']
