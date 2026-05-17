@@ -120,8 +120,12 @@ interface SignedPlatformRequestInput {
  * helper for all three verbs — GET signs an empty-body digest; POST/DELETE
  * sign their stringified JSON body. Hostname is validated against the env
  * allowlist before the request leaves the process.
+ *
+ * Exported so `auth/phone-otp.ts` can reuse the same HMAC v2 signing to POST
+ * the staff-phone OTP relay (`/api/whatsapp/otp`) without duplicating the
+ * `x-tenant-id` / `x-vobase-*` header surface.
  */
-async function signedPlatformRequest(
+export async function signedPlatformRequest(
   input: SignedPlatformRequestInput,
 ): Promise<{ res: Response; signed: SignedRequest }> {
   if (!isAllowedPlatformBaseUrl(input.platformBaseUrl)) {

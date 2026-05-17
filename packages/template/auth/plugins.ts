@@ -12,7 +12,6 @@
  */
 
 import { apiKey } from '@better-auth/api-key'
-import { APIError } from 'better-auth/api'
 import { anonymous } from 'better-auth/plugins/anonymous'
 import { bearer } from 'better-auth/plugins/bearer'
 import { emailOTP } from 'better-auth/plugins/email-otp'
@@ -23,6 +22,7 @@ import { phoneNumber } from 'better-auth/plugins/phone-number'
 import { ac, roles } from './ac'
 import { E164_RE } from './e164'
 import { deliverMagicLinkToken } from './magic-link'
+import { deliverPhoneOtp } from './phone-otp'
 
 /** Bearer-token shape the vobase CLI sends: `Authorization: Bearer vbt_<key>`. */
 const BEARER_API_KEY_RE = /^Bearer\s+(vbt_[A-Za-z0-9_-]+)$/u
@@ -57,15 +57,15 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
       expiresIn: 300,
     }),
     phoneNumber({
-      // Storage-only: the plugin contributes `user.phoneNumber` /
-      // `phoneNumberVerified`, which is where staff WhatsApp numbers now live
-      // (admin-set at invite time, see `auth/index.ts`). Phone-based sign-in
-      // is not enabled — `sendOTP` is the seam where a future SMS/WhatsApp
-      // OTP sender plugs in. Until then the sign-in endpoints fail loudly.
-      sendOTP: () => {
-        throw new APIError('NOT_IMPLEMENTED', {
-          message: 'Phone sign-in is not enabled on this deployment.',
-        })
+      // The plugin contributes `user.phoneNumber` / `phoneNumberVerified`
+      // (admin-set at invite time, see `auth/index.ts`). `sendOTP` is wired to
+      // the phone-OTP captor in `auth/phone-otp.ts` — invoking
+      // `auth.api.sendPhoneNumberOTP` from `mintPhoneOtp` causes this callback
+      // to fire with the freshly-minted `code`; the captor's nonce travels
+      // through the `x-captor-nonce` request header set by the captor's
+      // sender, and the deliver helper resolves the pending mint promise.
+      sendOTP: ({ phoneNumber: pn, code }, ctx) => {
+        deliverPhoneOtp({ phoneNumber: pn, code, ctxHeaders: ctx?.headers })
       },
       phoneNumberValidator: (value) => E164_RE.test(value),
     }),
