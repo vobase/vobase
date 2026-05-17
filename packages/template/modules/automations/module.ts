@@ -77,7 +77,12 @@ const automations: ModuleDef = {
       auth: ctx.auth,
       tenantId: platformTenantId || null,
     })
-    installAdminAlertDeps({ db: ctx.db })
+    installAdminAlertDeps({
+      db: ctx.db,
+      sendTemplate: dispatcherSendTemplate,
+      auth: ctx.auth,
+      tenantId: platformTenantId || null,
+    })
     installRunsPruneDb(ctx.db)
     // Adapt to the void-returning DispatcherFn — emit() doesn't care about the
     // per-rule DispatchResult[] return shape.

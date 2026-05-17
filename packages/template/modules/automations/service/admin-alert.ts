@@ -1,5 +1,5 @@
 /**
- * Admin alert dispatcher (US-015 / Slice D.3).
+ * Admin alert dispatcher (US-012a / Slice C+).
  *
  * `dispatchAdminAlert(input)` sends an admin-tier alert to org admins about a
  * tenant-wide event (today: only `budget_breach` from the budget watcher; the
@@ -15,24 +15,39 @@
  *     surfaces the suppression;
  *   - returns `{status: 'suppressed_cooldown'}` without sending.
  *
- * **Send path** is intentionally minimal in Slice D.3 — Slice C (US-011/12)
- * will introduce a `vobase_admin_alert` Meta template + a typed recipient
- * resolver. Until then:
- *   - sourcing org-admin recipients (the `auth_member` / `auth_organization`
- *     join) is **deferred**; the alert body is emitted via `logger.warn` with
- *     a `[automations/admin-alert]` prefix so operators can grep for it in
- *     prod logs;
- *   - the run row is still recorded with `status='succeeded'` so dedup works
- *     end-to-end.
+ * **Send path** (US-012a): for each org admin with a phoneNumber, fires
+ * `sendNotificationTemplate` with the `vobase_admin_alert` template (or
+ * `vobase_tenant_notification` fallback). Mints a magic-link POST-COMMIT
+ * (Principle 6). On `MagicLinkMintError` → writes
+ * `automation_runs(status='failed', errorMessage='magic_link_mint_failed')`
+ * and returns `{status: 'failed', reason: 'magic_link_mint_failed'}`.
  *
- * The auditable `automation_runs` write is the durable signal; the log line is
- * the operator-visible fallback until Slice C wires the WhatsApp template.
+ * **Recipient resolution**: `auth.member` joined to `auth.user` filtered by
+ * `organizationId` and `role = 'owner'`. Only members with a `phoneNumber` can
+ * receive a WhatsApp notification — others are silently skipped. When no
+ * reachable recipient exists, the run succeeds with
+ * `payloadSnapshot.reason='no_admin_recipients'`.
+ *
+ * The auditable `automation_runs` write is the durable signal. The
+ * `admin-alert.ts` path is in `AUTOMATION_RUNS_WRITE_ALLOWED` — no new
+ * allowlist entries are required (see `scripts/check-module-shape.ts:73-84`).
  */
 
+import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
+import { authMember, authUser } from '@auth/schema'
 import { automationRuns } from '@modules/automations/schema'
+import { findNotificationChannel } from '@modules/channels/service/instances'
+import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
+import {
+  buildRedirectRefs,
+  buildTemplateForDispatch,
+  type SendTemplateFn,
+  urlToSuffix,
+} from '@modules/team/service/staff-ping'
 import { logger } from '@vobase/core'
 import { and, desc, eq, gt, sql } from 'drizzle-orm'
 
+import type { Auth } from '~/auth'
 import type { ScopedDb } from '~/runtime'
 
 /** Stable event name used for every admin-alert run row — keeps dedup queries cheap. */
@@ -49,16 +64,39 @@ export interface AdminAlertInput {
   orgId: string
   /** Category — used for dedup key. Open enum for future categories. */
   kind: AdminAlertKind
-  /** Pre-rendered body the WA recipient sees. Caller assembles it from breach data. */
-  bodyText: string
+  /** Short headline for the WA template body (≤120 chars). */
+  alertHeadline: string
+  /** Detail text for the WA template body (≤200 chars). */
+  alertDetail: string
+  /** Organization display name — included in the template body. */
+  organizationName: string
   /** Stable hash for dedup — caller computes from kind+specific-payload (e.g. `budget_breach:<orgId>:<day>`). */
   dedupKey: string
 }
 
-export type AdminAlertResult = { status: 'sent'; alertId: string } | { status: 'suppressed_cooldown'; alertId: string }
+export type AdminAlertResult =
+  | { status: 'sent'; alertId: string }
+  | { status: 'suppressed_cooldown'; alertId: string }
+  | { status: 'failed'; alertId: string; reason: 'magic_link_mint_failed' | 'no_admin_recipients' }
 
 interface AdminAlertDeps {
   db: ScopedDb
+  /**
+   * Template-send seam — same closure installed by module init for the dispatcher.
+   * When absent (dev without platform), WA send is skipped and the run is still
+   * recorded as succeeded (log-only fallback).
+   */
+  sendTemplate?: SendTemplateFn
+  /**
+   * better-auth instance for `mintMagicLink`. Required for real magic-link minting.
+   * When absent (dev without platform), mint is skipped and a bare-path suffix is used.
+   */
+  auth?: Auth | null
+  /**
+   * Platform tenant id from `PLATFORM_TENANT_ID` env. Required for `mintMagicLink`.
+   * When absent, mint is skipped.
+   */
+  tenantId?: string | null
 }
 
 let _installedDeps: AdminAlertDeps | null = null
@@ -90,11 +128,37 @@ interface DispatchOpts {
   db?: ScopedDb
 }
 
+interface OrgAdminRecipient {
+  userId: string
+  email: string
+  phoneNumber: string
+}
+
+/** Resolve org admin members who have a phone number set (reachable via WA). */
+async function resolveOrgAdmins(db: ScopedDb, orgId: string): Promise<OrgAdminRecipient[]> {
+  try {
+    const rows = await db
+      .select({
+        userId: authMember.userId,
+        email: authUser.email,
+        phoneNumber: authUser.phoneNumber,
+      })
+      .from(authMember)
+      .innerJoin(authUser, eq(authUser.id, authMember.userId))
+      .where(and(eq(authMember.organizationId, orgId), eq(authMember.role, 'owner')))
+    return rows.filter((r): r is OrgAdminRecipient => typeof r.phoneNumber === 'string' && r.phoneNumber.length > 0)
+  } catch (err) {
+    logger.warn({ err, orgId }, '[automations/admin-alert] resolveOrgAdmins failed — falling back to empty list')
+    return []
+  }
+}
+
 /**
  * Dispatch an admin alert with 1-hour `(kind, dedupKey)` dedup.
  */
 export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchOpts = {}): Promise<AdminAlertResult> {
-  const db = opts.db ?? getDeps().db
+  const deps = getDeps()
+  const db = opts.db ?? deps.db
   const now = opts.now ?? new Date()
   const cutoff = new Date(now.getTime() - DEDUP_WINDOW_MS)
 
@@ -157,19 +221,168 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     return { status: 'suppressed_cooldown', alertId }
   }
 
-  // Send path: Slice C will plug in the vobase_admin_alert template +
-  // org-admin recipient lookup. Until then, fall through to a structured log
-  // and mark the run succeeded so dedup engages on the next call.
-  logger.warn(
+  // ── Send path (US-012a) ──────────────────────────────────────────────────────
+  // Resolve admin recipients — org members with role='owner' and a phoneNumber.
+  const recipients = await resolveOrgAdmins(db, input.orgId)
+
+  if (recipients.length === 0) {
+    logger.warn(
+      { orgId: input.orgId, kind: input.kind, dedupKey: input.dedupKey },
+      '[automations/admin-alert] no reachable admin recipients — recording succeeded with reason',
+    )
+    const finishedAt = new Date()
+    const inserted = await db
+      .insert(automationRuns)
+      .values({
+        ruleId: ADMIN_ALERT_SENTINEL_RULE_ID,
+        organizationId: input.orgId,
+        eventName: ADMIN_ALERT_EVENT_NAME,
+        status: 'succeeded',
+        startedAt: now,
+        finishedAt,
+        durationMs: finishedAt.getTime() - now.getTime(),
+        payloadSnapshot: {
+          kind: input.kind,
+          dedupKey: input.dedupKey,
+          alertHeadline: input.alertHeadline,
+          alertDetail: input.alertDetail,
+          organizationName: input.organizationName,
+          reason: 'no_admin_recipients',
+        },
+      })
+      .returning({ id: automationRuns.id })
+    const alertId = inserted[0]?.id
+    if (!alertId) throw new Error('admin-alert: no-recipients INSERT returned no row')
+    return { status: 'failed', alertId, reason: 'no_admin_recipients' }
+  }
+
+  // Attempt to send WA notifications to each admin recipient.
+  const { sendTemplate, auth, tenantId } = deps
+
+  // Read metaTemplateApprovals from the notification channel config.
+  let metaTemplateApprovals: Record<string, unknown> | null = null
+  try {
+    const channel = await findNotificationChannel(input.orgId)
+    if (channel?.config?.metaTemplateApprovals != null && typeof channel.config.metaTemplateApprovals === 'object') {
+      metaTemplateApprovals = channel.config.metaTemplateApprovals as Record<string, unknown>
+    }
+  } catch (err) {
+    logger.warn(
+      { err, orgId: input.orgId },
+      '[automations/admin-alert] findNotificationChannel failed — using fallback template',
+    )
+  }
+
+  const { templateName, bodyParams } = buildTemplateForDispatch(
+    'admin_alert',
     {
-      orgId: input.orgId,
-      kind: input.kind,
-      dedupKey: input.dedupKey,
-      bodyText: input.bodyText,
-      slice: 'C-deferred',
+      alertHeadline: input.alertHeadline,
+      alertDetail: input.alertDetail,
+      organizationName: input.organizationName,
     },
-    '[automations/admin-alert] dispatch (channels-less fallback — Slice C wires WhatsApp template)',
+    metaTemplateApprovals,
   )
+
+  // Mint and send for each recipient. MagicLinkMintError on the FIRST recipient
+  // aborts the entire send and records a failed run (the error is per-call, not
+  // per-platform, so if mint is broken it will be broken for all recipients).
+  try {
+    for (const recipient of recipients) {
+      let buttonUrlSuffix: string
+      if (auth && tenantId) {
+        const refs = buildRedirectRefs('admin_alert', { conversationId: null, referenceId: input.dedupKey })
+        const redirectPath = redirectPathFor(refs)
+        // MagicLinkMintError propagates up — caught below.
+        const mintResult = await mintMagicLink(auth, db, {
+          userId: recipient.userId,
+          email: recipient.email,
+          tenantId,
+          organizationId: input.orgId,
+          redirectPath,
+        })
+        buttonUrlSuffix = urlToSuffix(mintResult.url)
+      } else {
+        // Dev/test fallback: no platform configured — use bare system activity path.
+        buttonUrlSuffix = 'system/activity'
+      }
+
+      if (sendTemplate) {
+        try {
+          await sendTemplate({
+            staffPhoneE164: recipient.phoneNumber,
+            templateName,
+            bodyParams,
+            buttonUrlSuffix,
+          })
+          logger.info(
+            { orgId: input.orgId, kind: input.kind, userId: recipient.userId, templateName },
+            '[automations/admin-alert] WA notification sent',
+          )
+        } catch (err) {
+          // Non-fatal send error — log and continue to next recipient.
+          logger.warn(
+            { err, orgId: input.orgId, userId: recipient.userId, templateName },
+            '[automations/admin-alert] WA send failed (non-fatal — continuing to next recipient)',
+          )
+        }
+      } else {
+        // Platform not configured — log-only fallback.
+        logger.warn(
+          {
+            orgId: input.orgId,
+            kind: input.kind,
+            dedupKey: input.dedupKey,
+            alertHeadline: input.alertHeadline,
+            alertDetail: input.alertDetail,
+            userId: recipient.userId,
+            slice: 'no-platform',
+          },
+          '[automations/admin-alert] dispatch (sendTemplate not configured — log-only)',
+        )
+      }
+    }
+  } catch (err) {
+    if (err instanceof MagicLinkMintError) {
+      // admin-alert.ts is in AUTOMATION_RUNS_WRITE_ALLOWED — write failure row directly.
+      const finishedAt = new Date()
+      const inserted = await db
+        .insert(automationRuns)
+        .values({
+          ruleId: ADMIN_ALERT_SENTINEL_RULE_ID,
+          organizationId: input.orgId,
+          eventName: ADMIN_ALERT_EVENT_NAME,
+          status: 'failed',
+          errorMessage: 'magic_link_mint_failed',
+          startedAt: now,
+          finishedAt,
+          durationMs: finishedAt.getTime() - now.getTime(),
+          payloadSnapshot: {
+            kind: input.kind,
+            dedupKey: input.dedupKey,
+            alertHeadline: input.alertHeadline,
+            alertDetail: input.alertDetail,
+            organizationName: input.organizationName,
+            cause: String((err as MagicLinkMintError).cause ?? err),
+          },
+        })
+        .returning({ id: automationRuns.id })
+      const alertId = inserted[0]?.id
+      if (!alertId) throw new Error('admin-alert: mint-failure INSERT returned no row')
+      logger.warn(
+        {
+          orgId: input.orgId,
+          kind: input.kind,
+          dedupKey: input.dedupKey,
+          alertId,
+          cause: String((err as MagicLinkMintError).cause),
+        },
+        '[automations/admin-alert] magic_link_mint_failed',
+      )
+      return { status: 'failed', alertId, reason: 'magic_link_mint_failed' }
+    }
+    // Other errors bubble up.
+    throw err
+  }
 
   const finishedAt = new Date()
   const inserted = await db
@@ -185,7 +398,10 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
       payloadSnapshot: {
         kind: input.kind,
         dedupKey: input.dedupKey,
-        bodyText: input.bodyText,
+        alertHeadline: input.alertHeadline,
+        alertDetail: input.alertDetail,
+        organizationName: input.organizationName,
+        recipientCount: recipients.length,
       },
     })
     .returning({ id: automationRuns.id })
