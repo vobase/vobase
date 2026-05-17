@@ -222,11 +222,11 @@ function OperatorAgentSection() {
 
   return (
     <InfoSection
-      title="Operator agent"
-      description="Configure the agent that handles staff-initiated conversations via the notification channel."
+      title="Automation defaults"
+      description="Org-wide defaults for agent-driven automations — which agent handles staff replies and whether scheduled reviews run."
     >
       <InfoCard>
-        <InfoRow label="Default operator agent" className="items-center">
+        <InfoRow label="Default agent" className="items-center">
           <div className="space-y-1">
             {agentsLoading ? (
               <span className="text-muted-foreground text-sm">Loading agents…</span>
@@ -251,13 +251,14 @@ function OperatorAgentSection() {
               </Select>
             )}
             <p className="text-muted-foreground text-xs">
-              When a staff member texts the notification number outside any conversation, this agent answers.
+              The agent that picks up incoming WhatsApp messages when a staff member replies outside an active
+              conversation. Defaults to the first enabled agent.
             </p>
           </div>
         </InfoRow>
         <SettingsToggle
-          label="Scheduled heartbeats"
-          description="Run cron-scheduled review-and-plan wakes for operator agents. Turn off to suppress all heartbeat-triggered standalone wakes."
+          label="Scheduled reviews"
+          description="Enable cron-scheduled standalone reviews. When off, only event-triggered automations fire."
           checked={heartbeatEnabled}
           onCheckedChange={(v) => heartbeat.setValue(v ? 'true' : 'false')}
         />
