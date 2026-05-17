@@ -37,6 +37,7 @@ import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
 import { authMember, authUser } from '@auth/schema'
 import { automationRuns } from '@modules/automations/schema'
 import { findNotificationChannel } from '@modules/channels/service/instances'
+import { COST_ESTIMATE_USD, type WireRoute } from '@modules/integrations/service/handshake'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
 import {
   buildRedirectRefs,
@@ -283,6 +284,9 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     metaTemplateApprovals,
   )
 
+  // Tracks the wire route used on the last successful send; written into payloadSnapshot.
+  let lastWireRoute: WireRoute | undefined
+
   // Mint and send for each recipient. MagicLinkMintError on the FIRST recipient
   // aborts the entire send and records a failed run (the error is per-call, not
   // per-platform, so if mint is broken it will be broken for all recipients).
@@ -308,14 +312,22 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
 
       if (sendTemplate) {
         try {
-          await sendTemplate({
+          const sendResult = await sendTemplate({
+            organizationId: input.orgId,
             staffPhoneE164: recipient.phoneNumber,
             templateName,
             bodyParams,
             buttonUrlSuffix,
           })
+          lastWireRoute = sendResult.wireRoute
           logger.info(
-            { orgId: input.orgId, kind: input.kind, userId: recipient.userId, templateName },
+            {
+              orgId: input.orgId,
+              kind: input.kind,
+              userId: recipient.userId,
+              templateName,
+              wireRoute: sendResult.wireRoute,
+            },
             '[automations/admin-alert] WA notification sent',
           )
         } catch (err) {
@@ -402,6 +414,8 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
         alertDetail: input.alertDetail,
         organizationName: input.organizationName,
         recipientCount: recipients.length,
+        wireRoute: lastWireRoute ?? null,
+        costEstimateUsd: lastWireRoute != null ? COST_ESTIMATE_USD[lastWireRoute] : null,
       },
     })
     .returning({ id: automationRuns.id })

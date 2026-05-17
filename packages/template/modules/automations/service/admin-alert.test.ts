@@ -119,7 +119,7 @@ describe('dispatchAdminAlert', () => {
     const sentCalls: unknown[] = []
     const stubSendTemplate = async (input: unknown) => {
       sentCalls.push(input)
-      return { ok: true as const, messageId: 'wamid.test' }
+      return { ok: true as const, messageId: 'wamid.test', wireRoute: 'template' as const }
     }
 
     installAdminAlertDeps({
@@ -174,7 +174,7 @@ describe('dispatchAdminAlert', () => {
     const sentCalls: unknown[] = []
     const stubSendTemplate = async (input: unknown) => {
       sentCalls.push(input)
-      return { ok: true as const, messageId: null }
+      return { ok: true as const, messageId: null, wireRoute: 'template' as const }
     }
 
     installAdminAlertDeps({

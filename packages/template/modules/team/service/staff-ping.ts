@@ -223,11 +223,12 @@ export type FanOutMentionPingsPayload = z.infer<typeof FanOutMentionPingsPayload
  * global fetch + platform env.
  */
 export type SendTemplateFn = (input: {
+  organizationId: string
   staffPhoneE164: string
   templateName: NotificationTemplateName
   bodyParams: unknown // typed body matching BODY_SCHEMAS[templateName]
   buttonUrlSuffix: string
-}) => Promise<{ ok: true; messageId: string | null }>
+}) => Promise<{ ok: true; messageId: string | null; wireRoute: 'freeform' | 'template' | 'freeform_fallback_template' }>
 
 /**
  * Platform base URL used to strip the prefix from a mint result URL and produce
@@ -614,6 +615,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
 
     try {
       const res = await sendTemplate({
+        organizationId,
         staffPhoneE164: profile.phoneNumber,
         templateName,
         bodyParams,

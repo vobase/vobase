@@ -467,6 +467,7 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
   // so the wake enqueue (step 4) still fires.
   try {
     await sendTemplate({
+      organizationId,
       staffPhoneE164: profile.phoneNumber,
       templateName,
       bodyParams,

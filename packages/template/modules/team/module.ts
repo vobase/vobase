@@ -45,8 +45,10 @@ const team: ModuleDef = {
       const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
       const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
       if (!platformBaseUrl || !tenantId || !tenantHmacSecret) return undefined
-      return ({ staffPhoneE164, templateName, bodyParams, buttonUrlSuffix }) =>
+      return ({ organizationId, staffPhoneE164, templateName, bodyParams, buttonUrlSuffix }) =>
         sendNotificationTemplate({
+          db: ctx.db,
+          organizationId,
           platformBaseUrl,
           tenantId,
           tenantHmacSecret,

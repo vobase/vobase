@@ -13,12 +13,19 @@
  */
 /** @contract platform-tenant-v1 */
 
-import { type SignedRequest, signRequest, validation } from '@vobase/core'
+import { logger, type SignedRequest, signRequest, validation } from '@vobase/core'
 import { z } from 'zod'
 
+import type { ScopedDb } from '~/runtime'
 import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
 import { findKind, type ManagedChannelKind } from '../../channels/managed/registry'
-import { BODY_SCHEMAS, bodyParamsForWire, type NotificationTemplateName } from './notification-template-payloads'
+import { checkWithin24h } from '../../channels/service/within-24h'
+import {
+  BODY_SCHEMAS,
+  bodyParamsForWire,
+  type NotificationTemplateName,
+  renderTemplateAsText,
+} from './notification-template-payloads'
 
 export interface HandshakeAllocation {
   platformChannelId: string
@@ -471,28 +478,92 @@ export async function registerWebhookWithPlatform(input: {
   }
 }
 
+// ─── Notification send (US-024: within-24h branching + meta_131047 fallback) ─
+
 /**
- * Send a typed notification template to a staff phone via the platform's
- * notification-tier pool. Thin tenant-side wrapper around the platform's
- * `POST /api/managed-whatsapp/notification/send` — the platform looks up the
- * underlying pool row's `phone_number_id + access_token` from the tenant's
- * existing notification claim and calls Meta Cloud API.
+ * Wire-route discriminator returned by `sendNotificationTemplate`.
  *
- * `bodyParams` is validated at entry against `BODY_SCHEMAS[templateName]`;
- * a validation failure throws immediately via `VobaseError`. On success,
- * `bodyParamsForWire` maps the typed body to the positional array the
- * platform endpoint expects, and `templateName` is sent verbatim in the
- * wire body so the platform can select the correct Meta template.
+ * - `'template'` — sent via the notification-tier template endpoint (default
+ *   when outside the 24h customer service window, or when free-form is
+ *   unavailable).
+ * - `'freeform'` — sent via the free-form endpoint because the staff phone
+ *   exchanged an inbound WA message within the 24h window.
+ * - `'freeform_fallback_template'` — free-form was attempted and rejected
+ *   with Meta error 131047 (recipient outside the 24h window from Meta's
+ *   point of view, despite our local `checkWithin24h` returning `true`),
+ *   then retried successfully on the template path.
  */
-export async function sendNotificationTemplate(input: {
+export type WireRoute = 'freeform' | 'template' | 'freeform_fallback_template'
+
+export interface SendNotificationTemplateResult {
+  ok: true
+  messageId: string | null
+  wireRoute: WireRoute
+}
+
+/** Cost estimate in USD per wire route. `freeform` is $0 (within-window reply). */
+export const COST_ESTIMATE_USD: Record<WireRoute, number> = {
+  freeform: 0,
+  template: 0.05,
+  freeform_fallback_template: 0.05,
+}
+
+/** Full platform URL prefix used to reconstruct the button URL for free-form sends. */
+const PLATFORM_FULL_URL_PREFIX = 'https://platform.voltade.app/'
+
+interface SendNotificationTemplateInput {
+  /** Scoped Drizzle handle — used for the within-24h lookup against `infra.channels_log`. */
+  db: ScopedDb
+  organizationId: string
   platformBaseUrl: string
   tenantId: string
   tenantHmacSecret: string
   staffPhoneE164: string
   templateName: NotificationTemplateName
   bodyParams: unknown
+  /**
+   * Path suffix appended to `https://platform.voltade.app/` to form the full
+   * button URL. The template path forwards the suffix verbatim to the platform;
+   * the free-form path reconstructs the full URL for the rendered text body.
+   */
   buttonUrlSuffix: string
-}): Promise<{ ok: true; messageId: string | null }> {
+}
+
+/** Validated input with `parsedBody` already extracted from `BODY_SCHEMAS`. */
+interface ValidatedSendInput extends SendNotificationTemplateInput {
+  parsedBody: unknown
+}
+
+/**
+ * Send a typed notification template to a staff phone, choosing between the
+ * platform's notification-tier template endpoint and the free-form endpoint
+ * based on whether the staff phone has an active 24h WhatsApp customer
+ * service window.
+ *
+ * Routing decision (US-024):
+ *   1. `checkWithin24h(db, staffPhoneE164, organizationId)` — queries
+ *      `infra.channels_log` for a recent inbound from the staff phone (23h50m
+ *      safety margin against clock skew).
+ *   2. If within-24h is `true`, the message ships as free-form text rendered
+ *      from the template via `renderTemplateAsText`. Meta charges $0 for
+ *      free-form replies inside the customer service window.
+ *   3. If the platform rejects the free-form send with HTTP 4xx + body
+ *      `{code:'meta_131047'}` (recipient outside the window from Meta's PoV,
+ *      despite our local check), we fall back to the template path using a
+ *      distinct idempotency key so the platform's dedup map does not suppress
+ *      the retry. Returns `wireRoute: 'freeform_fallback_template'`.
+ *   4. Other 4xx/5xx from the freeform endpoint throw `PlatformHandshakeError`
+ *      WITHOUT fallback — they represent different failure modes (auth, network,
+ *      platform 5xx) that a template retry would not fix.
+ *   5. If within-24h is `false`, the template path is used directly.
+ *
+ * `bodyParams` is validated against `BODY_SCHEMAS[templateName]` before any
+ * network call; a mismatch throws `VobaseError(VALIDATION)` regardless of
+ * which wire route would have been chosen.
+ */
+export async function sendNotificationTemplate(
+  input: SendNotificationTemplateInput,
+): Promise<SendNotificationTemplateResult> {
   const parseResult = BODY_SCHEMAS[input.templateName].safeParse(input.bodyParams)
   if (!parseResult.success) {
     throw validation(
@@ -500,12 +571,57 @@ export async function sendNotificationTemplate(input: {
       `sendNotificationTemplate: invalid bodyParams for template '${input.templateName}'`,
     )
   }
-  const positionalParams = bodyParamsForWire(input.templateName, parseResult.data)
-  const body = JSON.stringify({
+  const validated: ValidatedSendInput = { ...input, parsedBody: parseResult.data }
+
+  const within24h = await checkWithin24h(input.db, input.staffPhoneE164, input.organizationId)
+  if (!within24h) {
+    return sendViaTemplate(validated)
+  }
+
+  // Within-24h path: generate a single caller key so the freeform + template-fallback
+  // attempts share a stable prefix but use distinct idempotency keys against
+  // the platform's 5-minute dedup window.
+  const callerKey = crypto.randomUUID()
+  const freeformKey = `${callerKey}:freeform`
+  const templateKey = `${callerKey}:template`
+  try {
+    return await sendViaFreeform(validated, freeformKey)
+  } catch (err) {
+    if (err instanceof PlatformHandshakeError && err.code === 'meta_131047') {
+      logger.info(
+        {
+          staffPhoneE164: input.staffPhoneE164,
+          templateName: input.templateName,
+          freeformKey,
+          templateKey,
+        },
+        '[handshake] freeform rejected with 131047, falling back to template',
+      )
+      const templateResult = await sendViaTemplate(validated, templateKey)
+      return { ...templateResult, wireRoute: 'freeform_fallback_template' }
+    }
+    throw err
+  }
+}
+
+/**
+ * Template path — POST to the platform's `/api/managed-whatsapp/notification/send`
+ * with the validated typed body mapped to positional `bodyParams`.
+ *
+ * Used directly when outside the 24h window, and as the fallback when the
+ * free-form attempt is rejected with Meta error 131047.
+ */
+async function sendViaTemplate(
+  input: ValidatedSendInput,
+  idempotencyKey?: string,
+): Promise<SendNotificationTemplateResult> {
+  const positionalParams = bodyParamsForWire(input.templateName, input.parsedBody)
+  const wireBody = JSON.stringify({
     staffPhoneE164: input.staffPhoneE164,
     templateName: input.templateName,
     bodyParams: positionalParams,
     buttonUrlSuffix: input.buttonUrlSuffix,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
   })
   const { res } = await signedPlatformRequest({
     method: 'POST',
@@ -513,7 +629,7 @@ export async function sendNotificationTemplate(input: {
     tenantId: input.tenantId,
     tenantHmacSecret: input.tenantHmacSecret,
     path: '/api/managed-whatsapp/notification/send',
-    body,
+    body: wireBody,
   })
   if (!res.ok) {
     let payload: unknown
@@ -530,7 +646,51 @@ export async function sendNotificationTemplate(input: {
     )
   }
   const parsed = (await res.json()) as { messageId?: string | null }
-  return { ok: true, messageId: parsed.messageId ?? null }
+  return { ok: true, messageId: parsed.messageId ?? null, wireRoute: 'template' }
+}
+
+/**
+ * Free-form path — POST to `/api/whatsapp/freeform` with a pre-rendered text
+ * body and an idempotency key. The platform endpoint proxies to Meta Cloud
+ * API's free-form send; Meta returns 131047 when the recipient is outside the
+ * 24h customer service window from Meta's PoV. Other 4xx/5xx bubble up as
+ * `PlatformHandshakeError` — no fallback for those failure modes.
+ */
+async function sendViaFreeform(
+  input: ValidatedSendInput,
+  idempotencyKey: string,
+): Promise<SendNotificationTemplateResult> {
+  const fullButtonUrl = `${PLATFORM_FULL_URL_PREFIX}${input.buttonUrlSuffix}`
+  const bodyText = renderTemplateAsText(input.templateName, input.parsedBody, fullButtonUrl)
+  const wireBody = JSON.stringify({
+    staffPhoneE164: input.staffPhoneE164,
+    bodyText,
+    idempotencyKey,
+  })
+  const { res } = await signedPlatformRequest({
+    method: 'POST',
+    platformBaseUrl: input.platformBaseUrl,
+    tenantId: input.tenantId,
+    tenantHmacSecret: input.tenantHmacSecret,
+    path: '/api/whatsapp/freeform',
+    body: wireBody,
+  })
+  if (!res.ok) {
+    let payload: unknown
+    try {
+      payload = await res.json()
+    } catch {
+      payload = null
+    }
+    const code = (payload as { code?: string } | null)?.code
+    throw new PlatformHandshakeError(
+      `platform freeform send failed (${res.status}${code ? `: ${code}` : ''})`,
+      res.status,
+      code ?? undefined,
+    )
+  }
+  const parsed = (await res.json()) as { messageId?: string | null }
+  return { ok: true, messageId: parsed.messageId ?? null, wireRoute: 'freeform' }
 }
 
 export interface WebhookEndpointStatus {

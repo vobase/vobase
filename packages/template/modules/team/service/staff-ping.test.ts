@@ -61,7 +61,7 @@ let nextSendOk = true
 const stubSendTemplate: SendTemplateFn = async ({ staffPhoneE164, templateName, bodyParams, buttonUrlSuffix }) => {
   sent.push({ to: staffPhoneE164, templateName, bodyParams, buttonUrlSuffix })
   if (!nextSendOk) throw new Error('stub_fail')
-  return { ok: true, messageId: 'stub' }
+  return { ok: true, messageId: 'stub', wireRoute: 'template' as const }
 }
 const recordedPings: Array<{
   conversationId: string

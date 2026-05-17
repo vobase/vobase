@@ -291,6 +291,28 @@ describe('handshake staffLinks', () => {
   })
 })
 
+// ─── Stub db for within-24h (no real Postgres needed in unit tests) ──────────
+
+/**
+ * Build a minimal ScopedDb stub that makes `checkWithin24h` return the
+ * supplied `within24h` value. `checkWithin24h` does a `.select().from().where().limit()`
+ * chain and checks `rows.length > 0`, so we stub `select` to return that chain.
+ */
+function makeDbStub(within24h: boolean): import('~/runtime').ScopedDb {
+  const rows = within24h ? [{ id: 'log-1' }] : []
+  return {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve(rows),
+        }),
+      }),
+    }),
+  } as unknown as import('~/runtime').ScopedDb
+}
+
+const TEST_ORG = 'org-test-1'
+
 describe('sendNotificationTemplate signature change', () => {
   beforeEach(() => {
     process.env.NODE_ENV = 'test'
@@ -300,10 +322,12 @@ describe('sendNotificationTemplate signature change', () => {
     globalThis.fetch = ORIGINAL_FETCH
   })
 
-  it('sends templateName + positional bodyParams for vobase_tenant_notification', async () => {
+  it('sends templateName + positional bodyParams for vobase_tenant_notification (outside 24h → template path)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-1' }, { status: 200 }))
 
-    await sendNotificationTemplate({
+    const result = await sendNotificationTemplate({
+      db: makeDbStub(false),
+      organizationId: TEST_ORG,
       platformBaseUrl: PLATFORM_BASE,
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
@@ -313,6 +337,7 @@ describe('sendNotificationTemplate signature change', () => {
       buttonUrlSuffix: 'tenant-slug',
     })
 
+    expect(result.wireRoute).toBe('template')
     expect(calls).toHaveLength(1)
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
     expect(wireBody.staffPhoneE164).toBe('+15551234567')
@@ -321,10 +346,12 @@ describe('sendNotificationTemplate signature change', () => {
     expect(wireBody.buttonUrlSuffix).toBe('tenant-slug')
   })
 
-  it('sends positional bodyParams for vobase_approval_decision', async () => {
+  it('sends positional bodyParams for vobase_approval_decision (outside 24h)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-2' }, { status: 200 }))
 
-    await sendNotificationTemplate({
+    const result = await sendNotificationTemplate({
+      db: makeDbStub(false),
+      organizationId: TEST_ORG,
       platformBaseUrl: PLATFORM_BASE,
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
@@ -334,15 +361,18 @@ describe('sendNotificationTemplate signature change', () => {
       buttonUrlSuffix: 'suf',
     })
 
+    expect(result.wireRoute).toBe('template')
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
     expect(wireBody.templateName).toBe('vobase_approval_decision')
     expect(wireBody.bodyParams).toEqual(['A', 'B', 'C'])
   })
 
-  it('sends positional bodyParams for vobase_proposal_decision', async () => {
+  it('sends positional bodyParams for vobase_proposal_decision (outside 24h)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-3' }, { status: 200 }))
 
-    await sendNotificationTemplate({
+    const result = await sendNotificationTemplate({
+      db: makeDbStub(false),
+      organizationId: TEST_ORG,
       platformBaseUrl: PLATFORM_BASE,
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
@@ -352,15 +382,18 @@ describe('sendNotificationTemplate signature change', () => {
       buttonUrlSuffix: 'suf',
     })
 
+    expect(result.wireRoute).toBe('template')
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
     expect(wireBody.templateName).toBe('vobase_proposal_decision')
     expect(wireBody.bodyParams).toEqual(['A', 'contacts/profile-field', 'C'])
   })
 
-  it('sends positional bodyParams for vobase_admin_alert', async () => {
+  it('sends positional bodyParams for vobase_admin_alert (outside 24h)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-4' }, { status: 200 }))
 
-    await sendNotificationTemplate({
+    const result = await sendNotificationTemplate({
+      db: makeDbStub(false),
+      organizationId: TEST_ORG,
       platformBaseUrl: PLATFORM_BASE,
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
@@ -370,6 +403,7 @@ describe('sendNotificationTemplate signature change', () => {
       buttonUrlSuffix: 'suf',
     })
 
+    expect(result.wireRoute).toBe('template')
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
     expect(wireBody.templateName).toBe('vobase_admin_alert')
     expect(wireBody.bodyParams).toEqual(['H', 'D', 'O'])
@@ -380,6 +414,8 @@ describe('sendNotificationTemplate signature change', () => {
 
     await expect(
       sendNotificationTemplate({
+        db: makeDbStub(false),
+        organizationId: TEST_ORG,
         platformBaseUrl: PLATFORM_BASE,
         tenantId: TEST_TENANT,
         tenantHmacSecret: TEST_HMAC,
@@ -397,6 +433,8 @@ describe('sendNotificationTemplate signature change', () => {
     let caught: unknown
     try {
       await sendNotificationTemplate({
+        db: makeDbStub(false),
+        organizationId: TEST_ORG,
         platformBaseUrl: PLATFORM_BASE,
         tenantId: TEST_TENANT,
         tenantHmacSecret: TEST_HMAC,
@@ -409,5 +447,95 @@ describe('sendNotificationTemplate signature change', () => {
       caught = err
     }
     expect(caught).toBeInstanceOf(VobaseError)
+  })
+
+  // ─── within-24h branching stubs (US-024 / full integration tests in US-026) ─
+
+  it('within-24h=true → POSTs to /api/whatsapp/freeform and returns wireRoute freeform', async () => {
+    const calls = installFetchStub(() => Response.json({ messageId: 'msg-ff-1' }, { status: 200 }))
+
+    const result = await sendNotificationTemplate({
+      db: makeDbStub(true),
+      organizationId: TEST_ORG,
+      platformBaseUrl: PLATFORM_BASE,
+      tenantId: TEST_TENANT,
+      tenantHmacSecret: TEST_HMAC,
+      staffPhoneE164: '+15551234567',
+      templateName: 'vobase_tenant_notification',
+      bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+      buttonUrlSuffix: 'auth/magic?token=abc',
+    })
+
+    expect(result.wireRoute).toBe('freeform')
+    expect(result.ok).toBe(true)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.url).toContain('/api/whatsapp/freeform')
+    const wireBody = JSON.parse(String(calls[0]?.init?.body))
+    expect(wireBody.staffPhoneE164).toBe('+15551234567')
+    expect(wireBody.bodyText).toContain('Bob')
+    expect(wireBody.bodyText).toContain('https://platform.voltade.app/auth/magic?token=abc')
+    expect(typeof wireBody.idempotencyKey).toBe('string')
+  })
+
+  it('within-24h=true + freeform returns meta_131047 → falls back to template with wireRoute freeform_fallback_template', async () => {
+    let callCount = 0
+    const calls = installFetchStub(() => {
+      callCount++
+      if (callCount === 1) {
+        // First call: freeform endpoint returns 131047
+        return Response.json({ code: 'meta_131047' }, { status: 400 })
+      }
+      // Second call: template endpoint succeeds
+      return Response.json({ messageId: 'msg-tmpl-fallback' }, { status: 200 })
+    })
+
+    const result = await sendNotificationTemplate({
+      db: makeDbStub(true),
+      organizationId: TEST_ORG,
+      platformBaseUrl: PLATFORM_BASE,
+      tenantId: TEST_TENANT,
+      tenantHmacSecret: TEST_HMAC,
+      staffPhoneE164: '+15551234567',
+      templateName: 'vobase_tenant_notification',
+      bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+      buttonUrlSuffix: 'auth/magic?token=abc',
+    })
+
+    expect(result.wireRoute).toBe('freeform_fallback_template')
+    expect(result.ok).toBe(true)
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.url).toContain('/api/whatsapp/freeform')
+    expect(calls[1]?.url).toContain('/api/managed-whatsapp/notification/send')
+    // Both attempts use distinct idempotency keys derived from the same callerKey prefix
+    const freeformBody = JSON.parse(String(calls[0]?.init?.body))
+    const templateBody = JSON.parse(String(calls[1]?.init?.body))
+    expect(freeformBody.idempotencyKey).toMatch(/^[0-9a-f-]+:freeform$/)
+    expect(templateBody.idempotencyKey).toMatch(/^[0-9a-f-]+:template$/)
+    // Both keys share the same callerKey UUID prefix
+    const freeformPrefix = (freeformBody.idempotencyKey as string).replace(/:freeform$/, '')
+    const templatePrefix = (templateBody.idempotencyKey as string).replace(/:template$/, '')
+    expect(freeformPrefix).toBe(templatePrefix)
+  })
+
+  it('within-24h=true + freeform returns non-131047 4xx → throws PlatformHandshakeError without template fallback', async () => {
+    const calls = installFetchStub(() => Response.json({ code: 'rate_limited' }, { status: 429 }))
+
+    await expect(
+      sendNotificationTemplate({
+        db: makeDbStub(true),
+        organizationId: TEST_ORG,
+        platformBaseUrl: PLATFORM_BASE,
+        tenantId: TEST_TENANT,
+        tenantHmacSecret: TEST_HMAC,
+        staffPhoneE164: '+15551234567',
+        templateName: 'vobase_tenant_notification',
+        bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+        buttonUrlSuffix: 'suf',
+      }),
+    ).rejects.toMatchObject({ name: 'PlatformHandshakeError', code: 'rate_limited', status: 429 })
+
+    // Only the freeform call was made — no template fallback
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.url).toContain('/api/whatsapp/freeform')
   })
 })
