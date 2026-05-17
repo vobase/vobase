@@ -32,15 +32,15 @@ Core identity: **AI agents need codebase they understand.** One folder per featu
 ## Modules
 
 Init order in `runtime/modules.ts` (re-sorted by `requires`):
-`settings → contacts → team → drive → messaging → agents → schedules → channels → changes → system`
+`settings → contacts → team → drive → messaging → agents → automations → channels → changes → system`
 
 - **settings** — notification prefs, per-user UI state.
 - **contacts** — customer records + `contacts.memory` (`/contacts/<id>/MEMORY.md`).
 - **team** — staff directory + attributes; staff side principal directory.
 - **drive** — virtual filesystem; other modules register overlays via `service/overlays.ts`.
 - **messaging** — conversations, messages, internal notes, pending approvals, state machine, staff-note fan-out producer. Sole writer `conversation_events` (`check:shape`).
-- **agents** — definitions, learned skills, staff memory, scores, threads, agent-side schedules, runtime `CliVerbRegistry` singleton, agent self-state surface (`/agents/<id>/AGENTS.md` + `/MEMORY.md`). Imports nothing from messaging/contacts.
-- **schedules** — `agent_schedules` + cron-tick emits `HeartbeatTrigger`.
+- **agents** — definitions, learned skills, staff memory, scores, threads, agent-side automation rules, runtime `CliVerbRegistry` singleton, agent self-state surface (`/agents/<id>/AGENTS.md` + `/MEMORY.md`). Imports nothing from messaging/contacts.
+- **automations** — `automation_rules` (renamed from `agent_schedules`) + cron-tick emits `HeartbeatTrigger`. Sole writer for `automations` / `automation_runs` / `tenant_budget_caps`. Exports the typed `emit(name, payload, { tx })` event bus and the `tx-bridge.ts` adapter that lets producers enqueue pg-boss jobs inside their own Postgres tx (rollback ⇒ event vanishes). Replaces the old `schedules` module wholesale (no re-export shim).
 - **channels** — umbrella aggregating `adapters/<name>/`. Owns `channel_instances`, generic webhook router, outbound dispatch.
 - **changes** — generic propose/decide/apply/history. Resources opt in by registering materializer for `(resourceModule, resourceType)`. Sole writer `change_proposals`/`change_history` (`check:shape`).
 - **system** — ops dashboard, dev helpers.
@@ -105,7 +105,7 @@ Agent's AGENTS.md `## Commands` block + in-bash `vobase --help` filter via `isVe
 | `wake/inbound.ts` | `agents:wake` | conversation |
 | `wake/staff-note.ts` | `messaging:staff-note-to-wake` | conversation |
 | `wake/operator-thread.ts` | `agents:operator-thread-to-wake` | standalone |
-| `wake/heartbeat.ts` | cron-tick callback for `schedules` | standalone |
+| `wake/heartbeat.ts` | cron-tick callback for `automations`; also the `cron` event producer (wraps `emit('cron', …, { tx })` in `db.transaction`) | standalone |
 
 Each handler factory takes `(deps, contributions)` at boot. At wake time builder filters `contributions.tools` by lane, invokes each `materializerFactories[i](wakeContext)`, chains `roHints` via `chainRoHints`, feeds `agentsMdContributors` into agents-module `agentsMaterializerFactory` (runs `generateAgentsMd` with per-module fragments + tool guidance + helpdesk preamble).
 
@@ -116,9 +116,9 @@ Each handler factory takes `(deps, contributions)` at boot. At wake time builder
 **Tools by module:**
 - `messaging/tools/` — `reply`, `send_card`, `send_file`, `book_slot` (`lane: 'conversation'`); `add_note` (`lane: 'both'`); `summarize_inbox`, `draft_email_to_review` (`lane: 'standalone'`).
 - `contacts/tools/` — `update_contact`, `propose_outreach`.
-- `schedules/tools/` — `create_schedule`, `pause_schedule`.
+- `automations/tools/` — `create_schedule`, `pause_schedule` (agent-visible tool name strings preserved through the schedules → automations rename to protect existing `agent_definitions.skillAllowlist` rows + working memory; TS exports were renamed to `createAutomationTool` / `pauseAutomationTool`).
 
-**Verbs by module:** `messaging/verbs/` (`conv-reassign`), `drive/verbs/` (`drive-propose`), `team/verbs/` (`team-list`, `team-get`), `agents/cli.ts` (`agents list/show/inspect`, `schedules list/...`).
+**Verbs by module:** `messaging/verbs/` (`conv-reassign`), `drive/verbs/` (`drive-propose`), `team/verbs/` (`team-list`, `team-get`), `agents/cli.ts` (`agents list/show/inspect`), `automations/cli.ts` (`automations list/enable/disable/run`).
 
 **Staff-note fan-out.** `messaging/service/notes::addNote` post-commit enqueues one `staff_note` wake per @-mentioned agent. Notes without an `@-mention` wake nobody. Agent-authored notes never trigger fan-out (HARD filter at `notes.ts`).
 

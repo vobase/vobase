@@ -69,10 +69,16 @@ export function runChecks(params: {
     // Skip test files
     if (relPath.endsWith('.test.ts') || relPath.includes('__tests__/')) continue
 
-    // Walk module service/ + tools/ files and the wake/ folder (producers
-    // outside modules — e.g. `wake/heartbeat.ts` emits 'cron').
+    // Walk module service/ + tools/ + handlers/ + top-level jobs.ts files and
+    // the wake/ folder (producers outside modules — e.g. `wake/heartbeat.ts`
+    // emits 'cron'). handlers/ + jobs.ts coverage prevents a silent miss when
+    // a future producer lands in an HTTP handler or a pg-boss job entrypoint.
     const isTarget =
-      /^modules\/[^/]+\/service\//.test(relPath) || /^modules\/[^/]+\/tools\//.test(relPath) || /^wake\//.test(relPath)
+      /^modules\/[^/]+\/service\//.test(relPath) ||
+      /^modules\/[^/]+\/tools\//.test(relPath) ||
+      /^modules\/[^/]+\/handlers\//.test(relPath) ||
+      /^modules\/[^/]+\/jobs\.ts$/.test(relPath) ||
+      /^wake\//.test(relPath)
     if (!isTarget) continue
 
     const callExprs = sf.getDescendantsOfKind(SyntaxKind.CallExpression)
