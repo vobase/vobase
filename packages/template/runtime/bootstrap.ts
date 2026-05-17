@@ -14,6 +14,7 @@
 import { join } from 'node:path'
 import { createAuth } from '@auth'
 import { createCliGrantRoutes } from '@auth/cli-grant'
+import { createInviteAcceptRedirectMiddleware } from '@auth/invite-redirect'
 import {
   createRequireRole,
   createRequireSession,
@@ -214,6 +215,12 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:5173'
   app.route('/api/auth', createCliGrantRoutes({ auth, publicBaseUrl }))
   app.route('/api/auth', createWhoamiRoute(auth, db))
+  // US-019 — phone-verification redirect for newly-accepted invitations.
+  // Mounted BEFORE the catch-all so it wraps better-auth's accept-invitation
+  // endpoint (forwards → inspects response → optionally rewrites to a 302
+  // pointing at `/onboard/verify-phone` for unverified joiners). See
+  // `auth/invite-redirect.ts`.
+  app.use('/api/auth/organization/accept-invitation', createInviteAcceptRedirectMiddleware(db))
   app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
   const requireSession = createRequireSession(auth)
