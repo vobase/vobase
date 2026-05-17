@@ -60,7 +60,7 @@ function generateNonce(): string {
 function postWithSecret(app: Hono, path: string, body: Record<string, unknown>, hmacSecret: string): Promise<Response> {
   const bodyStr = JSON.stringify(body)
   const { headers } = signTestHmac({ method: 'POST', path, body: bodyStr, timestampMs: Date.now(), secret: hmacSecret })
-  return app.fetch(new Request(`http://localhost${path}`, { method: 'POST', headers, body: bodyStr }))
+  return Promise.resolve(app.fetch(new Request(`http://localhost${path}`, { method: 'POST', headers, body: bodyStr })))
 }
 
 // ─── Shared setup ─────────────────────────────────────────────────────────────

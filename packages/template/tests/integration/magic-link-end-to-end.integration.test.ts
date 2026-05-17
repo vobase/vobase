@@ -53,12 +53,14 @@ function signedPost(
   const timestampMs = opts.timestampMs ?? Date.now()
   const bodyStr = JSON.stringify(body)
   const { headers } = signTestHmac({ method: 'POST', path, body: bodyStr, timestampMs, secret })
-  return app.fetch(
-    new Request(`http://localhost${path}`, {
-      method: 'POST',
-      headers,
-      body: bodyStr,
-    }),
+  return Promise.resolve(
+    app.fetch(
+      new Request(`http://localhost${path}`, {
+        method: 'POST',
+        headers,
+        body: bodyStr,
+      }),
+    ),
   )
 }
 

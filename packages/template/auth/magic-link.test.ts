@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import { connectTestDb, resetAndSeedDb } from '../tests/helpers/test-db'
 import { createAuth } from './index'
-import { mintMagicLink } from './magic-link'
+import { MagicLinkMintError, mintMagicLink } from './magic-link'
 
 // Alice is seeded by contacts/seed.ts — userId + email are stable across resets.
 const ALICE_USER_ID = 'usr0alice0'
@@ -48,16 +48,28 @@ describe('mintMagicLink', () => {
     expect(expiresAt).toBeLessThan(Date.now() + 25 * 60 * 60 * 1000)
   })
 
-  it('throws notFound for a nonexistent user', async () => {
-    await expect(
-      mintMagicLink(auth, handle.db, {
+  it('throws MagicLinkMintError wrapping staff_user_not_found for a nonexistent user', async () => {
+    // US-011b changed mintMagicLink to wrap all inner errors in MagicLinkMintError
+    // (so dispatcher's `instanceof MagicLinkMintError` catch works uniformly).
+    // The original `staff_user_not_found` notFound error is preserved as `.cause`.
+    try {
+      await mintMagicLink(auth, handle.db, {
         userId: 'nonexistent-user-id',
         email: 'nobody@nowhere.test',
         tenantId: 't1',
         organizationId: 'o1',
         redirectPath: '/inbox',
-      }),
-    ).rejects.toMatchObject({ message: expect.stringContaining('staff_user_not_found') })
+      })
+      throw new Error('mintMagicLink should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(MagicLinkMintError)
+      const mintErr = err as MagicLinkMintError
+      expect(mintErr.message).toBe('magic_link_mint_failed')
+      // Inner cause carries the original staff_user_not_found shape
+      const cause = mintErr.cause as { code?: string; message?: string } | undefined
+      const innerText = JSON.stringify(cause ?? {}) + String(cause?.message ?? '')
+      expect(innerText).toContain('staff_user_not_found')
+    }
   })
 
   it('resolves 50 concurrent mints for the same email to distinct tokens', async () => {
@@ -114,15 +126,23 @@ describe('mintMagicLink captor timeout', () => {
       } as unknown as typeof realAuth
 
       const startMs = Date.now()
-      await expect(
-        mintMagicLink(stubAuth, handle2.db, {
+      // US-011b wraps captor_timeout in MagicLinkMintError; inner cause preserves the original.
+      try {
+        await mintMagicLink(stubAuth, handle2.db, {
           userId: ALICE_USER_ID,
           email: ALICE_EMAIL,
           tenantId: 't1',
           organizationId: 'o1',
           redirectPath: '/inbox',
-        }),
-      ).rejects.toThrow('captor_timeout')
+        })
+        throw new Error('mintMagicLink should have rejected on captor timeout')
+      } catch (err) {
+        expect(err).toBeInstanceOf(MagicLinkMintError)
+        const mintErr = err as MagicLinkMintError
+        expect(mintErr.message).toBe('magic_link_mint_failed')
+        const causeMsg = (mintErr.cause as { message?: string } | undefined)?.message ?? String(mintErr.cause ?? '')
+        expect(causeMsg).toContain('captor_timeout')
+      }
 
       // Should reject within 5.5 s of CAPTOR_TIMEOUT_MS = 5_000
       expect(Date.now() - startMs).toBeLessThan(5_500)
