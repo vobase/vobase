@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import {
   BellIcon,
   BellOffIcon,
+  BellRingIcon,
   CheckCircle2Icon,
   CheckIcon,
   ClockIcon,
@@ -491,9 +492,67 @@ function ActivityRow({ ev, directory }: { ev: ActivityEvent; directory: Principa
           actor={{ tokenKey: 'decidedBy', verb: 'declined', defaultKind: 'staff' }}
         />
       )
+    case 'notification.sent':
+      return <NotificationActivityLine kind="sent" payload={p} directory={directory} />
+    case 'notification.suppressed':
+      return <NotificationActivityLine kind="suppressed" payload={p} directory={directory} />
     default:
       return <ActivityLine icon={<ZapIcon className="size-3.5" />}>{ev.type}</ActivityLine>
   }
+}
+
+/**
+ * Inline timeline row for `notification.sent` / `notification.suppressed`
+ * events. Shape:
+ *   sent       → `[bell-ring] Pinged <PrincipalAvatar><name> via <channel>`
+ *   suppressed → `[bell-off] Skipped ping to <PrincipalAvatar><name> (<reason>)`
+ *
+ * The recipient is rendered through the principal directory (staff token =
+ * `user:<id>`) when possible so it carries the blue-person avatar; falls back
+ * to the snapshot `recipientDisplayName` from the payload when the staff has
+ * since been removed (the snapshot survives renames/deletions).
+ */
+function NotificationActivityLine({
+  kind,
+  payload,
+  directory,
+}: {
+  kind: 'sent' | 'suppressed'
+  payload: Record<string, unknown>
+  directory: PrincipalDirectory
+}) {
+  const staffId = typeof payload.recipientStaffId === 'string' ? payload.recipientStaffId : null
+  const displayName =
+    typeof payload.recipientDisplayName === 'string' && payload.recipientDisplayName
+      ? payload.recipientDisplayName
+      : (staffId ?? 'someone')
+  const channel = typeof payload.channel === 'string' ? payload.channel : 'whatsapp'
+  const token = staffId ? `user:${staffId}` : null
+  const principal = token ? directory.resolve(token) : null
+
+  const recipient = principal ? (
+    <span className="inline-flex items-center gap-1 align-middle">
+      <PrincipalAvatar kind={principal.kind} />
+      <span className="font-medium">{displayName}</span>
+    </span>
+  ) : (
+    <span className="font-medium">{displayName}</span>
+  )
+
+  if (kind === 'sent') {
+    return (
+      <ActivityLine icon={<BellRingIcon className="size-3.5" />}>
+        Pinged {recipient} via {channel}
+      </ActivityLine>
+    )
+  }
+
+  const reason = typeof payload.suppressionReason === 'string' ? payload.suppressionReason : 'unknown'
+  return (
+    <ActivityLine icon={<BellOffIcon className="size-3.5" />}>
+      Skipped ping to {recipient} ({reason})
+    </ActivityLine>
+  )
 }
 
 function ActivityLine({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {

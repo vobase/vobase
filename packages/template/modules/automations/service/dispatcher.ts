@@ -37,6 +37,7 @@ import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
+import { recordNotificationSent, recordNotificationSuppressed } from '@modules/messaging/service/notification-events'
 import { applyVerificationGating } from '@modules/team/service/mention-notify'
 import { find as findStaff } from '@modules/team/service/staff'
 import {
@@ -214,6 +215,7 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
       { ruleId: rule.id, eventName, automationRunId: runId, suppressionReason: 'rule_paused' },
       '[automations/dispatcher] suppressed_paused',
     )
+    await emitNotificationSuppressedIfStaffPing(eventName, payload, 'paused')
     return { runId, status: 'suppressed_paused' }
   }
 
@@ -241,6 +243,7 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
           { ruleId: rule.id, eventName, automationRunId: runId, suppressionReason: 'staff_ping_cooldown' },
           '[automations/dispatcher] suppressed_cooldown',
         )
+        await emitNotificationSuppressedIfStaffPing(eventName, payload, 'cooldown')
         return { runId, status: 'suppressed_cooldown' }
       }
     }
@@ -263,6 +266,7 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
           },
           '[automations/dispatcher] suppressed_unverified',
         )
+        await emitNotificationSuppressedIfStaffPing(eventName, payload, 'unverified')
         return { runId, status: 'suppressed_unverified' }
       }
 
@@ -487,7 +491,7 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
   // Send the WA template. Non-fatal errors are logged and execution continues
   // so the wake enqueue (step 4) still fires.
   try {
-    await sendTemplate({
+    const sendResult = await sendTemplate({
       organizationId,
       staffPhoneE164: profile.phoneNumber,
       templateName,
@@ -498,6 +502,20 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
       { ruleId, eventName, staffUserId, templateName, automationRunId: runId },
       '[automations/dispatcher] staff-ping WA notification sent',
     )
+    // Timeline visibility: record "Pinged {staff} via whatsapp" against the
+    // conversation. Best-effort — falls back to userId if the staff display
+    // name can't be loaded (handled inside `recordNotificationSent`).
+    if (eventPayload.conversationId) {
+      await recordNotificationSent({
+        conversationId: eventPayload.conversationId,
+        organizationId,
+        kind,
+        channel: 'whatsapp',
+        recipientStaffId: staffUserId,
+        recipientDisplayName: profile.displayName ?? staffUserId,
+        messageId: sendResult.messageId ?? '',
+      })
+    }
   } catch (err) {
     logger.warn(
       { err, ruleId, eventName, staffUserId, templateName, automationRunId: runId },
@@ -506,6 +524,50 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
   }
 
   return null
+}
+
+// ─── Timeline-event helpers ──────────────────────────────────────────────
+
+/**
+ * Emit a `notification.suppressed` row to `harness.conversation_events` when
+ * the payload carries a `conversationId` + `assigneeStaffUserId`. Cron and
+ * approval/proposal-decided events bypass — those don't represent staff pings.
+ *
+ * The helper looks up the staff display name lazily so the upstream code path
+ * doesn't have to thread `findStaff` through three layers of suppression
+ * branches. Snapshotting the name (rather than just the id) keeps the
+ * timeline readable when the staff is later renamed or removed.
+ */
+async function emitNotificationSuppressedIfStaffPing<E extends EventName>(
+  eventName: E,
+  payload: EventPayload<E>,
+  suppressionReason: 'cooldown' | 'paused' | 'unverified',
+): Promise<void> {
+  if (eventName !== 'approval_filed' && eventName !== 'proposal_filed') return
+  const p = payload as unknown as {
+    conversationId: string | null
+    organizationId: string
+    assigneeStaffUserId?: string | null
+  }
+  if (!p.conversationId || !p.assigneeStaffUserId) return
+
+  let recipientDisplayName = p.assigneeStaffUserId
+  try {
+    const profile = await findStaff(p.assigneeStaffUserId)
+    recipientDisplayName = profile?.displayName ?? p.assigneeStaffUserId
+  } catch {
+    // findStaff failure is non-fatal — keep the userId snapshot as fallback.
+  }
+
+  await recordNotificationSuppressed({
+    conversationId: p.conversationId,
+    organizationId: p.organizationId,
+    kind: eventName === 'approval_filed' ? 'approval' : 'proposal',
+    channel: 'whatsapp',
+    recipientStaffId: p.assigneeStaffUserId,
+    recipientDisplayName,
+    suppressionReason,
+  })
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────

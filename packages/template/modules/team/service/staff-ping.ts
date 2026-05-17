@@ -40,6 +40,11 @@ import {
   templateNameFor,
 } from '@modules/integrations/service/notification-template-payloads'
 import type { InternalNote } from '@modules/messaging/schema'
+import {
+  type NotificationSuppressionReason,
+  recordNotificationSent,
+  recordNotificationSuppressed,
+} from '@modules/messaging/service/notification-events'
 import { decide as decideApproval } from '@modules/messaging/service/pending-approvals'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { applyVerificationGating } from '@modules/team/service/mention-notify'
@@ -118,12 +123,28 @@ export type StaffPingResult =
  * matching the messaging layout middleware convention.
  */
 export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { tx: Tx }): Promise<StaffPingResult> {
-  void ctx.tx // reserved for the US-013 transactional dispatcher wiring
-
   // US-021: gate before any side-effects. Returns suppressed_unverified when
   // `auth.user.phoneNumberVerified !== true` (NULL = unverified).
   const gating = await applyVerificationGating([params.staffUserId], params.organizationId)
   if (gating.unverified.includes(params.staffUserId)) {
+    // Surface the suppression to the conversation timeline so customers see
+    // *why* a ping didn't fire. `admin_alert` has no conversationId — skip
+    // silently in that branch (the alert is conversation-less).
+    if (params.conversationId) {
+      const displayName = await resolveStaffDisplayName(params.staffUserId)
+      await recordNotificationSuppressed(
+        {
+          conversationId: params.conversationId,
+          organizationId: params.organizationId,
+          kind,
+          channel: 'whatsapp',
+          recipientStaffId: params.staffUserId,
+          recipientDisplayName: displayName,
+          suppressionReason: 'unverified',
+        },
+        ctx.tx,
+      )
+    }
     return { status: 'suppressed_unverified' }
   }
 
@@ -141,6 +162,42 @@ export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { 
   void params.bodyText
   void params.senderLabel
   return { status: 'sent', pingId: `${convId}:${params.staffUserId}` }
+}
+
+/**
+ * Snapshot the staff display name at notification time so the timeline survives
+ * later renames / removals. Falls back to the userId if the staff row can't
+ * be loaded.
+ */
+async function resolveStaffDisplayName(staffUserId: string): Promise<string> {
+  try {
+    const profile = await findStaff(staffUserId)
+    return profile?.displayName ?? staffUserId
+  } catch {
+    return staffUserId
+  }
+}
+
+/**
+ * Convenience for the mention fan-out's per-staff suppression sites — wraps
+ * `recordNotificationSuppressed` with the shared `kind: 'mention'` + `channel:
+ * 'whatsapp'` defaults so the call sites stay terse.
+ */
+function emitMentionSuppressed(
+  note: MentionFanOutNote,
+  recipientStaffId: string,
+  recipientDisplayName: string,
+  suppressionReason: NotificationSuppressionReason,
+): Promise<void> {
+  return recordNotificationSuppressed({
+    conversationId: note.conversationId,
+    organizationId: note.organizationId,
+    kind: 'mention',
+    channel: 'whatsapp',
+    recipientStaffId,
+    recipientDisplayName,
+    suppressionReason,
+  })
 }
 
 // ─── Reply routing (US-009 / Slice B.4) ──────────────────────────────────────
@@ -721,6 +778,19 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
           }
         }
         result.skipped.push({ userId, reason: 'phone_unverified' })
+        // Timeline visibility: customers + staff in the inbox see *why* the
+        // mention didn't WA-ping. The display name is best-effort (the staff
+        // profile may not exist) — falls back to the userId.
+        const recipientDisplayName = await resolveStaffDisplayName(userId)
+        await recordNotificationSuppressed({
+          conversationId: note.conversationId,
+          organizationId: note.organizationId,
+          kind: 'mention',
+          channel: 'whatsapp',
+          recipientStaffId: userId,
+          recipientDisplayName,
+          suppressionReason: 'unverified',
+        })
       }),
     )
 
@@ -734,17 +804,21 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
               result.skipped.push({ userId, reason: 'no_profile' })
               return
             }
+            const displayName = profile.displayName ?? userId
             if (!isOffline(profile.lastSeenAt)) {
               result.skipped.push({ userId, reason: 'online' })
+              await emitMentionSuppressed(note, userId, displayName, 'offline')
               return
             }
             const prefs = await getPrefs(userId)
             if (!prefs.mentionsEnabled) {
               result.skipped.push({ userId, reason: 'mentions_disabled' })
+              await emitMentionSuppressed(note, userId, displayName, 'paused')
               return
             }
             if (!prefs.whatsappEnabled) {
               result.skipped.push({ userId, reason: 'channel_disabled' })
+              await emitMentionSuppressed(note, userId, displayName, 'paused')
               return
             }
             const send = await sendNotification(note.organizationId, profile, 'mention', {
@@ -772,6 +846,19 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
                 logger.warn({ err }, '[team/staff-ping] recordPing failed (non-fatal)')
               }
             }
+            // Timeline visibility: "Pinged {staff} via whatsapp". `messageId`
+            // falls back to a sentinel when the upstream send didn't surface
+            // a wire id (the WA template path can return null for managed-
+            // notif sends that don't materialise a `channels_log` row).
+            await recordNotificationSent({
+              conversationId: note.conversationId,
+              organizationId: note.organizationId,
+              kind: 'mention',
+              channel: 'whatsapp',
+              recipientStaffId: userId,
+              recipientDisplayName: displayName,
+              messageId: send.messageId ?? '',
+            })
             result.notified.push(userId)
           } catch (err) {
             result.skipped.push({ userId, reason: err instanceof Error ? err.message : 'error' })

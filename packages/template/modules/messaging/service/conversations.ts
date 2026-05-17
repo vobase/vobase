@@ -176,6 +176,13 @@ export const TIMELINE_ACTIVITY_TYPES = [
   'change.auto_applied',
   'change.approved',
   'change.rejected',
+  // Staff-ping notification events. Emitted by `modules/messaging/service/notification-events.ts`
+  // when the team module dispatches (or suppresses) a WhatsApp/email ping for
+  // a mention/approval/proposal. Renders as "Pinged {staff} via {channel}" /
+  // "Skipped ping to {staff} ({reason})". `admin_alert` kind never has a
+  // conversationId and is therefore never journaled to a timeline.
+  'notification.sent',
+  'notification.suppressed',
 ] as const
 
 export interface ConversationsService {
