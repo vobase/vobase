@@ -1,21 +1,6 @@
-/**
- * Notification timeline events — sole entry point for cross-module callers
- * that need to record a staff ping in `harness.conversation_events`.
- *
- * `check:shape` (see `scripts/check-module-shape.ts`) bans direct writes to
- * `conversation_events` from anywhere outside `modules/messaging/service/**`,
- * so the team-module staff-ping path and any other dispatch site call
- * `recordNotificationSent` / `recordNotificationSuppressed` here instead of
- * inserting a row themselves. The events surface in the inbox activity
- * timeline (see `TIMELINE_ACTIVITY_TYPES` in `service/conversations.ts`).
- *
- * Both helpers are best-effort: when the journal service is not installed
- * (unit tests that bypass `runtime/bootstrap.ts`) we swallow the error and
- * keep the producer's transaction intact — the ping itself succeeded, the
- * timeline row is a side effect.
- */
+// Sole write path for notification.sent / notification.suppressed conversation events (check:shape).
 
-import { journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
+import { journalGetLatestTurnIndex as getLatestTurnIndex, logger } from '@vobase/core'
 
 import type { AgentEvent } from '~/wake/events'
 import { appendJournalEvent } from './journal'
@@ -61,6 +46,35 @@ export interface RecordNotificationSuppressedInput {
 /** Drizzle tx handle — typed as `unknown` to mirror `appendJournalEvent`. */
 type Tx = unknown
 
+type TimelineBase = {
+  conversationId: string
+  organizationId: string
+  kind: NotificationKind
+  channel: NotificationChannel
+  recipientStaffId: string
+  recipientDisplayName: string
+}
+
+async function appendTimelineEvent(
+  tx: Tx,
+  base: TimelineBase,
+  extra:
+    | { type: 'notification.sent'; messageId: string }
+    | { type: 'notification.suppressed'; suppressionReason: NotificationSuppressionReason },
+): Promise<void> {
+  const turnIndex = await getLatestTurnIndex(base.conversationId, tx)
+  const event = { ts: new Date(), turnIndex, ...base, ...extra }
+  await appendJournalEvent(
+    {
+      conversationId: base.conversationId,
+      organizationId: base.organizationId,
+      turnIndex,
+      event: event as unknown as AgentEvent,
+    },
+    tx,
+  )
+}
+
 /**
  * Append a `notification.sent` row to the conversation timeline.
  *
@@ -71,33 +85,9 @@ type Tx = unknown
  */
 export async function recordNotificationSent(input: RecordNotificationSentInput, tx?: Tx): Promise<void> {
   try {
-    const turnIndex = await getLatestTurnIndex(input.conversationId, tx)
-    const event = {
-      ts: new Date(),
-      conversationId: input.conversationId,
-      organizationId: input.organizationId,
-      turnIndex,
-      type: 'notification.sent' as const,
-      kind: input.kind,
-      channel: input.channel,
-      recipientStaffId: input.recipientStaffId,
-      recipientDisplayName: input.recipientDisplayName,
-      messageId: input.messageId,
-    }
-    await appendJournalEvent(
-      {
-        conversationId: input.conversationId,
-        organizationId: input.organizationId,
-        turnIndex,
-        event: event as unknown as AgentEvent,
-      },
-      tx,
-    )
+    await appendTimelineEvent(tx, input, { type: 'notification.sent', messageId: input.messageId })
   } catch (err) {
-    console.warn(
-      '[messaging/notification-events] notification.sent journal write skipped:',
-      err instanceof Error ? err.message : err,
-    )
+    logger.warn({ err }, '[messaging/notification-events] notification.sent journal write skipped')
   }
 }
 
@@ -111,32 +101,11 @@ export async function recordNotificationSent(input: RecordNotificationSentInput,
  */
 export async function recordNotificationSuppressed(input: RecordNotificationSuppressedInput, tx?: Tx): Promise<void> {
   try {
-    const turnIndex = await getLatestTurnIndex(input.conversationId, tx)
-    const event = {
-      ts: new Date(),
-      conversationId: input.conversationId,
-      organizationId: input.organizationId,
-      turnIndex,
-      type: 'notification.suppressed' as const,
-      kind: input.kind,
-      channel: input.channel,
-      recipientStaffId: input.recipientStaffId,
-      recipientDisplayName: input.recipientDisplayName,
+    await appendTimelineEvent(tx, input, {
+      type: 'notification.suppressed',
       suppressionReason: input.suppressionReason,
-    }
-    await appendJournalEvent(
-      {
-        conversationId: input.conversationId,
-        organizationId: input.organizationId,
-        turnIndex,
-        event: event as unknown as AgentEvent,
-      },
-      tx,
-    )
+    })
   } catch (err) {
-    console.warn(
-      '[messaging/notification-events] notification.suppressed journal write skipped:',
-      err instanceof Error ? err.message : err,
-    )
+    logger.warn({ err }, '[messaging/notification-events] notification.suppressed journal write skipped')
   }
 }

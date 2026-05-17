@@ -1,21 +1,3 @@
-/**
- * Integration: staff-ping fan-out writes timeline events to
- * `harness.conversation_events` so the inbox activity timeline can show
- * "Pinged {staff} via whatsapp" / "Skipped ping to {staff} (unverified)".
- *
- * Pairs with `mention-notify-unverified-skip.integration.test.ts` — same
- * stub harness, but here we also install a captor journal service so we
- * can assert on every `notification.sent` / `notification.suppressed`
- * emission without a real Postgres round-trip.
- *
- * Acceptance:
- *   1. Verified mention → emits 1 `notification.sent`.
- *   2. Unverified mention → emits 1 `notification.suppressed`
- *      with `suppressionReason: 'unverified'`.
- *   3. Both events carry the snapshot display name so the timeline survives
- *      a later staff rename.
- */
-
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
   __resetChannelInstancesServiceForTests,

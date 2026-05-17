@@ -1,16 +1,4 @@
-/**
- * Invitations service — list / resend / revoke pending org invitations.
- *
- * Reads from better-auth's `auth.invitation` table directly (no service-layer
- * write to the same row from anywhere else — the create path stays in
- * better-auth's organization plugin via `authClient.organization.inviteMember`).
- * Resend re-renders the invitation email and pushes it through the same SMTP
- * sender used at invite-mint time, then bumps `expiresAt` so the row stays
- * fresh. Revoke flips `status` to `'canceled'`.
- *
- * Mirrors the staff-service shape (factory + installable singleton + module-level
- * re-exports) so handlers and verbs consume a uniform contract.
- */
+// Invitations service — list / resend / revoke pending org invitations.
 
 import { productName } from '@auth/branding'
 import { renderInvitationEmail } from '@auth/emails'
@@ -19,7 +7,7 @@ import { authInvitation, authOrganization, authUser } from '@auth/schema'
 import { logger, notFound } from '@vobase/core'
 import { and, asc, eq, gt } from 'drizzle-orm'
 
-import { type RealtimeService, safeNotify } from '~/runtime'
+import { type RealtimeService, type ScopedDb, safeNotify } from '~/runtime'
 
 /** Default invitation TTL (matches better-auth's organization plugin default of 48h). */
 const DEFAULT_INVITE_TTL_MS = 48 * 60 * 60 * 1000
@@ -37,7 +25,7 @@ export interface PendingInvitation {
 }
 
 interface InvitationsDeps {
-  db: unknown
+  db: ScopedDb
   realtime: RealtimeService
 }
 
@@ -48,10 +36,7 @@ export interface InvitationsService {
 }
 
 export function createInvitationsService(deps: InvitationsDeps): InvitationsService {
-  const db = deps.db as {
-    select: Function
-    update: Function
-  }
+  const db = deps.db
   const realtime = deps.realtime
 
   const notify = (id: string, action: string) => safeNotify(realtime, { table: 'auth_invitation', id, action })
@@ -129,17 +114,18 @@ export function createInvitationsService(deps: InvitationsDeps): InvitationsServ
   async function resend(organizationId: string, invitationId: string): Promise<void> {
     const invite = await loadPending(organizationId, invitationId)
 
-    const [inviter] = (await db
-      .select({ name: authUser.name, email: authUser.email })
-      .from(authUser)
-      .where(eq(authUser.id, invite.inviterId))
-      .limit(1)) as Array<{ name: string | null; email: string | null }>
-
-    const [org] = (await db
-      .select({ name: authOrganization.name })
-      .from(authOrganization)
-      .where(eq(authOrganization.id, organizationId))
-      .limit(1)) as Array<{ name: string | null }>
+    const [[inviter], [org]] = await Promise.all([
+      db
+        .select({ name: authUser.name, email: authUser.email })
+        .from(authUser)
+        .where(eq(authUser.id, invite.inviterId))
+        .limit(1) as Promise<Array<{ name: string | null; email: string | null }>>,
+      db
+        .select({ name: authOrganization.name })
+        .from(authOrganization)
+        .where(eq(authOrganization.id, organizationId))
+        .limit(1) as Promise<Array<{ name: string | null }>>,
+    ])
 
     const baseUrl = process.env.BETTER_AUTH_URL || 'http://localhost:5173'
     const signInUrl = `${baseUrl}/auth/login?invitationId=${encodeURIComponent(invitationId)}`

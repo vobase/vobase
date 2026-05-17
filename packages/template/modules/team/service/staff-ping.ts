@@ -169,7 +169,7 @@ export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { 
  * later renames / removals. Falls back to the userId if the staff row can't
  * be loaded.
  */
-async function resolveStaffDisplayName(staffUserId: string): Promise<string> {
+export async function resolveStaffDisplayName(staffUserId: string): Promise<string> {
   try {
     const profile = await findStaff(staffUserId)
     return profile?.displayName ?? staffUserId
@@ -778,9 +778,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
           }
         }
         result.skipped.push({ userId, reason: 'phone_unverified' })
-        // Timeline visibility: customers + staff in the inbox see *why* the
-        // mention didn't WA-ping. The display name is best-effort (the staff
-        // profile may not exist) — falls back to the userId.
         const recipientDisplayName = await resolveStaffDisplayName(userId)
         await recordNotificationSuppressed({
           conversationId: note.conversationId,
@@ -846,10 +843,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
                 logger.warn({ err }, '[team/staff-ping] recordPing failed (non-fatal)')
               }
             }
-            // Timeline visibility: "Pinged {staff} via whatsapp". `messageId`
-            // falls back to a sentinel when the upstream send didn't surface
-            // a wire id (the WA template path can return null for managed-
-            // notif sends that don't materialise a `channels_log` row).
             await recordNotificationSent({
               conversationId: note.conversationId,
               organizationId: note.organizationId,

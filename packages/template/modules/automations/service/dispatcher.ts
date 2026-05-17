@@ -43,6 +43,7 @@ import { find as findStaff } from '@modules/team/service/staff'
 import {
   buildRedirectRefs,
   buildTemplateForDispatch,
+  resolveStaffDisplayName,
   type SendTemplateFn,
   urlToSuffix,
 } from '@modules/team/service/staff-ping'
@@ -502,9 +503,6 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
       { ruleId, eventName, staffUserId, templateName, automationRunId: runId },
       '[automations/dispatcher] staff-ping WA notification sent',
     )
-    // Timeline visibility: record "Pinged {staff} via whatsapp" against the
-    // conversation. Best-effort — falls back to userId if the staff display
-    // name can't be loaded (handled inside `recordNotificationSent`).
     if (eventPayload.conversationId) {
       await recordNotificationSent({
         conversationId: eventPayload.conversationId,
@@ -551,13 +549,7 @@ async function emitNotificationSuppressedIfStaffPing<E extends EventName>(
   }
   if (!p.conversationId || !p.assigneeStaffUserId) return
 
-  let recipientDisplayName = p.assigneeStaffUserId
-  try {
-    const profile = await findStaff(p.assigneeStaffUserId)
-    recipientDisplayName = profile?.displayName ?? p.assigneeStaffUserId
-  } catch {
-    // findStaff failure is non-fatal — keep the userId snapshot as fallback.
-  }
+  const recipientDisplayName = await resolveStaffDisplayName(p.assigneeStaffUserId)
 
   await recordNotificationSuppressed({
     conversationId: p.conversationId,
