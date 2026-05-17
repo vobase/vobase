@@ -21,6 +21,8 @@ export interface UserNotificationPrefs {
   mentionsEnabled: boolean
   whatsappEnabled: boolean
   emailEnabled: boolean
+  approvalsEnabled: boolean
+  proposalsEnabled: boolean
   updatedAt: Date
 }
 
@@ -29,6 +31,8 @@ export const userNotificationPrefs = settingsPgSchema.table('user_notification_p
   mentionsEnabled: boolean('mentions_enabled').notNull().default(true),
   whatsappEnabled: boolean('whatsapp_enabled').notNull().default(false),
   emailEnabled: boolean('email_enabled').notNull().default(false),
+  approvalsEnabled: boolean('approvals_enabled').notNull().default(true),
+  proposalsEnabled: boolean('proposals_enabled').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()

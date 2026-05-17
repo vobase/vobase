@@ -8,6 +8,8 @@ const notificationsSchema = z.object({
   mentionsEnabled: z.boolean().optional(),
   whatsappEnabled: z.boolean().optional(),
   emailEnabled: z.boolean().optional(),
+  approvalsEnabled: z.boolean().optional(),
+  proposalsEnabled: z.boolean().optional(),
 })
 
 const invalidBody = (

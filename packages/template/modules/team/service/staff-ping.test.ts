@@ -178,6 +178,8 @@ function installStubs(): void {
       mentionsEnabled: true,
       whatsappEnabled: true,
       emailEnabled: false,
+      approvalsEnabled: true,
+      proposalsEnabled: true,
       updatedAt: new Date(),
     }),
     upsert: async (userId) => ({
@@ -185,6 +187,8 @@ function installStubs(): void {
       mentionsEnabled: true,
       whatsappEnabled: true,
       emailEnabled: false,
+      approvalsEnabled: true,
+      proposalsEnabled: true,
       updatedAt: new Date(),
     }),
   })

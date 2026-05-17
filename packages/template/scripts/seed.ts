@@ -59,7 +59,7 @@ async function main() {
   await seedAgents(db, ctx)
 
   console.log('Seeding automations...')
-  await seedAutomations(db)
+  await seedAutomations(db, { organizationId })
 
   console.log('Seeding messaging...')
   await seedMessaging(db, ctx)

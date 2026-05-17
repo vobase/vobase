@@ -40,6 +40,8 @@ beforeAll(() => {
       mentionsEnabled: true,
       whatsappEnabled: false,
       emailEnabled: false,
+      approvalsEnabled: true,
+      proposalsEnabled: true,
       updatedAt: new Date(),
     }),
     upsert: async (userId, patch) => ({
@@ -47,6 +49,8 @@ beforeAll(() => {
       mentionsEnabled: patch.mentionsEnabled ?? true,
       whatsappEnabled: patch.whatsappEnabled ?? false,
       emailEnabled: patch.emailEnabled ?? false,
+      approvalsEnabled: patch.approvalsEnabled ?? true,
+      proposalsEnabled: patch.proposalsEnabled ?? true,
       updatedAt: new Date(),
     }),
   })

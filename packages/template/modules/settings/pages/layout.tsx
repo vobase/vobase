@@ -42,6 +42,8 @@ interface NotificationPrefsResponse {
   mentionsEnabled: boolean
   whatsappEnabled: boolean
   emailEnabled: boolean
+  approvalsEnabled: boolean
+  proposalsEnabled: boolean
   updatedAt: string
 }
 
@@ -149,7 +151,13 @@ function NotificationsSection() {
 
   const form = useForm<NotificationsValues>({
     resolver: zodResolver(notificationsSchema),
-    defaultValues: { mentionsEnabled: true, whatsappEnabled: false, emailEnabled: false },
+    defaultValues: {
+      mentionsEnabled: true,
+      whatsappEnabled: false,
+      emailEnabled: false,
+      approvalsEnabled: true,
+      proposalsEnabled: true,
+    },
   })
 
   useEffect(() => {
@@ -158,6 +166,8 @@ function NotificationsSection() {
         mentionsEnabled: data.mentionsEnabled,
         whatsappEnabled: data.whatsappEnabled,
         emailEnabled: data.emailEnabled,
+        approvalsEnabled: data.approvalsEnabled,
+        proposalsEnabled: data.proposalsEnabled,
       })
     }
   }, [data, form])
@@ -185,6 +195,18 @@ function NotificationsSection() {
           label="Email"
           checked={form.watch('emailEnabled') ?? false}
           onCheckedChange={(v) => form.setValue('emailEnabled', v)}
+        />
+        <SettingsToggle
+          label="Approval notifications"
+          description="WhatsApp ping when an agent files a pending approval that needs your decision."
+          checked={form.watch('approvalsEnabled') ?? true}
+          onCheckedChange={(v) => form.setValue('approvalsEnabled', v)}
+        />
+        <SettingsToggle
+          label="Proposal notifications"
+          description="WhatsApp ping when a change proposal needs your decision."
+          checked={form.watch('proposalsEnabled') ?? true}
+          onCheckedChange={(v) => form.setValue('proposalsEnabled', v)}
         />
       </InfoCard>
     </InfoSection>

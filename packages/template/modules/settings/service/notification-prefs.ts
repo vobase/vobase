@@ -16,6 +16,8 @@ export interface NotificationPrefsPatch {
   mentionsEnabled?: boolean
   whatsappEnabled?: boolean
   emailEnabled?: boolean
+  approvalsEnabled?: boolean
+  proposalsEnabled?: boolean
 }
 
 export interface NotificationPrefsService {
@@ -29,6 +31,8 @@ function defaults(userId: string): UserNotificationPrefs {
     mentionsEnabled: true,
     whatsappEnabled: false,
     emailEnabled: false,
+    approvalsEnabled: true,
+    proposalsEnabled: true,
     updatedAt: new Date(),
   }
 }
@@ -65,6 +69,14 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
     if (patch.emailEnabled !== undefined) {
       values.emailEnabled = patch.emailEnabled
       update.emailEnabled = patch.emailEnabled
+    }
+    if (patch.approvalsEnabled !== undefined) {
+      values.approvalsEnabled = patch.approvalsEnabled
+      update.approvalsEnabled = patch.approvalsEnabled
+    }
+    if (patch.proposalsEnabled !== undefined) {
+      values.proposalsEnabled = patch.proposalsEnabled
+      update.proposalsEnabled = patch.proposalsEnabled
     }
     const rows = (await db
       .insert(userNotificationPrefs)
