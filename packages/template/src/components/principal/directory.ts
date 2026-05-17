@@ -8,7 +8,7 @@
  *
  * Presence: a staff member is "online" when `availability === 'active'` and
  * `lastSeenAt` is within the heartbeat window. Threshold matches the mention
- * fan-out logic on the server (`mention-notify.ts`).
+ * fan-out logic on the server (`staff-ping.ts`).
  */
 
 import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
@@ -21,7 +21,7 @@ export type PrincipalKind = 'agent' | 'staff' | 'contact'
 
 // Must stay in sync with `PRESENCE_THRESHOLD_MS` in `runtime/presence.ts` —
 // frontend bundle can't reach into `~/runtime/*` (check:bundle gate), so the
-// value is duplicated here. Server-side `mention-notify.ts` imports the
+// value is duplicated here. Server-side `staff-ping.ts` imports the
 // canonical constant from `runtime/presence`.
 const PRESENCE_THRESHOLD_MS = 2 * 60 * 1000
 

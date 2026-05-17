@@ -5,7 +5,7 @@
  * ledger to a multi-kind `pending_staff_pings` ledger. The `kind` column
  * discriminates `'mention'` (current) / `'approval'` / `'proposal'` (US-009).
  *
- * - Written by `team/service/mention-notify.ts` (kind='mention') after a
+ * - Written by `team/service/staff-ping.ts` (kind='mention') after a
  *   successful WA send, carrying the send's `outboundWamid` when the provider
  *   returned one.
  * - Claimed by the inbound notifications handler when a staff WhatsApp reply

@@ -324,7 +324,7 @@ export async function findManagedChannel(organizationId: string, kind: string): 
 /**
  * Resolve the org's active notification-tier WhatsApp channel instance.
  * Convenience wrapper over the parameterised `findManagedChannel` so existing
- * callers (`mention-notify`, notification-mirror observer) stay terse.
+ * callers (`staff-ping`, notification-mirror observer) stay terse.
  */
 export function findNotificationChannel(organizationId: string): Promise<ChannelInstance | null> {
   return findManagedChannel(organizationId, 'notification' satisfies ManagedChannelKind)

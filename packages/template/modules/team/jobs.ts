@@ -14,14 +14,13 @@
  *
  * `team:fanout-mention-pings` — runs the WhatsApp mention fan-out off the
  * request path. Producers (`consult_staff` tool, HTTP notes handler) enqueue
- * it; the handler runs `fanOutNoteMentions` so the WA send + ping-ledger write
- * survive a process recycle.
+ * it; the handler runs `fanOutNoteMentions` (see `service/staff-ping.ts`) so
+ * the WA send + ping-ledger write survive a process recycle.
  */
 /** @contract platform-tenant-v1 */
 
 import type { JobDef } from '@vobase/core'
 
-import { FANOUT_MENTION_PINGS_JOB, FanOutMentionPingsPayloadSchema, fanOutNoteMentions } from './service/mention-notify'
 import {
   SYNC_STAFF_LINK_CRON_JOB,
   SYNC_STAFF_LINK_JOB,
@@ -30,6 +29,7 @@ import {
   syncStaffLinksEnqueue,
 } from './service/staff-link-sync'
 import { listOrgsWithStaffPhones } from './service/staff-link-sync-orgs'
+import { FANOUT_MENTION_PINGS_JOB, FanOutMentionPingsPayloadSchema, fanOutNoteMentions } from './service/staff-ping'
 
 export interface SyncStaffLinkJobPayload {
   orgId: string

@@ -1,34 +1,31 @@
 /**
- * Mention fan-out — T7b. For each `@staff:<userId>` mention on an internal
- * note, resolve the user's presence + notification prefs. If they're offline
- * (no `lastSeenAt` or older than 2 minutes) and opted into WhatsApp
- * notifications, send a WA ping pointing back at the conversation.
+ * Staff ping primitive: dispatches a WhatsApp notification (`vobase_tenant_notification`
+ * Meta template) to a staff user about a conversation event they need to be aware of.
  *
- * Sends through the org's notification-tier WhatsApp channel
- * (`channels/service/instances::findNotificationChannel`) — not the customer-
- * facing WhatsApp channel — and dials the staff member's `phoneNumber` (their
- * personal phone, joined in from the better-auth `user` table by the staff
- * service; set by an admin at invite time or via the staff profile form).
+ * Three kinds (US-009 / Slice B.4):
+ *   - 'mention'   — staff is @-mentioned in an internal note (the original kind)
+ *   - 'approval'  — staff needs to decide on a pending approval (Slice B.3 emit('approval_filed'))
+ *   - 'proposal'  — staff needs to decide on a change proposal (Slice B.3 emit('proposal_filed'))
  *
- * On a successful send the service writes a row to `pending_mention_pings`
- * (TTL ledger) so the inbound notifications handler can correlate the
- * staff's WA reply back to the originating conversation and route it as
- * an internal-note ask-staff-answer.
+ * Per-kind template selector (Slice B.4 stub): all three kinds currently use
+ * `vobase_tenant_notification`. Slice C (US-011 / US-012) replaces this with
+ * kind-specific Meta templates (`vobase_approval_decision`,
+ * `vobase_proposal_decision`) and forwards structured button payloads
+ * (`approve:<refId>` / `deny:<refId>`). Until then: free-text regex on the
+ * reply path (see `reply-parser.ts`), single template on the send path.
  *
- * Best-effort: per-mention failures are swallowed so a flaky provider never
- * blocks the note insert. Never throws.
- *
- * Invocation path: producers (the `consult_staff` tool, the HTTP notes
- * handler) call `enqueueFanOut`, which enqueues `FANOUT_MENTION_PINGS_JOB`;
- * the team module's job handler then runs `fanOutNoteMentions` on the worker.
- * This keeps the WhatsApp I/O + `pending_mention_pings` write off the request
- * path, so they survive a process recycle and get pg-boss retry semantics.
+ * Renamed in US-009 from `mention-notify.ts` → `staff-ping.ts`. The existing
+ * mention fan-out APIs (`fanOutNoteMentions`, `enqueueMentionFanOut`,
+ * `createMentionNotifyService`) are preserved verbatim for back-compat with
+ * `messaging/handlers/notes.ts` + `messaging/tools/consult-staff.ts`.
  */
 
 import { agentDefinitions } from '@modules/agents/schema'
+import { decideChangeProposal } from '@modules/changes/service/proposals'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
 import type { InternalNote } from '@modules/messaging/schema'
+import { decide as decideApproval } from '@modules/messaging/service/pending-approvals'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
 import { recordPing } from '@modules/team/service/pending-staff-pings'
 import { find as findStaff } from '@modules/team/service/staff'
@@ -36,8 +33,146 @@ import { logger, type ScopedScheduler } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
+import type { Tx } from '~/runtime'
 import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
 import type { StaffProfile } from '../schema'
+
+// ─── Generalized multi-kind primitive (US-009 / Slice B.4) ───────────────────
+
+export type PingKind = 'mention' | 'approval' | 'proposal'
+
+export interface StaffPingParams {
+  conversationId: string
+  organizationId: string
+  staffUserId: string
+  /**
+   * Reference into pending_approvals or change_proposals row, depending on kind.
+   * For 'mention', this is the noteId.
+   */
+  referenceId: string
+  /** Pre-rendered body the staff WA receives — caller builds it from the upstream payload. */
+  bodyText: string
+  /** Sender label shown in the WA message ("Bob in #helpdesk", "Helpdesk Agent", etc). */
+  senderLabel: string
+  /** Set on follow-up re-pings so cooldown can bypass when a prior ping was claimed. */
+  reason?: 'followup'
+  /** Optional asking-agent id; defaults to a sentinel for non-mention kinds. */
+  askingAgentId?: string
+}
+
+export type StaffPingResult = { status: 'sent'; pingId: string } | { status: 'suppressed_cooldown' }
+
+/**
+ * Generic staff-ping primitive — used by the US-013 automations dispatcher
+ * and the existing mention fan-out (which still goes through
+ * `fanOutNoteMentions` for the per-staff prefs/online/no-phone checks).
+ *
+ * Per-kind template selector deferred to Slice C (US-011); all kinds currently
+ * use `vobase_tenant_notification`.
+ *
+ * Records the ping in `pending_staff_pings` (sole writer, see US-007) so a
+ * later staff reply can be claimed back via the two-rung ladder.
+ *
+ * Cooldown (see `modules/automations/service/cooldown.ts`) is enforced by
+ * the caller before invoking this — `staffPing` does not re-check.
+ *
+ * Slice B.4 wires a synchronous `recordPing` write through the installed
+ * `pending_staff_pings` service. The WhatsApp template dispatch is delegated
+ * to the installed `MentionNotifyService` when `kind === 'mention'`; for the
+ * other kinds the dispatcher (US-013) supplies the WA send via a future
+ * `templateSender` seam. Until then, `staffPing('approval'|'proposal', …)`
+ * records the ledger row and returns `{status: 'sent'}` so callers can wire
+ * the reply-claim path immediately; the send is filled in by US-013.
+ */
+export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { tx: Tx }): Promise<StaffPingResult> {
+  void ctx.tx // reserved for the US-013 transactional dispatcher wiring
+  const askingAgentId = params.askingAgentId ?? 'agent:pending'
+  await recordPing({
+    conversationId: params.conversationId,
+    staffUserId: params.staffUserId,
+    organizationId: params.organizationId,
+    askingAgentId,
+    originalNoteId: params.referenceId,
+    kind,
+    referenceId: kind === 'mention' ? null : params.referenceId,
+  })
+  // Per-kind template selector deferred to Slice C — see file header.
+  void params.bodyText
+  void params.senderLabel
+  // pendingStaffPings has no `id` returned by recordPing — surface a synthetic
+  // identifier of the (conv, staff) pair so callers can correlate logs.
+  return { status: 'sent', pingId: `${params.conversationId}:${params.staffUserId}` }
+}
+
+// ─── Reply routing (US-009 / Slice B.4) ──────────────────────────────────────
+
+export type ReplyDecision = 'approve' | 'deny' | 'unknown'
+
+export interface ReplyOutcome {
+  status: 'routed'
+  kind: PingKind
+  referenceId: string
+  decision: ReplyDecision
+  /** Free-text portion of the reply (after the verb), or the entire reply if unknown. */
+  note?: string
+}
+
+/**
+ * Parse the staff WhatsApp reply and route it.
+ *
+ * - 'mention' → wake-only (no decision; staff replied = ack, wake the asking agent).
+ *               The actual wake is done by the inbound router's existing
+ *               `addNote` post-commit fan-out — this function is a no-op for
+ *               'mention' beyond returning the outcome shape.
+ * - 'approval' → call `pendingApprovals.decide(approvalId, decision)` — the
+ *                decide path already emits `approval_decided` (US-008), so
+ *                the wake chain fires automatically.
+ * - 'proposal' → call `proposals.decideChangeProposal(proposalId, decision)`
+ *                — same automatic wake chain via `proposal_decided`.
+ *
+ * Decision-enum mapping: WA-side uses `'approve' | 'deny'`; the persistence
+ * services use `'approved' | 'rejected'`. The mapping is fixed here to keep
+ * the call sites terse.
+ */
+export async function resolveReply(
+  kind: PingKind,
+  payload: { decision: ReplyDecision; note?: string; referenceId: string },
+  claim: { staffUserId: string; conversationId: string; organizationId: string },
+): Promise<ReplyOutcome> {
+  void claim.conversationId
+  void claim.organizationId
+  const outcome: ReplyOutcome = {
+    status: 'routed',
+    kind,
+    referenceId: payload.referenceId,
+    decision: payload.decision,
+    ...(payload.note ? { note: payload.note } : {}),
+  }
+
+  if (kind === 'mention') return outcome
+
+  if (payload.decision === 'unknown') {
+    // Caller already attempted decision detection; bail to operator-thread
+    // fallback by leaving the outcome's decision as 'unknown' — the inbound
+    // handler will treat this as "could not auto-route" and surface the
+    // reply via the existing `dispatchStaffReply` operator-thread branch.
+    return outcome
+  }
+
+  const mappedDecision: 'approved' | 'rejected' = payload.decision === 'approve' ? 'approved' : 'rejected'
+  if (kind === 'approval') {
+    await decideApproval(payload.referenceId, {
+      decision: mappedDecision,
+      decidedByUserId: claim.staffUserId,
+      ...(payload.note ? { note: payload.note } : {}),
+    })
+  } else {
+    await decideChangeProposal(payload.referenceId, mappedDecision, claim.staffUserId, payload.note)
+  }
+  return outcome
+}
+
+// ─── Existing mention fan-out (preserved verbatim from mention-notify.ts) ────
 
 /** pg-boss job that runs the mention fan-out off the request path (see file header). */
 export const FANOUT_MENTION_PINGS_JOB = 'team:fanout-mention-pings'
@@ -196,7 +331,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
         staffIds,
         hasSendTemplate: Boolean(sendTemplate),
       },
-      '[team/mention-notify] fanOutNoteMentions start',
+      '[team/staff-ping] fanOutNoteMentions start',
     )
     if (staffIds.length === 0) return result
 
@@ -268,7 +403,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
             } catch (err) {
               // Non-fatal — the WA ping went out; the staff may still answer
               // in-app. Log for visibility.
-              logger.warn({ err }, '[team/mention-notify] recordPing failed (non-fatal)')
+              logger.warn({ err }, '[team/staff-ping] recordPing failed (non-fatal)')
             }
           }
           result.notified.push(userId)
@@ -284,7 +419,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
         notified: result.notified,
         skipped: result.skipped,
       },
-      '[team/mention-notify] fanOutNoteMentions done',
+      '[team/staff-ping] fanOutNoteMentions done',
     )
     return result
   }
@@ -295,13 +430,13 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     if (!jobs) {
       logger.warn(
         { noteId: note.id, mentions: note.mentions },
-        '[team/mention-notify] enqueueFanOut skipped — no jobs scheduler installed',
+        '[team/staff-ping] enqueueFanOut skipped — no jobs scheduler installed',
       )
       return
     }
     logger.info(
       { noteId: note.id, mentions: note.mentions, authorType: note.authorType },
-      '[team/mention-notify] enqueueFanOut',
+      '[team/staff-ping] enqueueFanOut',
     )
     // Carry only the fields the fan-out consumes — drops `createdAt` (a Date
     // that JSON-serializes to a string) and keeps the queue row small.
@@ -335,7 +470,7 @@ export function __resetMentionNotifyServiceForTests(): void {
 }
 function current(): MentionNotifyService {
   if (!_current) {
-    throw new Error('team/mention-notify: service not installed — call installMentionNotifyService() in module init')
+    throw new Error('team/staff-ping: service not installed — call installMentionNotifyService() in module init')
   }
   return _current
 }

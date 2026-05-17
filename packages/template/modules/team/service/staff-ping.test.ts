@@ -1,5 +1,5 @@
 /**
- * Unit tests for the mention-notify rewrite (Unit 8).
+ * Unit tests for the staff-ping rewrite (Unit 8).
  *
  * Covers the WHERE/WHO contract:
  *   - sends through `findNotificationChannel` (NOT the customer-WA channel)
@@ -9,7 +9,7 @@
  *
  * The integration with `addNote` post-commit fan-out is covered by
  * `tests/e2e/supervisor-mention-fanout.test.ts` already; this file isolates
- * the mention-notify side effects via stubs.
+ * the staff-ping side effects via stubs.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
@@ -24,6 +24,12 @@ import {
 import type { HarnessLogger } from '@vobase/core'
 
 import {
+  __resetPendingStaffPingServiceForTests as __resetPendingMentionPingServiceForTests,
+  installPendingStaffPingService as installPendingMentionPingService,
+  type PendingStaffPingService as PendingMentionPingService,
+} from './pending-staff-pings'
+import { __resetStaffServiceForTests, installStaffService } from './staff'
+import {
   __resetMentionNotifyServiceForTests,
   createMentionNotifyService,
   FANOUT_MENTION_PINGS_JOB,
@@ -31,13 +37,7 @@ import {
   fanOutNoteMentions,
   installMentionNotifyService,
   type SendTemplateFn,
-} from './mention-notify'
-import {
-  __resetPendingStaffPingServiceForTests as __resetPendingMentionPingServiceForTests,
-  installPendingStaffPingService as installPendingMentionPingService,
-  type PendingStaffPingService as PendingMentionPingService,
-} from './pending-staff-pings'
-import { __resetStaffServiceForTests, installStaffService } from './staff'
+} from './staff-ping'
 
 const NOOP_LOGGER: HarnessLogger = {
   debug: () => {},
@@ -242,7 +242,7 @@ function makeAgentNote(mentions: string[]): any {
   }
 }
 
-describe('mention-notify rewrite (Unit 8)', () => {
+describe('staff-ping rewrite (Unit 8)', () => {
   it('sends WA + records ping when agent mentions an offline staff with phone', async () => {
     const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_X}`]))
     expect(result.notified).toEqual([STAFF_X])
@@ -306,7 +306,7 @@ describe('mention-notify rewrite (Unit 8)', () => {
   })
 })
 
-describe('mention-notify enqueueFanOut', () => {
+describe('staff-ping enqueueFanOut', () => {
   it('enqueues FANOUT_MENTION_PINGS_JOB with the note and a per-note singletonKey', async () => {
     const sends: Array<{ name: string; data: unknown; opts?: { singletonKey?: string } }> = []
     const svc = createMentionNotifyService({

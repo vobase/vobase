@@ -10,12 +10,12 @@
  * Backed by the same `internal_notes` write path as `add_note` — `consult_staff`
  * always carries resolved `mentions`, `add_note` never does. Agent-authored
  * notes never trigger staff-note fan-out for the agent itself; staff become
- * aware via the mention-notification path (enqueued here as a durable job),
- * and their reply is what wakes the agent back. The HTTP notes handler enqueues
- * the same fan-out for human-authored notes — this is its agent-write-path twin.
+ * aware via the staff-ping path (enqueued here as a durable job), and their
+ * reply is what wakes the agent back. The HTTP notes handler enqueues the
+ * same fan-out for human-authored notes — this is its agent-write-path twin.
  */
 
-import { enqueueMentionFanOut } from '@modules/team/service/mention-notify'
+import { enqueueMentionFanOut } from '@modules/team/service/staff-ping'
 import { type Static, Type } from '@sinclair/typebox'
 import { defineAgentTool, logger } from '@vobase/core'
 

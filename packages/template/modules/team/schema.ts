@@ -56,7 +56,7 @@ export interface StaffProfile {
    * Personal phone in E.164 (`+`-prefixed). NOT a `staff_profiles` column — it
    * lives on the better-auth `user` table (phone-number plugin) and is joined
    * in by the staff service on read. Set by an admin at invite time or via the
-   * staff profile form. Used by `team/service/mention-notify.ts` to ping the
+   * staff profile form. Used by `team/service/staff-ping.ts` to ping the
    * staff member on the org's notification-tier WhatsApp number when an agent
    * @-mentions them in an internal note.
    */
@@ -162,7 +162,7 @@ export const staffAttributeDefinitions = teamPgSchema.table(
 )
 
 /**
- * TTL ledger for outbound staff pings. Written by `mention-notify.ts` (kind='mention') after
+ * TTL ledger for outbound staff pings. Written by `staff-ping.ts` (kind='mention') after
  * a successful WA send; claimed by the inbound notifications handler when a staff WA reply
  * arrives. Single row per `(conversationId, staffUserId)` — re-pinging refreshes the row.
  *

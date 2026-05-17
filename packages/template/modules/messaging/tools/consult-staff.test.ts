@@ -2,12 +2,12 @@ import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import type { InternalNote } from '@modules/messaging/schema'
 import { __resetNotesServiceForTests, installNotesService, type NotesService } from '@modules/messaging/service/notes'
 import type { StaffProfile } from '@modules/team/schema'
+import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
 import {
   __resetMentionNotifyServiceForTests,
   type FanOutResult,
   installMentionNotifyService,
-} from '@modules/team/service/mention-notify'
-import { __resetStaffServiceForTests, installStaffService, type StaffService } from '@modules/team/service/staff'
+} from '@modules/team/service/staff-ping'
 import type { ToolContext } from '@vobase/core'
 
 import { consultStaffTool } from './consult-staff'
@@ -129,7 +129,7 @@ describe('consultStaffTool', () => {
     expect(enqueued).toEqual([note])
   })
 
-  it('still succeeds when the mention-notify service is not installed', async () => {
+  it('still succeeds when the staff-ping service is not installed', async () => {
     installStaffStub([{ userId: 'u1', displayName: 'Alice' }])
     installNotesService({
       addNote: () => Promise.resolve({ id: 'n5', mentions: ['staff:u1'] } as InternalNote),
