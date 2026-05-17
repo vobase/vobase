@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
+  __installPendingApprovalsTxDbForTests,
   __resetPendingApprovalsServiceForTests,
   installPendingApprovalsService,
   type PendingApprovalsService,
@@ -28,7 +29,10 @@ afterAll(() => {
 })
 
 describe('draftEmailToReviewTool', () => {
-  beforeEach(() => __resetPendingApprovalsServiceForTests())
+  beforeEach(() => {
+    __resetPendingApprovalsServiceForTests()
+    __installPendingApprovalsTxDbForTests({ transaction: async (fn) => fn({}) })
+  })
 
   it('queues with toolName=draft_email_to_review and snapshot from ctx', async () => {
     let received: unknown = null

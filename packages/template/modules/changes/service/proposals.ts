@@ -1,3 +1,4 @@
+import { emit } from '@modules/automations/service/events'
 import { conversations } from '@modules/messaging/schema'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
 import type { ChangePayload } from '@vobase/core'
@@ -11,7 +12,7 @@ import {
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
-import type { RealtimeService } from '~/runtime'
+import type { RealtimeService, Tx } from '~/runtime'
 import type { AgentEvent } from '~/wake/events'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import {
@@ -485,6 +486,12 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
           rationale: input.rationale ?? null,
           proposedBy: normalizePrincipalToken(input.changedBy, input.changedByKind),
         })
+        // US-008 (Slice B.3): notify the automations dispatcher that an
+        // agent-filed proposal needs staff awareness via the operator thread.
+        // Skip staff-initiated proposals — those don't need a peer-agent ping
+        // (the staff member already knows what they proposed). `auto_written`
+        // proposals also skip (handled in the other branch below).
+        await emitProposalFiledIfAgent(tx, input, proposal, id)
       })
       fireNotify(proposal, 'created')
       return { id, status }
@@ -512,10 +519,47 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
         rationale: input.rationale ?? null,
         proposedBy: normalizePrincipalToken(input.changedBy, input.changedByKind),
       })
+      // US-008: agent-filed auto_written proposals still fire `proposal_filed`
+      // so the agent's operator thread learns the change happened. (Staff
+      // never sees a review queue for auto-writes — the dispatcher routes
+      // these as `wake:solo` to the agent only; staff ping rules can opt out.)
+      await emitProposalFiledIfAgent(tx, input, proposal, id)
     })
 
     fireNotify(proposal, 'auto_written')
     return { id, status }
+  }
+
+  /**
+   * Helper for the two `proposal_filed` emit sites in `insertProposal()`. Only
+   * emits for agent-authored proposals (`changedByKind === 'agent'`); staff-
+   * initiated proposals skip because the staff member doesn't need a
+   * peer-agent ping about their own action.
+   */
+  async function emitProposalFiledIfAgent(
+    tx: DrizzleHandle,
+    input: InsertProposalInput,
+    proposal: ChangeProposalRow,
+    proposalId: string,
+  ): Promise<void> {
+    if (input.changedByKind !== 'agent') return
+    const proposedByAgentId = input.changedBy.startsWith('agent:')
+      ? input.changedBy.slice('agent:'.length)
+      : input.changedBy
+    await emit(
+      'proposal_filed',
+      {
+        conversationId: input.conversationId ?? null,
+        organizationId: input.organizationId,
+        proposalId,
+        proposalSummary: input.rationale ?? `${input.resourceModule}/${input.resourceType} change`,
+        resourceModule: input.resourceModule,
+        resourceType: input.resourceType,
+        proposedByAgentId,
+      },
+      { tx: tx as unknown as Tx },
+    )
+    void proposal
   }
 
   async function decideChangeProposal(
@@ -592,6 +636,11 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
         decidedBy: decidedByUserId,
         decidedNote: note ?? null,
       })
+      // US-008 (Slice B.3): notify dispatcher that a proposal was decided so
+      // the filing agent's operator thread can be re-woken with the outcome.
+      // Skip staff-authored proposals — symmetric with the `proposal_filed`
+      // skip (no peer-agent ping for staff actions).
+      await emitProposalDecidedIfAgent(tx, result, 'approve', decidedByUserId, note)
       return hid
     })
 
@@ -622,7 +671,42 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
         decidedBy: decidedByUserId,
         decidedNote: reason,
       })
+      // US-008: dispatcher hears about agent-filed rejections too so the
+      // filing agent can self-coach in its operator thread.
+      await emitProposalDecidedIfAgent(tx, proposal, 'reject', decidedByUserId, reason)
     })
+  }
+
+  /**
+   * Helper for the two `proposal_decided` emit sites (approve in
+   * `decideChangeProposal` + reject in `applyRejection`). Mirrors
+   * `emitProposalFiledIfAgent`: only agent-authored proposals route to a
+   * peer-agent wake (staff-authored proposals decide themselves silently).
+   */
+  async function emitProposalDecidedIfAgent(
+    tx: DrizzleHandle,
+    proposal: ChangeProposalRow,
+    decision: 'approve' | 'reject',
+    decidedByUserId: string,
+    note: string | undefined,
+  ): Promise<void> {
+    if (proposal.proposedByKind !== 'agent') return
+    const rawProposedBy = proposal.proposedById ?? ''
+    const proposedByAgentId = rawProposedBy.startsWith('agent:') ? rawProposedBy.slice('agent:'.length) : rawProposedBy
+    if (!proposedByAgentId) return
+    await emit(
+      'proposal_decided',
+      {
+        conversationId: proposal.conversationId,
+        organizationId: proposal.organizationId,
+        proposalId: proposal.id,
+        decision,
+        proposedByAgentId,
+        decidedByUserId,
+        ...(note ? { note } : {}),
+      },
+      { tx: tx as unknown as Tx },
+    )
   }
 
   async function listInbox(organizationId: string, limit = 100): Promise<ChangeProposalInboxItem[]> {

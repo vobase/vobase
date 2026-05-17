@@ -7,12 +7,20 @@
  * The tool name + args are stored verbatim in `pendingApprovals.toolArgs`,
  * which is the staff review UI's source of truth for what the agent is
  * proposing. Author identity comes from `ctx.agentId` via `agentSnapshot`.
+ *
+ * US-008 (Slice B.3): insert + `emit('approval_filed', …)` are wrapped in a
+ * single `db.transaction(...)` here at the tool boundary (NOT inside
+ * `pending-approvals.ts::insert`). The emit lives here because `ctx.agentId`
+ * — the routing target for the standalone wake the dispatcher fires in
+ * Slice B.4 — is only in scope at the tool layer.
  */
 
+import { emit } from '@modules/automations/service/events'
 import { type Static, Type } from '@sinclair/typebox'
 import { defineAgentTool } from '@vobase/core'
 
-import { insert as insertPendingApproval } from '../service/pending-approvals'
+import type { Tx } from '~/runtime'
+import { getPendingApprovalsTxDb, insert as insertPendingApproval } from '../service/pending-approvals'
 
 export const DraftEmailInputSchema = Type.Object({
   conversationId: Type.String({ minLength: 1 }),
@@ -34,14 +42,34 @@ export const draftEmailToReviewTool = defineAgentTool({
   prompt:
     'Use when responding-by-email or following up on an existing thread. Nothing dispatches until staff approves the row. Pair with `propose_outreach` for proactive (no-thread) touches.',
   async run(args, ctx) {
-    const row = await insertPendingApproval({
-      organizationId: ctx.organizationId,
-      conversationId: args.conversationId,
-      conversationEventId: null,
-      toolName: 'draft_email_to_review',
-      toolArgs: args,
-      agentSnapshot: { agentId: ctx.agentId, wakeId: ctx.wakeId, turnIndex: ctx.turnIndex },
+    const txDb = getPendingApprovalsTxDb()
+    const result = await txDb.transaction(async (tx) => {
+      const row = await insertPendingApproval(
+        {
+          organizationId: ctx.organizationId,
+          conversationId: args.conversationId,
+          conversationEventId: null,
+          toolName: 'draft_email_to_review',
+          toolArgs: args,
+          agentSnapshot: { agentId: ctx.agentId, wakeId: ctx.wakeId, turnIndex: ctx.turnIndex },
+        },
+        tx as Tx,
+      )
+      const approvalSummary = `${args.subject} (${args.body.slice(0, 80)}${args.body.length > 80 ? '…' : ''})`
+      await emit(
+        'approval_filed',
+        {
+          conversationId: args.conversationId,
+          organizationId: ctx.organizationId,
+          approvalId: row.id,
+          approvalSummary,
+          filedByAgentId: ctx.agentId,
+          assigneeStaffUserId: null,
+        },
+        { tx: tx as Tx },
+      )
+      return { approvalId: row.id }
     })
-    return { approvalId: row.id }
+    return result
   },
 })

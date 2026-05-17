@@ -10,12 +10,14 @@
  * returns the bound API; free-function wrappers route through the installed
  * instance to preserve the existing import surface.
  */
+import { emit } from '@modules/automations/service/events'
 import { channelInstances } from '@modules/channels/schema'
 import { filesServiceFor } from '@modules/drive/service/files'
 import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { conversationEvents } from '@vobase/core'
 import { and, desc, eq, getTableColumns, gt, inArray, isNotNull, or, sql } from 'drizzle-orm'
 
+import type { Tx } from '~/runtime'
 import { type Conversation, conversations, type Message, messages } from '../schema'
 import { transitionConversation } from '../state'
 import { computeTab } from './bucketing'
@@ -699,6 +701,22 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
         type: 'conversation.reassigned',
         payload: { from: current.assignee, to: assignee, reason: reason ?? null, by },
       })
+
+      // US-008 (Slice B.3): notify the automations dispatcher that the
+      // conversation has changed hands. Inside the tx so a rollback would
+      // also drop the event row (the wake should never fire for a reassignment
+      // that never persisted).
+      await emit(
+        'conversation_reassigned',
+        {
+          conversationId,
+          organizationId: row.organizationId,
+          fromAssignee: current.assignee ?? null,
+          toAssignee: assignee,
+          ...(reason ? { reason } : {}),
+        },
+        { tx: tx as unknown as Tx },
+      )
       return row
     })
   }
