@@ -27,6 +27,7 @@
     "check:error-shape": "bun run scripts/check-error-shape.ts",
     "check:contract": "bun run scripts/check-contract.ts",
     "check:auth-schema": "bun run scripts/check-auth-schema.ts",
+    "check:emit": "bun run scripts/check-emit.ts",
     "test": "bun test",
     "test:e2e": "bun test tests/e2e",
     "test:smoke": "for f in tests/smoke/*.ts; do bun run \"$f\" || exit 1; done",
@@ -111,7 +112,6 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.15",
-    "auth": "^1.6.11",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/router-plugin": "^1.167.35",
@@ -121,10 +121,12 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "auth": "^1.6.11",
     "concurrently": "^9.2.1",
     "drizzle-kit": "^1.0.0-rc.2",
     "knip": "^6.12.2",
     "tailwindcss": "^4.3.0",
+    "ts-morph": "^28.0.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.12"
   }
