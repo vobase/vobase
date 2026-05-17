@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { signRequest, verifyRequest } from '@vobase/core'
+import { signRequest, VobaseError, verifyRequest } from '@vobase/core'
 
 import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
-import { claim, PlatformHandshakeError, release, staffLinks } from './handshake'
+import { claim, PlatformHandshakeError, release, sendNotificationTemplate, staffLinks } from './handshake'
 
 describe('handshake v2 wire format', () => {
   it('produces a v2 payload that verifyRequest accepts with same secret', () => {
@@ -288,5 +288,126 @@ describe('handshake staffLinks', () => {
     expect(result[0]?.staffUserId).toBe('staff-1')
     expect(calls[0]?.url).toBe(`${PLATFORM_BASE}/api/managed-whatsapp/staff-links?channelInstanceId=ci-notif-1`)
     expect(calls[0]?.init?.method).toBe('GET')
+  })
+})
+
+describe('sendNotificationTemplate signature change', () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = 'test'
+  })
+
+  afterEach(() => {
+    globalThis.fetch = ORIGINAL_FETCH
+  })
+
+  it('sends templateName + positional bodyParams for vobase_tenant_notification', async () => {
+    const calls = installFetchStub(() => Response.json({ messageId: 'msg-1' }, { status: 200 }))
+
+    await sendNotificationTemplate({
+      platformBaseUrl: PLATFORM_BASE,
+      tenantId: TEST_TENANT,
+      tenantHmacSecret: TEST_HMAC,
+      staffPhoneE164: '+15551234567',
+      templateName: 'vobase_tenant_notification',
+      bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+      buttonUrlSuffix: 'tenant-slug',
+    })
+
+    expect(calls).toHaveLength(1)
+    const wireBody = JSON.parse(String(calls[0]?.init?.body))
+    expect(wireBody.staffPhoneE164).toBe('+15551234567')
+    expect(wireBody.templateName).toBe('vobase_tenant_notification')
+    expect(wireBody.bodyParams).toEqual(['Bob', 'hi', 'Helpdesk'])
+    expect(wireBody.buttonUrlSuffix).toBe('tenant-slug')
+  })
+
+  it('sends positional bodyParams for vobase_approval_decision', async () => {
+    const calls = installFetchStub(() => Response.json({ messageId: 'msg-2' }, { status: 200 }))
+
+    await sendNotificationTemplate({
+      platformBaseUrl: PLATFORM_BASE,
+      tenantId: TEST_TENANT,
+      tenantHmacSecret: TEST_HMAC,
+      staffPhoneE164: '+15551234567',
+      templateName: 'vobase_approval_decision',
+      bodyParams: { agentName: 'A', approvalSummary: 'B', approvalContext: 'C' },
+      buttonUrlSuffix: 'suf',
+    })
+
+    const wireBody = JSON.parse(String(calls[0]?.init?.body))
+    expect(wireBody.templateName).toBe('vobase_approval_decision')
+    expect(wireBody.bodyParams).toEqual(['A', 'B', 'C'])
+  })
+
+  it('sends positional bodyParams for vobase_proposal_decision', async () => {
+    const calls = installFetchStub(() => Response.json({ messageId: 'msg-3' }, { status: 200 }))
+
+    await sendNotificationTemplate({
+      platformBaseUrl: PLATFORM_BASE,
+      tenantId: TEST_TENANT,
+      tenantHmacSecret: TEST_HMAC,
+      staffPhoneE164: '+15551234567',
+      templateName: 'vobase_proposal_decision',
+      bodyParams: { agentName: 'A', resourceLabel: 'contacts/profile-field', proposalSummary: 'C' },
+      buttonUrlSuffix: 'suf',
+    })
+
+    const wireBody = JSON.parse(String(calls[0]?.init?.body))
+    expect(wireBody.templateName).toBe('vobase_proposal_decision')
+    expect(wireBody.bodyParams).toEqual(['A', 'contacts/profile-field', 'C'])
+  })
+
+  it('sends positional bodyParams for vobase_admin_alert', async () => {
+    const calls = installFetchStub(() => Response.json({ messageId: 'msg-4' }, { status: 200 }))
+
+    await sendNotificationTemplate({
+      platformBaseUrl: PLATFORM_BASE,
+      tenantId: TEST_TENANT,
+      tenantHmacSecret: TEST_HMAC,
+      staffPhoneE164: '+15551234567',
+      templateName: 'vobase_admin_alert',
+      bodyParams: { alertHeadline: 'H', alertDetail: 'D', organizationName: 'O' },
+      buttonUrlSuffix: 'suf',
+    })
+
+    const wireBody = JSON.parse(String(calls[0]?.init?.body))
+    expect(wireBody.templateName).toBe('vobase_admin_alert')
+    expect(wireBody.bodyParams).toEqual(['H', 'D', 'O'])
+  })
+
+  it('throws VobaseError with code VALIDATION when bodyParams is missing required fields', async () => {
+    installFetchStub(() => Response.json({ messageId: null }, { status: 200 }))
+
+    await expect(
+      sendNotificationTemplate({
+        platformBaseUrl: PLATFORM_BASE,
+        tenantId: TEST_TENANT,
+        tenantHmacSecret: TEST_HMAC,
+        staffPhoneE164: '+15551234567',
+        templateName: 'vobase_approval_decision',
+        bodyParams: { agentName: 'A' }, // missing approvalSummary + approvalContext
+        buttonUrlSuffix: 'suf',
+      }),
+    ).rejects.toMatchObject({ name: 'VobaseError', code: 'VALIDATION' })
+  })
+
+  it('VobaseError thrown by validation() is instance of VobaseError', async () => {
+    installFetchStub(() => Response.json({ messageId: null }, { status: 200 }))
+
+    let caught: unknown
+    try {
+      await sendNotificationTemplate({
+        platformBaseUrl: PLATFORM_BASE,
+        tenantId: TEST_TENANT,
+        tenantHmacSecret: TEST_HMAC,
+        staffPhoneE164: '+15551234567',
+        templateName: 'vobase_approval_decision',
+        bodyParams: { agentName: 'A' },
+        buttonUrlSuffix: 'suf',
+      })
+    } catch (err) {
+      caught = err
+    }
+    expect(caught).toBeInstanceOf(VobaseError)
   })
 })

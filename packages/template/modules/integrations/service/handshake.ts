@@ -13,11 +13,12 @@
  */
 /** @contract platform-tenant-v1 */
 
-import { type SignedRequest, signRequest } from '@vobase/core'
+import { type SignedRequest, signRequest, validation } from '@vobase/core'
 import { z } from 'zod'
 
 import { sha256Hex, splitPathAndQuery } from '../../channels/adapters/whatsapp/managed-transport'
 import { findKind, type ManagedChannelKind } from '../../channels/managed/registry'
+import { BODY_SCHEMAS, bodyParamsForWire, type NotificationTemplateName } from './notification-template-payloads'
 
 export interface HandshakeAllocation {
   platformChannelId: string
@@ -467,28 +468,39 @@ export async function registerWebhookWithPlatform(input: {
 }
 
 /**
- * Send the `vobase_tenant_notification` template to a staff phone via the
- * platform's notification-tier pool. Thin tenant-side wrapper around the
- * platform's `POST /api/managed-whatsapp/notification/send` — the platform
- * looks up the underlying pool row's `phone_number_id + access_token` from
- * the tenant's existing notification claim and calls Meta Cloud API.
+ * Send a typed notification template to a staff phone via the platform's
+ * notification-tier pool. Thin tenant-side wrapper around the platform's
+ * `POST /api/managed-whatsapp/notification/send` — the platform looks up the
+ * underlying pool row's `phone_number_id + access_token` from the tenant's
+ * existing notification claim and calls Meta Cloud API.
  *
- * The template body has 3 text placeholders (mentioner, snippet, agent name)
- * plus a URL-button `{{1}}` whose suffix is appended to the platform's
- * `https://platform.voltade.app/` base — typically the tenant slug today,
- * later a conversation-scoped deep link.
+ * `bodyParams` is validated at entry against `BODY_SCHEMAS[templateName]`;
+ * a validation failure throws immediately via `VobaseError`. On success,
+ * `bodyParamsForWire` maps the typed body to the positional array the
+ * platform endpoint expects, and `templateName` is sent verbatim in the
+ * wire body so the platform can select the correct Meta template.
  */
 export async function sendNotificationTemplate(input: {
   platformBaseUrl: string
   tenantId: string
   tenantHmacSecret: string
   staffPhoneE164: string
-  bodyParams: [string, string, string]
+  templateName: NotificationTemplateName
+  bodyParams: unknown
   buttonUrlSuffix: string
 }): Promise<{ ok: true; messageId: string | null }> {
+  const parseResult = BODY_SCHEMAS[input.templateName].safeParse(input.bodyParams)
+  if (!parseResult.success) {
+    throw validation(
+      { templateName: input.templateName, issues: parseResult.error.issues },
+      `sendNotificationTemplate: invalid bodyParams for template '${input.templateName}'`,
+    )
+  }
+  const positionalParams = bodyParamsForWire(input.templateName, parseResult.data)
   const body = JSON.stringify({
     staffPhoneE164: input.staffPhoneE164,
-    bodyParams: input.bodyParams,
+    templateName: input.templateName,
+    bodyParams: positionalParams,
     buttonUrlSuffix: input.buttonUrlSuffix,
   })
   const { res } = await signedPlatformRequest({

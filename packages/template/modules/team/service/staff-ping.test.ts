@@ -57,15 +57,16 @@ const STAFF_PHONE = '+6581234567'
 
 interface SentMsg {
   to: string
-  bodyParams: [string, string, string]
+  templateName: string
+  bodyParams: unknown
   buttonUrlSuffix: string
 }
 
 const sent: SentMsg[] = []
 let nextSendOk = true
 
-const stubSendTemplate: SendTemplateFn = async ({ staffPhoneE164, bodyParams, buttonUrlSuffix }) => {
-  sent.push({ to: staffPhoneE164, bodyParams, buttonUrlSuffix })
+const stubSendTemplate: SendTemplateFn = async ({ staffPhoneE164, templateName, bodyParams, buttonUrlSuffix }) => {
+  sent.push({ to: staffPhoneE164, templateName, bodyParams, buttonUrlSuffix })
   if (!nextSendOk) throw new Error('stub_fail')
   return { ok: true, messageId: 'stub' }
 }
@@ -252,7 +253,7 @@ describe('staff-ping rewrite (Unit 8)', () => {
     expect(result.notified).toEqual([STAFF_X])
     expect(sent.length).toBe(1)
     expect(sent[0]?.to).toBe(STAFF_PHONE)
-    expect(sent[0]?.bodyParams[1]).toBe('Need answer')
+    expect((sent[0]?.bodyParams as Record<string, string>).snippet).toBe('Need answer')
     expect(recordedPings).toEqual([
       { conversationId: 'conv-test', staffUserId: STAFF_X, askingAgentId: AGENT_ID, outboundWamid: 'stub' },
     ])

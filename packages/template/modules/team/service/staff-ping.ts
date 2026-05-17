@@ -24,6 +24,7 @@ import { agentDefinitions } from '@modules/agents/schema'
 import { decideChangeProposal } from '@modules/changes/service/proposals'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
+import type { NotificationTemplateName } from '@modules/integrations/service/notification-template-payloads'
 import type { InternalNote } from '@modules/messaging/schema'
 import { decide as decideApproval } from '@modules/messaging/service/pending-approvals'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
@@ -206,7 +207,8 @@ export type FanOutMentionPingsPayload = z.infer<typeof FanOutMentionPingsPayload
  */
 export type SendTemplateFn = (input: {
   staffPhoneE164: string
-  bodyParams: [string, string, string]
+  templateName: NotificationTemplateName
+  bodyParams: unknown // typed body matching BODY_SCHEMAS[templateName]
   buttonUrlSuffix: string
 }) => Promise<{ ok: true; messageId: string | null }>
 
@@ -307,7 +309,8 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     try {
       const res = await sendTemplate({
         staffPhoneE164: profile.phoneNumber,
-        bodyParams: [params.mentionerName, params.snippet, params.agentName],
+        templateName: 'vobase_tenant_notification',
+        bodyParams: { mentionerName: params.mentionerName, snippet: params.snippet, agentName: params.agentName },
         buttonUrlSuffix: params.buttonUrlSuffix,
       })
       return { ok: true, messageId: res.messageId }
