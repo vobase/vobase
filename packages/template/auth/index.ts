@@ -9,6 +9,7 @@ import type { ScopedDb } from '~/runtime'
 import { devAuth } from './dev-plugin'
 import { renderInvitationEmail, renderOtpEmail } from './emails'
 import { sendEmail } from './emails/sender'
+import { magicVerifyHmacPlugin } from './magic-verify-plugin'
 import { platformAuth } from './platform-plugin'
 import { buildAuthPlugins } from './plugins'
 import {
@@ -125,6 +126,9 @@ export function createAuth(db: ScopedDb) {
           }),
         ]
       : []),
+    // Platform-to-tenant HMAC endpoints: /verify-magic-link + /set-active-organization.
+    // Contributes NO schema (endpoint-only plugin); safe to include unconditionally.
+    magicVerifyHmacPlugin(db),
     ...(process.env.NODE_ENV !== 'production' ? [devAuth()] : []),
   ]
 
