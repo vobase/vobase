@@ -10,13 +10,31 @@ import { type EventName, type EventPayload, eventRegistry } from './registry'
  * Missing `tx` is a TS compile error. The graph-level backstop (who-emits-what)
  * is enforced by `scripts/check-emit.ts`.
  *
- * Slice B will wire matching-rules + pg-boss fan-out. For US-004 this is a
- * skeleton: Zod-validates the payload and is a no-op for dispatch.
+ * US-013 wires the dispatcher in: after Zod validation, the registered
+ * dispatcher fans out to matching rules (inserts `automation_runs` rows
+ * through `ctx.tx`). The dispatcher is installed via `setDispatcher()` from
+ * the automations module's `init` hook. Tests reset via
+ * `__resetDispatcherForTests`.
  */
+
+export type DispatcherFn = <E extends EventName>(name: E, payload: EventPayload<E>, ctx: { tx: Tx }) => Promise<void>
+
+let _dispatcher: DispatcherFn | undefined
+
+export function setDispatcher(fn: DispatcherFn): void {
+  _dispatcher = fn
+}
+
+export function __resetDispatcherForTests(): void {
+  _dispatcher = undefined
+}
+
 export async function emit<E extends EventName>(name: E, payload: EventPayload<E>, ctx: { tx: Tx }): Promise<void> {
   // Runtime payload validation. Compile-time check via EventPayload<E>; Zod
   // is the runtime backstop for cross-module callers that bypass typing.
   eventRegistry[name].parse(payload)
-  void ctx.tx // proves the tx is in scope; Slice B wires bridgeTxForPgBoss(tx).
-  // US-013 wires the rule cache + pg-boss send here.
+  void ctx.tx // proves the tx is in scope; dispatcher receives it below.
+  if (_dispatcher) {
+    await _dispatcher(name, payload, ctx)
+  }
 }

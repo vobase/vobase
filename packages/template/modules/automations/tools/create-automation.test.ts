@@ -50,6 +50,12 @@ describe('createAutomationTool', () => {
       listAll: () => Promise.resolve([]),
       getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
+      createRule: () => Promise.resolve(''),
+      updateRule: () => Promise.resolve(),
+      pauseRule: () => Promise.resolve(),
+      resumeRule: () => Promise.resolve(),
+      getRuleById: () => Promise.resolve(undefined),
+      listRulesForEvent: () => Promise.resolve([]),
     })
     const result = await createAutomationTool.execute({ slug: 'daily-brief', cron: '0 18 * * *' }, ctx())
     expect(result.ok).toBe(true)
@@ -70,6 +76,12 @@ describe('createAutomationTool', () => {
       listAll: () => Promise.resolve([]),
       getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
+      createRule: () => Promise.resolve(''),
+      updateRule: () => Promise.resolve(),
+      pauseRule: () => Promise.resolve(),
+      resumeRule: () => Promise.resolve(),
+      getRuleById: () => Promise.resolve(undefined),
+      listRulesForEvent: () => Promise.resolve([]),
     })
     await createAutomationTool.execute({ slug: 'other', cron: '0 8 * * *', agentId: 'agt0other' }, ctx())
     expect((received as { agentId: string }).agentId).toBe('agt0other')
