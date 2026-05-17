@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test'
+import { VobaseError } from '@vobase/core'
 
 import {
   AdminAlertBody,
@@ -8,6 +9,7 @@ import {
   NOTIFICATION_TEMPLATES,
   ProposalDecisionBody,
   redirectPathFor,
+  renderTemplateAsText,
   TenantNotificationBody,
   templateNameFor,
 } from './notification-template-payloads'
@@ -131,5 +133,78 @@ describe('body schema validation', () => {
 
   it('AdminAlertBody rejects empty alertDetail', () => {
     expect(AdminAlertBody.safeParse({ alertHeadline: 'H', alertDetail: '', organizationName: 'O' }).success).toBe(false)
+  })
+})
+
+describe('renderTemplateAsText', () => {
+  it('vobase_tenant_notification snapshot', () => {
+    const result = renderTemplateAsText(
+      'vobase_tenant_notification',
+      { mentionerName: 'Alice', snippet: 'Need help with order', agentName: 'Helpdesk' },
+      'https://platform.voltade.app/auth/magic?token=abc',
+    )
+    expect(result).toBe(
+      '*Alice* mentioned you in a conversation.\n\n_Need help with order_\n\nYour agent: Helpdesk\n\nTap below to open the conversation in Vobase.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+    )
+  })
+
+  it('vobase_approval_decision snapshot', () => {
+    const result = renderTemplateAsText(
+      'vobase_approval_decision',
+      {
+        agentName: 'Helpdesk',
+        approvalSummary: 'Refund $50',
+        approvalContext: 'Customer requested refund for late delivery',
+      },
+      'https://platform.voltade.app/auth/magic?token=abc',
+    )
+    expect(result).toBe(
+      'Helpdesk filed an approval request.\n\n*Refund $50*\n\n_Customer requested refund for late delivery_\n\nTap below to review and decide.\n\nPending approval — your decision needed.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+    )
+  })
+
+  it('vobase_proposal_decision snapshot', () => {
+    const result = renderTemplateAsText(
+      'vobase_proposal_decision',
+      { agentName: 'Helpdesk', resourceLabel: 'contacts/profile-field', proposalSummary: 'Update phone number' },
+      'https://platform.voltade.app/auth/magic?token=abc',
+    )
+    expect(result).toBe(
+      'Helpdesk proposed a change to contacts/profile-field.\n\n*Update phone number*\n\nTap below to review and decide.\n\nPending change proposal — your decision needed.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+    )
+  })
+
+  it('vobase_admin_alert snapshot', () => {
+    const result = renderTemplateAsText(
+      'vobase_admin_alert',
+      {
+        alertHeadline: 'High error rate detected',
+        alertDetail: 'Error rate exceeded 5% in the last 5 minutes',
+        organizationName: 'Acme Corp',
+      },
+      'https://platform.voltade.app/auth/magic?token=abc',
+    )
+    expect(result).toBe(
+      '*Vobase admin alert*\n\nHigh error rate detected\n\n_Error rate exceeded 5% in the last 5 minutes_\n\nOrganization: Acme Corp\n\nOpen the activity dashboard to investigate.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+    )
+  })
+
+  it('throws VobaseError.validation on invalid bodyParams', () => {
+    expect(() =>
+      renderTemplateAsText(
+        'vobase_tenant_notification',
+        { mentionerName: '', snippet: 'x', agentName: 'A' },
+        'https://example.com',
+      ),
+    ).toThrow(VobaseError)
+
+    let caught: unknown
+    try {
+      renderTemplateAsText('vobase_approval_decision', { agentName: 'A' }, 'https://example.com')
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(VobaseError)
+    expect((caught as VobaseError).code).toBe('VALIDATION')
   })
 })

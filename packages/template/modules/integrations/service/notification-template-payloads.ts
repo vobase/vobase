@@ -52,6 +52,7 @@
  * Body params: 1=alertHeadline (≤120 chars), 2=alertDetail (≤200 chars), 3=organizationName (≤80 chars).
  */
 
+import { validation } from '@vobase/core'
 import { z } from 'zod'
 
 export const NOTIFICATION_TEMPLATES = [
@@ -168,6 +169,50 @@ export function bodyParamsForWire(templateName: NotificationTemplateName, body: 
     case 'vobase_admin_alert': {
       const b = body as AdminAlertBody
       return [b.alertHeadline, b.alertDetail, b.organizationName]
+    }
+    default:
+      return assertNever(templateName)
+  }
+}
+
+// ─── Free-form text renderer ─────────────────────────────────────────────────
+
+/**
+ * Renders a notification template as a plain-text string suitable for free-form
+ * WhatsApp body rendering (e.g. non-template messages, fallback channels).
+ *
+ * Validates `bodyParams` via `BODY_SCHEMAS[templateName].safeParse`; throws
+ * `VobaseError` (VALIDATION) on mismatch, mirroring `sendNotificationTemplate`.
+ */
+export function renderTemplateAsText(
+  templateName: NotificationTemplateName,
+  bodyParams: unknown,
+  buttonUrl: string,
+): string {
+  const parseResult = BODY_SCHEMAS[templateName].safeParse(bodyParams)
+  if (!parseResult.success) {
+    throw validation(
+      parseResult.error.flatten(),
+      `renderTemplateAsText: invalid bodyParams for template '${templateName}'`,
+    )
+  }
+
+  switch (templateName) {
+    case 'vobase_tenant_notification': {
+      const b = parseResult.data as TenantNotificationBody
+      return `*${b.mentionerName}* mentioned you in a conversation.\n\n_${b.snippet}_\n\nYour agent: ${b.agentName}\n\nTap below to open the conversation in Vobase.\n\nOpen: ${buttonUrl}`
+    }
+    case 'vobase_approval_decision': {
+      const b = parseResult.data as ApprovalDecisionBody
+      return `${b.agentName} filed an approval request.\n\n*${b.approvalSummary}*\n\n_${b.approvalContext}_\n\nTap below to review and decide.\n\nPending approval — your decision needed.\n\nOpen: ${buttonUrl}`
+    }
+    case 'vobase_proposal_decision': {
+      const b = parseResult.data as ProposalDecisionBody
+      return `${b.agentName} proposed a change to ${b.resourceLabel}.\n\n*${b.proposalSummary}*\n\nTap below to review and decide.\n\nPending change proposal — your decision needed.\n\nOpen: ${buttonUrl}`
+    }
+    case 'vobase_admin_alert': {
+      const b = parseResult.data as AdminAlertBody
+      return `*Vobase admin alert*\n\n${b.alertHeadline}\n\n_${b.alertDetail}_\n\nOrganization: ${b.organizationName}\n\nOpen the activity dashboard to investigate.\n\nOpen: ${buttonUrl}`
     }
     default:
       return assertNever(templateName)
