@@ -100,6 +100,43 @@ const MINT_MAGIC_LINK_ALLOWED = [
   'modules/automations/service/dispatcher.ts',
 ]
 
+// US-016a / §8b.0 Item 1 — captor-helper import boundary.
+// `createCaptor` from `auth/captor-pattern` owns the dangerous pending-Map +
+// nonce-routing + timeout machinery that bridges synchronous better-auth send
+// callbacks back into our async mint flow. To keep the captor surface area
+// bounded (Principle 1 — captor abstraction before captor proliferation), only
+// the captor-consumer modules in `auth/` may instantiate one. Today that is
+// `auth/magic-link.ts`; US-017 adds `auth/phone-otp.ts`.
+const MINT_CAPTOR_HELPER_IMPORT_RE =
+  /import\s*\{[^}]*\bcreateCaptor\b[^}]*\}.*from\s+['"](?:@auth\/captor-pattern|.*\/auth\/captor-pattern|\.\/captor-pattern)['"]/
+const MINT_CAPTOR_HELPER_ALLOWED = [
+  'auth/magic-link.ts',
+  // US-017 reserves this slot; the file is added in the phone-OTP captor commit.
+  'auth/phone-otp.ts',
+]
+
+/**
+ * Pure import-boundary checker for `createCaptor` — exported for unit tests.
+ *
+ * @param relFromRoot - path relative to template root, e.g. `auth/foo.ts` or `modules/bar.ts`
+ * @param lines - file lines (without trailing newlines)
+ * @returns array of error messages; empty = clean
+ */
+export function lintCaptorHelperImports(relFromRoot: string, lines: readonly string[]): string[] {
+  if (MINT_CAPTOR_HELPER_ALLOWED.some((p) => relFromRoot === p)) return []
+  const errs: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.trimStart().startsWith('//') || line.trimStart().startsWith('*')) continue
+    if (MINT_CAPTOR_HELPER_IMPORT_RE.test(line)) {
+      errs.push(
+        `createCaptor import disallowed from ${relFromRoot}:${i + 1} — captor instantiation is restricted to auth/magic-link.ts and auth/phone-otp.ts (Principle 1 — captor abstraction before captor proliferation)`,
+      )
+    }
+  }
+  return errs
+}
+
 /**
  * Pure import-boundary checker for `mintMagicLink` — exported for unit tests.
  *
@@ -289,6 +326,20 @@ async function checkJournalWriteAuthority(): Promise<void> {
           message: `mintMagicLink import disallowed from ${relFromModules} — Principle 6 (token issuance never blocks the wake transaction); allowed in [modules/team/service/staff-ping.ts, modules/automations/service/admin-alert.ts, modules/automations/service/dispatcher.ts]`,
         })
       }
+    }
+  }
+
+  // Fourth pass: enforce captor-helper import boundary across the whole
+  // template (auth/, modules/, wake/, runtime/). Only auth/magic-link.ts (and
+  // the US-017 future auth/phone-otp.ts) may instantiate a captor.
+  const templateGlob = new Bun.Glob('{auth,modules,wake,runtime}/**/*.ts')
+  for await (const entry of templateGlob.scan({ cwd: TEMPLATE_ROOT })) {
+    if (entry.endsWith('.test.ts') || entry.includes('__tests__/')) continue
+    const fullPath = join(TEMPLATE_ROOT, entry)
+    const lines = (await Bun.file(fullPath).text()).split('\n')
+    const errs = lintCaptorHelperImports(entry, lines)
+    for (const msg of errs) {
+      errors.push({ file: fullPath, message: msg })
     }
   }
 }

@@ -22,7 +22,7 @@ import { phoneNumber } from 'better-auth/plugins/phone-number'
 
 import { ac, roles } from './ac'
 import { E164_RE } from './e164'
-import { magicLinkCaptor } from './magic-link'
+import { deliverMagicLinkToken } from './magic-link'
 
 /** Bearer-token shape the vobase CLI sends: `Authorization: Bearer vbt_<key>`. */
 const BEARER_API_KEY_RE = /^Bearer\s+(vbt_[A-Za-z0-9_-]+)$/u
@@ -77,7 +77,7 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
         // url arg is the tenant's own /magic-link/verify URL — DISCARDED.
         // metadata.{nonce,tenantId,organizationId,callbackURL} are used by the captor
         // to construct the platform URL. See auth/magic-link.ts for details.
-        magicLinkCaptor.deliver({ token, metadata })
+        deliverMagicLinkToken({ token, metadata })
       },
     }),
     organization({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { lintMintMagicLinkImports } from './check-module-shape'
+import { lintCaptorHelperImports, lintMintMagicLinkImports } from './check-module-shape'
 
 // Sample import lines to test the regex against
 const VIOLATION_LINE = `import { mintMagicLink } from '@auth/magic-link'`
@@ -96,6 +96,72 @@ describe('mint-magic-link-import-boundary', () => {
       ]
       const errs = lintMintMagicLinkImports('modules/agents/service/threads.ts', lines)
       expect(errs).toHaveLength(0)
+    })
+  })
+})
+
+// ─── lintCaptorHelperImports — US-016a captor-helper boundary ────────────────
+
+const CAPTOR_IMPORT = `import { createCaptor } from '@auth/captor-pattern'`
+const CAPTOR_IMPORT_REL = `import { createCaptor } from './captor-pattern'`
+const CAPTOR_IMPORT_DEEP = `import { createCaptor } from '../../auth/captor-pattern'`
+const CAPTOR_OTHER_EXPORT = `import { CaptorMintError } from '@auth/captor-pattern'`
+
+describe('captor-helper-import-boundary', () => {
+  describe('allowed files pass without error', () => {
+    it('allows auth/magic-link.ts', () => {
+      const errs = lintCaptorHelperImports('auth/magic-link.ts', [CAPTOR_IMPORT_REL])
+      expect(errs).toHaveLength(0)
+    })
+
+    it('allows auth/phone-otp.ts (US-017 reserved slot)', () => {
+      const errs = lintCaptorHelperImports('auth/phone-otp.ts', [CAPTOR_IMPORT_REL])
+      expect(errs).toHaveLength(0)
+    })
+  })
+
+  describe('violations', () => {
+    it('flags createCaptor import in wake/build-base.ts', () => {
+      const errs = lintCaptorHelperImports('wake/build-base.ts', [CAPTOR_IMPORT])
+      expect(errs).toHaveLength(1)
+      expect(errs[0]).toContain('createCaptor import disallowed')
+      expect(errs[0]).toContain('wake/build-base.ts')
+    })
+
+    it('flags createCaptor import in modules/automations/service/admin-alert.ts', () => {
+      const errs = lintCaptorHelperImports('modules/automations/service/admin-alert.ts', [CAPTOR_IMPORT_DEEP])
+      expect(errs).toHaveLength(1)
+    })
+
+    it('flags createCaptor import in auth/plugins.ts (sibling auth file is not allowlisted)', () => {
+      const errs = lintCaptorHelperImports('auth/plugins.ts', [CAPTOR_IMPORT_REL])
+      expect(errs).toHaveLength(1)
+    })
+  })
+
+  describe('non-violations', () => {
+    it('does NOT flag imports of other exports from auth/captor-pattern', () => {
+      const errs = lintCaptorHelperImports('modules/messaging/service/notes.ts', [CAPTOR_OTHER_EXPORT])
+      expect(errs).toHaveLength(0)
+    })
+
+    it('does NOT flag comment lines', () => {
+      const errs = lintCaptorHelperImports('wake/trigger.ts', [`// ${CAPTOR_IMPORT}`])
+      expect(errs).toHaveLength(0)
+    })
+  })
+
+  describe('multi-line files', () => {
+    it('reports the correct line number for an embedded violation', () => {
+      const lines = [
+        `import { logger } from '@vobase/core'`,
+        `import { something } from 'somewhere'`,
+        CAPTOR_IMPORT,
+        `export function foo() {}`,
+      ]
+      const errs = lintCaptorHelperImports('modules/agents/agent.ts', lines)
+      expect(errs).toHaveLength(1)
+      expect(errs[0]).toContain(':3')
     })
   })
 })

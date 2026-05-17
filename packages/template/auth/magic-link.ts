@@ -6,14 +6,13 @@
  * better-auth's `magicLink` plugin calls `sendMagicLink({ email, url, token, metadata }, ctx)`
  * synchronously inside the `POST /sign-in/magic-link` handler. We cannot get the generated
  * token back via a return value — `signInMagicLink` returns `{ status: true }`. Instead we
- * register a per-call nonce in the `pending` Map BEFORE calling `auth.api.signInMagicLink`,
- * and the plugin calls `magicLinkCaptor.deliver(...)` which resolves our promise.
+ * register a per-call nonce via the shared {@link createCaptor} helper BEFORE calling
+ * `auth.api.signInMagicLink`, and the plugin calls `magicLinkCaptor.deliver(...)` which
+ * resolves our promise.
  *
- * ## 5 s timeout discipline
- *
- * `sendMagicLink` is called synchronously within the better-auth endpoint handler.
- * If it is somehow never called (e.g. a future plugin config change), the pending
- * Promise would leak forever. The 5 s timeout in `mintMagicLink` guards against this.
+ * The captor mechanics (pending Map, nonce generation, 5 s timeout, error wrapping) live in
+ * `auth/captor-pattern.ts`. This file owns the magic-link-specific URL construction +
+ * pre-flight user existence check.
  *
  * ## Why the URL is constructed, not stripped (plan §8a.3 Blockers 1+2, iteration-3)
  *
@@ -28,9 +27,10 @@
  *   `https://platform.voltade.app/auth/magic?tenant=<tid>&token=<tok>&redirect=<path>&organization=<oid>`
  */
 
-import { logger, notFound } from '@vobase/core'
+import { notFound } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
+import { createCaptor } from './captor-pattern'
 import type { Auth } from './index'
 import { authUser } from './schema'
 
@@ -53,47 +53,70 @@ const CAPTOR_TIMEOUT_MS = 5_000
 
 const PLATFORM_MAGIC_BASE = 'https://platform.voltade.app/auth/magic'
 
-// Per-call entry: holds the resolve/reject pair + a safety-net timeout.
-// Key = 16-byte URL-safe-base64 nonce — collision-free per mintMagicLink call.
-interface CaptorEntry {
-  resolve: (result: { url: string; token: string }) => void
-  reject: (e: Error) => void
-  timeoutId: ReturnType<typeof setTimeout>
+/**
+ * Per-mint payload threaded through better-auth into the `sendMagicLink`
+ * callback's `metadata` field. Captures everything the captor needs to
+ * reconstruct the platform deep-link URL — see Blockers 1+2 above for why the
+ * tenant verify URL is discarded.
+ */
+interface MintPayload {
+  email: string
+  redirectPath: string
+  tenantId: string
+  organizationId: string
+  /** The Auth instance is per-call because this module is stateless w.r.t. it. */
+  auth: Auth
 }
 
-const pending = new Map<string, CaptorEntry>()
+interface DeliveredToken {
+  token: string
+  /** The platform deep-link URL, constructed by `magicLinkCaptor.deliver` from metadata. */
+  url: string
+}
 
 /**
- * Receives the token from better-auth's sendMagicLink callback.
- * Constructs the platform deep-link URL from metadata fields (not from the
- * tenant verify-URL passed as `url` — that is discarded per plan §8a.3 Blocker 1).
+ * Shared captor instance. Stateful in the pending Map sense — exported so the
+ * better-auth `sendMagicLink` callback in `auth/plugins.ts` can call `deliver`.
  */
-export const magicLinkCaptor = {
-  deliver({ token, metadata }: { token: string; metadata: Record<string, unknown> | undefined }): void {
-    const nonce = metadata?.nonce
-    if (typeof nonce !== 'string') {
-      logger.warn(
-        { metadata },
-        '[auth:magic-link-captor] sendMagicLink invoked with no nonce — ignoring (captor leak detection)',
-      )
-      return
-    }
-    const entry = pending.get(nonce)
-    if (!entry) {
-      logger.warn({ nonce }, '[auth:magic-link-captor] No pending entry for nonce — possible timeout already fired')
-      return
-    }
-    const tenantId = typeof metadata?.tenantId === 'string' ? metadata.tenantId : ''
-    const organizationId = typeof metadata?.organizationId === 'string' ? metadata.organizationId : ''
-    const callbackURL = typeof metadata?.callbackURL === 'string' ? metadata.callbackURL : ''
-
-    // Construct the platform URL from scratch — never parse the tenant verify URL.
-    const url = `${PLATFORM_MAGIC_BASE}?tenant=${encodeURIComponent(tenantId)}&token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(callbackURL)}&organization=${encodeURIComponent(organizationId)}`
-
-    clearTimeout(entry.timeoutId)
-    pending.delete(nonce)
-    entry.resolve({ url, token })
+export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
+  name: 'magic-link',
+  timeoutMs: CAPTOR_TIMEOUT_MS,
+  errorClass: MagicLinkMintError,
+  sender: async (payload, nonce) => {
+    await payload.auth.api.signInMagicLink({
+      body: {
+        email: payload.email,
+        callbackURL: payload.redirectPath,
+        metadata: {
+          nonce,
+          tenantId: payload.tenantId,
+          organizationId: payload.organizationId,
+          // Round-trip callbackURL through metadata because better-auth does not
+          // include callbackURL in the sendMagicLink payload (plan §8a.3 step 4).
+          callbackURL: payload.redirectPath,
+        },
+      },
+      headers: new Headers(),
+    })
   },
+})
+
+/**
+ * Construct the platform deep-link URL from the captor metadata. Invoked by
+ * `auth/plugins.ts::sendMagicLink` callback — it adapts better-auth's
+ * `{ token, metadata }` shape into the captor's `{ metadata, result }` contract
+ * and never parses the tenant verify URL (Blocker 1).
+ */
+export function deliverMagicLinkToken(args: { token: string; metadata: Record<string, unknown> | undefined }): void {
+  const { token, metadata } = args
+  const tenantId = typeof metadata?.tenantId === 'string' ? metadata.tenantId : ''
+  const organizationId = typeof metadata?.organizationId === 'string' ? metadata.organizationId : ''
+  const callbackURL = typeof metadata?.callbackURL === 'string' ? metadata.callbackURL : ''
+
+  // Construct the platform URL from scratch — never parse the tenant verify URL.
+  const url = `${PLATFORM_MAGIC_BASE}?tenant=${encodeURIComponent(tenantId)}&token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(callbackURL)}&organization=${encodeURIComponent(organizationId)}`
+
+  magicLinkCaptor.deliver({ metadata, result: { token, url } })
 }
 
 // Minimal Drizzle-compatible db shape for the user existence check.
@@ -158,60 +181,24 @@ export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: Mint
     throw new MagicLinkMintError('magic_link_mint_failed', { cause: notFound('staff_user_not_found') })
   }
 
-  // 16-byte URL-safe-base64 nonce — keyed per-call, collision-free.
-  const nonceBytes = new Uint8Array(16)
-  crypto.getRandomValues(nonceBytes)
-  const nonce = Buffer.from(nonceBytes).toString('base64url')
-
-  // Captor promise: resolves when sendMagicLink callback fires, rejects on timeout.
-  const captorPromise = new Promise<{ url: string; token: string }>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      pending.delete(nonce)
-      reject(new Error('captor_timeout'))
-    }, CAPTOR_TIMEOUT_MS)
-    pending.set(nonce, { resolve, reject, timeoutId })
-  })
-
+  // Captor mints the token; the shared helper owns the pending Map, nonce
+  // generation, 5 s timeout, and `MagicLinkMintError`-wrapped failure shape.
+  let captured: DeliveredToken
   try {
-    await auth.api.signInMagicLink({
-      body: {
-        email,
-        callbackURL: redirectPath,
-        metadata: {
-          nonce,
-          tenantId,
-          organizationId,
-          // Round-trip callbackURL through metadata because better-auth does not
-          // include callbackURL in the sendMagicLink payload (plan §8a.3 step 4).
-          callbackURL: redirectPath,
-        },
-      },
-      headers: new Headers(),
-    })
+    captured = await magicLinkCaptor.mint({ email, redirectPath, tenantId, organizationId, auth })
   } catch (err) {
-    // If signInMagicLink throws (e.g. rate-limit), clean up the pending entry so
-    // the captor timeout doesn't fire spuriously.
-    const entry = pending.get(nonce)
-    if (entry) {
-      clearTimeout(entry.timeoutId)
-      pending.delete(nonce)
+    // The captor already wraps in MagicLinkMintError (via `errorClass` option),
+    // but re-wrap with the canonical `magic_link_mint_failed` message so the
+    // dispatcher's error-message check is unchanged.
+    if (err instanceof MagicLinkMintError) {
+      throw new MagicLinkMintError('magic_link_mint_failed', { cause: err.cause ?? err })
     }
     throw new MagicLinkMintError('magic_link_mint_failed', { cause: err })
   }
-
-  // Await the captor — sendMagicLink is called synchronously inside the
-  // signInMagicLink handler, so this should resolve almost immediately.
-  let captured: { url: string; token: string }
-  try {
-    captured = await captorPromise
-  } catch (err) {
-    throw new MagicLinkMintError('magic_link_mint_failed', { cause: err })
-  }
-  const { url, token } = captured
 
   // Date.now() is acceptable here: this is POST-COMMIT (Principle 6), NOT inside
   // a wake-trigger renderer (Principle 3 — deterministic frozen-snapshot zone).
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
-  return { url, token, expiresAt }
+  return { url: captured.url, token: captured.token, expiresAt }
 }
