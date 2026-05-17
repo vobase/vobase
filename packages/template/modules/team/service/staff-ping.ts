@@ -1,18 +1,23 @@
 /**
- * Staff ping primitive: dispatches a WhatsApp notification (`vobase_tenant_notification`
- * Meta template) to a staff user about a conversation event they need to be aware of.
+ * Staff ping primitive: dispatches a WhatsApp notification to a staff user
+ * about a conversation event they need to be aware of.
  *
- * Three kinds (US-009 / Slice B.4):
- *   - 'mention'   — staff is @-mentioned in an internal note (the original kind)
- *   - 'approval'  — staff needs to decide on a pending approval (Slice B.3 emit('approval_filed'))
- *   - 'proposal'  — staff needs to decide on a change proposal (Slice B.3 emit('proposal_filed'))
+ * Four kinds (US-009 / Slice B.4 / US-011b):
+ *   - 'mention'    — staff is @-mentioned in an internal note (the original kind)
+ *   - 'approval'   — staff needs to decide on a pending approval (Slice B.3 emit('approval_filed'))
+ *   - 'proposal'   — staff needs to decide on a change proposal (Slice B.3 emit('proposal_filed'))
+ *   - 'admin_alert' — admin-tier alert (US-015 / Slice D.3)
  *
- * Per-kind template selector (Slice B.4 stub): all three kinds currently use
- * `vobase_tenant_notification`. Slice C (US-011 / US-012) replaces this with
- * kind-specific Meta templates (`vobase_approval_decision`,
- * `vobase_proposal_decision`) and forwards structured button payloads
- * (`approve:<refId>` / `deny:<refId>`). Until then: free-text regex on the
- * reply path (see `reply-parser.ts`), single template on the send path.
+ * Per-kind template selector (US-011b): `templateNameFor(kind)` from
+ * `notification-template-payloads.ts` picks the right Meta template name. The
+ * dispatcher gates on `channel_instances.config.metaTemplateApprovals` before
+ * calling `sendTemplate` and falls back to `vobase_tenant_notification` when
+ * the per-kind template is unapproved (see `buildTemplateForDispatch`).
+ *
+ * Magic-link minting (US-011b / Principle 6): `mintMagicLink` is called
+ * POST-COMMIT inside the notification path — never inside a producer's
+ * `db.transaction(...)` block. The platform base URL is stripped from the mint
+ * result to produce the `buttonUrlSuffix` the Meta template expects.
  *
  * Renamed in US-009 from `mention-notify.ts` → `staff-ping.ts`. The existing
  * mention fan-out APIs (`fanOutNoteMentions`, `enqueueMentionFanOut`,
@@ -20,11 +25,20 @@
  * `messaging/handlers/notes.ts` + `messaging/tools/consult-staff.ts`.
  */
 
+import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
 import { agentDefinitions } from '@modules/agents/schema'
 import { decideChangeProposal } from '@modules/changes/service/proposals'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
-import type { NotificationTemplateName } from '@modules/integrations/service/notification-template-payloads'
+import {
+  type ApprovalDecisionBody,
+  type NotificationTemplateName,
+  type ProposalDecisionBody,
+  type RedirectRefs,
+  redirectPathFor,
+  type TenantNotificationBody,
+  templateNameFor,
+} from '@modules/integrations/service/notification-template-payloads'
 import type { InternalNote } from '@modules/messaging/schema'
 import { decide as decideApproval } from '@modules/messaging/service/pending-approvals'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
@@ -34,21 +48,22 @@ import { logger, type ScopedScheduler } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
-import type { Tx } from '~/runtime'
+import type { Auth } from '~/auth'
+import type { ScopedDb, Tx } from '~/runtime'
 import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
 import type { StaffProfile } from '../schema'
 
 // ─── Generalized multi-kind primitive (US-009 / Slice B.4) ───────────────────
 
-export type PingKind = 'mention' | 'approval' | 'proposal'
+export type PingKind = 'mention' | 'approval' | 'proposal' | 'admin_alert'
 
 export interface StaffPingParams {
-  conversationId: string
+  conversationId: string | null
   organizationId: string
   staffUserId: string
   /**
    * Reference into pending_approvals or change_proposals row, depending on kind.
-   * For 'mention', this is the noteId.
+   * For 'mention', this is the noteId. For 'admin_alert', this is a sentinel id.
    */
   referenceId: string
   /** Pre-rendered body the staff WA receives — caller builds it from the upstream payload. */
@@ -59,6 +74,21 @@ export interface StaffPingParams {
   reason?: 'followup'
   /** Optional asking-agent id; defaults to a sentinel for non-mention kinds. */
   askingAgentId?: string
+  // Per-kind structured params for template body building (US-011b).
+  // For 'mention': mentionerName + snippet + agentName come from the fan-out path.
+  // For 'approval': agentName + approvalSummary + approvalContext.
+  approvalSummary?: string
+  approvalContext?: string
+  // For 'proposal': agentName + resourceLabel + proposalSummary.
+  resourceLabel?: string
+  proposalSummary?: string
+  // For 'admin_alert': alertHeadline + alertDetail + organizationName.
+  alertHeadline?: string
+  alertDetail?: string
+  organizationName?: string
+  // For the per-kind redirect path builder.
+  approvalId?: string
+  proposalId?: string
 }
 
 export type StaffPingResult = { status: 'sent'; pingId: string } | { status: 'suppressed_cooldown' }
@@ -68,41 +98,31 @@ export type StaffPingResult = { status: 'sent'; pingId: string } | { status: 'su
  * and the existing mention fan-out (which still goes through
  * `fanOutNoteMentions` for the per-staff prefs/online/no-phone checks).
  *
- * Per-kind template selector deferred to Slice C (US-011); all kinds currently
- * use `vobase_tenant_notification`.
+ * Per-kind template selector (US-011b): reads `templateNameFor(kind)` and gates
+ * on `channel_instances.config.metaTemplateApprovals` via `buildTemplateForDispatch`.
  *
  * Records the ping in `pending_staff_pings` (sole writer, see US-007) so a
  * later staff reply can be claimed back via the two-rung ladder.
  *
  * Cooldown (see `modules/automations/service/cooldown.ts`) is enforced by
  * the caller before invoking this — `staffPing` does not re-check.
- *
- * Slice B.4 wires a synchronous `recordPing` write through the installed
- * `pending_staff_pings` service. The WhatsApp template dispatch is delegated
- * to the installed `MentionNotifyService` when `kind === 'mention'`; for the
- * other kinds the dispatcher (US-013) supplies the WA send via a future
- * `templateSender` seam. Until then, `staffPing('approval'|'proposal', …)`
- * records the ledger row and returns `{status: 'sent'}` so callers can wire
- * the reply-claim path immediately; the send is filled in by US-013.
  */
 export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { tx: Tx }): Promise<StaffPingResult> {
   void ctx.tx // reserved for the US-013 transactional dispatcher wiring
   const askingAgentId = params.askingAgentId ?? 'agent:pending'
+  const convId = params.conversationId ?? ''
   await recordPing({
-    conversationId: params.conversationId,
+    conversationId: convId,
     staffUserId: params.staffUserId,
     organizationId: params.organizationId,
     askingAgentId,
     originalNoteId: params.referenceId,
-    kind,
-    referenceId: kind === 'mention' ? null : params.referenceId,
+    kind: kind === 'admin_alert' ? 'mention' : kind,
+    referenceId: kind === 'mention' || kind === 'admin_alert' ? null : params.referenceId,
   })
-  // Per-kind template selector deferred to Slice C — see file header.
   void params.bodyText
   void params.senderLabel
-  // pendingStaffPings has no `id` returned by recordPing — surface a synthetic
-  // identifier of the (conv, staff) pair so callers can correlate logs.
-  return { status: 'sent', pingId: `${params.conversationId}:${params.staffUserId}` }
+  return { status: 'sent', pingId: `${convId}:${params.staffUserId}` }
 }
 
 // ─── Reply routing (US-009 / Slice B.4) ──────────────────────────────────────
@@ -150,13 +170,9 @@ export async function resolveReply(
     ...(payload.note ? { note: payload.note } : {}),
   }
 
-  if (kind === 'mention') return outcome
+  if (kind === 'mention' || kind === 'admin_alert') return outcome
 
   if (payload.decision === 'unknown') {
-    // Caller already attempted decision detection; bail to operator-thread
-    // fallback by leaving the outcome's decision as 'unknown' — the inbound
-    // handler will treat this as "could not auto-route" and surface the
-    // reply via the existing `dispatchStaffReply` operator-thread branch.
     return outcome
   }
 
@@ -200,7 +216,7 @@ export const FanOutMentionPingsPayloadSchema = z.object({ note: MentionFanOutNot
 export type FanOutMentionPingsPayload = z.infer<typeof FanOutMentionPingsPayloadSchema>
 
 /**
- * Test seam: send a `vobase_tenant_notification` template to a staff phone.
+ * Test seam: send a notification template to a staff phone.
  * Production wires the real `sendNotificationTemplate` closure with platform
  * creds resolved once at boot; tests pass a stub so they don't have to mock
  * global fetch + platform env.
@@ -212,12 +228,197 @@ export type SendTemplateFn = (input: {
   buttonUrlSuffix: string
 }) => Promise<{ ok: true; messageId: string | null }>
 
+/**
+ * Platform base URL used to strip the prefix from a mint result URL and produce
+ * the `buttonUrlSuffix` Meta expects.
+ * e.g. `https://platform.voltade.app/auth/magic?...` → `auth/magic?...`
+ */
+const PLATFORM_BASE_URL = 'https://platform.voltade.app/'
+
+/**
+ * Strip the platform base prefix from a full mint URL to get the button URL suffix.
+ * Throws if the URL doesn't start with the expected base (misconfiguration guard).
+ *
+ * If `PLATFORM_TENANT_ID` is not set (dev/test without platform), the caller
+ * skips mint entirely and this function is not called.
+ */
+export function urlToSuffix(url: string): string {
+  if (!url.startsWith(PLATFORM_BASE_URL)) {
+    throw new Error(
+      `urlToSuffix: URL does not start with platform base '${PLATFORM_BASE_URL}' — got '${url.slice(0, 80)}'`,
+    )
+  }
+  return url.slice(PLATFORM_BASE_URL.length)
+}
+
+/**
+ * Build the `RedirectRefs` argument for `redirectPathFor` from a kind + ping params.
+ * Used by the mention fan-out (where params are different) AND by `staffPing`.
+ */
+export function buildRedirectRefs(
+  kind: PingKind,
+  refs: { conversationId: string | null; referenceId: string; approvalId?: string; proposalId?: string },
+): RedirectRefs {
+  const convId = refs.conversationId ?? ''
+  switch (kind) {
+    case 'mention':
+      return { kind: 'mention', conversationId: convId }
+    case 'approval':
+      return { kind: 'approval', conversationId: convId, approvalId: refs.approvalId ?? refs.referenceId }
+    case 'proposal':
+      return { kind: 'proposal', conversationId: convId, proposalId: refs.proposalId ?? refs.referenceId }
+    case 'admin_alert':
+      return { kind: 'admin_alert' }
+  }
+}
+
+/**
+ * Build the typed body params for a given kind.
+ * For 'mention', the body is built from fan-out params (mentionerName/snippet/agentName).
+ * For other kinds, it reads from the StaffPingParams structured fields.
+ */
+function buildBodyParams(
+  kind: PingKind,
+  params: {
+    mentionerName?: string
+    snippet?: string
+    agentName?: string
+    approvalSummary?: string
+    approvalContext?: string
+    resourceLabel?: string
+    proposalSummary?: string
+    alertHeadline?: string
+    alertDetail?: string
+    organizationName?: string
+  },
+):
+  | TenantNotificationBody
+  | ApprovalDecisionBody
+  | ProposalDecisionBody
+  | { alertHeadline: string; alertDetail: string; organizationName: string } {
+  switch (kind) {
+    case 'mention':
+      return {
+        mentionerName: params.mentionerName ?? 'Unknown',
+        snippet: params.snippet ?? '',
+        agentName: params.agentName ?? 'your agent',
+      }
+    case 'approval':
+      return {
+        agentName: params.agentName ?? 'your agent',
+        approvalSummary: params.approvalSummary ?? '',
+        approvalContext: params.approvalContext ?? '',
+      }
+    case 'proposal':
+      return {
+        agentName: params.agentName ?? 'your agent',
+        resourceLabel: params.resourceLabel ?? '',
+        proposalSummary: params.proposalSummary ?? '',
+      }
+    case 'admin_alert':
+      return {
+        alertHeadline: params.alertHeadline ?? '',
+        alertDetail: params.alertDetail ?? '',
+        organizationName: params.organizationName ?? '',
+      }
+  }
+}
+
+/**
+ * Fallback body: pack the kind-specific summary into the `vobase_tenant_notification`
+ * 3-tuple when the per-kind template is unapproved. Preserves agentName verbatim;
+ * truncates the summary to ≤200 chars + `[truncated approval/proposal summary]` if needed.
+ */
+function buildFallbackBody(
+  kind: PingKind,
+  params: {
+    mentionerName?: string
+    snippet?: string
+    agentName?: string
+    approvalSummary?: string
+    approvalContext?: string
+    resourceLabel?: string
+    proposalSummary?: string
+    alertHeadline?: string
+    alertDetail?: string
+    organizationName?: string
+  },
+): TenantNotificationBody {
+  const agentName = params.agentName ?? 'your agent'
+  const mentionerName = params.mentionerName ?? agentName
+  let snippet: string
+  switch (kind) {
+    case 'mention':
+      snippet = params.snippet ?? ''
+      break
+    case 'approval':
+      snippet = params.approvalSummary ?? params.approvalContext ?? ''
+      break
+    case 'proposal':
+      snippet = params.proposalSummary ?? params.resourceLabel ?? ''
+      break
+    case 'admin_alert':
+      snippet = params.alertHeadline ?? params.alertDetail ?? ''
+      break
+  }
+  const truncated = snippet.length > 200 ? `${snippet.slice(0, 197)}…` : snippet
+  return { mentionerName, snippet: truncated, agentName }
+}
+
+/**
+ * Read the `metaTemplateApprovals` jsonb from the notification channel instance config
+ * and decide whether to use the per-kind template or fall back to `vobase_tenant_notification`.
+ *
+ * The `channel_instances.config.metaTemplateApprovals` field is a JSONB record keyed by
+ * template name → `'approved' | 'pending' | 'rejected'`. Operators populate it manually
+ * via Drizzle Studio after Meta approves each template. Missing keys are treated as
+ * unapproved (fallback is the DEFAULT — per-kind sends only when explicitly 'approved').
+ *
+ * Returns `{ templateName, bodyParams }` ready for `sendTemplate`.
+ */
+export function buildTemplateForDispatch(
+  kind: PingKind,
+  params: {
+    mentionerName?: string
+    snippet?: string
+    agentName?: string
+    approvalSummary?: string
+    approvalContext?: string
+    resourceLabel?: string
+    proposalSummary?: string
+    alertHeadline?: string
+    alertDetail?: string
+    organizationName?: string
+  },
+  metaTemplateApprovals: Record<string, unknown> | null | undefined,
+): { templateName: NotificationTemplateName; bodyParams: unknown } {
+  const perKindTemplate = templateNameFor(kind)
+  const isApproved = metaTemplateApprovals != null && metaTemplateApprovals[perKindTemplate] === 'approved'
+
+  if (isApproved) {
+    return { templateName: perKindTemplate, bodyParams: buildBodyParams(kind, params) }
+  }
+  // Fallback: re-render to vobase_tenant_notification 3-tuple.
+  return { templateName: 'vobase_tenant_notification', bodyParams: buildFallbackBody(kind, params) }
+}
+
 interface MentionNotifyDeps {
   db: unknown
   /** pg-boss queue for the durable fan-out enqueue. Omitted in unit-test contexts — `enqueueFanOut` then no-ops. */
   jobs?: Pick<ScopedScheduler, 'send'> | null
   /** Template-send seam. Omitted in unit-test contexts — `sendNotification` returns `platform_not_configured`. */
   sendTemplate?: SendTemplateFn
+  /**
+   * better-auth instance for `mintMagicLink`. Omitted when `PLATFORM_TENANT_ID` is not set
+   * (dev/test without platform) — the magic-link mint is skipped and the legacy
+   * tenant-slug buttonUrlSuffix is used as fallback.
+   */
+  auth?: Auth | null
+  /**
+   * Resolved platform tenant id — baked into the service closure at boot from
+   * `PLATFORM_TENANT_ID` env. When absent, mint is skipped (dev-without-platform fallback).
+   */
+  tenantId?: string | null
 }
 
 export interface FanOutResult {
@@ -245,11 +446,33 @@ function trimSnippet(body: string): string {
   return body.length > 200 ? `${body.slice(0, 197)}…` : body
 }
 
+import { authUser as authUserTable } from '@auth/schema'
+
 interface DrizzleAgentSelect {
   select: (fields?: unknown) => {
     from: (t: unknown) => {
       where: (c: unknown) => { limit: (n: number) => Promise<Array<{ name: string }>> }
     }
+  }
+}
+
+/**
+ * Look up a staff user's email from the `auth_user` table.
+ * `StaffProfile` doesn't carry `email` — it's only on the better-auth user row.
+ * Returns null when the user doesn't exist (defensive; mintMagicLink also pre-flights this).
+ */
+async function resolveUserEmail(db: unknown, userId: string): Promise<{ email: string } | null> {
+  try {
+    const rows = await (db as ScopedDb)
+      .select({ email: authUserTable.email })
+      .from(authUserTable)
+      .where(eq(authUserTable.id, userId))
+      .limit(1)
+    const row = rows[0]
+    if (!row?.email) return null
+    return { email: row.email }
+  } catch {
+    return null
   }
 }
 
@@ -282,36 +505,120 @@ async function resolveMentionerName(db: unknown, note: MentionFanOutNote): Promi
 export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNotifyService {
   const jobs = deps.jobs ?? null
   const sendTemplate = deps.sendTemplate ?? null
-
-  // Preserve "WHEN" semantics — only the WHERE (notification channel + staff
-  // phone) changed. Staff-authored notes do NOT trigger mention fan-out (the
-  // messaging notes handler always calls this, but we early-out below when the
-  // author isn't an agent so no `pendingPing` row is written for
-  // staff-authored notes — there is no agent to wake on reply).
+  const auth = deps.auth ?? null
+  const tenantId = deps.tenantId ?? null
 
   async function sendNotification(
     organizationId: string,
     profile: StaffProfile,
+    kind: 'mention',
     params: {
       mentionerName: string
       snippet: string
       agentName: string
-      buttonUrlSuffix: string
+      conversationId: string
+    },
+  ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }>
+  async function sendNotification(
+    organizationId: string,
+    profile: StaffProfile,
+    kind: PingKind,
+    params: {
+      mentionerName?: string
+      snippet?: string
+      agentName?: string
+      conversationId?: string | null
+      approvalSummary?: string
+      approvalContext?: string
+      resourceLabel?: string
+      proposalSummary?: string
+      alertHeadline?: string
+      alertDetail?: string
+      organizationName?: string
+      approvalId?: string
+      proposalId?: string
+      referenceId?: string
+    },
+  ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }>
+
+  async function sendNotification(
+    organizationId: string,
+    profile: StaffProfile,
+    kind: PingKind,
+    params: {
+      mentionerName?: string
+      snippet?: string
+      agentName?: string
+      conversationId?: string | null
+      approvalSummary?: string
+      approvalContext?: string
+      resourceLabel?: string
+      proposalSummary?: string
+      alertHeadline?: string
+      alertDetail?: string
+      organizationName?: string
+      approvalId?: string
+      proposalId?: string
+      referenceId?: string
     },
   ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
-    // `findNotificationChannel` is the existence gate — without an active
-    // notification claim the platform endpoint will 409 `no_claim` anyway,
-    // so failing early gives a more useful skip reason in the result.
     const channel = await findNotificationChannel(organizationId)
     if (!channel) return { ok: false, reason: 'no_notification_channel' }
     if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
     if (!sendTemplate) return { ok: false, reason: 'platform_not_configured' }
+
+    // Read metaTemplateApprovals from channel config. Operators populate this
+    // manually via Drizzle Studio after Meta approves each template. Missing = unapproved.
+    const metaTemplateApprovals =
+      typeof channel.config?.metaTemplateApprovals === 'object' && channel.config.metaTemplateApprovals !== null
+        ? (channel.config.metaTemplateApprovals as Record<string, unknown>)
+        : null
+
+    const { templateName, bodyParams } = buildTemplateForDispatch(kind, params, metaTemplateApprovals)
+
+    // Determine the button URL suffix via magic-link mint (Principle 6: post-commit only).
+    // If `tenantId` or `auth` is not configured (dev/test without platform), skip mint
+    // and fall back to the legacy tenant-slug deep-link.
+    let buttonUrlSuffix: string
+    if (auth && tenantId && profile.userId) {
+      // Resolve email from authUser — StaffProfile doesn't carry it.
+      const userRow = await resolveUserEmail(deps.db, profile.userId)
+      if (userRow) {
+        const refs = buildRedirectRefs(kind, {
+          conversationId: params.conversationId ?? null,
+          referenceId: params.referenceId ?? '',
+          approvalId: params.approvalId,
+          proposalId: params.proposalId,
+        })
+        const redirectPath = redirectPathFor(refs)
+        // MagicLinkMintError propagates up — dispatcher catches it and writes the failure row.
+        const mintResult = await mintMagicLink(auth, deps.db as ScopedDb, {
+          userId: profile.userId,
+          email: userRow.email,
+          tenantId,
+          organizationId,
+          redirectPath,
+        })
+        buttonUrlSuffix = urlToSuffix(mintResult.url)
+      } else {
+        // User row not found — fall back to tenant slug path (defensive).
+        const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+        const convId = params.conversationId ?? ''
+        buttonUrlSuffix = tenantSlug ? `${tenantSlug}/conversations/${convId}` : `conversations/${convId}`
+      }
+    } else {
+      // Dev/test fallback: use tenant slug + conversation path. Not a real magic-link.
+      const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+      const convId = params.conversationId ?? ''
+      buttonUrlSuffix = tenantSlug ? `${tenantSlug}/conversations/${convId}` : `conversations/${convId}`
+    }
+
     try {
       const res = await sendTemplate({
         staffPhoneE164: profile.phoneNumber,
-        templateName: 'vobase_tenant_notification',
-        bodyParams: { mentionerName: params.mentionerName, snippet: params.snippet, agentName: params.agentName },
-        buttonUrlSuffix: params.buttonUrlSuffix,
+        templateName,
+        bodyParams,
+        buttonUrlSuffix,
       })
       return { ok: true, messageId: res.messageId }
     } catch (err) {
@@ -338,26 +645,13 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     )
     if (staffIds.length === 0) return result
 
-    // Only agent-authored notes spawn a `pendingStaffPings` row (no agent
-    // to wake on reply otherwise). Staff-authored notes still send the WA
-    // ping (preserving today's semantics) but skip the ping ledger.
     const askingAgentId: string | null = note.authorType === 'agent' ? note.authorId : null
 
-    // Resolve template params once per note — every recipient gets the same
-    // mentioner/snippet/agent triple, so the DB lookups are batched outside
-    // the per-staff Promise.all.
     const [mentionerName, agentName] = await Promise.all([
       resolveMentionerName(deps.db, note),
       askingAgentId ? resolveAgentName(deps.db, askingAgentId) : Promise.resolve('your agent'),
     ])
     const snippet = trimSnippet(note.body)
-    // Deep-link target the URL button appends after `https://platform.voltade.app/`.
-    // The redirect endpoint isn't built yet; this still renders the template
-    // and gives us a stable shape to wire up later.
-    const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
-    const buttonUrlSuffix = tenantSlug
-      ? `${tenantSlug}/conversations/${note.conversationId}`
-      : `conversations/${note.conversationId}`
 
     await Promise.all(
       staffIds.map(async (userId) => {
@@ -380,18 +674,16 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
             result.skipped.push({ userId, reason: 'channel_disabled' })
             return
           }
-          const send = await sendNotification(note.organizationId, profile, {
+          const send = await sendNotification(note.organizationId, profile, 'mention', {
             mentionerName,
             snippet,
             agentName,
-            buttonUrlSuffix,
+            conversationId: note.conversationId,
           })
           if (!send.ok) {
             result.skipped.push({ userId, reason: send.reason })
             return
           }
-          // Record the ping AFTER a successful WA send. Only when an agent
-          // authored the note — otherwise there's no agent to wake on reply.
           if (askingAgentId) {
             try {
               await recordPing({
@@ -404,8 +696,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
                 outboundWamid: send.messageId,
               })
             } catch (err) {
-              // Non-fatal — the WA ping went out; the staff may still answer
-              // in-app. Log for visibility.
               logger.warn({ err }, '[team/staff-ping] recordPing failed (non-fatal)')
             }
           }
@@ -428,8 +718,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   }
 
   async function enqueueFanOut(note: InternalNote): Promise<void> {
-    // No installed queue (unit-test / no-scheduler boot) → silently no-op,
-    // mirroring `syncStaffLinksEnqueue`. Production always wires `ctx.jobs`.
     if (!jobs) {
       logger.warn(
         { noteId: note.id, mentions: note.mentions },
@@ -441,8 +729,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
       { noteId: note.id, mentions: note.mentions, authorType: note.authorType },
       '[team/staff-ping] enqueueFanOut',
     )
-    // Carry only the fields the fan-out consumes — drops `createdAt` (a Date
-    // that JSON-serializes to a string) and keeps the queue row small.
     const payload: FanOutMentionPingsPayload = {
       note: {
         id: note.id,
@@ -455,8 +741,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
       },
     }
     await jobs.send(FANOUT_MENTION_PINGS_JOB, payload, {
-      // Dedup pg-boss retries by note — fan-out for a note is idempotent-enough
-      // (online/already-pinged staff are skipped) and must not double-fire.
       singletonKey: `fanout-mention:${note.id}`,
     })
   }
@@ -485,3 +769,6 @@ export function fanOutNoteMentions(note: MentionFanOutNote): Promise<FanOutResul
 export function enqueueMentionFanOut(note: InternalNote): Promise<void> {
   return current().enqueueFanOut(note)
 }
+
+// Re-export MagicLinkMintError so dispatcher can catch it without importing auth directly.
+export { MagicLinkMintError }

@@ -28,6 +28,8 @@ import { installBudgetWatcherDb } from '@modules/automations/service/budget-watc
 import { dispatchEvent, installDispatcher } from '@modules/automations/service/dispatcher'
 import { setDispatcher } from '@modules/automations/service/events'
 import { installRunsPruneDb } from '@modules/automations/service/runs-prune-job'
+import { sendNotificationTemplate } from '@modules/integrations/service/handshake'
+import type { SendTemplateFn } from '@modules/team/service/staff-ping'
 
 import type { ModuleDef } from '~/runtime'
 import { automationsTools } from './agent'
@@ -47,7 +49,34 @@ const automations: ModuleDef = {
     installAutomationsService(createAutomationsService({ db: ctx.db, realtime: ctx.realtime }))
     installBudgetCapsService(createBudgetCapsService({ db: ctx.db, realtime: ctx.realtime }))
     installBudgetWatcherDb(ctx.db)
-    installDispatcher({ db: ctx.db, jobs: ctx.jobs, realtime: ctx.realtime })
+    // Build the platform-call closure for the dispatcher's staff-ping WA send path (US-011b).
+    // Env reads at boot (not per-send). When platform env is absent, sendTemplate is undefined
+    // and the dispatcher skips the WA send step gracefully.
+    const dispatcherSendTemplate: SendTemplateFn | undefined = (() => {
+      const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
+      const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+      const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+      if (!platformBaseUrl || !tenantId || !tenantHmacSecret) return undefined
+      return ({ staffPhoneE164, templateName, bodyParams, buttonUrlSuffix }) =>
+        sendNotificationTemplate({
+          platformBaseUrl,
+          tenantId,
+          tenantHmacSecret,
+          staffPhoneE164,
+          templateName,
+          bodyParams,
+          buttonUrlSuffix,
+        })
+    })()
+    const platformTenantId = process.env.PLATFORM_TENANT_ID ?? null
+    installDispatcher({
+      db: ctx.db,
+      jobs: ctx.jobs,
+      realtime: ctx.realtime,
+      sendTemplate: dispatcherSendTemplate,
+      auth: ctx.auth,
+      tenantId: platformTenantId || null,
+    })
     installAdminAlertDeps({ db: ctx.db })
     installRunsPruneDb(ctx.db)
     // Adapt to the void-returning DispatcherFn — emit() doesn't care about the

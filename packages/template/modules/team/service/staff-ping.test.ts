@@ -31,12 +31,14 @@ import {
 import { __resetStaffServiceForTests, installStaffService } from './staff'
 import {
   __resetMentionNotifyServiceForTests,
+  buildTemplateForDispatch,
   createMentionNotifyService,
   FANOUT_MENTION_PINGS_JOB,
   FanOutMentionPingsPayloadSchema,
   fanOutNoteMentions,
   installMentionNotifyService,
   type SendTemplateFn,
+  urlToSuffix,
 } from './staff-ping'
 
 const NOOP_LOGGER: HarnessLogger = {
@@ -359,5 +361,178 @@ describe('staff-ping enqueueFanOut', () => {
     expect(parsed.note.mentions).toEqual([`staff:${STAFF_X}`])
     expect('createdAt' in parsed.note).toBe(false)
     expect('parentNoteId' in parsed.note).toBe(false)
+  })
+})
+
+// ─── US-011b acceptance tests ─────────────────────────────────────────────────
+
+describe('US-011b: urlToSuffix', () => {
+  it('strips the platform base URL prefix', () => {
+    const url = 'https://platform.voltade.app/auth/magic?token=abc123'
+    expect(urlToSuffix(url)).toBe('auth/magic?token=abc123')
+  })
+
+  it('strips prefix for root-level path', () => {
+    expect(urlToSuffix('https://platform.voltade.app/foo')).toBe('foo')
+  })
+
+  it('throws when URL does not start with platform base', () => {
+    expect(() => urlToSuffix('https://other.example.com/path')).toThrow('urlToSuffix')
+  })
+
+  it('throws for a plain relative path', () => {
+    expect(() => urlToSuffix('auth/magic?token=x')).toThrow('urlToSuffix')
+  })
+})
+
+describe('US-011b: buildTemplateForDispatch — metaTemplateApprovals gating', () => {
+  // Template names from templateNameFor():
+  //   'mention'     → 'vobase_tenant_notification'  (mention IS the base/fallback template)
+  //   'approval'    → 'vobase_approval_decision'
+  //   'proposal'    → 'vobase_proposal_decision'
+  //   'admin_alert' → 'vobase_admin_alert'
+
+  it('mention: uses vobase_tenant_notification body when its key is approved', () => {
+    // mention's per-kind template IS vobase_tenant_notification — when that key is
+    // marked approved, buildBodyParams (not buildFallbackBody) is used.
+    const approvals: Record<string, unknown> = { vobase_tenant_notification: 'approved' }
+    const result = buildTemplateForDispatch(
+      'mention',
+      { mentionerName: 'Alice', snippet: 'Hello', agentName: 'Bot' },
+      approvals,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+    const body = result.bodyParams as Record<string, string>
+    expect(body.mentionerName).toBe('Alice')
+    expect(body.snippet).toBe('Hello')
+    expect(body.agentName).toBe('Bot')
+  })
+
+  it('mention: falls back (same template) when approvals is null', () => {
+    const result = buildTemplateForDispatch('mention', { mentionerName: 'Bob', snippet: 'Hey', agentName: 'Bot' }, null)
+    expect(result.templateName).toBe('vobase_tenant_notification')
+    const body = result.bodyParams as Record<string, string>
+    expect(body.mentionerName).toBe('Bob')
+    expect(body.snippet).toBe('Hey')
+  })
+
+  it('mention: falls back when approvals is undefined', () => {
+    const result = buildTemplateForDispatch(
+      'mention',
+      { mentionerName: 'Bob', snippet: 'Hey', agentName: 'Bot' },
+      undefined,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+  })
+
+  it('approval: returns vobase_approval_decision body when approved', () => {
+    const approvals: Record<string, unknown> = { vobase_approval_decision: 'approved' }
+    const result = buildTemplateForDispatch(
+      'approval',
+      { agentName: 'Bot', approvalSummary: 'Approve this?', approvalContext: 'Order #42' },
+      approvals,
+    )
+    expect(result.templateName).toBe('vobase_approval_decision')
+    const body = result.bodyParams as Record<string, string>
+    expect(body.approvalSummary).toBe('Approve this?')
+    expect(body.approvalContext).toBe('Order #42')
+    expect(body.agentName).toBe('Bot')
+  })
+
+  it('approval: falls back to vobase_tenant_notification when key is pending', () => {
+    const approvals: Record<string, unknown> = { vobase_approval_decision: 'pending' }
+    const result = buildTemplateForDispatch(
+      'approval',
+      { agentName: 'Bot', approvalSummary: 'Approve this?', approvalContext: 'Order #42' },
+      approvals,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+    // Fallback body packs approvalSummary into snippet
+    expect((result.bodyParams as Record<string, string>).snippet).toBe('Approve this?')
+  })
+
+  it('approval: falls back when key is rejected', () => {
+    const approvals: Record<string, unknown> = { vobase_approval_decision: 'rejected' }
+    const result = buildTemplateForDispatch(
+      'approval',
+      { agentName: 'Bot', approvalSummary: 'Approve this?', approvalContext: 'Order #42' },
+      approvals,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+  })
+
+  it('approval: falls back when key is absent (missing = unapproved)', () => {
+    const result = buildTemplateForDispatch(
+      'approval',
+      { agentName: 'Bot', approvalSummary: 'Approve this?', approvalContext: 'Ctx' },
+      {},
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+  })
+
+  it('approval: falls back when metaTemplateApprovals is null', () => {
+    const result = buildTemplateForDispatch(
+      'approval',
+      { agentName: 'Bot', approvalSummary: 'Approve this?', approvalContext: 'Ctx' },
+      null,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+  })
+
+  it('proposal: returns vobase_proposal_decision body when approved', () => {
+    const approvals: Record<string, unknown> = { vobase_proposal_decision: 'approved' }
+    const result = buildTemplateForDispatch(
+      'proposal',
+      { agentName: 'Bot', resourceLabel: 'Contact #7', proposalSummary: 'Update phone' },
+      approvals,
+    )
+    expect(result.templateName).toBe('vobase_proposal_decision')
+    const body = result.bodyParams as Record<string, string>
+    expect(body.resourceLabel).toBe('Contact #7')
+    expect(body.proposalSummary).toBe('Update phone')
+    expect(body.agentName).toBe('Bot')
+  })
+
+  it('proposal: falls back when unapproved, packs proposalSummary into snippet', () => {
+    const result = buildTemplateForDispatch(
+      'proposal',
+      { agentName: 'Bot', resourceLabel: 'Contact #7', proposalSummary: 'Update phone' },
+      null,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+    expect((result.bodyParams as Record<string, string>).snippet).toBe('Update phone')
+  })
+
+  it('admin_alert: returns vobase_admin_alert body when approved', () => {
+    const approvals: Record<string, unknown> = { vobase_admin_alert: 'approved' }
+    const result = buildTemplateForDispatch(
+      'admin_alert',
+      { alertHeadline: 'Budget exceeded', alertDetail: '120% of cap', organizationName: 'Acme' },
+      approvals,
+    )
+    expect(result.templateName).toBe('vobase_admin_alert')
+    const body = result.bodyParams as Record<string, string>
+    expect(body.alertHeadline).toBe('Budget exceeded')
+    expect(body.alertDetail).toBe('120% of cap')
+    expect(body.organizationName).toBe('Acme')
+  })
+
+  it('admin_alert: falls back when unapproved, packs alertHeadline into snippet', () => {
+    const result = buildTemplateForDispatch(
+      'admin_alert',
+      { alertHeadline: 'Budget exceeded', alertDetail: '120% of cap', organizationName: 'Acme' },
+      null,
+    )
+    expect(result.templateName).toBe('vobase_tenant_notification')
+    expect((result.bodyParams as Record<string, string>).snippet).toBe('Budget exceeded')
+  })
+
+  it('truncates long fallback snippets to ≤200 chars with ellipsis', () => {
+    const longText = 'A'.repeat(250)
+    const result = buildTemplateForDispatch('approval', { agentName: 'Bot', approvalSummary: longText }, null)
+    expect(result.templateName).toBe('vobase_tenant_notification')
+    const body = result.bodyParams as Record<string, string>
+    expect(body.snippet.length).toBeLessThanOrEqual(200)
+    expect(body.snippet.endsWith('…')).toBe(true)
   })
 })

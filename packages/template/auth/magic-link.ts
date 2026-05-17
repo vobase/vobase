@@ -34,6 +34,21 @@ import { eq } from 'drizzle-orm'
 import type { Auth } from './index'
 import { authUser } from './schema'
 
+/**
+ * Thrown by `mintMagicLink` when the mint operation fails (captor timeout,
+ * better-auth error, user not found, etc.). The dispatcher catches this by
+ * `instanceof` check and writes `automation_runs(status='failed',
+ * errorMessage='magic_link_mint_failed')` without calling `sendTemplate`.
+ */
+export class MagicLinkMintError extends Error {
+  override name = 'MagicLinkMintError'
+  cause: unknown
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message)
+    this.cause = options?.cause
+  }
+}
+
 const CAPTOR_TIMEOUT_MS = 5_000
 
 const PLATFORM_MAGIC_BASE = 'https://platform.voltade.app/auth/magic'
@@ -133,9 +148,14 @@ export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: Mint
   // better-auth's token store. `disableSignUp: true` means the verify step would
   // redirect with "new_user_signup_disabled" if the user doesn't exist — we want
   // to fail fast and loud here instead.
-  const rows = await db.select().from(authUser).where(eq(authUser.id, userId)).limit(1)
-  if (!rows[0]) {
-    throw notFound('staff_user_not_found')
+  let rows: unknown[]
+  try {
+    rows = await db.select().from(authUser).where(eq(authUser.id, userId)).limit(1)
+  } catch (err) {
+    throw new MagicLinkMintError('magic_link_mint_failed', { cause: err })
+  }
+  if (!(rows as Array<unknown>)[0]) {
+    throw new MagicLinkMintError('magic_link_mint_failed', { cause: notFound('staff_user_not_found') })
   }
 
   // 16-byte URL-safe-base64 nonce — keyed per-call, collision-free.
@@ -176,12 +196,18 @@ export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: Mint
       clearTimeout(entry.timeoutId)
       pending.delete(nonce)
     }
-    throw err
+    throw new MagicLinkMintError('magic_link_mint_failed', { cause: err })
   }
 
   // Await the captor — sendMagicLink is called synchronously inside the
   // signInMagicLink handler, so this should resolve almost immediately.
-  const { url, token } = await captorPromise
+  let captured: { url: string; token: string }
+  try {
+    captured = await captorPromise
+  } catch (err) {
+    throw new MagicLinkMintError('magic_link_mint_failed', { cause: err })
+  }
+  const { url, token } = captured
 
   // Date.now() is acceptable here: this is POST-COMMIT (Principle 6), NOT inside
   // a wake-trigger renderer (Principle 3 — deterministic frozen-snapshot zone).

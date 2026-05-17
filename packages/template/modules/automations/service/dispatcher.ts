@@ -11,6 +11,13 @@
  *   3. For staff-ping-shaped events (`approval_filed`/`proposal_filed`),
  *      consults the cooldown predicate. Suppressed →
  *      `status='suppressed_cooldown'` + exit.
+ *   3b. For `approval_filed`/`proposal_filed` with an `assigneeStaffUserId`,
+ *      sends a WhatsApp staff-ping notification (US-011b). Reads
+ *      `channel_instances.config.metaTemplateApprovals` to gate the per-kind
+ *      template vs. fallback to `vobase_tenant_notification`. Mints a magic-link
+ *      (post-commit, Principle 6). On `MagicLinkMintError` → marks the run
+ *      `status='failed', errorMessage='magic_link_mint_failed'` and exits
+ *      WITHOUT calling `sendTemplate`.
  *   4. Resolves a `WakeTrigger` from `(rule.action, eventPayload)`, enqueues a
  *      wake via the installed scheduler, updates the row to
  *      `status='succeeded'` + `wake_id=<jobId>` + `finished_at=now()`.
@@ -21,15 +28,41 @@
  * `emit()`), so a producer rollback also discards the run row.
  */
 
+import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
+import { authUser as authUserTable } from '@auth/schema'
 import type { AutomationRunStatus } from '@modules/automations/schema'
 import { automationRuns } from '@modules/automations/schema'
 import { automationsService } from '@modules/automations/service/automations'
 import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
+import { findNotificationChannel } from '@modules/channels/service/instances'
+import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
+import { find as findStaff } from '@modules/team/service/staff'
+import {
+  buildRedirectRefs,
+  buildTemplateForDispatch,
+  type SendTemplateFn,
+  urlToSuffix,
+} from '@modules/team/service/staff-ping'
 import { logger, type ScopedScheduler } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
+import type { Auth } from '~/auth'
 import { type RealtimeService, type ScopedDb, safeNotify, type Tx } from '~/runtime'
+
+/** Look up a staff user's email from the auth_user table. Returns null on miss. */
+async function resolveUserEmailForDispatcher(db: ScopedDb, userId: string): Promise<string | null> {
+  try {
+    const rows = await db
+      .select({ email: authUserTable.email })
+      .from(authUserTable)
+      .where(eq(authUserTable.id, userId))
+      .limit(1)
+    return rows[0]?.email ?? null
+  } catch {
+    return null
+  }
+}
 
 export interface DispatchResult {
   runId: string
@@ -47,6 +80,23 @@ export interface DispatcherDeps {
    * RecentRunsTable streams live without polling.
    */
   realtime?: RealtimeService
+  /**
+   * Template-send seam for staff-ping WA notifications (`approval_filed` /
+   * `proposal_filed`). When absent, the WA send step is skipped (dev/test
+   * without platform configured).
+   */
+  sendTemplate?: SendTemplateFn
+  /**
+   * better-auth instance for `mintMagicLink`. When absent (or when
+   * `tenantId` is falsy), the magic-link mint is skipped and the WA button
+   * URL suffix falls back to a bare path (dev-without-platform mode).
+   */
+  auth?: Auth | null
+  /**
+   * Platform tenant id (from `PLATFORM_TENANT_ID` env). Required for
+   * `mintMagicLink`. When absent, mint is skipped.
+   */
+  tenantId?: string | null
 }
 
 let _deps: DispatcherDeps | null = null
@@ -193,6 +243,25 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
         return { runId, status: 'suppressed_cooldown' }
       }
     }
+
+    // 3b. Staff-ping WA notification (US-011b). Runs post-commit (Principle 6)
+    //     for the assignee staff. MagicLinkMintError → failed run, no WA send.
+    if (p.assigneeStaffUserId) {
+      const pingResult = await sendStaffPingNotification({
+        kind: eventName === 'approval_filed' ? 'approval' : 'proposal',
+        eventPayload: p,
+        deps,
+        t,
+        runId,
+        startedAt,
+        ruleId: rule.id,
+        eventName,
+      })
+      if (pingResult !== null) {
+        // sendStaffPingNotification returned a terminal result (failed on mint error).
+        return pingResult
+      }
+    }
   }
 
   // 4. Resolve wake target + enqueue. Scheduler send is post-tx (the in-process
@@ -241,6 +310,180 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
     )
     return { runId, status: 'failed' }
   }
+}
+
+// ─── Staff-ping WA notification (US-011b) ────────────────────────────────────
+
+interface StaffPingNotificationArgs {
+  kind: 'approval' | 'proposal'
+  eventPayload: {
+    conversationId: string | null
+    organizationId: string
+    assigneeStaffUserId?: string | null
+    approvalId?: string
+    approvalSummary?: string
+    proposalId?: string
+    proposalSummary?: string
+    resourceModule?: string
+    resourceType?: string
+    filedByAgentId?: string
+    proposedByAgentId?: string
+  }
+  deps: DispatcherDeps
+  t: ScopedDb
+  runId: string
+  startedAt: Date
+  ruleId: string
+  eventName: string
+}
+
+/**
+ * Send a staff-ping WA notification for `approval_filed`/`proposal_filed` events.
+ *
+ * Returns `null` when the notification succeeded (or was skipped because
+ * `sendTemplate`/`auth`/`tenantId` are not configured) so the caller can
+ * proceed to wake-enqueue (step 4). Returns a `DispatchResult` with
+ * `status='failed'` when a `MagicLinkMintError` occurs — callers must return
+ * this result immediately WITHOUT proceeding to step 4.
+ *
+ * `channel_instances.config.metaTemplateApprovals` is read on every send to
+ * gate per-kind template vs. fallback to `vobase_tenant_notification`. Missing
+ * keys are treated as unapproved — the fallback is the DEFAULT. Operators
+ * populate the jsonb field manually via Drizzle Studio after Meta approves each
+ * template.
+ */
+async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promise<DispatchResult | null> {
+  const { kind, eventPayload, deps, t, runId, startedAt, ruleId, eventName } = args
+  const { sendTemplate, auth, tenantId } = deps
+
+  // Without sendTemplate the platform is not configured — skip silently.
+  if (!sendTemplate) return null
+
+  const staffUserId = eventPayload.assigneeStaffUserId
+  if (!staffUserId) return null
+
+  const organizationId = eventPayload.organizationId
+
+  // Resolve staff profile for phone + userId + email (needed for mint).
+  let profile: Awaited<ReturnType<typeof findStaff>>
+  try {
+    profile = await findStaff(staffUserId)
+  } catch (err) {
+    logger.warn(
+      { err, staffUserId, ruleId, eventName },
+      '[automations/dispatcher] findStaff failed in staff-ping path — skipping WA send',
+    )
+    return null
+  }
+  if (!profile?.phoneNumber) return null
+
+  // Read metaTemplateApprovals from the notification channel config.
+  // Missing = unapproved (fallback is the DEFAULT per plan §8a.4).
+  let metaTemplateApprovals: Record<string, unknown> | null = null
+  try {
+    const channel = await findNotificationChannel(organizationId)
+    if (channel?.config?.metaTemplateApprovals != null && typeof channel.config.metaTemplateApprovals === 'object') {
+      metaTemplateApprovals = channel.config.metaTemplateApprovals as Record<string, unknown>
+    }
+  } catch (err) {
+    logger.warn(
+      { err, organizationId, ruleId },
+      '[automations/dispatcher] findNotificationChannel failed — using fallback template',
+    )
+  }
+
+  // Build template name + body params with metaTemplateApprovals gating.
+  const agentName = 'your agent' // agent name resolution deferred — not in event payload
+  const pingParams =
+    kind === 'approval'
+      ? {
+          agentName,
+          approvalSummary: eventPayload.approvalSummary ?? '',
+          approvalContext: '', // not in approval_filed payload; use summary as context
+        }
+      : {
+          agentName,
+          resourceLabel: eventPayload.resourceModule
+            ? `${eventPayload.resourceModule}/${eventPayload.resourceType ?? ''}`
+            : '',
+          proposalSummary: eventPayload.proposalSummary ?? '',
+        }
+
+  const { templateName, bodyParams } = buildTemplateForDispatch(kind, pingParams, metaTemplateApprovals)
+
+  // Mint magic-link (Principle 6: post-commit, caller already outside tx).
+  let buttonUrlSuffix: string
+  if (auth && tenantId && profile.userId) {
+    const email = await resolveUserEmailForDispatcher(deps.db, profile.userId)
+    if (!email) {
+      // Email not found — fall back to bare conversation path (defensive).
+      buttonUrlSuffix = eventPayload.conversationId ? `conversations/${eventPayload.conversationId}` : ''
+    } else {
+      const refs = buildRedirectRefs(kind, {
+        conversationId: eventPayload.conversationId,
+        referenceId: kind === 'approval' ? (eventPayload.approvalId ?? '') : (eventPayload.proposalId ?? ''),
+        approvalId: eventPayload.approvalId,
+        proposalId: eventPayload.proposalId,
+      })
+      try {
+        const mintResult = await mintMagicLink(auth, deps.db, {
+          userId: profile.userId,
+          email,
+          tenantId,
+          organizationId,
+          redirectPath: redirectPathFor(refs),
+        })
+        buttonUrlSuffix = urlToSuffix(mintResult.url)
+      } catch (err) {
+        if (err instanceof MagicLinkMintError) {
+          // Write the failure row and return — do NOT proceed to wake enqueue.
+          await finishRun(t, runId, 'failed', startedAt, 'magic_link_mint_failed')
+          logger.warn(
+            {
+              ruleId,
+              eventName,
+              automationRunId: runId,
+              staffUserId,
+              cause: String((err as MagicLinkMintError).cause),
+            },
+            '[automations/dispatcher] magic_link_mint_failed — staff-ping WA send skipped',
+          )
+          return { runId, status: 'failed' }
+        }
+        // Non-mint errors: log + continue without magic-link (best effort).
+        logger.warn(
+          { err, ruleId, eventName },
+          '[automations/dispatcher] mintMagicLink unexpected error — using fallback suffix',
+        )
+        buttonUrlSuffix = eventPayload.conversationId ? `conversations/${eventPayload.conversationId}` : ''
+      }
+    }
+  } else {
+    // Dev/test fallback: no platform configured.
+    buttonUrlSuffix = eventPayload.conversationId ? `conversations/${eventPayload.conversationId}` : ''
+  }
+
+  // Send the WA template. Non-fatal errors are logged and execution continues
+  // so the wake enqueue (step 4) still fires.
+  try {
+    await sendTemplate({
+      staffPhoneE164: profile.phoneNumber,
+      templateName,
+      bodyParams,
+      buttonUrlSuffix,
+    })
+    logger.info(
+      { ruleId, eventName, staffUserId, templateName, automationRunId: runId },
+      '[automations/dispatcher] staff-ping WA notification sent',
+    )
+  } catch (err) {
+    logger.warn(
+      { err, ruleId, eventName, staffUserId, templateName, automationRunId: runId },
+      '[automations/dispatcher] staff-ping WA send failed (non-fatal — wake enqueue continues)',
+    )
+  }
+
+  return null
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────

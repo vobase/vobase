@@ -56,7 +56,20 @@ const team: ModuleDef = {
           buttonUrlSuffix,
         })
     })()
-    installMentionNotifyService(createMentionNotifyService({ db: ctx.db, jobs: ctx.jobs, sendTemplate }))
+    // `tenantId` and `auth` are passed into the service so `mintMagicLink` can
+    // be called post-commit (Principle 6). When `PLATFORM_TENANT_ID` is unset
+    // (dev/test without platform), `tenantId` is null and the service falls
+    // back to the legacy tenant-slug buttonUrlSuffix path.
+    const platformTenantId = process.env.PLATFORM_TENANT_ID ?? null
+    installMentionNotifyService(
+      createMentionNotifyService({
+        db: ctx.db,
+        jobs: ctx.jobs,
+        sendTemplate,
+        auth: ctx.auth,
+        tenantId: platformTenantId || null,
+      }),
+    )
     installPendingStaffPingService(createPendingStaffPingService({ db: ctx.db }))
     installTeamJobsState({ jobs: ctx.jobs })
     installTeamOrgEnumerator({ db: ctx.db })
