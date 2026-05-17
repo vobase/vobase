@@ -1,12 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
-  __resetSchedulesServiceForTests,
-  installSchedulesService,
-  type SchedulesService,
-} from '@modules/schedules/service/schedules'
+  __resetAutomationsServiceForTests,
+  type AutomationsService,
+  installAutomationsService,
+} from '@modules/automations/service/automations'
 import type { ToolContext } from '@vobase/core'
 
-import { createScheduleTool } from './create-schedule'
+import { createAutomationTool } from './create-automation'
 
 const ORG_ID = 'org0test0'
 const AGENT_ID = 'agt0op0001'
@@ -24,22 +24,22 @@ function ctx(overrides: Partial<ToolContext> = {}): ToolContext {
 }
 
 afterAll(() => {
-  __resetSchedulesServiceForTests()
+  __resetAutomationsServiceForTests()
 })
 
-describe('createScheduleTool', () => {
-  beforeEach(() => __resetSchedulesServiceForTests())
+describe('createAutomationTool', () => {
+  beforeEach(() => __resetAutomationsServiceForTests())
 
   it('rejects malformed slug', async () => {
-    installSchedulesService({} as SchedulesService)
-    const result = await createScheduleTool.execute({ slug: 'Invalid Slug', cron: '0 18 * * *' } as never, ctx())
+    installAutomationsService({} as AutomationsService)
+    const result = await createAutomationTool.execute({ slug: 'Invalid Slug', cron: '0 18 * * *' } as never, ctx())
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errorCode).toBe('VALIDATION_ERROR')
   })
 
   it('defaults agentId to ctx.agentId when omitted', async () => {
     let received: unknown = null
-    installSchedulesService({
+    installAutomationsService({
       create: (input) => {
         received = input
         return Promise.resolve({ scheduleId: 'sch1' })
@@ -51,7 +51,7 @@ describe('createScheduleTool', () => {
       getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
-    const result = await createScheduleTool.execute({ slug: 'daily-brief', cron: '0 18 * * *' }, ctx())
+    const result = await createAutomationTool.execute({ slug: 'daily-brief', cron: '0 18 * * *' }, ctx())
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.content.scheduleId).toBe('sch1')
     expect((received as { agentId: string }).agentId).toBe(AGENT_ID)
@@ -59,7 +59,7 @@ describe('createScheduleTool', () => {
 
   it('honours explicit agentId override', async () => {
     let received: unknown = null
-    installSchedulesService({
+    installAutomationsService({
       create: (input) => {
         received = input
         return Promise.resolve({ scheduleId: 'sch2' })
@@ -71,7 +71,7 @@ describe('createScheduleTool', () => {
       getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
-    await createScheduleTool.execute({ slug: 'other', cron: '0 8 * * *', agentId: 'agt0other' }, ctx())
+    await createAutomationTool.execute({ slug: 'other', cron: '0 8 * * *', agentId: 'agt0other' }, ctx())
     expect((received as { agentId: string }).agentId).toBe('agt0other')
   })
 })

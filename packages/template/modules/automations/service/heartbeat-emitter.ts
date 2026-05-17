@@ -1,14 +1,14 @@
 /**
  * Heartbeat-emitter registry — lets the agents module install a callback that
- * the schedules cron-tick handler invokes once per ready row.
+ * the automations cron-tick handler invokes once per ready row.
  *
- * The registry sits between two modules at boot: schedules ships the table +
+ * The registry sits between two modules at boot: automations ships the table +
  * sweeper, agents ships the wake-pipeline emitter. Without an emitter
  * installed (e.g. tests that exercise schedule mutations only), the handler
  * runs but emits nothing — that's the documented no-op behaviour.
  */
 
-import type { HeartbeatTrigger } from '@modules/schedules/jobs'
+import type { HeartbeatTrigger } from '@modules/automations/jobs'
 
 export type HeartbeatEmitter = (trigger: HeartbeatTrigger) => Promise<void>
 

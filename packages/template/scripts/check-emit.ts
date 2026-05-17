@@ -69,8 +69,10 @@ export function runChecks(params: {
     // Skip test files
     if (relPath.endsWith('.test.ts') || relPath.includes('__tests__/')) continue
 
-    // Only walk service/ and tools/ files under modules/
-    const isTarget = /^modules\/[^/]+\/service\//.test(relPath) || /^modules\/[^/]+\/tools\//.test(relPath)
+    // Walk module service/ + tools/ files and the wake/ folder (producers
+    // outside modules — e.g. `wake/heartbeat.ts` emits 'cron').
+    const isTarget =
+      /^modules\/[^/]+\/service\//.test(relPath) || /^modules\/[^/]+\/tools\//.test(relPath) || /^wake\//.test(relPath)
     if (!isTarget) continue
 
     const callExprs = sf.getDescendantsOfKind(SyntaxKind.CallExpression)
@@ -154,27 +156,17 @@ export function runChecks(params: {
     }
   }
 
-  // (b) Orphan check: every registered event must have at least one call site.
-  // US-004 lenient mode: warn instead of error for events with no producers yet.
-  let orphanCount = 0
+  // (b) Orphan check: every registered event must have at least one call site
+  // resolved from the source tree. US-005 flipped this to STRICT — orphans are
+  // errors, not warnings (the lenient WARN-and-pass branch was scaffolding for
+  // US-004 only, when no producer existed yet for the seeded `cron` event).
   for (const eventName of Object.keys(registry)) {
     const producers = callSites.filter((s) => s.eventName === eventName)
     if (producers.length === 0) {
-      orphanCount++
-      if (eventName === 'cron') {
-        warnings.push(
-          `WARN: '${eventName}' event has no producers yet -- US-005 will add wake/heartbeat.ts producer; check-emit running in lenient mode`,
-        )
-      } else {
-        warnings.push(`WARN: '${eventName}' event has no producers yet`)
-      }
+      errors.push(
+        `orphan event: '${eventName}' is registered in eventRegistry but no producer was found in the source tree`,
+      )
     }
-  }
-
-  if (orphanCount > 0 && errors.length === 0) {
-    warnings.push(
-      `check-emit: OK (lenient -- 0 producers for ${orphanCount} registered event${orphanCount > 1 ? 's' : ''})`,
-    )
   }
 
   return { errors, warnings }

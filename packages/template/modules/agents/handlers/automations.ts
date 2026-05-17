@@ -9,13 +9,13 @@
  */
 
 import type { SessionEnv } from '@auth/middleware/require-session'
-import { getHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
-import { schedules as schedulesSvc } from '@modules/schedules/service/schedules'
+import { automationsService } from '@modules/automations/service/automations'
+import { getHeartbeatEmitter } from '@modules/automations/service/heartbeat-emitter'
 import { Hono } from 'hono'
 
 const app = new Hono<SessionEnv>().post('/:id/run', async (c) => {
   const id = c.req.param('id')
-  const row = await schedulesSvc.getById(id)
+  const row = await automationsService.getById(id)
   if (!row) return c.json({ error: `schedule not found: ${id}`, errorCode: 'not_found' }, 404)
   const emitter = getHeartbeatEmitter()
   if (!emitter) return c.json({ error: 'heartbeat emitter not installed', errorCode: 'not_ready' }, 503)

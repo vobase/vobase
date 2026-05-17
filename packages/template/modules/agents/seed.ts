@@ -92,7 +92,7 @@ export async function seed(db: unknown, { organizationId }: { organizationId: st
   const { agentDefinitions, agentScores, agentStaffMemory, operatorThreadMessages, operatorThreads, learnedSkills } =
     agentsSchema
   // biome-ignore lint/plugin/no-dynamic-import: seeds load schema lazily to avoid module-init-order issues (convention across modules/*/seed.ts)
-  const { agentSchedules } = await import('@modules/schedules/schema')
+  const { automationRules } = await import('@modules/automations/schema')
 
   const d = db as { insert: Inserter }
   const ins = d.insert.bind(d)
@@ -124,7 +124,7 @@ export async function seed(db: unknown, { organizationId }: { organizationId: st
     .onConflictDoNothing()
 
   // ── 2. Schedules — daily brief + stale-triage sweep ─────────────────
-  await ins(agentSchedules)
+  await ins(automationRules)
     .values({
       id: 'sch0bri0v1',
       organizationId: organizationId,
@@ -138,7 +138,7 @@ export async function seed(db: unknown, { organizationId }: { organizationId: st
     })
     .onConflictDoNothing()
 
-  await ins(agentSchedules)
+  await ins(automationRules)
     .values({
       id: 'sch0tri0v1',
       organizationId: organizationId,
@@ -152,7 +152,7 @@ export async function seed(db: unknown, { organizationId }: { organizationId: st
     })
     .onConflictDoNothing()
 
-  await ins(agentSchedules)
+  await ins(automationRules)
     .values({
       id: 'sch0bkp0v1',
       organizationId: organizationId,

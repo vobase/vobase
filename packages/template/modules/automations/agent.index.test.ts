@@ -1,6 +1,6 @@
 /**
- * Unit tests for `loadSchedulesIndexContributors` — the `/INDEX.md` enabled-
- * schedules summary block. Uses a stub `SchedulesService` slice; no DB.
+ * Unit tests for `loadAutomationsIndexContributors` — the `/INDEX.md` enabled-
+ * schedules summary block. Uses a stub `AutomationsService` slice; no DB.
  */
 
 import { describe, expect, it } from 'bun:test'
@@ -10,9 +10,9 @@ import {
   assertContributorSwallowsErrors,
   TEST_ORG_ID as ORG_ID,
 } from '../../tests/helpers/index-contributor'
-import { loadSchedulesIndexContributors, type SchedulesIndexReader } from './agent'
+import { type AutomationsIndexReader, loadAutomationsIndexContributors } from './agent'
 
-type EnabledRow = Awaited<ReturnType<SchedulesIndexReader['listEnabled']>>[number]
+type EnabledRow = Awaited<ReturnType<AutomationsIndexReader['listEnabled']>>[number]
 
 function fakeRow(overrides: Partial<EnabledRow>): EnabledRow {
   return {
@@ -25,7 +25,7 @@ function fakeRow(overrides: Partial<EnabledRow>): EnabledRow {
   }
 }
 
-function makeReader(rows: EnabledRow[]): SchedulesIndexReader {
+function makeReader(rows: EnabledRow[]): AutomationsIndexReader {
   return {
     listEnabled(_input) {
       return Promise.resolve(rows)
@@ -33,9 +33,9 @@ function makeReader(rows: EnabledRow[]): SchedulesIndexReader {
   }
 }
 
-describe('loadSchedulesIndexContributors', () => {
+describe('loadAutomationsIndexContributors', () => {
   it('returns a contributor whose render is null when no schedules are enabled', async () => {
-    const contribs = await loadSchedulesIndexContributors({ organizationId: ORG_ID, schedules: makeReader([]) })
+    const contribs = await loadAutomationsIndexContributors({ organizationId: ORG_ID, automations: makeReader([]) })
     expect(contribs).toHaveLength(1)
     expect(contribs[0].render({ file: 'INDEX.md' })).toBeNull()
   })
@@ -50,7 +50,7 @@ describe('loadSchedulesIndexContributors', () => {
         lastTickAt: new Date('2026-04-25T08:00:00Z'),
       }),
     ]
-    const contribs = await loadSchedulesIndexContributors({ organizationId: ORG_ID, schedules: makeReader(rows) })
+    const contribs = await loadAutomationsIndexContributors({ organizationId: ORG_ID, automations: makeReader(rows) })
     const out = contribs[0].render({ file: 'INDEX.md' }) ?? ''
     expect(out).toContain('# Schedules (2)')
     expect(out).toContain('heartbeat-operator')
@@ -62,19 +62,19 @@ describe('loadSchedulesIndexContributors', () => {
   })
 
   it('swallows reader errors and yields a null section', async () => {
-    await assertContributorSwallowsErrors<SchedulesIndexReader>(
+    await assertContributorSwallowsErrors<AutomationsIndexReader>(
       (input) =>
-        loadSchedulesIndexContributors(input as unknown as Parameters<typeof loadSchedulesIndexContributors>[0]),
-      'schedules',
+        loadAutomationsIndexContributors(input as unknown as Parameters<typeof loadAutomationsIndexContributors>[0]),
+      'automations',
       'listEnabled',
     )
   })
 
   it('targets the INDEX.md build only', async () => {
-    await assertContributorRespectsBuildTarget<SchedulesIndexReader>(
+    await assertContributorRespectsBuildTarget<AutomationsIndexReader>(
       (input) =>
-        loadSchedulesIndexContributors(input as unknown as Parameters<typeof loadSchedulesIndexContributors>[0]),
-      'schedules',
+        loadAutomationsIndexContributors(input as unknown as Parameters<typeof loadAutomationsIndexContributors>[0]),
+      'automations',
       makeReader([fakeRow({ slug: 'a' })]),
       'Schedules (1)',
     )

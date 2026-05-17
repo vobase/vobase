@@ -33,6 +33,12 @@ import {
   installThreadsService,
   threads as threadsApi,
 } from '@modules/agents/service/threads'
+import { automationsTools } from '@modules/automations/agent'
+import {
+  __resetAutomationsServiceForTests,
+  createAutomationsService,
+  installAutomationsService,
+} from '@modules/automations/service/automations'
 import {
   __resetChannelInstancesServiceForTests,
   createChannelInstancesService,
@@ -57,12 +63,6 @@ import {
   createPendingApprovalsService,
   installPendingApprovalsService,
 } from '@modules/messaging/service/pending-approvals'
-import { schedulesTools } from '@modules/schedules/agent'
-import {
-  __resetSchedulesServiceForTests,
-  createSchedulesService,
-  installSchedulesService,
-} from '@modules/schedules/service/schedules'
 import { __resetStaffServiceForTests, createStaffService, installStaffService } from '@modules/team/service/staff'
 import type { AgentContributions, HarnessLogger } from '@vobase/core'
 import { CliVerbRegistry, setJournalDb } from '@vobase/core'
@@ -83,7 +83,7 @@ const NOOP_LOGGER: HarnessLogger = {
 // build configs at boot; the e2e test bypasses module init, so we splice the
 // owning-module tools in here directly.
 const NOOP_CONTRIBUTIONS: AgentContributions = {
-  tools: [...messagingTools, ...contactsTools, ...schedulesTools],
+  tools: [...messagingTools, ...contactsTools, ...automationsTools],
   listeners: {},
   materializers: [],
   sideLoad: [],
@@ -108,7 +108,7 @@ beforeAll(async () => {
   installAgentDefinitionsService(createAgentDefinitionsService({ db: db.db, realtime: NOOP_REALTIME }))
   installThreadsService(createThreadsService({ db: db.db }))
   installContactsService(createContactsService({ db: db.db, realtime: NOOP_REALTIME }))
-  installSchedulesService(createSchedulesService({ db: db.db }))
+  installAutomationsService(createAutomationsService({ db: db.db }))
   installConversationsService(createConversationsService({ db: db.db, scheduler: null }))
   installNotesService(createNotesService({ db: db.db }))
   installPendingApprovalsService(createPendingApprovalsService({ db: db.db }))
@@ -122,7 +122,7 @@ afterAll(async () => {
   __resetCliRegistryForTests()
   __resetThreadsServiceForTests()
   __resetContactsServiceForTests()
-  __resetSchedulesServiceForTests()
+  __resetAutomationsServiceForTests()
   __resetConversationsServiceForTests()
   __resetNotesServiceForTests()
   __resetPendingApprovalsServiceForTests()

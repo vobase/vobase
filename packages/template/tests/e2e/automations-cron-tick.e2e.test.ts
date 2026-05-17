@@ -9,24 +9,24 @@
  * semantics, time-zone-aware timestamp comparison).
  *
  * Driven through the public service surface:
- *   - `createSchedulesService({ db })` + `installSchedulesService(svc)`
- *     install the singleton that `tickSchedules` consults.
- *   - `tickSchedules` is called per-test against a global `listAllEnabled` query
+ *   - `createAutomationsService({ db })` + `installAutomationsService(svc)`
+ *     install the singleton that `tickCron` consults.
+ *   - `tickCron` is called per-test against a global `listAllEnabled` query
  *     and a synchronous `emitHeartbeat` spy so we can assert exactly which
  *     schedules fired.
  */
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
-import type { HeartbeatTrigger } from '@modules/schedules/jobs'
-import { agentSchedules } from '@modules/schedules/schema'
-import { tickSchedules } from '@modules/schedules/service/cron-tick'
+import type { HeartbeatTrigger } from '@modules/automations/jobs'
+import { automationRules } from '@modules/automations/schema'
 import {
-  __resetSchedulesServiceForTests,
-  createSchedulesService,
-  installSchedulesService,
-  schedules,
-} from '@modules/schedules/service/schedules'
+  __resetAutomationsServiceForTests,
+  createAutomationsService,
+  installAutomationsService,
+  automationsService as schedules,
+} from '@modules/automations/service/automations'
+import { tickCron } from '@modules/automations/service/cron-tick'
 import { and, eq } from 'drizzle-orm'
 
 import { getSeededOrgId } from '../helpers/seeded-org'
@@ -40,17 +40,17 @@ beforeAll(async () => {
   await resetAndSeedDb()
   db = connectTestDb()
   organizationId = await getSeededOrgId(db.db)
-  installSchedulesService(createSchedulesService({ db: db.db }))
+  installAutomationsService(createAutomationsService({ db: db.db }))
 }, 60_000)
 
 afterAll(async () => {
-  __resetSchedulesServiceForTests()
+  __resetAutomationsServiceForTests()
   if (db) await db.teardown()
 })
 
 afterEach(async () => {
   // Each test owns its schedules — wipe between tests for isolation.
-  await db.db.delete(agentSchedules).where(eq(agentSchedules.organizationId, organizationId))
+  await db.db.delete(automationRules).where(eq(automationRules.organizationId, organizationId))
 })
 
 function makeSchedule(slug: string, cron = '0 * * * *'): Promise<{ scheduleId: string }> {
@@ -96,9 +96,9 @@ describe('schedules cron-tick (real PG)', () => {
     expect(behind.firstFire).toBe(false)
 
     const [row] = await db.db
-      .select({ lastTickAt: agentSchedules.lastTickAt })
-      .from(agentSchedules)
-      .where(eq(agentSchedules.id, scheduleId))
+      .select({ lastTickAt: automationRules.lastTickAt })
+      .from(automationRules)
+      .where(eq(automationRules.id, scheduleId))
     expect(row?.lastTickAt?.toISOString()).toBe(T1.toISOString())
   })
 
@@ -111,7 +111,7 @@ describe('schedules cron-tick (real PG)', () => {
     expect(enabled.map((r) => r.id).sort()).toEqual([a.scheduleId].sort())
 
     const fired: HeartbeatTrigger[] = []
-    const result = await tickSchedules({
+    const result = await tickCron({
       now: () => T0,
       emitHeartbeat: (t) => {
         fired.push(t)
@@ -124,7 +124,7 @@ describe('schedules cron-tick (real PG)', () => {
     expect(fired.map((t) => t.scheduleId)).toEqual([a.scheduleId])
   })
 
-  it('tickSchedules: second sweep at the same minute dedupes every schedule', async () => {
+  it('tickCron: second sweep at the same minute dedupes every schedule', async () => {
     const a = await makeSchedule('a')
     const b = await makeSchedule('b')
 
@@ -138,8 +138,8 @@ describe('schedules cron-tick (real PG)', () => {
       },
     })
 
-    const r1 = await tickSchedules(opts(fired1))
-    const r2 = await tickSchedules(opts(fired2))
+    const r1 = await tickCron(opts(fired1))
+    const r2 = await tickCron(opts(fired2))
 
     expect(r1.fired).toBe(2)
     expect(r1.duplicates).toBe(0)
@@ -154,7 +154,7 @@ describe('schedules cron-tick (real PG)', () => {
     const b = await makeSchedule('b')
 
     const fired: HeartbeatTrigger[] = []
-    const result = await tickSchedules({
+    const result = await tickCron({
       now: () => T0,
       emitHeartbeat: (t) => {
         if (t.scheduleId === a.scheduleId) return Promise.reject(new Error('boom'))
@@ -171,7 +171,7 @@ describe('schedules cron-tick (real PG)', () => {
   it('global sweep: enabled schedules from every org fire on the same tick', async () => {
     await makeSchedule('mine')
     const otherOrg = 'org0other00'
-    await db.db.insert(agentSchedules).values({
+    await db.db.insert(automationRules).values({
       organizationId: otherOrg,
       agentId: MERIGPT_AGENT_ID,
       slug: 'theirs',
@@ -181,7 +181,7 @@ describe('schedules cron-tick (real PG)', () => {
     })
 
     const fired: HeartbeatTrigger[] = []
-    await tickSchedules({
+    await tickCron({
       now: () => T0,
       emitHeartbeat: (t) => {
         fired.push(t)
@@ -192,7 +192,7 @@ describe('schedules cron-tick (real PG)', () => {
     expect(fired.map((t) => t.organizationId).sort()).toEqual([organizationId, otherOrg].sort())
 
     await db.db
-      .delete(agentSchedules)
-      .where(and(eq(agentSchedules.organizationId, otherOrg), eq(agentSchedules.slug, 'theirs')))
+      .delete(automationRules)
+      .where(and(eq(automationRules.organizationId, otherOrg), eq(automationRules.slug, 'theirs')))
   })
 })

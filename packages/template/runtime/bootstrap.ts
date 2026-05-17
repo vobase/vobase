@@ -24,7 +24,7 @@ import {
 } from '@auth/middleware'
 import { createWhoamiRoute } from '@auth/whoami'
 import { setAgentContributions } from '@modules/agents/service/agent-contributions'
-import { setHeartbeatEmitter } from '@modules/schedules/service/heartbeat-emitter'
+import { setHeartbeatEmitter } from '@modules/automations/service/heartbeat-emitter'
 import {
   type AudienceTier,
   bootModules,

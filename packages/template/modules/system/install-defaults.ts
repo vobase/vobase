@@ -25,7 +25,7 @@
 import { readdir, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import * as agentDefs from '@modules/agents/service/agent-definitions'
-import { schedules as schedulesSvc } from '@modules/schedules/service/schedules'
+import { automationsService as schedulesSvc } from '@modules/automations/service/automations'
 import { z } from 'zod'
 
 interface InstallEntry {

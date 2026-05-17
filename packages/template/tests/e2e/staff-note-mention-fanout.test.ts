@@ -51,6 +51,11 @@ import {
   installStaffMemoryService,
 } from '@modules/agents/service/staff-memory'
 import {
+  __resetAutomationsServiceForTests,
+  createAutomationsService,
+  installAutomationsService,
+} from '@modules/automations/service/automations'
+import {
   __resetContactsServiceForTests,
   createContactsService,
   installContactsService,
@@ -90,11 +95,6 @@ import {
   createPendingApprovalsService,
   installPendingApprovalsService,
 } from '@modules/messaging/service/pending-approvals'
-import {
-  __resetSchedulesServiceForTests,
-  createSchedulesService,
-  installSchedulesService,
-} from '@modules/schedules/service/schedules'
 import { __resetStaffServiceForTests, createStaffService, installStaffService } from '@modules/team/service/staff'
 import type { AgentContributions, AgentTool, HarnessLogger } from '@vobase/core'
 import { CliVerbRegistry, setJournalDb } from '@vobase/core'
@@ -177,7 +177,7 @@ beforeAll(async () => {
   setFilesDb(db.db)
   installContactsService(createContactsService({ db: db.db, realtime: NOOP_REALTIME }))
   installStaffMemoryService(createStaffMemoryService({ db: db.db, realtime: NOOP_REALTIME }))
-  installSchedulesService(createSchedulesService({ db: db.db }))
+  installAutomationsService(createAutomationsService({ db: db.db }))
   installStaffService(createStaffService({ db: db.db, realtime: NOOP_REALTIME }))
   installPendingApprovalsService(createPendingApprovalsService({ db: db.db }))
 
@@ -226,7 +226,7 @@ afterAll(async () => {
   __resetContactsServiceForTests()
   __resetStaffMemoryServiceForTests()
   __resetFilesDbForTests()
-  __resetSchedulesServiceForTests()
+  __resetAutomationsServiceForTests()
   __resetStaffServiceForTests()
   __resetPendingApprovalsServiceForTests()
 

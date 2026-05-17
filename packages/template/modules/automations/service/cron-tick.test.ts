@@ -1,12 +1,12 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import type { HeartbeatTrigger } from '@modules/schedules/jobs'
-import { tickSchedules } from '@modules/schedules/service/cron-tick'
+import type { HeartbeatTrigger } from '@modules/automations/jobs'
 import {
-  __resetSchedulesServiceForTests,
-  createSchedulesService,
-  installSchedulesService,
-  schedules,
-} from '@modules/schedules/service/schedules'
+  __resetAutomationsServiceForTests,
+  automationsService,
+  createAutomationsService,
+  installAutomationsService,
+} from '@modules/automations/service/automations'
+import { tickCron } from '@modules/automations/service/cron-tick'
 import { sql } from 'drizzle-orm'
 
 import { connectTestDb, resetAndSeedDb } from '~/tests/helpers/test-db'
@@ -23,29 +23,29 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  __resetSchedulesServiceForTests()
-  await db.execute(sql`TRUNCATE schedules.agent_schedules CASCADE`)
+  __resetAutomationsServiceForTests()
+  await db.execute(sql`TRUNCATE automations.automation_rules CASCADE`)
   // CASCADE is a no-op for these tables today, but keeps test ordering safe if
   // future FKs land on the row.
   await db.execute(
     sql`INSERT INTO agents.agent_definitions (id, organization_id, name) VALUES (${AGENT}, ${ORG}, 'cron-tick agent') ON CONFLICT (id) DO NOTHING`,
   )
-  installSchedulesService(
-    createSchedulesService({
-      db: db as unknown as Parameters<typeof createSchedulesService>[0]['db'],
+  installAutomationsService(
+    createAutomationsService({
+      db: db as unknown as Parameters<typeof createAutomationsService>[0]['db'],
     }),
   )
 })
 
 afterEach(() => {
-  __resetSchedulesServiceForTests()
+  __resetAutomationsServiceForTests()
 })
 
-describe('schedules cron-tick', () => {
+describe('automations cron-tick', () => {
   it('emits one heartbeat per enabled schedule on the first tick', async () => {
-    await schedules.create({ organizationId: ORG, agentId: AGENT, slug: 'daily', cron: '*/5 * * * *' })
+    await automationsService.create({ organizationId: ORG, agentId: AGENT, slug: 'daily', cron: '*/5 * * * *' })
     const fired: HeartbeatTrigger[] = []
-    const result = await tickSchedules({
+    const result = await tickCron({
       now: () => new Date('2026-04-26T12:00:30Z'),
       // biome-ignore lint/suspicious/useAwait: emitter contract requires async signature
       emitHeartbeat: async (t) => {
@@ -61,20 +61,20 @@ describe('schedules cron-tick', () => {
   })
 
   it('de-dupes identical ticks at the same minute boundary', async () => {
-    await schedules.create({ organizationId: ORG, agentId: AGENT, slug: 'daily', cron: '* * * * *' })
+    await automationsService.create({ organizationId: ORG, agentId: AGENT, slug: 'daily', cron: '* * * * *' })
     const now = () => new Date('2026-04-26T12:00:42Z')
-    const a = await tickSchedules({ now, emitHeartbeat: async () => {} })
-    const b = await tickSchedules({ now, emitHeartbeat: async () => {} })
+    const a = await tickCron({ now, emitHeartbeat: async () => {} })
+    const b = await tickCron({ now, emitHeartbeat: async () => {} })
     expect(a).toEqual({ fired: 1, duplicates: 0, errors: 0 })
     expect(b).toEqual({ fired: 0, duplicates: 1, errors: 0 })
   })
 
   it('skips disabled schedules and processes the next boundary forward', async () => {
-    const a = await schedules.create({ organizationId: ORG, agentId: AGENT, slug: 'a', cron: '* * * * *' })
-    await schedules.create({ organizationId: ORG, agentId: AGENT, slug: 'b', cron: '* * * * *' })
-    await schedules.setEnabled({ scheduleId: a.scheduleId, enabled: false })
+    const a = await automationsService.create({ organizationId: ORG, agentId: AGENT, slug: 'a', cron: '* * * * *' })
+    await automationsService.create({ organizationId: ORG, agentId: AGENT, slug: 'b', cron: '* * * * *' })
+    await automationsService.setEnabled({ scheduleId: a.scheduleId, enabled: false })
     const fired: HeartbeatTrigger[] = []
-    const r1 = await tickSchedules({
+    const r1 = await tickCron({
       now: () => new Date('2026-04-26T12:01:00Z'),
       // biome-ignore lint/suspicious/useAwait: emitter contract requires async signature
       emitHeartbeat: async (t) => {
@@ -84,7 +84,7 @@ describe('schedules cron-tick', () => {
     expect(r1.fired).toBe(1)
     expect(fired[0]?.scheduleId).toBeDefined()
     // Advancing the clock to the next minute fires again — boundary moved.
-    const r2 = await tickSchedules({
+    const r2 = await tickCron({
       now: () => new Date('2026-04-26T12:02:05Z'),
       emitHeartbeat: async () => {},
     })
@@ -93,10 +93,10 @@ describe('schedules cron-tick', () => {
   })
 
   it('isolates emitter failures per schedule', async () => {
-    await schedules.create({ organizationId: ORG, agentId: AGENT, slug: 'good', cron: '* * * * *' })
-    await schedules.create({ organizationId: ORG, agentId: AGENT, slug: 'bad', cron: '* * * * *' })
+    await automationsService.create({ organizationId: ORG, agentId: AGENT, slug: 'good', cron: '* * * * *' })
+    await automationsService.create({ organizationId: ORG, agentId: AGENT, slug: 'bad', cron: '* * * * *' })
     let goodFires = 0
-    const result = await tickSchedules({
+    const result = await tickCron({
       now: () => new Date('2026-04-26T13:00:00Z'),
       // biome-ignore lint/suspicious/useAwait: emitter contract requires async signature
       emitHeartbeat: async (t) => {

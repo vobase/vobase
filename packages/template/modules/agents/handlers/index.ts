@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 
+import schedulesHandler from './automations'
 import definitionsHandler from './definitions'
 import memoryHandler from './memory'
-import schedulesHandler from './schedules'
 import threadsHandler from './threads'
 
 const app = new Hono()

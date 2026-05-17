@@ -9,14 +9,14 @@
  * provider's prefix cache is byte-keyed on the prompt.
  */
 
+import * as automationsModule from '@modules/automations/agent'
+import { automationsService } from '@modules/automations/service/automations'
 import * as contactsModule from '@modules/contacts/agent'
 import { list as listContacts } from '@modules/contacts/service/contacts'
 import * as messagingModule from '@modules/messaging/agent'
 import type { Conversation } from '@modules/messaging/schema'
 import { list as listConversations } from '@modules/messaging/service/conversations'
 import { appendJournalEvent } from '@modules/messaging/service/journal'
-import * as schedulesModule from '@modules/schedules/agent'
-import { schedules as schedulesService } from '@modules/schedules/service/schedules'
 import { staff as teamStaff } from '@modules/team/service'
 import type {
   AgentContributions,
@@ -113,9 +113,9 @@ export function buildIndexFileMaterializer(opts: { organizationId: string }): Wo
           organizationId: opts.organizationId,
           conversations: conversationsReader,
         }),
-        schedulesModule.loadIndexContributors({
+        automationsModule.loadIndexContributors({
           organizationId: opts.organizationId,
-          schedules: schedulesService,
+          automations: automationsService,
         }),
         contactsModule.loadIndexContributors({
           organizationId: opts.organizationId,

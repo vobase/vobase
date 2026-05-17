@@ -16,7 +16,7 @@ import {
   type AgentDefinitionsService,
   installAgentDefinitionsService,
 } from '@modules/agents/service/agent-definitions'
-import type { HeartbeatTrigger } from '@modules/schedules/jobs'
+import type { HeartbeatTrigger } from '@modules/automations/jobs'
 import type { AgentContributions, HarnessLogger } from '@vobase/core'
 
 import { createHeartbeatEmitter } from './heartbeat'

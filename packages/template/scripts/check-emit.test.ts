@@ -14,8 +14,11 @@ const TEST_REGISTRY: Record<string, readonly string[]> = {
 /**
  * Build a virtual ts-morph Project with in-memory source files.
  * The events.ts stub exports `emit` so symbol resolution works.
+ *
+ * Pass `withProducer: false` to opt out of the default `wake/heartbeat.ts`
+ * producer (used by the orphan-detection test that asserts strict mode).
  */
-function makeProject(files: Record<string, string>): Project {
+function makeProject(files: Record<string, string>, opts: { withProducer?: boolean } = {}): Project {
   const project = new Project({ useInMemoryFileSystem: true })
 
   // Add the canonical events.ts so `emit` resolves to it
@@ -23,6 +26,18 @@ function makeProject(files: Record<string, string>): Project {
     `${TEMPLATE_ROOT}/${EVENTS_FILE_REL}`,
     `export async function emit(name: string, payload: unknown, ctx: { tx: unknown }): Promise<void> {}`,
   )
+
+  // Default: stub a valid `cron` producer so strict orphan-detection passes
+  // and individual tests can focus on their assertion without re-declaring it.
+  if (opts.withProducer !== false) {
+    project.createSourceFile(
+      `${TEMPLATE_ROOT}/wake/heartbeat.ts`,
+      `import { emit } from '${TEMPLATE_ROOT}/${EVENTS_FILE_REL}'
+       export async function _stub(tx: unknown) {
+         await emit('cron', { scheduleId: 's1', intendedRunAt: '2026-05-17T00:00:00Z' }, { tx })
+       }`,
+    )
+  }
 
   for (const [relPath, content] of Object.entries(files)) {
     project.createSourceFile(`${TEMPLATE_ROOT}/${relPath}`, content)
@@ -32,10 +47,24 @@ function makeProject(files: Record<string, string>): Project {
 }
 
 describe('runChecks()', () => {
-  it('passes (lenient) when no emit calls exist', () => {
-    const project = makeProject({
-      'modules/messaging/service/conversations.ts': `export function foo() {}`,
+  it('fails (strict) when a registered event has no producer in the source tree', () => {
+    const project = makeProject(
+      { 'modules/messaging/service/conversations.ts': `export function foo() {}` },
+      { withProducer: false },
+    )
+    const result = runChecks({
+      project,
+      registry: TEST_REGISTRY,
+      eventsFileRel: EVENTS_FILE_REL,
+      templateRoot: TEMPLATE_ROOT,
     })
+    expect(result.errors.some((e) => e.includes("orphan event: 'cron'"))).toBe(true)
+  })
+
+  it('passes when a registered event has a valid producer in wake/', () => {
+    // Relies on the default `wake/heartbeat.ts` stub seeded by makeProject;
+    // no additional sources needed.
+    const project = makeProject({})
     const result = runChecks({
       project,
       registry: TEST_REGISTRY,
@@ -43,7 +72,6 @@ describe('runChecks()', () => {
       templateRoot: TEMPLATE_ROOT,
     })
     expect(result.errors).toHaveLength(0)
-    expect(result.warnings.some((w) => w.includes('lenient'))).toBe(true)
   })
 
   it('fails with rogue-producer when emit call is in a non-allowlisted file', () => {
@@ -65,8 +93,8 @@ describe('runChecks()', () => {
   })
 
   it('fails when emit is called with only 2 args (missing { tx })', () => {
-    // wake/heartbeat.ts is not under modules/**/service/ or tools/, so the checker
-    // won't walk it. Test against a modules path for this check.
+    // Test against a modules path so the assertion stays distinct from the
+    // default wake/heartbeat.ts producer that makeProject seeds.
     const project2 = makeProject({
       'modules/automations/service/dispatcher.ts': `
         import { emit } from '${TEMPLATE_ROOT}/${EVENTS_FILE_REL}'

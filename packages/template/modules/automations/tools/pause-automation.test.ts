@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
-import { __resetSchedulesServiceForTests, installSchedulesService } from '@modules/schedules/service/schedules'
+import { __resetAutomationsServiceForTests, installAutomationsService } from '@modules/automations/service/automations'
 import type { ToolContext } from '@vobase/core'
 
-import { pauseScheduleTool } from './pause-schedule'
+import { pauseAutomationTool } from './pause-automation'
 
 const ORG_ID = 'org0test0'
 const AGENT_ID = 'agt0op0001'
@@ -20,15 +20,15 @@ function ctx(overrides: Partial<ToolContext> = {}): ToolContext {
 }
 
 afterAll(() => {
-  __resetSchedulesServiceForTests()
+  __resetAutomationsServiceForTests()
 })
 
-describe('pauseScheduleTool', () => {
-  beforeEach(() => __resetSchedulesServiceForTests())
+describe('pauseAutomationTool', () => {
+  beforeEach(() => __resetAutomationsServiceForTests())
 
   it('defaults enabled to false (pause)', async () => {
     let received: unknown = null
-    installSchedulesService({
+    installAutomationsService({
       create: () => Promise.resolve({ scheduleId: '' }),
       setEnabled: (input) => {
         received = input
@@ -40,7 +40,7 @@ describe('pauseScheduleTool', () => {
       getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
-    const result = await pauseScheduleTool.execute({ scheduleId: 'sch1' }, ctx())
+    const result = await pauseAutomationTool.execute({ scheduleId: 'sch1' }, ctx())
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.content).toEqual({ scheduleId: 'sch1', enabled: false })
     expect(received).toEqual({ scheduleId: 'sch1', enabled: false })
@@ -48,7 +48,7 @@ describe('pauseScheduleTool', () => {
 
   it('passes through enabled=true to resume', async () => {
     let received: unknown = null
-    installSchedulesService({
+    installAutomationsService({
       create: () => Promise.resolve({ scheduleId: '' }),
       setEnabled: (input) => {
         received = input
@@ -60,7 +60,7 @@ describe('pauseScheduleTool', () => {
       getById: () => Promise.resolve(undefined),
       listAllEnabled: () => Promise.resolve([]),
     })
-    await pauseScheduleTool.execute({ scheduleId: 'sch2', enabled: true }, ctx())
+    await pauseAutomationTool.execute({ scheduleId: 'sch2', enabled: true }, ctx())
     expect((received as { enabled: boolean }).enabled).toBe(true)
   })
 })

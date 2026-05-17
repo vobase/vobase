@@ -1,5 +1,5 @@
 /**
- * `create_schedule` — operator-side write to `agent_schedules`. The acting
+ * `create_schedule` — operator-side write to `automation_rules`. The acting
  * agent is the schedule's owner: heartbeats fire as the operator that owns
  * the schedule, not as the agent that created it from a different role
  * context. Validates cron via the underlying service (which catches malformed
@@ -9,9 +9,9 @@
 import { type Static, Type } from '@sinclair/typebox'
 import { defineAgentTool } from '@vobase/core'
 
-import { schedules } from '../service/schedules'
+import { automationsService } from '../service/automations'
 
-export const CreateScheduleInputSchema = Type.Object({
+export const CreateAutomationInputSchema = Type.Object({
   slug: Type.String({
     pattern: '^[a-z0-9-]+$',
     minLength: 1,
@@ -29,19 +29,19 @@ export const CreateScheduleInputSchema = Type.Object({
   agentId: Type.Optional(Type.String({ minLength: 1 })),
 })
 
-export type CreateScheduleToolInput = Static<typeof CreateScheduleInputSchema>
+export type CreateAutomationToolInput = Static<typeof CreateAutomationInputSchema>
 
-export const createScheduleTool = defineAgentTool({
+export const createAutomationTool = defineAgentTool({
   name: 'create_schedule',
   description:
     'Create a recurring heartbeat schedule. Owner is the calling agent unless `agentId` is supplied. Operator-only.',
-  schema: CreateScheduleInputSchema,
+  schema: CreateAutomationInputSchema,
   errorCode: 'SCHEDULE_ERROR',
   lane: 'standalone',
   prompt:
     "Use for recurring work — daily review-and-plan, weekly inbox sweeps, end-of-shift summaries. Cron is standard 5-field. Heartbeats fire as the schedule's owner agent (not the agent that created it).",
   async run(args, ctx) {
-    const out = await schedules.create({
+    const out = await automationsService.create({
       organizationId: ctx.organizationId,
       agentId: args.agentId ?? ctx.agentId,
       slug: args.slug,
