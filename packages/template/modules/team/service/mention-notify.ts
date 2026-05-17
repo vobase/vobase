@@ -187,6 +187,17 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   async function fanOutNoteMentions(note: MentionFanOutNote): Promise<FanOutResult> {
     const result: FanOutResult = { notified: [], skipped: [] }
     const staffIds = Array.from(new Set(note.mentions.map(parseStaffMention).filter((x): x is string => Boolean(x))))
+    logger.info(
+      {
+        noteId: note.id,
+        conversationId: note.conversationId,
+        authorType: note.authorType,
+        mentionsRaw: note.mentions,
+        staffIds,
+        hasSendTemplate: Boolean(sendTemplate),
+      },
+      '[team/mention-notify] fanOutNoteMentions start',
+    )
     if (staffIds.length === 0) return result
 
     // Only agent-authored notes spawn a `pendingMentionPings` row (no agent
@@ -266,13 +277,31 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
       }),
     )
 
+    logger.info(
+      {
+        noteId: note.id,
+        notified: result.notified,
+        skipped: result.skipped,
+      },
+      '[team/mention-notify] fanOutNoteMentions done',
+    )
     return result
   }
 
   async function enqueueFanOut(note: InternalNote): Promise<void> {
     // No installed queue (unit-test / no-scheduler boot) → silently no-op,
     // mirroring `syncStaffLinksEnqueue`. Production always wires `ctx.jobs`.
-    if (!jobs) return
+    if (!jobs) {
+      logger.warn(
+        { noteId: note.id, mentions: note.mentions },
+        '[team/mention-notify] enqueueFanOut skipped — no jobs scheduler installed',
+      )
+      return
+    }
+    logger.info(
+      { noteId: note.id, mentions: note.mentions, authorType: note.authorType },
+      '[team/mention-notify] enqueueFanOut',
+    )
     // Carry only the fields the fan-out consumes — drops `createdAt` (a Date
     // that JSON-serializes to a string) and keeps the queue row small.
     const payload: FanOutMentionPingsPayload = {

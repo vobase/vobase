@@ -50,6 +50,14 @@ export interface ChannelInstancesService {
   update(id: string, organizationId: string, patch: UpdateInstanceInput): Promise<ChannelInstance>
   /** Soft-delete: marks the row `status='released'`. Conversations stay attached. */
   remove(id: string, organizationId: string): Promise<void>
+  /**
+   * Hard-delete. Safe only for rows with no inbound FK (e.g. notification-tier
+   * staff channels — no `messaging.conversations.channel_instance_id` points
+   * at them). Frees the deterministic `id` (`mgd-<org>-<env>-<kind>`) so a
+   * subsequent claim that lands on a different platform pool row can insert
+   * cleanly instead of PK-colliding with a soft-released remnant.
+   */
+  hardRemove(id: string, organizationId: string): Promise<void>
 }
 
 export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelInstancesService {
@@ -121,7 +129,13 @@ export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelIn
       .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
   }
 
-  return { list, get, create, update, remove }
+  async function hardRemove(id: string, organizationId: string): Promise<void> {
+    await db
+      .delete(channelInstances)
+      .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
+  }
+
+  return { list, get, create, update, remove, hardRemove }
 }
 
 let _current: ChannelInstancesService | null = null
@@ -157,6 +171,9 @@ export function updateInstance(
 }
 export function removeInstance(id: string, organizationId: string): Promise<void> {
   return current().remove(id, organizationId)
+}
+export function hardRemoveInstance(id: string, organizationId: string): Promise<void> {
+  return current().hardRemove(id, organizationId)
 }
 
 // ─── Managed-mode upsert ────────────────────────────────────────────────────

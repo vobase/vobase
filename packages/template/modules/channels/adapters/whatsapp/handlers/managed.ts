@@ -27,7 +27,13 @@ import { agentDefinitions } from '@modules/agents/schema'
 import { isManagedConfig, isManagedNotifConfig } from '@modules/channels/adapters/whatsapp/factory'
 import { claimAndBootstrap } from '@modules/channels/managed/bootstrap'
 import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
-import { getInstance, listInstances, removeInstance, upsertManagedInstance } from '@modules/channels/service/instances'
+import {
+  getInstance,
+  hardRemoveInstance,
+  listInstances,
+  removeInstance,
+  upsertManagedInstance,
+} from '@modules/channels/service/instances'
 import {
   fetchNotificationAvailability,
   fetchSandboxAvailability,
@@ -466,7 +472,14 @@ const app = new Hono<OrganizationEnv>()
       throw err
     }
 
-    await removeInstance(instanceId, organizationId)
+    // Hard-delete: notification rows are staff-facing and have no inbound FK
+    // from `messaging.conversations`, so we can drop them outright. Soft-delete
+    // would leave the deterministic `id` (`mgd-<org>-<env>-notif`) occupied,
+    // which PK-collides on the next claim if the platform allocator hands out
+    // a different pool row (different `platformChannelId` → the partial unique
+    // index on `(org, channel, platformChannelId)` doesn't match, the upsert
+    // falls through to plain INSERT, and the id collides).
+    await hardRemoveInstance(instanceId, organizationId)
     return c.json({ released: true })
   })
 
