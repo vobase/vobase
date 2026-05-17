@@ -151,6 +151,7 @@ function makeProfile(): StaffProfile {
     memory: '',
     lastSeenAt: null,
     phoneNumber: STAFF_PHONE,
+    phoneNumberVerified: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }

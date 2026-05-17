@@ -117,6 +117,7 @@ function makeProfile(userId: string, phone: string | null): StaffProfile {
     memory: '',
     lastSeenAt: null,
     phoneNumber: phone,
+    phoneNumberVerified: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }

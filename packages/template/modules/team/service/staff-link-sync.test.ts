@@ -33,6 +33,7 @@ function makeProfile(overrides: Partial<StaffProfile> = {}): StaffProfile {
     memory: '',
     lastSeenAt: null,
     phoneNumber: overrides.phoneNumber ?? null,
+    phoneNumberVerified: overrides.phoneNumberVerified ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

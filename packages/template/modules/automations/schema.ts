@@ -77,6 +77,7 @@ export type AutomationRunStatus =
   | 'suppressed_cooldown'
   | 'suppressed_paused'
   | 'suppressed_budget'
+  | 'suppressed_unverified'
 
 /** History record — one row per rule execution attempt. */
 export const automationRuns = automationsPgSchema.table(
@@ -106,7 +107,7 @@ export const automationRuns = automationsPgSchema.table(
     index('idx_automation_runs_status').on(t.status, t.startedAt),
     check(
       'automation_runs_status_check',
-      sql`status IN ('queued','succeeded','failed','suppressed_cooldown','suppressed_paused','suppressed_budget')`,
+      sql`status IN ('queued','succeeded','failed','suppressed_cooldown','suppressed_paused','suppressed_budget','suppressed_unverified')`,
     ),
   ],
 )

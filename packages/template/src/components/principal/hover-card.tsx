@@ -8,6 +8,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowUpRightIcon, MailIcon, PhoneIcon } from 'lucide-react'
 
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { Status } from '@/components/ui/status'
 import { cn } from '@/lib/utils'
 import { PrincipalAvatar } from './avatar'
 import type { PrincipalKind, PrincipalRecord } from './directory'
@@ -60,6 +61,7 @@ function Detail({ record }: { record: PrincipalRecord }) {
     )
   }
   if (record.kind === 'staff' && record.staff) {
+    const unverified = record.staff.phoneNumberVerified === false
     return (
       <div className="border-t bg-muted/30 px-3 py-2 text-xs">
         {record.staff.title ? <DetailRow label="Title" value={record.staff.title} /> : null}
@@ -74,6 +76,16 @@ function Detail({ record }: { record: PrincipalRecord }) {
             )
           }
         />
+        {unverified ? (
+          <DetailRow
+            label="Notifications"
+            value={
+              <span title="Phone unverified — notifications via email only.">
+                <Status variant="warning" label="Phone unverified" />
+              </span>
+            }
+          />
+        ) : null}
       </div>
     )
   }

@@ -45,6 +45,7 @@ function makeStaffProfile(overrides: Partial<StaffProfile> = {}): StaffProfile {
     memory: '',
     lastSeenAt: null,
     phoneNumber: null,
+    phoneNumberVerified: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     ...overrides,

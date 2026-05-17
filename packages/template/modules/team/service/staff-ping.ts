@@ -43,6 +43,7 @@ import {
 import type { InternalNote } from '@modules/messaging/schema'
 import { decide as decideApproval } from '@modules/messaging/service/pending-approvals'
 import { getPrefs } from '@modules/settings/service/notification-prefs'
+import { applyVerificationGating } from '@modules/team/service/mention-notify'
 import { recordPing } from '@modules/team/service/pending-staff-pings'
 import { find as findStaff } from '@modules/team/service/staff'
 import { logger, type ScopedScheduler } from '@vobase/core'
@@ -92,7 +93,10 @@ export interface StaffPingParams {
   proposalId?: string
 }
 
-export type StaffPingResult = { status: 'sent'; pingId: string } | { status: 'suppressed_cooldown' }
+export type StaffPingResult =
+  | { status: 'sent'; pingId: string }
+  | { status: 'suppressed_cooldown' }
+  | { status: 'suppressed_unverified' }
 
 /**
  * Generic staff-ping primitive — used by the US-013 automations dispatcher
@@ -107,9 +111,23 @@ export type StaffPingResult = { status: 'sent'; pingId: string } | { status: 'su
  *
  * Cooldown (see `modules/automations/service/cooldown.ts`) is enforced by
  * the caller before invoking this — `staffPing` does not re-check.
+ *
+ * US-021: returns `{ status: 'suppressed_unverified' }` when the target staff
+ * user's `auth.user.phoneNumberVerified !== true`. The dispatcher records this
+ * as `automation_runs(status='suppressed_unverified')` and skips the WA send.
+ * NULL `phoneNumberVerified` (legacy rows pre-OTP) is treated as unverified,
+ * matching the messaging layout middleware convention.
  */
 export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { tx: Tx }): Promise<StaffPingResult> {
   void ctx.tx // reserved for the US-013 transactional dispatcher wiring
+
+  // US-021: gate before any side-effects. Returns suppressed_unverified when
+  // `auth.user.phoneNumberVerified !== true` (NULL = unverified).
+  const gating = await applyVerificationGating([params.staffUserId], params.organizationId)
+  if (gating.unverified.includes(params.staffUserId)) {
+    return { status: 'suppressed_unverified' }
+  }
+
   const askingAgentId = params.askingAgentId ?? 'agent:pending'
   const convId = params.conversationId ?? ''
   await recordPing({
@@ -404,12 +422,36 @@ export function buildTemplateForDispatch(
   return { templateName: 'vobase_tenant_notification', bodyParams: buildFallbackBody(kind, params) }
 }
 
+/**
+ * Email-fallback seam used by the mention fan-out for staff whose phone is
+ * not OTP-verified (US-021). The team module wires this to a real email
+ * adapter at boot when one is configured; tests inject a stub so the unit/
+ * integration suites can count fallback fires without touching live SMTP.
+ *
+ * The signature is intentionally narrow — no full email template machinery is
+ * declared in core today. When a proper EmailAdapter contract lands, the
+ * implementation can route through it without changing this seam.
+ */
+export type SendEmailFallbackFn = (input: {
+  organizationId: string
+  staffUserId: string
+  conversationId: string
+  noteId: string
+  body: string
+}) => Promise<{ ok: true } | { ok: false; reason: string }>
+
 interface MentionNotifyDeps {
   db: unknown
   /** pg-boss queue for the durable fan-out enqueue. Omitted in unit-test contexts — `enqueueFanOut` then no-ops. */
   jobs?: Pick<ScopedScheduler, 'send'> | null
   /** Template-send seam. Omitted in unit-test contexts — `sendNotification` returns `platform_not_configured`. */
   sendTemplate?: SendTemplateFn
+  /**
+   * Email-fallback seam (US-021). When omitted, unverified-staff fan-out still
+   * surfaces `reason: 'phone_unverified'` in `result.skipped` but no email is
+   * sent — the dev/test default when no email adapter is configured.
+   */
+  sendEmailFallback?: SendEmailFallbackFn
   /**
    * better-auth instance for `mintMagicLink`. Omitted when `PLATFORM_TENANT_ID` is not set
    * (dev/test without platform) — the magic-link mint is skipped and the legacy
@@ -505,6 +547,7 @@ async function resolveMentionerName(db: unknown, note: MentionFanOutNote): Promi
 export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNotifyService {
   const jobs = deps.jobs ?? null
   const sendTemplate = deps.sendTemplate ?? null
+  const sendEmailFallback = deps.sendEmailFallback ?? null
   const auth = deps.auth ?? null
   const tenantId = deps.tenantId ?? null
 
@@ -654,57 +697,87 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     ])
     const snippet = trimSnippet(note.body)
 
+    // US-021: gate the fan-out on `auth.user.phoneNumberVerified`. Unverified
+    // staff are routed through the email-fallback seam (best-effort — fires only
+    // when an adapter is wired) and recorded with `reason: 'phone_unverified'`
+    // so the caller can see exactly how many WA pings were suppressed.
+    const gating = await applyVerificationGating(staffIds, note.organizationId)
+    const verifiedSet = new Set(gating.verified)
     await Promise.all(
-      staffIds.map(async (userId) => {
-        try {
-          const profile = await findStaff(userId)
-          if (!profile || profile.organizationId !== note.organizationId) {
-            result.skipped.push({ userId, reason: 'no_profile' })
-            return
+      gating.unverified.map(async (userId) => {
+        if (sendEmailFallback) {
+          try {
+            await sendEmailFallback({
+              organizationId: note.organizationId,
+              staffUserId: userId,
+              conversationId: note.conversationId,
+              noteId: note.id,
+              body: snippet,
+            })
+          } catch (err) {
+            logger.warn(
+              { err, userId, noteId: note.id },
+              '[team/staff-ping] sendEmailFallback failed (non-fatal — skip row still recorded)',
+            )
           }
-          if (!isOffline(profile.lastSeenAt)) {
-            result.skipped.push({ userId, reason: 'online' })
-            return
-          }
-          const prefs = await getPrefs(userId)
-          if (!prefs.mentionsEnabled) {
-            result.skipped.push({ userId, reason: 'mentions_disabled' })
-            return
-          }
-          if (!prefs.whatsappEnabled) {
-            result.skipped.push({ userId, reason: 'channel_disabled' })
-            return
-          }
-          const send = await sendNotification(note.organizationId, profile, 'mention', {
-            mentionerName,
-            snippet,
-            agentName,
-            conversationId: note.conversationId,
-          })
-          if (!send.ok) {
-            result.skipped.push({ userId, reason: send.reason })
-            return
-          }
-          if (askingAgentId) {
-            try {
-              await recordPing({
-                conversationId: note.conversationId,
-                staffUserId: userId,
-                organizationId: note.organizationId,
-                askingAgentId,
-                originalNoteId: note.id,
-                kind: 'mention',
-                outboundWamid: send.messageId,
-              })
-            } catch (err) {
-              logger.warn({ err }, '[team/staff-ping] recordPing failed (non-fatal)')
-            }
-          }
-          result.notified.push(userId)
-        } catch (err) {
-          result.skipped.push({ userId, reason: err instanceof Error ? err.message : 'error' })
         }
+        result.skipped.push({ userId, reason: 'phone_unverified' })
       }),
+    )
+
+    await Promise.all(
+      staffIds
+        .filter((id) => verifiedSet.has(id))
+        .map(async (userId) => {
+          try {
+            const profile = await findStaff(userId)
+            if (!profile || profile.organizationId !== note.organizationId) {
+              result.skipped.push({ userId, reason: 'no_profile' })
+              return
+            }
+            if (!isOffline(profile.lastSeenAt)) {
+              result.skipped.push({ userId, reason: 'online' })
+              return
+            }
+            const prefs = await getPrefs(userId)
+            if (!prefs.mentionsEnabled) {
+              result.skipped.push({ userId, reason: 'mentions_disabled' })
+              return
+            }
+            if (!prefs.whatsappEnabled) {
+              result.skipped.push({ userId, reason: 'channel_disabled' })
+              return
+            }
+            const send = await sendNotification(note.organizationId, profile, 'mention', {
+              mentionerName,
+              snippet,
+              agentName,
+              conversationId: note.conversationId,
+            })
+            if (!send.ok) {
+              result.skipped.push({ userId, reason: send.reason })
+              return
+            }
+            if (askingAgentId) {
+              try {
+                await recordPing({
+                  conversationId: note.conversationId,
+                  staffUserId: userId,
+                  organizationId: note.organizationId,
+                  askingAgentId,
+                  originalNoteId: note.id,
+                  kind: 'mention',
+                  outboundWamid: send.messageId,
+                })
+              } catch (err) {
+                logger.warn({ err }, '[team/staff-ping] recordPing failed (non-fatal)')
+              }
+            }
+            result.notified.push(userId)
+          } catch (err) {
+            result.skipped.push({ userId, reason: err instanceof Error ? err.message : 'error' })
+          }
+        }),
     )
 
     logger.info(

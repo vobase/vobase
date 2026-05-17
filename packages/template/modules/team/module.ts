@@ -8,6 +8,7 @@ import { jobs as teamJobs } from './jobs'
 import { createStaffAttrDefService, installStaffAttrDefService } from './service/attribute-definitions'
 import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
+import { createVerificationGating, installVerificationGating } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
 import { createPendingStaffPingService, installPendingStaffPingService } from './service/pending-staff-pings'
 import { createStaffService, installStaffService } from './service/staff'
@@ -34,6 +35,7 @@ const team: ModuleDef = {
   agent: teamAgent,
   init(ctx) {
     installStaffService(createStaffService({ db: ctx.db, realtime: ctx.realtime }))
+    installVerificationGating(createVerificationGating({ db: ctx.db }))
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))

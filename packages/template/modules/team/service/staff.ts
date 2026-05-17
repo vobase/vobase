@@ -82,7 +82,11 @@ export function createStaffService(deps: StaffDeps): StaffService {
   // `phoneNumber` lives on the better-auth `user` table (phone-number plugin),
   // not `staff_profiles` — every read joins it back in so callers keep seeing
   // a single `StaffProfile` shape.
-  const staffSelection = { ...getTableColumns(staffProfiles), phoneNumber: authUser.phoneNumber }
+  const staffSelection = {
+    ...getTableColumns(staffProfiles),
+    phoneNumber: authUser.phoneNumber,
+    phoneNumberVerified: authUser.phoneNumberVerified,
+  }
 
   /**
    * Write a staff member's phone onto the better-auth `user` row. The

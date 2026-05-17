@@ -37,6 +37,7 @@ import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
+import { applyVerificationGating } from '@modules/team/service/mention-notify'
 import { find as findStaff } from '@modules/team/service/staff'
 import {
   buildRedirectRefs,
@@ -244,9 +245,29 @@ async function dispatchAutomationRunInner<E extends EventName>(args: DispatchOne
       }
     }
 
-    // 3b. Staff-ping WA notification (US-011b). Runs post-commit (Principle 6)
-    //     for the assignee staff. MagicLinkMintError → failed run, no WA send.
     if (p.assigneeStaffUserId) {
+      // 3b. US-021: gate on phoneNumberVerified before attempting WA send.
+      //     When the staff user's phone is unverified (or NULL — legacy rows
+      //     pre-OTP), skip the WA send entirely and record the run as
+      //     suppressed_unverified. No wake is enqueued.
+      const gating = await applyVerificationGating([p.assigneeStaffUserId], p.organizationId)
+      if (gating.unverified.includes(p.assigneeStaffUserId)) {
+        await finishRun(t, runId, 'suppressed_unverified', startedAt)
+        logger.warn(
+          {
+            ruleId: rule.id,
+            eventName,
+            automationRunId: runId,
+            staffUserId: p.assigneeStaffUserId,
+            suppressionReason: 'phone_unverified',
+          },
+          '[automations/dispatcher] suppressed_unverified',
+        )
+        return { runId, status: 'suppressed_unverified' }
+      }
+
+      // 3c. Staff-ping WA notification (US-011b). Runs post-commit (Principle 6)
+      //     for the assignee staff. MagicLinkMintError → failed run, no WA send.
       const pingResult = await sendStaffPingNotification({
         kind: eventName === 'approval_filed' ? 'approval' : 'proposal',
         eventPayload: p,

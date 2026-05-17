@@ -35,6 +35,8 @@ export interface StaffMeta {
   availability: Availability
   isOnline: boolean
   lastSeenAt: Date | null
+  /** US-021: false or null = phone unverified, WA pings suppressed. */
+  phoneNumberVerified: boolean | null
 }
 
 export interface ContactMeta {
@@ -86,7 +88,13 @@ export function usePrincipalDirectory(): PrincipalDirectory {
         id: s.userId,
         token: `staff:${s.userId}`,
         name: s.displayName?.trim() || humanize(s.userId),
-        staff: { title: s.title, availability: s.availability, isOnline, lastSeenAt: lastSeen },
+        staff: {
+          title: s.title,
+          availability: s.availability,
+          isOnline,
+          lastSeenAt: lastSeen,
+          phoneNumberVerified: s.phoneNumberVerified ?? null,
+        },
       }
     })
 

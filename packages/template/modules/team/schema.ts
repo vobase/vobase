@@ -61,6 +61,13 @@ export interface StaffProfile {
    * @-mentions them in an internal note.
    */
   phoneNumber: string | null
+  /**
+   * Whether the staff member has completed OTP phone verification (US-021).
+   * NOT a `staff_profiles` column — joined from `auth.user.phoneNumberVerified`.
+   * `true` = verified and eligible for WhatsApp pings.
+   * `false` or `null` = unverified — mention fan-out routes to email fallback.
+   */
+  phoneNumberVerified: boolean | null
   createdAt: Date
   updatedAt: Date
 }
@@ -224,12 +231,12 @@ export const pendingStaffPings = teamPgSchema.table(
 )
 
 // Compile-time drift guards
-// `phoneNumber` is omitted: it's joined in from the better-auth `user` table
-// by the staff service, not a `staff_profiles` column.
+// `phoneNumber` and `phoneNumberVerified` are omitted: both are joined in from
+// the better-auth `user` table by the staff service, not `staff_profiles` columns.
 type _StaffProfileAssert =
   InferSelectModel<typeof staffProfiles> extends Omit<
     StaffProfile,
-    'sectors' | 'expertise' | 'languages' | 'attributes' | 'availability' | 'phoneNumber'
+    'sectors' | 'expertise' | 'languages' | 'attributes' | 'availability' | 'phoneNumber' | 'phoneNumberVerified'
   >
     ? true
     : never
