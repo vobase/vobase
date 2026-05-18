@@ -143,22 +143,16 @@ function installStubs(): void {
   installNotificationPrefsService({
     get: async (userId: string) => ({
       userId,
-      mentionsEnabled: true,
-      whatsappEnabled: true,
-      emailEnabled: true,
-      approvalsEnabled: true,
-      proposalsEnabled: true,
+      prefs: {
+        mention: { in_app: true, whatsapp: true, email: true },
+        approval: { in_app: true, whatsapp: true, email: true },
+        proposal: { in_app: true, whatsapp: true, email: true },
+        admin_alert: { in_app: true, whatsapp: true, email: true },
+      },
       updatedAt: new Date(),
     }),
-    upsert: async (userId: string) => ({
-      userId,
-      mentionsEnabled: true,
-      whatsappEnabled: true,
-      emailEnabled: true,
-      approvalsEnabled: true,
-      proposalsEnabled: true,
-      updatedAt: new Date(),
-    }),
+    upsert: async (userId, matrix) => ({ userId, prefs: matrix, updatedAt: new Date() }),
+    isEnabled: async () => true,
   })
 
   // Pending-ping stub: no-op record.

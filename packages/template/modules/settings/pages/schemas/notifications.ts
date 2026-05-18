@@ -1,11 +1,27 @@
+import { NOTIFICATION_CHANNELS, NOTIFICATION_KINDS } from '@modules/settings/schema'
 import { z } from 'zod'
 
+/**
+ * Notification matrix (US-024+). Sparse-or-full record:
+ * `{ [kind]: { [channel]: boolean } }`. Missing keys merge with defaults at
+ * the service layer (see `service/notification-prefs.ts::fillMatrix`).
+ */
+const channelMapSchema = z.object(
+  Object.fromEntries(NOTIFICATION_CHANNELS.map((c) => [c, z.boolean().optional()])) as Record<
+    (typeof NOTIFICATION_CHANNELS)[number],
+    z.ZodOptional<z.ZodBoolean>
+  >,
+)
+
 export const notificationsSchema = z.object({
-  mentionsEnabled: z.boolean().optional(),
-  whatsappEnabled: z.boolean().optional(),
-  emailEnabled: z.boolean().optional(),
-  approvalsEnabled: z.boolean().optional(),
-  proposalsEnabled: z.boolean().optional(),
+  matrix: z
+    .object(
+      Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k, channelMapSchema.optional()])) as Record<
+        (typeof NOTIFICATION_KINDS)[number],
+        z.ZodOptional<typeof channelMapSchema>
+      >,
+    )
+    .default({}),
 })
 
 export type NotificationsValues = z.infer<typeof notificationsSchema>

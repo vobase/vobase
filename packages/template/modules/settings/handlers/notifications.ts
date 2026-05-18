@@ -1,16 +1,8 @@
 import type { SessionEnv } from '@auth/middleware/require-session'
 import { zValidator } from '@hono/zod-validator'
+import { notificationsSchema } from '@modules/settings/pages/schemas/notifications'
 import { getPrefs, upsertPrefs } from '@modules/settings/service/notification-prefs'
 import { Hono } from 'hono'
-import { z } from 'zod'
-
-const notificationsSchema = z.object({
-  mentionsEnabled: z.boolean().optional(),
-  whatsappEnabled: z.boolean().optional(),
-  emailEnabled: z.boolean().optional(),
-  approvalsEnabled: z.boolean().optional(),
-  proposalsEnabled: z.boolean().optional(),
-})
 
 const invalidBody = (
   result: { success: boolean; error?: { issues: unknown } },
@@ -20,11 +12,14 @@ const invalidBody = (
 const app = new Hono<SessionEnv>()
   .get('/notifications', async (c) => {
     const userId = c.get('session').user.id
-    return c.json(await getPrefs(userId))
+    const prefs = await getPrefs(userId)
+    return c.json({ matrix: prefs.prefs })
   })
   .post('/notifications', zValidator('json', notificationsSchema, invalidBody), async (c) => {
     const userId = c.get('session').user.id
-    return c.json(await upsertPrefs(userId, c.req.valid('json')))
+    const { matrix } = c.req.valid('json')
+    const prefs = await upsertPrefs(userId, matrix)
+    return c.json({ matrix: prefs.prefs })
   })
 
 export default app

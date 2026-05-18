@@ -1,3 +1,21 @@
+/**
+ * Integration test for the notification matrix fan-out.
+ *
+ * Stages a verified staff user with a sparse matrix
+ * `{ mention: { in_app: true, whatsapp: false, email: true } }` and fires the
+ * mention fan-out. Asserts:
+ *
+ *   - a `notification.suppressed` event is emitted for the disabled WA cell
+ *     (the matrix override beats the defaults), so the conversation timeline
+ *     records *why* no WA ping went out
+ *   - the WhatsApp template send is NOT called
+ *   - email-fallback is NOT called either, because that fallback fires only
+ *     when the user is `phoneUnverified` — when WA is gated off by an explicit
+ *     pref we just skip silently
+ *
+ * Mirrors the shape of `notification-events-fanout.integration.test.ts`.
+ */
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
   __resetChannelInstancesServiceForTests,
@@ -23,12 +41,11 @@ import {
 } from '@modules/team/service/staff-ping'
 import { installJournalService, type JournalAppendInput, type JournalEventLike } from '@vobase/core'
 
-const ORG = 'org-notif-events'
-const STAFF_VERIFIED = 'usr-notif-verified'
-const STAFF_UNVERIFIED = 'usr-notif-unverified'
+const ORG = 'org-matrix-fanout'
+const STAFF = 'usr-matrix-verified'
 const STAFF_PHONE = '+6581234567'
-const CONV_ID = 'conv-notif-events'
-const AGENT_ID = 'agt-notif-test'
+const CONV_ID = 'conv-matrix-fanout'
+const AGENT_ID = 'agt-matrix-fanout'
 
 interface CapturedEvent {
   type: string
@@ -37,18 +54,20 @@ interface CapturedEvent {
 }
 
 const captured: CapturedEvent[] = []
+let sendTemplateCalls = 0
+let emailFallbackCalls = 0
 
-const stubSendTemplate: SendTemplateFn = async () => ({
-  ok: true,
-  messageId: 'stub-wamid-events',
-  wireRoute: 'template' as const,
-})
+const stubSendTemplate: SendTemplateFn = async () => {
+  sendTemplateCalls += 1
+  return { ok: true, messageId: 'stub-wamid-matrix', wireRoute: 'template' as const }
+}
 
-const stubEmailFallback: SendEmailFallbackFn = async () => ({ ok: true })
+const stubEmailFallback: SendEmailFallbackFn = async () => {
+  emailFallbackCalls += 1
+  return { ok: true }
+}
 
 function installStubs(): void {
-  // Captor journal: records every `append` call so the assertions can read
-  // back the `notification.*` rows the fan-out emits.
   installJournalService({
     append: async <E extends JournalEventLike>(input: JournalAppendInput<E>) => {
       const ev = input.event as unknown as Record<string, unknown>
@@ -62,11 +81,8 @@ function installStubs(): void {
     getLatestTurnIndex: async () => 0,
   })
 
-  installVerificationGating(async (staffIds) => {
-    const verified = staffIds.filter((id) => id === STAFF_VERIFIED)
-    const unverified = staffIds.filter((id) => id !== STAFF_VERIFIED)
-    return { verified, unverified }
-  })
+  // STAFF is verified — verification gating returns it under `verified`.
+  installVerificationGating(async (staffIds) => ({ verified: staffIds, unverified: [] }))
 
   installChannelInstancesService({
     list: async (organizationId: string, channel?: string) => {
@@ -74,7 +90,7 @@ function installStubs(): void {
       if (channel && channel !== 'whatsapp_notif') return []
       return [
         {
-          id: 'notif-inst',
+          id: 'matrix-inst',
           organizationId: ORG,
           channel: 'whatsapp_notif',
           role: 'staff',
@@ -96,13 +112,13 @@ function installStubs(): void {
   installStaffService({
     list: async () => [],
     find: async (userId: string) => {
-      if (userId !== STAFF_VERIFIED && userId !== STAFF_UNVERIFIED) return null
+      if (userId !== STAFF) return null
       const offline = new Date(Date.now() - 10 * 60 * 1000)
       // biome-ignore lint/suspicious/noExplicitAny: cross-module stub
       const base: any = {
         userId,
         organizationId: ORG,
-        displayName: userId === STAFF_VERIFIED ? 'Alice Verified' : 'Bob Unverified',
+        displayName: 'Alice Matrix',
         title: null,
         sectors: [],
         expertise: [],
@@ -114,7 +130,7 @@ function installStubs(): void {
         memory: '',
         lastSeenAt: offline,
         phoneNumber: STAFF_PHONE,
-        phoneNumberVerified: userId === STAFF_VERIFIED,
+        phoneNumberVerified: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       }
@@ -137,19 +153,26 @@ function installStubs(): void {
     writeProfile: async () => undefined,
   })
 
+  // Sparse matrix: mention.whatsapp explicitly false; mention.email true;
+  // mention.in_app true. Other kinds left to defaults (which `getPrefs` fills
+  // before the fan-out reads).
   installNotificationPrefsService({
     get: async (userId: string) => ({
       userId,
       prefs: {
-        mention: { in_app: true, whatsapp: true, email: true },
-        approval: { in_app: true, whatsapp: true, email: true },
-        proposal: { in_app: true, whatsapp: true, email: true },
-        admin_alert: { in_app: true, whatsapp: true, email: true },
+        mention: { in_app: true, whatsapp: false, email: true },
+        approval: { in_app: true, whatsapp: true, email: false },
+        proposal: { in_app: true, whatsapp: true, email: false },
+        admin_alert: { in_app: true, whatsapp: true, email: false },
       },
       updatedAt: new Date(),
     }),
     upsert: async (userId, matrix) => ({ userId, prefs: matrix, updatedAt: new Date() }),
-    isEnabled: async () => true,
+    isEnabled: async (_userId, kind, channel) => {
+      if (kind === 'mention' && channel === 'whatsapp') return false
+      if (kind === 'mention' && channel === 'email') return true
+      return true
+    },
   })
 
   installPendingStaffPingService({
@@ -182,12 +205,14 @@ afterAll(() => {
 
 beforeEach(() => {
   captured.length = 0
+  sendTemplateCalls = 0
+  emailFallbackCalls = 0
 })
 
 // biome-ignore lint/suspicious/noExplicitAny: minimal note shape for the fan-out
 function makeNote(mentions: string[]): any {
   return {
-    id: 'note-notif-events',
+    id: 'note-matrix',
     organizationId: ORG,
     conversationId: CONV_ID,
     authorType: 'agent',
@@ -197,38 +222,29 @@ function makeNote(mentions: string[]): any {
   }
 }
 
-describe('mention fan-out: notification.* timeline events', () => {
-  it('emits notification.sent for a verified recipient', async () => {
-    await fanOutNoteMentions(makeNote([`staff:${STAFF_VERIFIED}`]))
-    const sent = captured.filter((e) => e.type === 'notification.sent')
-    expect(sent.length).toBe(1)
-    expect(sent[0]?.conversationId).toBe(CONV_ID)
-    expect(sent[0]?.payload?.kind).toBe('mention')
-    expect(sent[0]?.payload?.channel).toBe('whatsapp')
-    expect(sent[0]?.payload?.recipientStaffId).toBe(STAFF_VERIFIED)
-    expect(sent[0]?.payload?.recipientDisplayName).toBe('Alice Verified')
-    expect(sent[0]?.payload?.messageId).toBe('stub-wamid-events')
-  })
+describe('mention fan-out: matrix WhatsApp opt-out', () => {
+  it('skips WA send + emits notification.suppressed when matrix mention.whatsapp = false', async () => {
+    const result = await fanOutNoteMentions(makeNote([`staff:${STAFF}`]))
 
-  it('emits notification.suppressed with suppressionReason=unverified for an unverified recipient', async () => {
-    await fanOutNoteMentions(makeNote([`staff:${STAFF_UNVERIFIED}`]))
+    // No WA template + no email fallback were called — the matrix gates WA off
+    // and the email-fallback path only fires for `phoneUnverified` skips.
+    expect(sendTemplateCalls).toBe(0)
+    expect(emailFallbackCalls).toBe(0)
+
+    // Fan-out reports a single skip with reason `channel_disabled` (matrix opt-out).
+    expect(result.notified).toEqual([])
+    expect(result.skipped).toEqual([{ userId: STAFF, reason: 'channel_disabled' }])
+
+    // The conversation timeline gets a `notification.suppressed` row with
+    // suppressionReason='paused' (the staff-ping helper's encoding of an
+    // opt-out skip; see `emitMentionSuppressed` in `team/service/staff-ping.ts`).
     const suppressed = captured.filter((e) => e.type === 'notification.suppressed')
     expect(suppressed.length).toBe(1)
     expect(suppressed[0]?.conversationId).toBe(CONV_ID)
     expect(suppressed[0]?.payload?.kind).toBe('mention')
     expect(suppressed[0]?.payload?.channel).toBe('whatsapp')
-    expect(suppressed[0]?.payload?.recipientStaffId).toBe(STAFF_UNVERIFIED)
-    expect(suppressed[0]?.payload?.recipientDisplayName).toBe('Bob Unverified')
-    expect(suppressed[0]?.payload?.suppressionReason).toBe('unverified')
-  })
-
-  it('mixed verified + unverified mentions emit one event per recipient', async () => {
-    await fanOutNoteMentions(makeNote([`staff:${STAFF_VERIFIED}`, `staff:${STAFF_UNVERIFIED}`]))
-    const sent = captured.filter((e) => e.type === 'notification.sent')
-    const suppressed = captured.filter((e) => e.type === 'notification.suppressed')
-    expect(sent.length).toBe(1)
-    expect(suppressed.length).toBe(1)
-    expect(sent[0]?.payload?.recipientStaffId).toBe(STAFF_VERIFIED)
-    expect(suppressed[0]?.payload?.recipientStaffId).toBe(STAFF_UNVERIFIED)
+    expect(suppressed[0]?.payload?.recipientStaffId).toBe(STAFF)
+    expect(suppressed[0]?.payload?.recipientDisplayName).toBe('Alice Matrix')
+    expect(suppressed[0]?.payload?.suppressionReason).toBe('paused')
   })
 })

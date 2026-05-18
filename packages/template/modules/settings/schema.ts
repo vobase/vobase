@@ -6,33 +6,50 @@
  * in better-auth (`auth.user`) so we hold only the `userId` here (no FK —
  * auth tables live in a different pgSchema; cleanup handled at the app layer).
  *
+ * **Matrix prefs (US-024+).** Five flat booleans (`mentionsEnabled`,
+ * `whatsappEnabled`, `emailEnabled`, `approvalsEnabled`, `proposalsEnabled`)
+ * were replaced by a single `prefs jsonb` column holding the full
+ * `NotificationKind × NotificationChannel` matrix. Reads merge with defaults
+ * (in_app=true for all kinds; whatsapp=`phoneNumberVerified` at read time;
+ * email=false) so missing keys never break dispatch.
+ *
  * Plus a generic per-org key/value `org_settings` table for org-scoped
  * preferences such as `defaultOperatorAgentId`. Distinct from the per-user
  * `user_notification_prefs` so the two namespaces never collide.
  */
 
 import type { InferSelectModel } from 'drizzle-orm'
-import { boolean, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { settingsPgSchema } from '~/runtime'
 
+/** Notification kinds — what happened that may warrant a ping. */
+export type NotificationKind = 'mention' | 'approval' | 'proposal' | 'admin_alert'
+
+/** Notification channels — where the ping goes. */
+export type NotificationChannel = 'in_app' | 'whatsapp' | 'email'
+
+export const NOTIFICATION_KINDS: readonly NotificationKind[] = ['mention', 'approval', 'proposal', 'admin_alert']
+export const NOTIFICATION_CHANNELS: readonly NotificationChannel[] = ['in_app', 'whatsapp', 'email']
+
+/**
+ * Sparse-or-full per-user matrix. Cells absent from storage fall back to the
+ * dynamic defaults computed in the service layer (see `notification-prefs.ts`).
+ * Callers should never read this type raw — go through `getPrefs(userId)` to
+ * receive a fully-filled `NotificationPrefsMatrix` with all cells populated.
+ */
+export type NotificationPrefsMatrix = Partial<Record<NotificationKind, Partial<Record<NotificationChannel, boolean>>>>
+
 export interface UserNotificationPrefs {
   userId: string
-  mentionsEnabled: boolean
-  whatsappEnabled: boolean
-  emailEnabled: boolean
-  approvalsEnabled: boolean
-  proposalsEnabled: boolean
+  prefs: NotificationPrefsMatrix
   updatedAt: Date
 }
 
 export const userNotificationPrefs = settingsPgSchema.table('user_notification_prefs', {
   userId: text('user_id').primaryKey(),
-  mentionsEnabled: boolean('mentions_enabled').notNull().default(true),
-  whatsappEnabled: boolean('whatsapp_enabled').notNull().default(false),
-  emailEnabled: boolean('email_enabled').notNull().default(false),
-  approvalsEnabled: boolean('approvals_enabled').notNull().default(true),
-  proposalsEnabled: boolean('proposals_enabled').notNull().default(true),
+  prefs: jsonb('prefs').$type<NotificationPrefsMatrix>().notNull().default(sql`'{}'::jsonb`),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()

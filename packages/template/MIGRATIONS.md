@@ -91,3 +91,42 @@ For tenants that already have rows in `team.pending_mention_pings`:
 4. To roll back: run `migrations/down/down-rename-staff-pings-to-mention-pings.sql` (safety gate will abort if non-mention rows exist).
 
 The `kind DEFAULT 'mention'` ensures all pre-existing rows are automatically classified as mention pings with no DML backfill needed.
+
+## Slice B.3 case study — `user_notification_prefs` flat booleans → jsonb matrix
+
+The plan at `.omc/plans/automations-and-notifications.md` §8 (US-024+ notifications matrix) replaces the five flat boolean columns on `settings.user_notification_prefs` (`mentions_enabled`, `whatsapp_enabled`, `email_enabled`, `approvals_enabled`, `proposals_enabled`) with a single jsonb `prefs` column that holds the full `NotificationKind × NotificationChannel` matrix (4 kinds × 3 channels). The previous flat shape couldn't express "email me for approvals but WhatsApp only for mentions", and admin alerts had no toggle at all.
+
+The hand-edited migration (`drizzle/20260518000001_user_notification_prefs_matrix/migration.sql`) does:
+
+```sql
+ALTER TABLE "settings"."user_notification_prefs"
+  ADD COLUMN "prefs" jsonb DEFAULT '{}'::jsonb NOT NULL;
+
+UPDATE "settings"."user_notification_prefs" SET "prefs" = jsonb_build_object(
+  'mention',     jsonb_build_object('in_app', mentions_enabled,  'whatsapp', mentions_enabled  AND whatsapp_enabled, 'email', mentions_enabled  AND email_enabled),
+  'approval',    jsonb_build_object('in_app', approvals_enabled, 'whatsapp', approvals_enabled AND whatsapp_enabled, 'email', approvals_enabled AND email_enabled),
+  'proposal',    jsonb_build_object('in_app', proposals_enabled, 'whatsapp', proposals_enabled AND whatsapp_enabled, 'email', proposals_enabled AND email_enabled),
+  'admin_alert', jsonb_build_object('in_app', true,              'whatsapp', whatsapp_enabled,                       'email', email_enabled)
+);
+
+ALTER TABLE "settings"."user_notification_prefs" DROP COLUMN "mentions_enabled";
+ALTER TABLE "settings"."user_notification_prefs" DROP COLUMN "whatsapp_enabled";
+ALTER TABLE "settings"."user_notification_prefs" DROP COLUMN "email_enabled";
+ALTER TABLE "settings"."user_notification_prefs" DROP COLUMN "approvals_enabled";
+ALTER TABLE "settings"."user_notification_prefs" DROP COLUMN "proposals_enabled";
+```
+
+Drizzle-kit would have inferred the column shape change as DROP+CREATE (data loss). We hand-wrote ADD COLUMN + UPDATE backfill + DROP so live rows survive the deploy. `admin_alert` is new — pre-migration rows had no per-kind admin gate, so we synthesise it from the flat `whatsapp_enabled` + `email_enabled` toggles plus `in_app = true`.
+
+A **paired down-migration** lives at `migrations/down/down-user-notification-prefs-matrix.sql`. It is **lossy** by design: the down-migration recreates the five flat booleans and OR-merges the per-kind WA/email cells (the most permissive reading, so users keep receiving anything they previously enabled), but it can't recover any per-kind cell differences (e.g. "email for approvals, no email for mentions" collapses to a single `email_enabled = true`). The `admin_alert` row of the matrix is dropped silently on downgrade — that's the documented data loss.
+
+## Deploying past Slice B.3 against an existing tenant DB
+
+For tenants that already have rows in `settings.user_notification_prefs`:
+
+1. Take a `pg_dump` snapshot before deploy.
+2. Apply the forward migration DDL above against the live DB.
+3. Verify: `SELECT prefs FROM settings.user_notification_prefs LIMIT 5` — every row should carry the four-kind matrix populated from the legacy flat booleans.
+4. To roll back: run `migrations/down/down-user-notification-prefs-matrix.sql` (lossy — per-kind channel differences and `admin_alert` cells are discarded).
+
+Reads merge the stored matrix with verification-aware defaults at the service layer (`modules/settings/service/notification-prefs.ts::fillMatrix`), so cells missing from storage never break dispatch — `in_app` defaults to true, `whatsapp` defaults to `auth.user.phoneNumberVerified === true` at read time (flips with verification without a write), `email` defaults to false.

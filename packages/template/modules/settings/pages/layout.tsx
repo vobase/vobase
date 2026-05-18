@@ -1,15 +1,20 @@
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
 import type { ApiKeySummaryDto, CreatedApiKeyDto } from '@modules/settings/handlers/api-keys'
 import { useOrgSetting } from '@modules/settings/hooks/use-org-setting'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { NotificationsValues } from '@modules/settings/pages/schemas'
 import { notificationsSchema } from '@modules/settings/pages/schemas'
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_KINDS,
+  type NotificationChannel,
+  type NotificationKind,
+  type NotificationPrefsMatrix,
+} from '@modules/settings/schema'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Check, Copy, MonitorIcon, MoonIcon, SunIcon, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { InfoCard, InfoRow, InfoSection } from '@/components/info'
@@ -18,10 +23,13 @@ import { SettingsToggle } from '@/components/settings'
 import { SettingsSegmented } from '@/components/settings/settings-segmented'
 import { useTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Status } from '@/components/ui/status'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { settingsClient } from '@/lib/api-client'
 import { authClient } from '@/lib/auth-client'
 
@@ -40,16 +48,26 @@ const FONT_SIZE_OPTIONS = [
 const FONT_SIZE_MAP: Record<string, string> = { sm: '13px', md: '15px', lg: '17px' }
 
 interface NotificationPrefsResponse {
-  userId: string
-  mentionsEnabled: boolean
-  whatsappEnabled: boolean
-  emailEnabled: boolean
-  approvalsEnabled: boolean
-  proposalsEnabled: boolean
-  updatedAt: string
+  matrix: NotificationPrefsMatrix
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+const KIND_META: Record<NotificationKind, { label: string; description: string }> = {
+  mention: { label: 'Mentions', description: 'When an internal note @-mentions me' },
+  approval: { label: 'Approvals', description: 'When an agent needs my decision on a pending approval' },
+  proposal: { label: 'Proposals', description: 'When a change proposal needs my decision' },
+  admin_alert: {
+    label: 'Admin alerts',
+    description: 'Operator-level alerts about pauses, budget breaches, system health',
+  },
+}
+
+const CHANNEL_LABEL: Record<NotificationChannel, string> = {
+  in_app: 'In-app',
+  whatsapp: 'WhatsApp',
+  email: 'Email',
+}
 
 function SaveIndicator({ state }: { state: SaveState }) {
   if (state === 'saving') return <span className="text-muted-foreground text-xs">Saving…</span>
@@ -151,65 +169,110 @@ function NotificationsSection() {
     },
   })
 
-  const form = useForm<NotificationsValues>({
-    resolver: zodResolver(notificationsSchema),
-    defaultValues: {
-      mentionsEnabled: true,
-      whatsappEnabled: false,
-      emailEnabled: false,
-      approvalsEnabled: true,
-      proposalsEnabled: true,
-    },
-  })
+  const sessionRes = authClient.useSession() as unknown as {
+    data?: { user?: { phoneNumberVerified?: boolean | null } | null } | null
+  } | null
+  const phoneVerified = sessionRes?.data?.user?.phoneNumberVerified === true
 
+  const [matrix, setMatrix] = useState<NotificationPrefsMatrix | null>(null)
   useEffect(() => {
-    if (data) {
-      form.reset({
-        mentionsEnabled: data.mentionsEnabled,
-        whatsappEnabled: data.whatsappEnabled,
-        emailEnabled: data.emailEnabled,
-        approvalsEnabled: data.approvalsEnabled,
-        proposalsEnabled: data.proposalsEnabled,
-      })
-    }
-  }, [data, form])
+    if (data) setMatrix(data.matrix)
+  }, [data])
 
-  const watched = useWatch({ control: form.control })
-  const save = useCallback((v: NotificationsValues) => mutate(v), [mutate])
-  const saveState = useAutoSave<NotificationsValues>(data ? (watched as NotificationsValues) : null, save)
+  const save = useCallback(
+    (v: NotificationsValues) => {
+      return mutate(v)
+    },
+    [mutate],
+  )
+  const saveValues: NotificationsValues | null = matrix && data ? { matrix } : null
+  const saveState = useAutoSave<NotificationsValues>(saveValues, save)
+
+  function setCell(kind: NotificationKind, channel: NotificationChannel, value: boolean): void {
+    setMatrix((prev) => {
+      const base = prev ?? {}
+      const cellRow = { ...(base[kind] ?? {}), [channel]: value }
+      return { ...base, [kind]: cellRow }
+    })
+  }
+
+  function cellValue(kind: NotificationKind, channel: NotificationChannel): boolean {
+    return matrix?.[kind]?.[channel] === true
+  }
 
   return (
-    <InfoSection title="Notifications" actions={<SaveIndicator state={saveState} />}>
+    <InfoSection
+      title="Notifications"
+      description="Choose how each notification type reaches you."
+      actions={<SaveIndicator state={saveState} />}
+    >
       <InfoCard>
-        <SettingsToggle
-          label="Mention notifications"
-          description="Notify me when an internal note mentions me."
-          checked={form.watch('mentionsEnabled') ?? true}
-          onCheckedChange={(v) => form.setValue('mentionsEnabled', v)}
-        />
-        <SettingsToggle
-          label="WhatsApp"
-          description="Ping me on WhatsApp when mentioned while offline (last seen > 2 min ago)."
-          checked={form.watch('whatsappEnabled') ?? false}
-          onCheckedChange={(v) => form.setValue('whatsappEnabled', v)}
-        />
-        <SettingsToggle
-          label="Email"
-          checked={form.watch('emailEnabled') ?? false}
-          onCheckedChange={(v) => form.setValue('emailEnabled', v)}
-        />
-        <SettingsToggle
-          label="Approval notifications"
-          description="WhatsApp ping when an agent files a pending approval that needs your decision."
-          checked={form.watch('approvalsEnabled') ?? true}
-          onCheckedChange={(v) => form.setValue('approvalsEnabled', v)}
-        />
-        <SettingsToggle
-          label="Proposal notifications"
-          description="WhatsApp ping when a change proposal needs your decision."
-          checked={form.watch('proposalsEnabled') ?? true}
-          onCheckedChange={(v) => form.setValue('proposalsEnabled', v)}
-        />
+        <Table className="text-sm">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[40%]">Event</TableHead>
+              {NOTIFICATION_CHANNELS.map((channel) => {
+                const isWhatsApp = channel === 'whatsapp'
+                const disabledHeader = isWhatsApp && !phoneVerified
+                const headerCell = (
+                  <span className={disabledHeader ? 'text-muted-foreground' : undefined}>{CHANNEL_LABEL[channel]}</span>
+                )
+                return (
+                  <TableHead key={channel} className="w-[20%] text-center">
+                    {disabledHeader ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">{headerCell}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>Verify your WhatsApp number in Profile above</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      headerCell
+                    )}
+                  </TableHead>
+                )
+              })}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {NOTIFICATION_KINDS.map((kind) => (
+              <TableRow key={kind}>
+                <TableCell className="align-top">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{KIND_META[kind].label}</span>
+                    <span className="text-muted-foreground text-xs">{KIND_META[kind].description}</span>
+                  </div>
+                </TableCell>
+                {NOTIFICATION_CHANNELS.map((channel) => {
+                  const isWhatsApp = channel === 'whatsapp'
+                  const disabled = (isWhatsApp && !phoneVerified) || matrix === null
+                  const checkbox = (
+                    <Checkbox
+                      checked={cellValue(kind, channel)}
+                      onCheckedChange={(v) => setCell(kind, channel, v === true)}
+                      disabled={disabled}
+                      aria-label={`${KIND_META[kind].label} via ${CHANNEL_LABEL[channel]}`}
+                    />
+                  )
+                  return (
+                    <TableCell key={channel} className="text-center align-top">
+                      {isWhatsApp && !phoneVerified ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">{checkbox}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>Verify your WhatsApp number in Profile above</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        checkbox
+                      )}
+                    </TableCell>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </InfoCard>
     </InfoSection>
   )

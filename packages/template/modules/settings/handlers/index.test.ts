@@ -37,22 +37,20 @@ beforeAll(() => {
   installNotificationPrefsService({
     get: async (userId) => ({
       userId,
-      mentionsEnabled: true,
-      whatsappEnabled: false,
-      emailEnabled: false,
-      approvalsEnabled: true,
-      proposalsEnabled: true,
+      prefs: {
+        mention: { in_app: true, whatsapp: false, email: false },
+        approval: { in_app: true, whatsapp: false, email: false },
+        proposal: { in_app: true, whatsapp: false, email: false },
+        admin_alert: { in_app: true, whatsapp: false, email: false },
+      },
       updatedAt: new Date(),
     }),
-    upsert: async (userId, patch) => ({
+    upsert: async (userId, matrix) => ({
       userId,
-      mentionsEnabled: patch.mentionsEnabled ?? true,
-      whatsappEnabled: patch.whatsappEnabled ?? false,
-      emailEnabled: patch.emailEnabled ?? false,
-      approvalsEnabled: patch.approvalsEnabled ?? true,
-      proposalsEnabled: patch.proposalsEnabled ?? true,
+      prefs: matrix,
       updatedAt: new Date(),
     }),
+    isEnabled: async (_userId, _kind, channel) => ({ in_app: true, whatsapp: false, email: false })[channel] ?? false,
   })
 })
 
@@ -111,16 +109,17 @@ describe('POST /settings/profile', () => {
 // ── /notifications ────────────────────────────────────────────────────────────
 
 describe('POST /settings/notifications', () => {
-  it('happy path: valid body returns 200 + prefs row', async () => {
-    const res = await POST('/notifications', { emailEnabled: true, whatsappEnabled: false })
+  it('happy path: valid matrix returns 200 + matrix echo', async () => {
+    const res = await POST('/notifications', {
+      matrix: { approval: { whatsapp: true, email: false } },
+    })
     expect(res.status).toBe(200)
-    const json = (await res.json()) as { userId: string; emailEnabled: boolean }
-    expect(json.userId).toBe('test-user')
-    expect(json.emailEnabled).toBe(true)
+    const json = (await res.json()) as { matrix: { approval?: { whatsapp?: boolean } } }
+    expect(json.matrix.approval?.whatsapp).toBe(true)
   })
 
   it('rejection: string where boolean expected returns 400', async () => {
-    const res = await POST('/notifications', { emailEnabled: 'yes' })
+    const res = await POST('/notifications', { matrix: { mention: { in_app: 'yes' } } })
     expect(res.status).toBe(400)
   })
 })

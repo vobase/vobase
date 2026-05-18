@@ -11,7 +11,7 @@
  * Per-kind template selector (US-011b): `templateNameFor(kind)` from
  * `notification-template-payloads.ts` picks the right Meta template name. The
  * dispatcher gates on `channel_instances.config.metaTemplateApprovals` before
- * calling `sendTemplate` and falls back to `vobase_tenant_notification` when
+ * calling `sendTemplate` and falls back to `vobase_tenant_notification_v1` when
  * the per-kind template is unapproved (see `buildTemplateForDispatch`).
  *
  * Magic-link minting (US-011b / Principle 6): `mintMagicLink` is called
@@ -401,7 +401,7 @@ function buildBodyParams(
 }
 
 /**
- * Fallback body: pack the kind-specific summary into the `vobase_tenant_notification`
+ * Fallback body: pack the kind-specific summary into the `vobase_tenant_notification_v1`
  * 3-tuple when the per-kind template is unapproved. Preserves agentName verbatim;
  * truncates the summary to ≤200 chars + `[truncated approval/proposal summary]` if needed.
  */
@@ -443,7 +443,7 @@ function buildFallbackBody(
 
 /**
  * Read the `metaTemplateApprovals` jsonb from the notification channel instance config
- * and decide whether to use the per-kind template or fall back to `vobase_tenant_notification`.
+ * and decide whether to use the per-kind template or fall back to `vobase_tenant_notification_v1`.
  *
  * The `channel_instances.config.metaTemplateApprovals` field is a JSONB record keyed by
  * template name → `'approved' | 'pending' | 'rejected'`. Operators populate it manually
@@ -474,8 +474,8 @@ export function buildTemplateForDispatch(
   if (isApproved) {
     return { templateName: perKindTemplate, bodyParams: buildBodyParams(kind, params) }
   }
-  // Fallback: re-render to vobase_tenant_notification 3-tuple.
-  return { templateName: 'vobase_tenant_notification', bodyParams: buildFallbackBody(kind, params) }
+  // Fallback: re-render to vobase_tenant_notification_v1 3-tuple.
+  return { templateName: 'vobase_tenant_notification_v1', bodyParams: buildFallbackBody(kind, params) }
 }
 
 /**
@@ -808,12 +808,11 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
               return
             }
             const prefs = await getPrefs(userId)
-            if (!prefs.mentionsEnabled) {
-              result.skipped.push({ userId, reason: 'mentions_disabled' })
-              await emitMentionSuppressed(note, userId, displayName, 'paused')
-              return
-            }
-            if (!prefs.whatsappEnabled) {
+            const cell = prefs.prefs.mention ?? {}
+            if (cell.whatsapp !== true) {
+              // User has opted out of WA-for-mentions in their matrix (or never opted in).
+              // We surface this as a single 'channel_disabled' skip — the matrix collapses
+              // the old `mentions_enabled` + `whatsapp_enabled` flat toggles into one cell.
               result.skipped.push({ userId, reason: 'channel_disabled' })
               await emitMentionSuppressed(note, userId, displayName, 'paused')
               return

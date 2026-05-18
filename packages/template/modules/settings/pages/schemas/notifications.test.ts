@@ -1,45 +1,38 @@
 /**
- * Zod parse tests for the per-user notification prefs form schema (US-010).
+ * Zod parse tests for the per-user notification matrix form schema (US-024+).
  */
 import { describe, expect, it } from 'bun:test'
 
 import { notificationsSchema } from './notifications'
 
-describe('notificationsSchema', () => {
-  it('accepts all five toggle keys', () => {
+describe('notificationsSchema (matrix)', () => {
+  it('accepts a fully-filled matrix', () => {
     const parsed = notificationsSchema.parse({
-      mentionsEnabled: true,
-      whatsappEnabled: false,
-      emailEnabled: false,
-      approvalsEnabled: true,
-      proposalsEnabled: false,
+      matrix: {
+        mention: { in_app: true, whatsapp: false, email: true },
+        approval: { in_app: true, whatsapp: true, email: false },
+        proposal: { in_app: true, whatsapp: false, email: false },
+        admin_alert: { in_app: true, whatsapp: true, email: true },
+      },
     })
-    expect(parsed).toEqual({
-      mentionsEnabled: true,
-      whatsappEnabled: false,
-      emailEnabled: false,
-      approvalsEnabled: true,
-      proposalsEnabled: false,
-    })
+    expect(parsed.matrix.mention?.in_app).toBe(true)
+    expect(parsed.matrix.admin_alert?.email).toBe(true)
   })
 
-  it('every toggle is optional — empty object parses', () => {
-    expect(notificationsSchema.parse({})).toEqual({})
+  it('empty matrix object parses', () => {
+    expect(notificationsSchema.parse({ matrix: {} })).toEqual({ matrix: {} })
   })
 
-  it('approvalsEnabled rejects non-boolean values', () => {
-    expect(() => notificationsSchema.parse({ approvalsEnabled: 'yes' })).toThrow()
+  it('omitted matrix defaults to {}', () => {
+    expect(notificationsSchema.parse({})).toEqual({ matrix: {} })
   })
 
-  it('proposalsEnabled rejects non-boolean values', () => {
-    expect(() => notificationsSchema.parse({ proposalsEnabled: 1 })).toThrow()
+  it('partial cells are accepted', () => {
+    const parsed = notificationsSchema.parse({ matrix: { approval: { whatsapp: true } } })
+    expect(parsed.matrix.approval?.whatsapp).toBe(true)
   })
 
-  it('partial patch with just approvalsEnabled is valid', () => {
-    expect(notificationsSchema.parse({ approvalsEnabled: false })).toEqual({ approvalsEnabled: false })
-  })
-
-  it('partial patch with just proposalsEnabled is valid', () => {
-    expect(notificationsSchema.parse({ proposalsEnabled: true })).toEqual({ proposalsEnabled: true })
+  it('non-boolean cell value rejected', () => {
+    expect(() => notificationsSchema.parse({ matrix: { mention: { in_app: 'yes' } } })).toThrow()
   })
 })
