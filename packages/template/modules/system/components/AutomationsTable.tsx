@@ -22,9 +22,19 @@ import { DataTableColumnHeader } from '@/components/data-table/data-table-column
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
 import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Label } from '@/components/ui/label'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
 import { Status } from '@/components/ui/status'
+import { Textarea } from '@/components/ui/textarea'
 import {
   type AutomationRow,
   useActivityAutomations,
@@ -46,6 +56,8 @@ export function AutomationsTable() {
 
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 25 })
+  const [pauseTarget, setPauseTarget] = useState<AutomationRow | null>(null)
+  const [pauseReason, setPauseReason] = useState('')
 
   const columns = useMemo<ColumnDef<AutomationRow>[]>(
     () => [
@@ -152,9 +164,8 @@ export function AutomationsTable() {
                 variant="outline"
                 disabled={pause.isPending}
                 onClick={() => {
-                  const reason = prompt('Reason for pausing this rule?', 'manual')
-                  if (!reason) return
-                  pause.mutate({ ruleId: row.original.id, reason })
+                  setPauseReason('')
+                  setPauseTarget(row.original)
                 }}
               >
                 <Pause className="size-3.5" />
@@ -198,8 +209,56 @@ export function AutomationsTable() {
   }
 
   return (
-    <DataTable table={table}>
-      <DataTableToolbar table={table} />
-    </DataTable>
+    <>
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
+      <Dialog
+        open={pauseTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setPauseTarget(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pause {pauseTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              New fires will be suppressed as <code>suppressed_paused</code> until you resume the rule. In-flight runs
+              are unaffected.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="pause-reason">Reason</Label>
+            <Textarea
+              id="pause-reason"
+              value={pauseReason}
+              onChange={(e) => setPauseReason(e.target.value)}
+              placeholder="Why pause this rule? Visible to operators in the audit history."
+              rows={3}
+              // biome-ignore lint/a11y/noAutofocus: dialog input — focusing on open is the expected UX, not a disruption.
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPauseTarget(null)} disabled={pause.isPending}>
+              Cancel
+            </Button>
+            <Button
+              disabled={pause.isPending || pauseReason.trim().length === 0}
+              onClick={() => {
+                if (!pauseTarget) return
+                pause.mutate(
+                  { ruleId: pauseTarget.id, reason: pauseReason.trim() },
+                  { onSettled: () => setPauseTarget(null) },
+                )
+              }}
+            >
+              <Pause className="size-3.5" />
+              Pause rule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
