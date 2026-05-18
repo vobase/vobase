@@ -26,6 +26,11 @@
       "import": "./src/test-utils.ts",
       "types": "./src/test-utils.ts",
       "default": "./src/test-utils.ts"
+    },
+    "./contracts/changes": {
+      "import": "./src/contracts/changes.ts",
+      "types": "./src/contracts/changes.ts",
+      "default": "./src/contracts/changes.ts"
     }
   },
   "files": [

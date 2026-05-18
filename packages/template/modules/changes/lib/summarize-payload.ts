@@ -1,4 +1,4 @@
-import type { ChangePayload } from '@vobase/core'
+import type { ChangePayload } from '@vobase/core/contracts/changes'
 
 import { pluralize } from '@/lib/format'
 

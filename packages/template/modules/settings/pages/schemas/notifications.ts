@@ -1,4 +1,4 @@
-import { NOTIFICATION_CHANNELS, NOTIFICATION_KINDS } from '@modules/settings/schema'
+import { NOTIFICATION_CHANNELS, NOTIFICATION_KINDS } from '@modules/settings/notification-prefs-types'
 import { z } from 'zod'
 
 /**

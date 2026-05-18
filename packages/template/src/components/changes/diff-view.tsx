@@ -1,6 +1,6 @@
 import { parseDiffFromFile } from '@pierre/diffs'
 import { FileDiff } from '@pierre/diffs/react'
-import type { ChangePayload, JsonPatchOp } from '@vobase/core'
+import type { ChangePayload, JsonPatchOp } from '@vobase/core/contracts/changes'
 import { useMemo } from 'react'
 
 import { pluralize } from '@/lib/format'
