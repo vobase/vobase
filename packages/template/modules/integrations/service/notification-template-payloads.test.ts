@@ -33,8 +33,8 @@ describe('redirectPathFor', () => {
     expect(redirectPathFor({ kind: 'proposal', conversationId: 'c1', proposalId: 'p1' })).toBe('/inbox/c1/proposals/p1')
   })
 
-  it('admin_alert → /system/activity', () => {
-    expect(redirectPathFor({ kind: 'admin_alert' })).toBe('/system/activity')
+  it('admin_alert → /automations', () => {
+    expect(redirectPathFor({ kind: 'admin_alert' })).toBe('/automations')
   })
 })
 

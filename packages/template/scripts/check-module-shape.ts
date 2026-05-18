@@ -541,7 +541,7 @@ function checkModuleContracts(): void {
  *   - `/messaging`           — legacy redirect → /inbox
  *   - `/settings`            — admin / personal settings (cross-cutting)
  *   - `/channels`            — admin (channel instances + adapter config)
- *   - `/system`              — system / health surface
+ *   - `/automations`         — operator dashboard for rules, wakes, budget, runs
  *   - `/test-web`, `/chat/$channelInstanceId` — public widget shell + chat
  *   - `/contacts`, `/team`, `/agents`, `/drive` — module-owned surfaces
  */
@@ -553,7 +553,7 @@ const ALLOWED_ROUTE_PREFIXES = [
   '/messaging',
   '/settings',
   '/channels',
-  '/system',
+  '/automations',
   '/test-web',
   '/chat',
   '/contacts',

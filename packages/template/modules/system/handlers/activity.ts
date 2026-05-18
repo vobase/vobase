@@ -1,5 +1,5 @@
 /**
- * /api/system/activity — read-only endpoints powering the `/system/activity`
+ * /api/automations — read-only endpoints powering the `/automations`
  * dashboard.
  *
  * Four endpoints, one per dashboard widget:

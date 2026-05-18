@@ -153,7 +153,7 @@ export function useRealtimeInvalidation(): void {
       return
     }
 
-    // /system/activity dashboard. Each table fans out to the matching
+    // /automations dashboard. Each table fans out to the matching
     // widget's TanStack Query key. Banner stats also reflect rule + cap
     // changes, so we hit it on every dispatch event.
     if (payload.table === 'automations' || payload.table === 'tenant_budget_caps') {

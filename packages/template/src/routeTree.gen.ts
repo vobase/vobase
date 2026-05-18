@@ -18,6 +18,7 @@ import { Route as pagesChatDotchannelInstanceIdRouteImport } from './pages/chat.
 import { Route as DotDotModulesSettingsPagesLayoutRouteImport } from './../modules/settings/pages/layout'
 import { Route as shellMessagingRedirectRouteImport } from './shell/messaging-redirect'
 import { Route as DotDotModulesMessagingPagesLayoutRouteImport } from './../modules/messaging/pages/layout'
+import { Route as DotDotModulesSystemPagesActivityRouteImport } from './../modules/system/pages/activity'
 import { Route as shellHomeRedirectRouteImport } from './shell/home-redirect'
 import { Route as TeamIndexRouteImport } from './../modules/team/pages/index'
 import { Route as IndexRouteImport } from './../modules/messaging/pages/index'
@@ -31,7 +32,6 @@ import { Route as shellAuthCliGrantRouteImport } from './shell/auth/cli-grant'
 import { Route as TeamTeamsRouteImport } from './../modules/team/pages/teams'
 import { Route as TeamAttributesRouteImport } from './../modules/team/pages/attributes'
 import { Route as TeamUserIdRouteImport } from './../modules/team/pages/$userId'
-import { Route as SystemActivityRouteImport } from './../modules/system/pages/activity'
 import { Route as ApprovalsRouteImport } from './../modules/messaging/pages/approvals'
 import { Route as ContactIdRouteImport } from './../modules/messaging/pages/$contactId'
 import { Route as ContactsAttributesRouteImport } from './../modules/contacts/pages/attributes'
@@ -85,6 +85,12 @@ const DotDotModulesMessagingPagesLayoutRoute =
   DotDotModulesMessagingPagesLayoutRouteImport.update({
     id: '/inbox',
     path: '/inbox',
+    getParentRoute: () => shellAppLayoutRoute,
+  } as any)
+const DotDotModulesSystemPagesActivityRoute =
+  DotDotModulesSystemPagesActivityRouteImport.update({
+    id: '/automations',
+    path: '/automations',
     getParentRoute: () => shellAppLayoutRoute,
   } as any)
 const shellHomeRedirectRoute = shellHomeRedirectRouteImport.update({
@@ -152,11 +158,6 @@ const TeamUserIdRoute = TeamUserIdRouteImport.update({
   path: '/team/$userId',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
-const SystemActivityRoute = SystemActivityRouteImport.update({
-  id: '/system/activity',
-  path: '/system/activity',
-  getParentRoute: () => shellAppLayoutRoute,
-} as any)
 const ApprovalsRoute = ApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
@@ -192,6 +193,7 @@ const AgentsThreadsDotthreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof shellHomeRedirectRoute
   '/test-web': typeof pagesTestWebRoute
+  '/automations': typeof DotDotModulesSystemPagesActivityRoute
   '/inbox': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/messaging': typeof shellMessagingRedirectRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRoute
@@ -203,7 +205,6 @@ export interface FileRoutesByFullPath {
   '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$contactId': typeof ContactIdRoute
   '/inbox/approvals': typeof ApprovalsRoute
-  '/system/activity': typeof SystemActivityRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
   '/team/teams': typeof TeamTeamsRoute
@@ -221,6 +222,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof shellHomeRedirectRoute
   '/test-web': typeof pagesTestWebRoute
+  '/automations': typeof DotDotModulesSystemPagesActivityRoute
   '/messaging': typeof shellMessagingRedirectRoute
   '/settings': typeof DotDotModulesSettingsPagesLayoutRoute
   '/chat/$channelInstanceId': typeof pagesChatDotchannelInstanceIdRoute
@@ -231,7 +233,6 @@ export interface FileRoutesByTo {
   '/contacts/attributes': typeof ContactsAttributesRoute
   '/inbox/$contactId': typeof ContactIdRoute
   '/inbox/approvals': typeof ApprovalsRoute
-  '/system/activity': typeof SystemActivityRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
   '/team/teams': typeof TeamTeamsRoute
@@ -252,6 +253,7 @@ export interface FileRoutesById {
   '/_auth': typeof shellAuthLayoutRouteWithChildren
   '/test-web': typeof pagesTestWebRoute
   '/_app/': typeof shellHomeRedirectRoute
+  '/_app/automations': typeof DotDotModulesSystemPagesActivityRoute
   '/_app/inbox': typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   '/_app/messaging': typeof shellMessagingRedirectRoute
   '/_app/settings': typeof DotDotModulesSettingsPagesLayoutRoute
@@ -263,7 +265,6 @@ export interface FileRoutesById {
   '/_app/contacts/attributes': typeof ContactsAttributesRoute
   '/_app/inbox/$contactId': typeof ContactIdRoute
   '/_app/inbox/approvals': typeof ApprovalsRoute
-  '/_app/system/activity': typeof SystemActivityRoute
   '/_app/team/$userId': typeof TeamUserIdRoute
   '/_app/team/attributes': typeof TeamAttributesRoute
   '/_app/team/teams': typeof TeamTeamsRoute
@@ -283,6 +284,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/test-web'
+    | '/automations'
     | '/inbox'
     | '/messaging'
     | '/settings'
@@ -294,7 +296,6 @@ export interface FileRouteTypes {
     | '/contacts/attributes'
     | '/inbox/$contactId'
     | '/inbox/approvals'
-    | '/system/activity'
     | '/team/$userId'
     | '/team/attributes'
     | '/team/teams'
@@ -312,6 +313,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/test-web'
+    | '/automations'
     | '/messaging'
     | '/settings'
     | '/chat/$channelInstanceId'
@@ -322,7 +324,6 @@ export interface FileRouteTypes {
     | '/contacts/attributes'
     | '/inbox/$contactId'
     | '/inbox/approvals'
-    | '/system/activity'
     | '/team/$userId'
     | '/team/attributes'
     | '/team/teams'
@@ -342,6 +343,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/test-web'
     | '/_app/'
+    | '/_app/automations'
     | '/_app/inbox'
     | '/_app/messaging'
     | '/_app/settings'
@@ -353,7 +355,6 @@ export interface FileRouteTypes {
     | '/_app/contacts/attributes'
     | '/_app/inbox/$contactId'
     | '/_app/inbox/approvals'
-    | '/_app/system/activity'
     | '/_app/team/$userId'
     | '/_app/team/attributes'
     | '/_app/team/teams'
@@ -439,6 +440,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof DotDotModulesMessagingPagesLayoutRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
+    '/_app/automations': {
+      id: '/_app/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof DotDotModulesSystemPagesActivityRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
     '/_app/': {
@@ -532,13 +540,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamUserIdRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
-    '/_app/system/activity': {
-      id: '/_app/system/activity'
-      path: '/system/activity'
-      fullPath: '/system/activity'
-      preLoaderRoute: typeof SystemActivityRouteImport
-      parentRoute: typeof shellAppLayoutRoute
-    }
     '/_app/inbox/approvals': {
       id: '/_app/inbox/approvals'
       path: '/approvals'
@@ -604,6 +605,7 @@ const DotDotModulesMessagingPagesLayoutRouteWithChildren =
 
 interface shellAppLayoutRouteChildren {
   shellHomeRedirectRoute: typeof shellHomeRedirectRoute
+  DotDotModulesSystemPagesActivityRoute: typeof DotDotModulesSystemPagesActivityRoute
   DotDotModulesMessagingPagesLayoutRoute: typeof DotDotModulesMessagingPagesLayoutRouteWithChildren
   shellMessagingRedirectRoute: typeof shellMessagingRedirectRoute
   DotDotModulesSettingsPagesLayoutRoute: typeof DotDotModulesSettingsPagesLayoutRoute
@@ -612,7 +614,6 @@ interface shellAppLayoutRouteChildren {
   AgentsIdRoute: typeof AgentsIdRoute
   ContactsIdRoute: typeof ContactsIdRoute
   ContactsAttributesRoute: typeof ContactsAttributesRoute
-  SystemActivityRoute: typeof SystemActivityRoute
   TeamUserIdRoute: typeof TeamUserIdRoute
   TeamAttributesRoute: typeof TeamAttributesRoute
   TeamTeamsRoute: typeof TeamTeamsRoute
@@ -625,6 +626,7 @@ interface shellAppLayoutRouteChildren {
 
 const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   shellHomeRedirectRoute: shellHomeRedirectRoute,
+  DotDotModulesSystemPagesActivityRoute: DotDotModulesSystemPagesActivityRoute,
   DotDotModulesMessagingPagesLayoutRoute:
     DotDotModulesMessagingPagesLayoutRouteWithChildren,
   shellMessagingRedirectRoute: shellMessagingRedirectRoute,
@@ -634,7 +636,6 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   AgentsIdRoute: AgentsIdRoute,
   ContactsIdRoute: ContactsIdRoute,
   ContactsAttributesRoute: ContactsAttributesRoute,
-  SystemActivityRoute: SystemActivityRoute,
   TeamUserIdRoute: TeamUserIdRoute,
   TeamAttributesRoute: TeamAttributesRoute,
   TeamTeamsRoute: TeamTeamsRoute,

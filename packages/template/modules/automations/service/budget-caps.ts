@@ -34,7 +34,7 @@ export interface BudgetCapsServiceDeps {
   db: ScopedDb
   /**
    * Optional realtime handle — when provided, `setBudget` emits a `pg_notify`
-   * after commit so the `/system/activity` banner refetches the cap without
+   * after commit so the `/automations` banner refetches the cap without
    * a manual reload.
    */
   realtime?: RealtimeService

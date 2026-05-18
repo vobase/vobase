@@ -34,7 +34,7 @@ export const PENDING_STAFF_PINGS_PRUNE_CRON = '*/15 * * * *' // every 15 minutes
  * The actual DELETE fires from a dedicated pg-boss recurring job
  * (`automations:runs-prune`, see `jobs.ts`); this automations row is
  * documentation + dashboard visibility so operators see retention
- * activity surface in `/system/activity` alongside the live automations.
+ * activity surface in `/automations` alongside the live automations.
  * Agent id comes from `runs-prune.ts` (canonical source).
  */
 import { SYSTEM_PRUNE_AGENT_ID } from './service/runs-prune'
@@ -167,7 +167,7 @@ export async function seedAutomations(db: unknown, opts?: { organizationId?: str
     // automation-runs-prune (US-015) — dashboard placeholder for the nightly
     // retention sweep. The actual DELETE runs from the pg-boss
     // `automations:runs-prune` job (registered in `module.ts`), independent
-    // of the dispatcher — but operators see this row in /system/activity so
+    // of the dispatcher — but operators see this row in /automations so
     // the retention behaviour is visible alongside live automations.
     await d
       .insert(automations)

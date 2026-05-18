@@ -47,7 +47,7 @@
  * | NAME    | `vobase_admin_alert`                                                                                               |
  * | BODY    | `*Vobase admin alert*\n\n{{1}}\n\n_{{2}}_\n\nOrganization: {{3}}`                                                |
  * | FOOTER  | `Open the activity dashboard to investigate.`                                                                      |
- * | BUTTONS | URL button — text: `Open activity dashboard`, url: `https://platform.voltade.app/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/system/activity` (percent-encoded). |
+ * | BUTTONS | URL button — text: `Open activity dashboard`, url: `https://platform.voltade.app/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/automations` (percent-encoded). |
  *
  * Body params: 1=alertHeadline (≤120 chars), 2=alertDetail (≤200 chars), 3=organizationName (≤80 chars).
  */
@@ -122,7 +122,7 @@ export function redirectPathFor(refs: RedirectRefs): string {
     case 'proposal':
       return `/inbox/${refs.conversationId}/proposals/${refs.proposalId}`
     case 'admin_alert':
-      return '/system/activity'
+      return '/automations'
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * Frontend hooks for the `/system/activity` dashboard.
+ * Frontend hooks for the `/automations` dashboard.
  *
  * Four endpoints behind four hooks; each TanStack Query key's first element
  * matches the `pg_notify` `table` column so `use-realtime-invalidation`'s

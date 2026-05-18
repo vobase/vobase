@@ -148,7 +148,7 @@ export async function runBudgetWatcherTick(opts: RunBudgetWatcherOpts = {}): Pro
       } catch (err) {
         // Admin-alert dispatch is best-effort; never let it abort the watcher
         // loop. The pauses already landed; the operator can still see the run
-        // via /system/activity.
+        // via /automations.
         logger.warn(
           { err: err instanceof Error ? err.message : String(err), orgId: cap.orgId },
           '[automations/budget-watcher] dispatchAdminAlert failed (non-fatal)',

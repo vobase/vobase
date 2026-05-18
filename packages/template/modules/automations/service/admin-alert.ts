@@ -306,8 +306,8 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
         })
         buttonUrlSuffix = urlToSuffix(mintResult.url)
       } else {
-        // Dev/test fallback: no platform configured — use bare system activity path.
-        buttonUrlSuffix = 'system/activity'
+        // Dev/test fallback: no platform configured — use bare automations dashboard path.
+        buttonUrlSuffix = 'automations'
       }
 
       if (sendTemplate) {

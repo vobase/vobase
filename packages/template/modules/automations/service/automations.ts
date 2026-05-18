@@ -157,7 +157,7 @@ export interface AutomationsServiceDeps {
   db: ScopedDb
   /**
    * Optional realtime handle — when provided, pauseRule/resumeRule emit a
-   * `pg_notify` after commit so the `/system/activity` dashboard's
+   * `pg_notify` after commit so the `/automations` dashboard's
    * AutomationsTable refetches without a manual reload. Omit in tests that
    * don't exercise SSE.
    */

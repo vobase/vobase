@@ -1,5 +1,5 @@
 /**
- * Shape tests for /api/system/activity/* endpoints.
+ * Shape tests for /api/automations/* endpoints.
  *
  * Heavy DB-driven assertions live in the budget-caps / dispatcher integration
  * tests that already exercise the underlying services. Here we lock down two

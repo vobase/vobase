@@ -79,7 +79,7 @@ export interface DispatcherDeps {
   jobs: ScopedScheduler
   /**
    * Optional realtime handle — when provided, every dispatch emits a
-   * `pg_notify` on the `automation_runs` table so the `/system/activity`
+   * `pg_notify` on the `automation_runs` table so the `/automations`
    * RecentRunsTable streams live without polling.
    */
   realtime?: RealtimeService
