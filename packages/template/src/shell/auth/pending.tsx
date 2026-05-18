@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useState } from 'react'
 
@@ -7,17 +8,45 @@ import { useEmailOtp } from '@/shell/auth/use-email-otp'
 
 const OTP_LENGTH = 6
 
+type AuthClientResult = { error?: { message?: string; code?: string } | null } | null | undefined
+
+function readErrorMessage(res: AuthClientResult, fallback: string): string | null {
+  if (res && typeof res === 'object' && 'error' in res && res.error) {
+    const err = res.error
+    if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+      return err.message
+    }
+    return fallback
+  }
+  return null
+}
+
+// biome-ignore lint/suspicious/useAwait: mutation contract must be async
+async function sendPhoneOtp({ phoneNumber }: { phoneNumber: string }) {
+  return authClient.phoneNumber.sendOtp({ phoneNumber })
+}
+
+// biome-ignore lint/suspicious/useAwait: mutation contract must be async
+async function verifyPhoneOtp({ phoneNumber, code }: { phoneNumber: string; code: string }) {
+  return authClient.phoneNumber.verify({ phoneNumber, code })
+}
+
 export function PendingPage() {
   const navigate = useNavigate()
   const locationSearch = useRouterState({ select: (s) => s.location.search })
   const params = new URLSearchParams(locationSearch)
+  const mode = params.get('mode') === 'phone' ? 'phone' : 'email'
   const email = params.get('email') ?? ''
+  const phoneNumber = params.get('phoneNumber') ?? ''
   const invitationId = params.get('invitationId') ?? ''
-  const { sendOtp, verifyOtp } = useEmailOtp()
+  const { sendOtp: sendEmailOtp, verifyOtp: verifyEmailOtp } = useEmailOtp()
+  const sendPhone = useMutation({ mutationFn: sendPhoneOtp })
+  const verifyPhone = useMutation({ mutationFn: verifyPhoneOtp })
   const [inviteError, setInviteError] = useState<string | null>(null)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
 
-  function handleComplete(otp: string) {
-    verifyOtp.mutate(
+  function handleEmailComplete(otp: string) {
+    verifyEmailOtp.mutate(
       { email, otp },
       {
         onSuccess: async (res) => {
@@ -29,7 +58,7 @@ export function PendingPage() {
               typeof res.error === 'object' && res.error !== null && 'message' in res.error
                 ? String((res.error as { message: unknown }).message)
                 : 'Invalid or expired code. Try again.'
-            verifyOtp.reset()
+            verifyEmailOtp.reset()
             throw new Error(message)
           }
           // If we arrived here from an invite email, accept the invitation
@@ -69,21 +98,66 @@ export function PendingPage() {
     )
   }
 
-  function handleResend() {
-    if (email) sendOtp.mutate({ email })
+  function handlePhoneComplete(otp: string) {
+    setPhoneError(null)
+    verifyPhone.mutate(
+      { phoneNumber, code: otp },
+      {
+        onSuccess: (res) => {
+          const message = readErrorMessage(
+            res as AuthClientResult,
+            'No account found for this WhatsApp number. Contact your admin to add you.',
+          )
+          if (message) {
+            verifyPhone.reset()
+            setPhoneError(message)
+            return
+          }
+          navigate({ to: '/inbox' })
+        },
+      },
+    )
   }
+
+  function handleResend() {
+    if (mode === 'phone') {
+      if (phoneNumber) sendPhone.mutate({ phoneNumber })
+    } else if (email) {
+      sendEmailOtp.mutate({ email })
+    }
+  }
+
+  const isPhone = mode === 'phone'
+  const verifyPending = isPhone ? verifyPhone.isPending : verifyEmailOtp.isPending
+  const verifyError = isPhone ? phoneError : null
+  const emailVerifyError = !isPhone && verifyEmailOtp.error ? verifyEmailOtp.error : null
+  const sendPending = isPhone ? sendPhone.isPending : sendEmailOtp.isPending
+  const sendSuccess = isPhone ? sendPhone.isSuccess : sendEmailOtp.isSuccess
+  const headline = isPhone ? 'Check your WhatsApp' : 'Check your email'
+  const description = isPhone ? (
+    <>
+      We sent a 6-digit code over WhatsApp to{' '}
+      <span className="font-medium text-foreground">{phoneNumber || 'your number'}</span>.
+    </>
+  ) : (
+    <>
+      We sent a 6-digit code to <span className="font-medium text-foreground">{email || 'your email'}</span>.
+    </>
+  )
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 px-4">
         <div className="space-y-1">
-          <h1 className="font-semibold text-xl tracking-tight">Check your email</h1>
-          <p className="text-muted-foreground text-sm">
-            We sent a 6-digit code to <span className="font-medium text-foreground">{email || 'your email'}</span>.
-          </p>
+          <h1 className="font-semibold text-xl tracking-tight">{headline}</h1>
+          <p className="text-muted-foreground text-sm">{description}</p>
         </div>
         <div className="flex justify-center">
-          <InputOTP maxLength={OTP_LENGTH} onComplete={handleComplete} disabled={verifyOtp.isPending}>
+          <InputOTP
+            maxLength={OTP_LENGTH}
+            onComplete={isPhone ? handlePhoneComplete : handleEmailComplete}
+            disabled={verifyPending}
+          >
             <InputOTPGroup>
               {Array.from({ length: OTP_LENGTH }, (_, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: OTP slots are stable by position
@@ -92,19 +166,20 @@ export function PendingPage() {
             </InputOTPGroup>
           </InputOTP>
         </div>
-        {verifyOtp.error && (
+        {emailVerifyError && (
           <p className="text-center text-destructive text-sm">
-            {verifyOtp.error instanceof Error ? verifyOtp.error.message : 'Invalid or expired code. Try again.'}
+            {emailVerifyError instanceof Error ? emailVerifyError.message : 'Invalid or expired code. Try again.'}
           </p>
         )}
+        {verifyError && <p className="text-center text-destructive text-sm">{verifyError}</p>}
         {inviteError && <p className="text-center text-destructive text-sm">{inviteError}</p>}
-        {sendOtp.isSuccess && <p className="text-center text-muted-foreground text-sm">Code resent.</p>}
+        {sendSuccess && <p className="text-center text-muted-foreground text-sm">Code resent.</p>}
         <p className="text-center text-muted-foreground text-sm">
           Didn&apos;t receive it?{' '}
           <button
             type="button"
             className="font-medium text-foreground underline-offset-4 hover:underline disabled:opacity-50"
-            disabled={sendOtp.isPending || !email}
+            disabled={sendPending || (isPhone ? !phoneNumber : !email)}
             onClick={handleResend}
           >
             Resend code

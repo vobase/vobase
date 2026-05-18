@@ -59,13 +59,22 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
     phoneNumber({
       // The plugin contributes `user.phoneNumber` / `phoneNumberVerified`
       // (admin-set at invite time, see `auth/index.ts`). `sendOTP` is wired to
-      // the phone-OTP captor in `auth/phone-otp.ts` — invoking
-      // `auth.api.sendPhoneNumberOTP` from `mintPhoneOtp` causes this callback
-      // to fire with the freshly-minted `code`; the captor's nonce travels
-      // through the `x-captor-nonce` request header set by the captor's
-      // sender, and the deliver helper resolves the pending mint promise.
-      sendOTP: ({ phoneNumber: pn, code }, ctx) => {
-        deliverPhoneOtp({ phoneNumber: pn, code, ctxHeaders: ctx?.headers })
+      // `deliverPhoneOtp` in `auth/phone-otp.ts` which handles two callers:
+      //   1. Internal `mintPhoneOtp` (admin self-verify) — captor nonce travels
+      //      through the `x-captor-nonce` request header set by the captor's
+      //      sender; deliver resolves the pending mint promise so the caller
+      //      can relay the code itself.
+      //   2. Direct `authClient.phoneNumber.sendOtp` from the WhatsApp-OTP
+      //      login form — no captor nonce; deliver POSTs the OTP straight to
+      //      the platform `/api/whatsapp/otp` endpoint and awaits the relay so
+      //      better-auth surfaces failures to the client.
+      //
+      // The `verifyPhoneNumber` endpoint creates a session when the user
+      // already exists (sign-in). We intentionally OMIT `signUpOnVerification`
+      // so unknown phones throw `FAILED_TO_UPDATE_USER` instead of auto-creating
+      // accounts — login is for staff already provisioned via email-OTP + invite.
+      sendOTP: async ({ phoneNumber: pn, code }, ctx) => {
+        await deliverPhoneOtp({ phoneNumber: pn, code, ctxHeaders: ctx?.headers })
       },
       phoneNumberValidator: (value) => E164_RE.test(value),
     }),

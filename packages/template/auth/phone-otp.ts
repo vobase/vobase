@@ -115,16 +115,84 @@ export const phoneOtpCaptor = createCaptor<MintPayload, DeliveredCode>({
 
 /**
  * Extract the captor nonce + result from a better-auth `sendOTP` invocation.
- * Adapts the plugin's `({ phoneNumber, code }, ctx)` shape into the captor's
- * `{ metadata, result }` contract. The nonce travels in the
- * `x-captor-nonce` request header set by `phoneOtpCaptor.sender`.
+ *
+ * Two callers:
+ *   1. **Captor path** (internal `mintPhoneOtp`): an `x-captor-nonce` header is
+ *      present — resolve the captor's pending promise so the caller can relay
+ *      the code itself.
+ *   2. **Direct-client path** (`authClient.phoneNumber.sendOtp` for WhatsApp-OTP
+ *      login from the auth page): no nonce header — this helper directly POSTs
+ *      the OTP to the platform `/api/whatsapp/otp` endpoint so the user
+ *      receives the WhatsApp message.
+ *
+ * The direct-client path is `await`ed (returned) so better-auth's
+ * `sendPhoneNumberOTP` endpoint can surface relay failures to the client
+ * (`SEND_OTP_FAILED`-shaped 500). The captor path stays synchronous because
+ * `mintPhoneOtp` is the one awaiting the captor mint.
  */
-export function deliverPhoneOtp(args: { phoneNumber: string; code: string; ctxHeaders: Headers | undefined }): void {
+export async function deliverPhoneOtp(args: {
+  phoneNumber: string
+  code: string
+  ctxHeaders: Headers | undefined
+}): Promise<void> {
   const nonce = args.ctxHeaders?.get(CAPTOR_NONCE_HEADER) ?? undefined
-  phoneOtpCaptor.deliver({
-    metadata: nonce ? { nonce } : undefined,
-    result: { code: args.code, phoneNumber: args.phoneNumber },
+  if (nonce) {
+    phoneOtpCaptor.deliver({
+      metadata: { nonce },
+      result: { code: args.code, phoneNumber: args.phoneNumber },
+    })
+    return
+  }
+  // No captor in play — this is a direct client-initiated send (WhatsApp-OTP
+  // login). Relay the OTP via the platform ourselves. Mirrors the relay block
+  // inside `mintPhoneOtp` but is reachable without a tenant/org scope: the
+  // platform endpoint is keyed on the env-level tenant credentials.
+  await sendOtpViaPlatform({ phoneNumber: args.phoneNumber, code: args.code })
+}
+
+/**
+ * POST the OTP to the platform `/api/whatsapp/otp` endpoint using HMAC v2
+ * signing. Shared by `mintPhoneOtp` (admin self-verify) and the direct-client
+ * `deliverPhoneOtp` path (auth-page WhatsApp-OTP login).
+ */
+async function sendOtpViaPlatform(args: { phoneNumber: string; code: string }): Promise<void> {
+  const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
+  const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+  const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+  if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {
+    throw new PhoneOtpMintError('phone_otp_mint_failed', {
+      cause: new Error('platform credentials missing (VITE_PLATFORM_URL / PLATFORM_TENANT_ID / PLATFORM_HMAC_SECRET)'),
+    })
+  }
+  const body = JSON.stringify({
+    staffPhoneE164: args.phoneNumber,
+    code: args.code,
+    expiresInSec: OTP_EXPIRES_IN_SEC,
   })
+  // Dynamic import — see module-level NOTE above for why @modules/* cannot be
+  // a static top-level import in this file.
+  // biome-ignore lint/plugin/no-dynamic-import: @modules/* cannot be a static import here (jiti compat — see NOTE)
+  const { signedPlatformRequest } = await import('@modules/integrations/service/handshake')
+  const { res } = await signedPlatformRequest({
+    method: 'POST',
+    platformBaseUrl,
+    tenantId,
+    tenantHmacSecret,
+    path: '/api/whatsapp/otp',
+    body,
+  })
+  if (!res.ok) {
+    let payload: unknown
+    try {
+      payload = await res.json()
+    } catch {
+      payload = null
+    }
+    logger.error({ status: res.status, payload }, '[auth:phone-otp] direct platform relay failed')
+    throw new PhoneOtpMintError('phone_otp_mint_failed', {
+      cause: { platformStatus: res.status, platformPayload: payload },
+    })
+  }
 }
 
 // Minimal Drizzle-compatible db shape for the user existence check + channel
@@ -225,47 +293,16 @@ export async function mintPhoneOtp(auth: Auth, db: DbForUserLookup, input: MintI
 
   // Relay the OTP to the staff WhatsApp number via the platform. The platform
   // endpoint resolves to a `vobase_platform_otp` Meta template send keyed on
-  // tenant + staff phone. HMAC v2 signing is reused from the integrations
-  // module so the platform's tenant-auth path is unchanged.
-  const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
-  const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
-  const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
-  if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {
-    throw new PhoneOtpMintError('phone_otp_mint_failed', {
-      cause: new Error('platform credentials missing (VITE_PLATFORM_URL / PLATFORM_TENANT_ID / PLATFORM_HMAC_SECRET)'),
-    })
-  }
-  const body = JSON.stringify({
-    staffPhoneE164: phoneNumber,
-    code: captured.code,
-    expiresInSec: OTP_EXPIRES_IN_SEC,
-  })
-  // Dynamic import — see module-level NOTE above.
-  // biome-ignore lint/plugin/no-dynamic-import: @modules/* cannot be a static import here (jiti compat — see NOTE)
-  const { signedPlatformRequest } = await import('@modules/integrations/service/handshake')
+  // tenant + staff phone. Shared with the direct-client `deliverPhoneOtp` path
+  // — both go through `sendOtpViaPlatform` which owns the HMAC v2 signing and
+  // failure-translation.
   try {
-    const { res } = await signedPlatformRequest({
-      method: 'POST',
-      platformBaseUrl,
-      tenantId,
-      tenantHmacSecret,
-      path: '/api/whatsapp/otp',
-      body,
-    })
-    if (!res.ok) {
-      let payload: unknown
-      try {
-        payload = await res.json()
-      } catch {
-        payload = null
-      }
-      logger.error({ status: res.status, payload, organizationId, userId }, '[auth:phone-otp] platform relay failed')
-      throw new PhoneOtpMintError('phone_otp_mint_failed', {
-        cause: { platformStatus: res.status, platformPayload: payload },
-      })
-    }
+    await sendOtpViaPlatform({ phoneNumber, code: captured.code })
   } catch (err) {
-    if (err instanceof PhoneOtpMintError) throw err
+    if (err instanceof PhoneOtpMintError) {
+      logger.error({ organizationId, userId, cause: err.cause }, '[auth:phone-otp] platform relay failed')
+      throw err
+    }
     throw new PhoneOtpMintError('phone_otp_mint_failed', { cause: err })
   }
 

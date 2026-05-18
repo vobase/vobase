@@ -1,28 +1,57 @@
+import { E164_RE } from '@auth/e164'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { PhoneNumberInput } from '@/components/phone-number-input'
 import { Button } from '@/components/ui/button'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { authClient } from '@/lib/auth-client'
 import { useEmailOtp } from '@/shell/auth/use-email-otp'
 
-const schema = z.object({ email: z.email() })
-type FormValues = z.infer<typeof schema>
+const emailSchema = z.object({ email: z.email() })
+type EmailValues = z.infer<typeof emailSchema>
+
+const phoneSchema = z.object({
+  phoneNumber: z.string().regex(E164_RE, 'Enter your phone in international format, e.g. +6591234567'),
+})
+type PhoneValues = z.infer<typeof phoneSchema>
 
 const DEV_LOGIN_EMAIL = 'alice@meridian.test'
 
 const platformUrl = import.meta.env.VITE_PLATFORM_URL
 const platformTenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
 
+type AuthClientResult = { error?: { message?: string; code?: string } | null } | null | undefined
+
+function readErrorMessage(res: AuthClientResult, fallback: string): string | null {
+  if (res && typeof res === 'object' && 'error' in res && res.error) {
+    const err = res.error
+    if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+      return err.message
+    }
+    return fallback
+  }
+  return null
+}
+
+// biome-ignore lint/suspicious/useAwait: mutation contract must be async
+async function sendPhoneOtp({ phoneNumber }: { phoneNumber: string }) {
+  return authClient.phoneNumber.sendOtp({ phoneNumber })
+}
+
 export function LoginPage() {
   const navigate = useNavigate()
   const locationSearch = useRouterState({ select: (s) => s.location.search })
   const invitationId = new URLSearchParams(locationSearch).get('invitationId') ?? ''
   const { sendOtp } = useEmailOtp()
+  const sendPhone = useMutation({ mutationFn: sendPhoneOtp })
   const [devLoginError, setDevLoginError] = useState<string | null>(null)
   const [devLoginPending, setDevLoginPending] = useState(false)
 
@@ -66,16 +95,37 @@ export function LoginPage() {
     }
   }
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const emailForm = useForm<EmailValues>({
+    resolver: zodResolver(emailSchema),
     defaultValues: { email: '' },
   })
+  const phoneForm = useForm<PhoneValues>({
+    resolver: zodResolver(phoneSchema),
+    defaultValues: { phoneNumber: '' },
+  })
 
-  function onSubmit({ email }: FormValues) {
+  function onSubmitEmail({ email }: EmailValues) {
     // Propagate invitationId from the invite-email link through to /auth/pending
     // so the OTP-verify flow can call acceptInvitation after sign-in.
-    const search = invitationId ? { email, invitationId } : { email }
+    const search = invitationId ? { email, invitationId, mode: 'email' } : { email, mode: 'email' }
     sendOtp.mutate({ email }, { onSuccess: () => navigate({ to: '/auth/pending', search }) })
+  }
+
+  function onSubmitPhone({ phoneNumber }: PhoneValues) {
+    sendPhone.mutate(
+      { phoneNumber },
+      {
+        onSuccess: (res) => {
+          const message = readErrorMessage(res as AuthClientResult, 'Could not send the code. Try again.')
+          if (message) {
+            sendPhone.reset()
+            phoneForm.setError('phoneNumber', { message })
+            return
+          }
+          navigate({ to: '/auth/pending', search: { mode: 'phone', phoneNumber } })
+        },
+      },
+    )
   }
 
   return (
@@ -83,7 +133,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm space-y-6 px-4">
         <div className="space-y-1">
           <h1 className="font-semibold text-xl tracking-tight">Sign in</h1>
-          <p className="text-muted-foreground text-sm">Enter your email to receive a one-time code.</p>
+          <p className="text-muted-foreground text-sm">Choose how you would like to receive your one-time code.</p>
         </div>
         {showPlatformOAuth && (
           <div className="space-y-3">
@@ -134,31 +184,66 @@ export function LoginPage() {
             </div>
           </div>
         )}
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="you@example.com" autoComplete="email" autoFocus {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {sendOtp.error && (
-              <p className="text-destructive text-sm">
-                {sendOtp.error instanceof Error ? sendOtp.error.message : 'Failed to send code. Try again.'}
-              </p>
-            )}
-            <Button type="submit" className="w-full" disabled={sendOtp.isPending}>
-              {sendOtp.isPending ? 'Sending…' : 'Send code'}
-            </Button>
-          </form>
-        </Form>
+        <Tabs defaultValue="email">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="email">Email</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          </TabsList>
+          <TabsContent value="email">
+            <Form {...emailForm}>
+              <form onSubmit={emailForm.handleSubmit(onSubmitEmail)} className="space-y-4">
+                <FormField
+                  control={emailForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="you@example.com" autoComplete="email" autoFocus {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {sendOtp.error && (
+                  <p className="text-destructive text-sm">
+                    {sendOtp.error instanceof Error ? sendOtp.error.message : 'Failed to send code. Try again.'}
+                  </p>
+                )}
+                <Button type="submit" className="w-full" disabled={sendOtp.isPending}>
+                  {sendOtp.isPending ? 'Sending…' : 'Send code'}
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
+          <TabsContent value="whatsapp">
+            <Form {...phoneForm}>
+              <form onSubmit={phoneForm.handleSubmit(onSubmitPhone)} className="space-y-4">
+                <FormField
+                  control={phoneForm.control}
+                  name="phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>WhatsApp number</FormLabel>
+                      <FormControl>
+                        <PhoneNumberInput id={field.name} value={field.value} onChange={field.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {sendPhone.error && (
+                  <p className="text-destructive text-sm">
+                    {sendPhone.error instanceof Error ? sendPhone.error.message : 'Could not send the code. Try again.'}
+                  </p>
+                )}
+                <Button type="submit" className="w-full" disabled={sendPhone.isPending}>
+                  {sendPhone.isPending ? 'Sending…' : 'Send code'}
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
+        </Tabs>
         {import.meta.env.DEV && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
