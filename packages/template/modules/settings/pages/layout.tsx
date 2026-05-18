@@ -6,7 +6,7 @@ import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import type { NotificationsValues } from '@modules/settings/pages/schemas'
 import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { Check, Copy, MonitorIcon, MoonIcon, SunIcon, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
@@ -21,7 +21,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Status } from '@/components/ui/status'
 import { settingsClient } from '@/lib/api-client'
+import { authClient } from '@/lib/auth-client'
 
 const THEME_OPTIONS = [
   { value: 'light', label: 'Light', icon: <SunIcon /> },
@@ -213,6 +215,49 @@ function NotificationsSection() {
   )
 }
 
+/**
+ * Profile section — surfaces the signed-in user's WhatsApp number and gives
+ * them a way to self-verify when an admin set or changed it. The phone itself
+ * is admin-managed (per the staff/team conventions), so this section is
+ * read-only for the user.
+ */
+function ProfileSection() {
+  const sessionRes = authClient.useSession() as unknown as {
+    data?: { user?: { phoneNumber?: string | null; phoneNumberVerified?: boolean | null } | null } | null
+  } | null
+  const user = sessionRes?.data?.user ?? null
+  const phone = user?.phoneNumber ?? null
+  const verified = user?.phoneNumberVerified === true
+
+  return (
+    <InfoSection title="Profile" description="Your account identity for notifications.">
+      <InfoCard>
+        <InfoRow label="WhatsApp number">
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
+            {phone ? (
+              <span className="font-mono text-sm">{phone}</span>
+            ) : (
+              <span className="text-muted-foreground text-sm">No WhatsApp number set — ask your admin to add one.</span>
+            )}
+            <div className="flex items-center gap-3">
+              {phone && (
+                <Status variant={verified ? 'success' : 'warning'} label={verified ? 'Verified' : 'Unverified'} />
+              )}
+              {phone && !verified && (
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/onboard/verify-phone" search={{ next: '/settings' }}>
+                    Verify WhatsApp
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </InfoRow>
+      </InfoCard>
+    </InfoSection>
+  )
+}
+
 function OperatorAgentSection() {
   const { data: agents = [], isLoading: agentsLoading } = useAgentDefinitions()
   const operator = useOrgSetting('defaultOperatorAgentId')
@@ -395,6 +440,7 @@ export function SettingsPage() {
       <PageHeader title="Settings" description="Personal preferences and access keys." />
       <PageBody>
         <div className="mx-auto w-full max-w-4xl space-y-8">
+          <ProfileSection />
           <AppearanceSection />
           <NotificationsSection />
           <OperatorAgentSection />

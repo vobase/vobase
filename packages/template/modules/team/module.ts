@@ -36,7 +36,7 @@ const team: ModuleDef = {
   jobs: teamJobs,
   agent: teamAgent,
   init(ctx) {
-    installStaffService(createStaffService({ db: ctx.db, realtime: ctx.realtime }))
+    installStaffService(createStaffService({ db: ctx.db, realtime: ctx.realtime, auth: ctx.auth }))
     installVerificationGating(createVerificationGating({ db: ctx.db }))
     installStaffAttrDefService(createStaffAttrDefService({ db: ctx.db }))
     installInvitationsService(createInvitationsService({ db: ctx.db, realtime: ctx.realtime }))

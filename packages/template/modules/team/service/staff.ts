@@ -5,12 +5,14 @@
  * singleton + module-level re-exports.
  */
 
+import { mintPhoneOtp, PhoneOtpMintError } from '@auth/phone-otp'
 import { authUser } from '@auth/schema'
 import { staffProfiles } from '@modules/team/schema'
-import { conflict } from '@vobase/core'
+import { conflict, logger } from '@vobase/core'
 import { asc, eq, getTableColumns } from 'drizzle-orm'
 
-import { type RealtimeService, safeNotify } from '~/runtime'
+import type { AuthHandle, RealtimeService } from '~/runtime'
+import { safeNotify } from '~/runtime'
 import { PRESENCE_THRESHOLD_MS } from '~/runtime/presence'
 import type { AttributeValue, Availability, StaffProfile } from '../schema'
 
@@ -54,6 +56,12 @@ export interface UpdateStaffInput {
 interface StaffDeps {
   db: unknown
   realtime: RealtimeService
+  /**
+   * better-auth handle, needed to fire an OTP when an admin sets or changes a
+   * staff member's `phoneNumber`. Optional so tests that stub the service
+   * don't need to construct a full auth instance.
+   */
+  auth?: AuthHandle
 }
 
 export interface StaffService {
@@ -75,6 +83,7 @@ export interface StaffService {
 export function createStaffService(deps: StaffDeps): StaffService {
   const db = deps.db as { select: Function; insert: Function; update: Function; delete: Function }
   const realtime = deps.realtime
+  const auth = deps.auth
 
   const notify = (userId: string, action: string) =>
     safeNotify(realtime, { table: 'staff_profiles', id: userId, action })
@@ -89,11 +98,92 @@ export function createStaffService(deps: StaffDeps): StaffService {
   }
 
   /**
+   * Read the current `(phoneNumber, organizationId)` for a staff member so the
+   * caller can detect a phone change before writing. `organizationId` is
+   * sourced from `staff_profiles` (auth user has no org column).
+   */
+  async function readPhoneAndOrg(userId: string): Promise<{
+    phoneNumber: string | null
+    organizationId: string | null
+  }> {
+    const rows = (await db
+      .select({ phoneNumber: authUser.phoneNumber, organizationId: staffProfiles.organizationId })
+      .from(authUser)
+      .leftJoin(staffProfiles, eq(staffProfiles.userId, authUser.id))
+      .where(eq(authUser.id, userId))
+      .limit(1)) as Array<{ phoneNumber: string | null; organizationId: string | null }>
+    return rows[0] ?? { phoneNumber: null, organizationId: null }
+  }
+
+  /**
+   * Fire-and-forget OTP send when an admin sets or changes a staff member's
+   * WhatsApp number. Re-marks the row as unverified first (in case the admin
+   * re-typed an existing number to "re-verify"), then asks `mintPhoneOtp` to
+   * issue + relay the code via the platform's `vobase_platform_otp` template.
+   *
+   * Must NOT throw — staff-save admin path swallows everything via
+   * `try/catch` so a missing platform template / captor timeout doesn't block
+   * the underlying phone-number update. `mintPhoneOtp` enforces the
+   * `vobase_platform_otp` template-approval gate; if it isn't approved we log
+   * at info level (not warn) because that's the expected pre-approval state
+   * for a fresh tenant.
+   */
+  async function sendVerificationOtpAfterAdminChange(
+    userId: string,
+    phoneNumber: string,
+    organizationId: string,
+  ): Promise<void> {
+    if (!auth) return
+    try {
+      // Re-mark as unverified so the verify-phone flow forces a fresh check
+      // even if the admin re-typed the same number.
+      await db.update(authUser).set({ phoneNumberVerified: false }).where(eq(authUser.id, userId))
+    } catch (err) {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err), userId },
+        '[team/staff] reset phoneNumberVerified failed',
+      )
+      return
+    }
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: mintPhoneOtp accepts the same drizzle handle the service holds
+      await mintPhoneOtp(auth, db as any, { userId, phoneNumber, organizationId })
+      logger.info({ userId, organizationId }, '[team/staff] auto-sent verification OTP after admin phone change')
+    } catch (err) {
+      if (err instanceof PhoneOtpMintError && /template_unapproved/u.test(err.message + String(err.cause ?? ''))) {
+        logger.info(
+          { userId, organizationId },
+          '[team/staff] OTP send skipped: platform template not approved for this tenant',
+        )
+        return
+      }
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err), userId, organizationId },
+        '[team/staff] auto-OTP send failed (non-fatal)',
+      )
+    }
+  }
+
+  /**
    * Write a staff member's phone onto the better-auth `user` row. The
    * phone-number plugin makes `user.phone_number` UNIQUE — surface a
    * collision as a typed 409 rather than a raw 23505.
+   *
+   * On a non-null write that DIFFERS from the prior value (admin set fresh
+   * OR changed it), fires a fire-and-forget verification OTP via
+   * `mintPhoneOtp`. Failures never throw — see
+   * `sendVerificationOtpAfterAdminChange`.
+   *
+   * `organizationIdHint` lets callers (e.g. `upsert`) pass in the org they
+   * already know about so we skip the extra join when staff_profiles row
+   * may not exist yet.
    */
-  async function writePhoneNumber(userId: string, phoneNumber: string | null): Promise<void> {
+  async function writePhoneNumber(
+    userId: string,
+    phoneNumber: string | null,
+    organizationIdHint?: string,
+  ): Promise<void> {
+    const before = await readPhoneAndOrg(userId)
     try {
       await db.update(authUser).set({ phoneNumber }).where(eq(authUser.id, userId))
     } catch (err) {
@@ -102,6 +192,12 @@ export function createStaffService(deps: StaffDeps): StaffService {
       }
       throw err
     }
+    const changed = phoneNumber !== null && phoneNumber !== before.phoneNumber
+    if (!changed) return
+    const orgId = organizationIdHint ?? before.organizationId
+    if (!orgId) return
+    // Fire-and-forget — must NOT block the admin save.
+    void sendVerificationOtpAfterAdminChange(userId, phoneNumber, orgId)
   }
 
   async function list(organizationId: string): Promise<StaffProfile[]> {
@@ -152,8 +248,10 @@ export function createStaffService(deps: StaffDeps): StaffService {
 
     // `phoneNumber` is not a `staff_profiles` column — it writes to the
     // better-auth `user` row. Do it first so a unique-collision aborts before
-    // the profile row is touched (keeps the write all-or-nothing).
-    if (input.phoneNumber !== undefined) await writePhoneNumber(input.userId, input.phoneNumber)
+    // the profile row is touched (keeps the write all-or-nothing). Pass the
+    // org hint so the OTP-after-change path works even on first-ever upsert
+    // when the staff_profiles row doesn't exist yet.
+    if (input.phoneNumber !== undefined) await writePhoneNumber(input.userId, input.phoneNumber, input.organizationId)
 
     const rows = (await db
       .insert(staffProfiles)
