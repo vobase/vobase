@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router'
+import { useState } from 'react'
 
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { authClient } from '@/lib/auth-client'
 import { useEmailOtp } from '@/shell/auth/use-email-otp'
 
 const OTP_LENGTH = 6
@@ -8,14 +10,17 @@ const OTP_LENGTH = 6
 export function PendingPage() {
   const navigate = useNavigate()
   const locationSearch = useRouterState({ select: (s) => s.location.search })
-  const email = new URLSearchParams(locationSearch).get('email') ?? ''
+  const params = new URLSearchParams(locationSearch)
+  const email = params.get('email') ?? ''
+  const invitationId = params.get('invitationId') ?? ''
   const { sendOtp, verifyOtp } = useEmailOtp()
+  const [inviteError, setInviteError] = useState<string | null>(null)
 
   function handleComplete(otp: string) {
     verifyOtp.mutate(
       { email, otp },
       {
-        onSuccess: (res) => {
+        onSuccess: async (res) => {
           // better-auth returns a structured payload that carries `error` on
           // invalid/expired OTPs with a 200 response — treat that as a thrown error
           // so the UI surfaces it instead of silently navigating.
@@ -26,6 +31,37 @@ export function PendingPage() {
                 : 'Invalid or expired code. Try again.'
             verifyOtp.reset()
             throw new Error(message)
+          }
+          // If we arrived here from an invite email, accept the invitation
+          // explicitly so the invite-redirect middleware can steer unverified
+          // joiners into /onboard/verify-phone before the inbox.
+          if (invitationId) {
+            try {
+              const acceptRes = await authClient.organization.acceptInvitation({ invitationId })
+              // better-auth-react surfaces the middleware's 302 either as a
+              // `redirect` field in the response body or by setting the
+              // response URL on the fetch result. Honor whichever shape lands.
+              const data = (acceptRes as { data?: unknown })?.data
+              const redirect =
+                data && typeof data === 'object' && 'redirect' in data && typeof data.redirect === 'string'
+                  ? data.redirect
+                  : null
+              if (redirect?.startsWith('/')) {
+                window.location.assign(redirect)
+                return
+              }
+              if (acceptRes && typeof acceptRes === 'object' && 'error' in acceptRes && acceptRes.error) {
+                const msg =
+                  typeof acceptRes.error === 'object' && acceptRes.error !== null && 'message' in acceptRes.error
+                    ? String((acceptRes.error as { message: unknown }).message)
+                    : 'Invitation expired or invalid.'
+                setInviteError(msg)
+                return
+              }
+            } catch (err) {
+              setInviteError(err instanceof Error ? err.message : 'Invitation could not be accepted.')
+              return
+            }
           }
           navigate({ to: '/inbox' })
         },
@@ -61,6 +97,7 @@ export function PendingPage() {
             {verifyOtp.error instanceof Error ? verifyOtp.error.message : 'Invalid or expired code. Try again.'}
           </p>
         )}
+        {inviteError && <p className="text-center text-destructive text-sm">{inviteError}</p>}
         {sendOtp.isSuccess && <p className="text-center text-muted-foreground text-sm">Code resent.</p>}
         <p className="text-center text-muted-foreground text-sm">
           Didn&apos;t receive it?{' '}

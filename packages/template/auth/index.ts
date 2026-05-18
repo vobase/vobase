@@ -3,7 +3,7 @@ import { nameFromEmail } from '@auth/display-name'
 import { createNanoid, logger } from '@vobase/core'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 import { devAuth } from './dev-plugin'
@@ -162,13 +162,12 @@ export function createAuth(db: ScopedDb) {
   }
 
   const autoEnroll = async (user: { id: string; email: string }): Promise<void> => {
-    const [existing] = await dbAny
-      .select({ id: authMember.id })
-      .from(authMember)
-      .where(eq(authMember.userId, user.id))
-      .limit(1)
-    if (existing) return
-
+    // Process the pending invite FIRST — must run regardless of any existing
+    // membership (bootstrap "Workspace", another tenant, leftover from prior
+    // signup). Match the invitation email case-insensitively because
+    // better-auth lowercases user emails on creation, while invitations may
+    // have been entered mixed-case by the admin.
+    const inviteEmail = user.email.toLowerCase()
     const [invite] = await dbAny
       .select({
         id: authInvitation.id,
@@ -177,22 +176,39 @@ export function createAuth(db: ScopedDb) {
         phoneNumber: authInvitation.phoneNumber,
       })
       .from(authInvitation)
-      .where(and(eq(authInvitation.email, user.email), eq(authInvitation.status, 'pending')))
+      .where(and(eq(sql`lower(${authInvitation.email})`, inviteEmail), eq(authInvitation.status, 'pending')))
       .limit(1)
     if (invite) {
+      // Create the member row so the user lands in the org immediately — even
+      // in edge cases where the SPA's explicit acceptInvitation call never
+      // fires (OAuth sign-up, dev-login, etc.).
+      //
+      // IMPORTANT: we deliberately do NOT update authInvitation.status here.
+      // The invitation must stay 'pending' so better-auth's accept-invitation
+      // endpoint (POST /api/auth/organization/accept-invitation) can process it
+      // normally. That endpoint checks status === 'pending' and returns 400 if
+      // already accepted. The SPA calls acceptInvitation after OTP verify, and
+      // the invite-redirect middleware wraps that 200 response to steer
+      // unverified joiners to /onboard/verify-phone.
+      //
+      // `auth.member` has no UNIQUE on (user_id, organization_id) — pre-check
+      // inside a transaction to avoid duplicate-row errors on concurrent wakes.
       await dbAny.transaction(async (tx: typeof dbAny) => {
-        await tx
-          .insert(authMember)
-          .values({
+        const [already] = await tx
+          .select({ id: authMember.id })
+          .from(authMember)
+          .where(and(eq(authMember.userId, user.id), eq(authMember.organizationId, invite.organizationId)))
+          .limit(1)
+        if (!already) {
+          await tx.insert(authMember).values({
             id: createNanoid()(),
             userId: user.id,
             organizationId: invite.organizationId,
             role: invite.role,
           })
-          .onConflictDoNothing({ target: [authMember.userId, authMember.organizationId] })
-        await tx.update(authInvitation).set({ status: 'accepted' }).where(eq(authInvitation.id, invite.id))
+        }
       })
-      logger.info({ email: user.email }, '[auth] Auto-accepted invitation')
+      logger.info({ email: user.email }, '[auth] Auto-enrolled from pending invitation (invite status unchanged)')
       // Optional phone the admin set on the invite — copy it onto the user.
       // Best-effort: a unique-collision (phone already in use) must not block
       // enrollment, so it's written outside the membership tx.
@@ -209,6 +225,16 @@ export function createAuth(db: ScopedDb) {
       await ensureStaffProfile(user.id, invite.organizationId)
       return
     }
+
+    // No matching invite — short-circuit if the user already has any
+    // membership (bootstrap workspace, another tenant). The bootstrap
+    // fallback below should only fire for truly new users.
+    const [existing] = await dbAny
+      .select({ id: authMember.id })
+      .from(authMember)
+      .where(eq(authMember.userId, user.id))
+      .limit(1)
+    if (existing) return
 
     if (multiOrg) return
     if (allowedDomains.length > 0) {
@@ -251,6 +277,9 @@ export function createAuth(db: ScopedDb) {
       .from(authMember)
       .where(eq(authMember.organizationId, soleOrg.id))
       .limit(1)
+    // `auth.member` has no UNIQUE on (user_id, organization_id); fall back to
+    // a bare ON CONFLICT DO NOTHING so a concurrent racer (same user, same
+    // bootstrap org) loses cleanly instead of throwing.
     await dbAny
       .insert(authMember)
       .values({
@@ -259,7 +288,7 @@ export function createAuth(db: ScopedDb) {
         organizationId: soleOrg.id,
         role: firstMember ? 'member' : 'owner',
       })
-      .onConflictDoNothing({ target: [authMember.userId, authMember.organizationId] })
+      .onConflictDoNothing()
     logger.info({ email: user.email, role: firstMember ? 'member' : 'owner' }, '[auth] Auto-enrolled into sole org')
     await ensureStaffProfile(user.id, soleOrg.id)
   }
@@ -310,10 +339,14 @@ export function createAuth(db: ScopedDb) {
                 .where(eq(authUser.id, session.userId))
                 .limit(1)
               if (u) await autoEnroll(u)
+              // Prefer the most-recently-created membership so users who just
+              // accepted an invite land in the new org's inbox (not whatever
+              // membership happened to sort first for multi-org users).
               const [m] = await dbAny
                 .select({ organizationId: authMember.organizationId })
                 .from(authMember)
                 .where(eq(authMember.userId, session.userId))
+                .orderBy(desc(authMember.createdAt))
                 .limit(1)
               if (m && !session.activeOrganizationId) {
                 return { data: { ...session, activeOrganizationId: m.organizationId } }

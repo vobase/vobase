@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -20,6 +20,8 @@ const platformTenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const locationSearch = useRouterState({ select: (s) => s.location.search })
+  const invitationId = new URLSearchParams(locationSearch).get('invitationId') ?? ''
   const { sendOtp } = useEmailOtp()
   const [devLoginError, setDevLoginError] = useState<string | null>(null)
   const [devLoginPending, setDevLoginPending] = useState(false)
@@ -70,7 +72,10 @@ export function LoginPage() {
   })
 
   function onSubmit({ email }: FormValues) {
-    sendOtp.mutate({ email }, { onSuccess: () => navigate({ to: '/auth/pending', search: { email } }) })
+    // Propagate invitationId from the invite-email link through to /auth/pending
+    // so the OTP-verify flow can call acceptInvitation after sign-in.
+    const search = invitationId ? { email, invitationId } : { email }
+    sendOtp.mutate({ email }, { onSuccess: () => navigate({ to: '/auth/pending', search }) })
   }
 
   return (
