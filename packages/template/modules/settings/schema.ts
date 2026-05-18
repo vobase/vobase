@@ -23,23 +23,10 @@ import { sql } from 'drizzle-orm'
 import { jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { settingsPgSchema } from '~/runtime'
+import type { NotificationPrefsMatrix } from './notification-prefs-types'
 
-/** Notification kinds — what happened that may warrant a ping. */
-export type NotificationKind = 'mention' | 'approval' | 'proposal' | 'admin_alert'
-
-/** Notification channels — where the ping goes. */
-export type NotificationChannel = 'in_app' | 'whatsapp' | 'email'
-
-export const NOTIFICATION_KINDS: readonly NotificationKind[] = ['mention', 'approval', 'proposal', 'admin_alert']
-export const NOTIFICATION_CHANNELS: readonly NotificationChannel[] = ['in_app', 'whatsapp', 'email']
-
-/**
- * Sparse-or-full per-user matrix. Cells absent from storage fall back to the
- * dynamic defaults computed in the service layer (see `notification-prefs.ts`).
- * Callers should never read this type raw — go through `getPrefs(userId)` to
- * receive a fully-filled `NotificationPrefsMatrix` with all cells populated.
- */
-export type NotificationPrefsMatrix = Partial<Record<NotificationKind, Partial<Record<NotificationChannel, boolean>>>>
+export type { NotificationChannel, NotificationKind, NotificationPrefsMatrix } from './notification-prefs-types'
+export { NOTIFICATION_CHANNELS, NOTIFICATION_KINDS } from './notification-prefs-types'
 
 export interface UserNotificationPrefs {
   userId: string

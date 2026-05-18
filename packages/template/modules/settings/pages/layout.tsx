@@ -2,15 +2,15 @@ import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions
 import type { ApiKeySummaryDto, CreatedApiKeyDto } from '@modules/settings/handlers/api-keys'
 import { useOrgSetting } from '@modules/settings/hooks/use-org-setting'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
-import type { NotificationsValues } from '@modules/settings/pages/schemas'
-import { notificationsSchema } from '@modules/settings/pages/schemas'
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_KINDS,
   type NotificationChannel,
   type NotificationKind,
   type NotificationPrefsMatrix,
-} from '@modules/settings/schema'
+} from '@modules/settings/notification-prefs-types'
+import type { NotificationsValues } from '@modules/settings/pages/schemas'
+import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Check, Copy, MonitorIcon, MoonIcon, SunIcon, Trash2 } from 'lucide-react'
