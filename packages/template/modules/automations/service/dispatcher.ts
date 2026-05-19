@@ -14,7 +14,7 @@
  *   3b. For `approval_filed`/`proposal_filed` with an `assigneeStaffUserId`,
  *      sends a WhatsApp staff-ping notification (US-011b). Reads
  *      `channel_instances.config.metaTemplateApprovals` to gate the per-kind
- *      template vs. fallback to `vobase_tenant_notification_v1`. Mints a magic-link
+ *      template vs. fallback to `vobase_inbox_mention_v2`. Mints a magic-link
  *      (post-commit, Principle 6). On `MagicLinkMintError` → marks the run
  *      `status='failed', errorMessage='magic_link_mint_failed'` and exits
  *      WITHOUT calling `sendTemplate`.
@@ -373,7 +373,7 @@ interface StaffPingNotificationArgs {
  * this result immediately WITHOUT proceeding to step 4.
  *
  * `channel_instances.config.metaTemplateApprovals` is read on every send to
- * gate per-kind template vs. fallback to `vobase_tenant_notification_v1`. Missing
+ * gate per-kind template vs. fallback to `vobase_inbox_mention_v2`. Missing
  * keys are treated as unapproved — the fallback is the DEFAULT. Operators
  * populate the jsonb field manually via Drizzle Studio after Meta approves each
  * template.
@@ -424,15 +424,15 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
     kind === 'approval'
       ? {
           agentName,
-          approvalSummary: eventPayload.approvalSummary ?? '',
-          approvalContext: '', // not in approval_filed payload; use summary as context
+          summary: eventPayload.approvalSummary ?? '',
+          detail: '', // not in approval_filed payload; use summary as context
         }
       : {
           agentName,
-          resourceLabel: eventPayload.resourceModule
+          summary: eventPayload.resourceModule
             ? `${eventPayload.resourceModule}/${eventPayload.resourceType ?? ''}`
             : '',
-          proposalSummary: eventPayload.proposalSummary ?? '',
+          detail: eventPayload.proposalSummary ?? '',
         }
 
   const { templateName, bodyParams } = buildTemplateForDispatch(kind, pingParams, metaTemplateApprovals)

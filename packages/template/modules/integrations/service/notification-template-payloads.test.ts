@@ -3,14 +3,13 @@ import { VobaseError } from '@vobase/core'
 
 import {
   AdminAlertBody,
-  ApprovalDecisionBody,
   BODY_SCHEMAS,
   bodyParamsForWire,
+  DecisionRequiredBody,
+  InboxMentionBody,
   NOTIFICATION_TEMPLATES,
-  ProposalDecisionBody,
   redirectPathFor,
   renderTemplateAsText,
-  TenantNotificationBody,
   templateNameFor,
 } from './notification-template-payloads'
 
@@ -39,168 +38,135 @@ describe('redirectPathFor', () => {
 })
 
 describe('templateNameFor', () => {
-  it('mention → vobase_tenant_notification', () => {
-    expect(templateNameFor('mention')).toBe('vobase_tenant_notification')
+  it('mention → vobase_inbox_mention_v2', () => {
+    expect(templateNameFor('mention')).toBe('vobase_inbox_mention_v2')
   })
 
-  it('approval → vobase_approval_decision', () => {
-    expect(templateNameFor('approval')).toBe('vobase_approval_decision')
+  it('approval → vobase_decision_required_v2', () => {
+    expect(templateNameFor('approval')).toBe('vobase_decision_required_v2')
   })
 
-  it('proposal → vobase_proposal_decision', () => {
-    expect(templateNameFor('proposal')).toBe('vobase_proposal_decision')
+  it('proposal → vobase_decision_required_v2', () => {
+    expect(templateNameFor('proposal')).toBe('vobase_decision_required_v2')
   })
 
-  it('admin_alert → vobase_admin_alert', () => {
-    expect(templateNameFor('admin_alert')).toBe('vobase_admin_alert')
+  it('admin_alert → vobase_admin_alert_v2', () => {
+    expect(templateNameFor('admin_alert')).toBe('vobase_admin_alert_v2')
   })
 })
 
 describe('bodyParamsForWire', () => {
-  it('vobase_tenant_notification → [mentionerName, snippet, agentName]', () => {
+  it('vobase_inbox_mention_v2 → [agentName, snippet]', () => {
     expect(
-      bodyParamsForWire('vobase_tenant_notification', { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' }),
-    ).toEqual(['Bob', 'hi', 'Helpdesk'])
-  })
-
-  it('vobase_approval_decision → [agentName, approvalSummary, approvalContext]', () => {
-    expect(
-      bodyParamsForWire('vobase_approval_decision', { agentName: 'A', approvalSummary: 'B', approvalContext: 'C' }),
-    ).toEqual(['A', 'B', 'C'])
-  })
-
-  it('vobase_proposal_decision → [agentName, resourceLabel, proposalSummary]', () => {
-    expect(
-      bodyParamsForWire('vobase_proposal_decision', {
-        agentName: 'A',
-        resourceLabel: 'contacts/profile-field',
-        proposalSummary: 'C',
+      bodyParamsForWire('vobase_inbox_mention_v2', {
+        agentName: 'Helpdesk',
+        snippet: 'hi',
       }),
-    ).toEqual(['A', 'contacts/profile-field', 'C'])
+    ).toEqual(['Helpdesk', 'hi'])
   })
 
-  it('vobase_admin_alert → [alertHeadline, alertDetail, organizationName]', () => {
-    expect(
-      bodyParamsForWire('vobase_admin_alert', { alertHeadline: 'H', alertDetail: 'D', organizationName: 'O' }),
-    ).toEqual(['H', 'D', 'O'])
+  it('vobase_decision_required_v2 → [summary, detail, agentName]', () => {
+    expect(bodyParamsForWire('vobase_decision_required_v2', { agentName: 'A', summary: 'B', detail: 'C' })).toEqual([
+      'B',
+      'C',
+      'A',
+    ])
+  })
+
+  it('vobase_admin_alert_v2 → [alertHeadline, alertDetail]', () => {
+    expect(bodyParamsForWire('vobase_admin_alert_v2', { alertHeadline: 'H', alertDetail: 'D' })).toEqual(['H', 'D'])
   })
 })
 
 describe('body schema validation', () => {
-  it('TenantNotificationBody rejects mentionerName longer than 80 chars', () => {
-    expect(
-      TenantNotificationBody.safeParse({ mentionerName: 'x'.repeat(81), snippet: 'hi', agentName: 'A' }).success,
-    ).toBe(false)
+  it('InboxMentionBody rejects agentName longer than 80 chars', () => {
+    expect(InboxMentionBody.safeParse({ agentName: 'x'.repeat(81), snippet: 'hi' }).success).toBe(false)
   })
 
-  it('TenantNotificationBody rejects empty mentionerName', () => {
-    expect(TenantNotificationBody.safeParse({ mentionerName: '', snippet: 'hi', agentName: 'A' }).success).toBe(false)
+  it('InboxMentionBody rejects empty agentName', () => {
+    expect(InboxMentionBody.safeParse({ agentName: '', snippet: 'hi' }).success).toBe(false)
   })
 
-  it('TenantNotificationBody rejects snippet longer than 200 chars', () => {
-    expect(
-      TenantNotificationBody.safeParse({ mentionerName: 'Bob', snippet: 'x'.repeat(201), agentName: 'A' }).success,
-    ).toBe(false)
+  it('InboxMentionBody rejects snippet longer than 200 chars', () => {
+    expect(InboxMentionBody.safeParse({ agentName: 'A', snippet: 'x'.repeat(201) }).success).toBe(false)
   })
 
-  it('ApprovalDecisionBody rejects missing fields', () => {
-    expect(ApprovalDecisionBody.safeParse({ agentName: 'A' }).success).toBe(false)
+  it('DecisionRequiredBody rejects missing fields', () => {
+    expect(DecisionRequiredBody.safeParse({ agentName: 'A' }).success).toBe(false)
   })
 
-  it('ApprovalDecisionBody rejects approvalSummary longer than 80 chars', () => {
-    expect(
-      ApprovalDecisionBody.safeParse({ agentName: 'A', approvalSummary: 'x'.repeat(81), approvalContext: 'C' }).success,
-    ).toBe(false)
+  it('DecisionRequiredBody rejects summary longer than 80 chars', () => {
+    expect(DecisionRequiredBody.safeParse({ agentName: 'A', summary: 'x'.repeat(81), detail: 'C' }).success).toBe(false)
   })
 
-  it('ProposalDecisionBody rejects resourceLabel longer than 60 chars', () => {
-    expect(
-      ProposalDecisionBody.safeParse({ agentName: 'A', resourceLabel: 'x'.repeat(61), proposalSummary: 'S' }).success,
-    ).toBe(false)
-  })
-
-  it('ProposalDecisionBody rejects empty strings', () => {
-    expect(ProposalDecisionBody.safeParse({ agentName: '', resourceLabel: 'r', proposalSummary: 's' }).success).toBe(
+  it('DecisionRequiredBody rejects detail longer than 200 chars', () => {
+    expect(DecisionRequiredBody.safeParse({ agentName: 'A', summary: 'S', detail: 'x'.repeat(201) }).success).toBe(
       false,
     )
   })
 
+  it('DecisionRequiredBody rejects empty strings', () => {
+    expect(DecisionRequiredBody.safeParse({ agentName: '', summary: 's', detail: 'd' }).success).toBe(false)
+  })
+
   it('AdminAlertBody rejects alertHeadline longer than 120 chars', () => {
-    expect(
-      AdminAlertBody.safeParse({ alertHeadline: 'x'.repeat(121), alertDetail: 'D', organizationName: 'O' }).success,
-    ).toBe(false)
+    expect(AdminAlertBody.safeParse({ alertHeadline: 'x'.repeat(121), alertDetail: 'D' }).success).toBe(false)
   })
 
   it('AdminAlertBody rejects empty alertDetail', () => {
-    expect(AdminAlertBody.safeParse({ alertHeadline: 'H', alertDetail: '', organizationName: 'O' }).success).toBe(false)
+    expect(AdminAlertBody.safeParse({ alertHeadline: 'H', alertDetail: '' }).success).toBe(false)
   })
 })
 
 describe('renderTemplateAsText', () => {
-  it('vobase_tenant_notification snapshot', () => {
+  it('vobase_inbox_mention_v2 snapshot', () => {
     const result = renderTemplateAsText(
-      'vobase_tenant_notification',
-      { mentionerName: 'Alice', snippet: 'Need help with order', agentName: 'Helpdesk' },
-      'https://platform.voltade.app/auth/magic?token=abc',
+      'vobase_inbox_mention_v2',
+      { agentName: 'Helpdesk', snippet: 'Need help with order' },
+      'https://platform.vobase.dev/auth/magic?token=abc',
     )
     expect(result).toBe(
-      '*Alice* mentioned you in a conversation.\n\n_Need help with order_\n\nYour agent: Helpdesk\n\nTap below to open the conversation in Vobase.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+      'New mention from _Helpdesk_:\n\n*Need help with order*\n\nFrom the conversation inbox.\n\nReply to instruct the agent.\n\nOpen: https://platform.vobase.dev/auth/magic?token=abc',
     )
   })
 
-  it('vobase_approval_decision snapshot', () => {
+  it('vobase_decision_required_v2 snapshot', () => {
     const result = renderTemplateAsText(
-      'vobase_approval_decision',
+      'vobase_decision_required_v2',
       {
         agentName: 'Helpdesk',
-        approvalSummary: 'Refund $50',
-        approvalContext: 'Customer requested refund for late delivery',
+        summary: 'Refund $50',
+        detail: 'Customer requested refund for late delivery',
       },
-      'https://platform.voltade.app/auth/magic?token=abc',
+      'https://platform.vobase.dev/auth/magic?token=abc',
     )
     expect(result).toBe(
-      'Helpdesk filed an approval request.\n\n*Refund $50*\n\n_Customer requested refund for late delivery_\n\nTap below to review and decide.\n\nPending approval — your decision needed.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+      'Decision needed for *Refund $50*.\n\n_Customer requested refund for late delivery_\n\nFiled by _Helpdesk_ on your behalf.\n\nReply to instruct the agent.\n\nOpen: https://platform.vobase.dev/auth/magic?token=abc',
     )
   })
 
-  it('vobase_proposal_decision snapshot', () => {
+  it('vobase_admin_alert_v2 snapshot', () => {
     const result = renderTemplateAsText(
-      'vobase_proposal_decision',
-      { agentName: 'Helpdesk', resourceLabel: 'contacts/profile-field', proposalSummary: 'Update phone number' },
-      'https://platform.voltade.app/auth/magic?token=abc',
-    )
-    expect(result).toBe(
-      'Helpdesk proposed a change to contacts/profile-field.\n\n*Update phone number*\n\nTap below to review and decide.\n\nPending change proposal — your decision needed.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
-    )
-  })
-
-  it('vobase_admin_alert snapshot', () => {
-    const result = renderTemplateAsText(
-      'vobase_admin_alert',
+      'vobase_admin_alert_v2',
       {
         alertHeadline: 'High error rate detected',
         alertDetail: 'Error rate exceeded 5% in the last 5 minutes',
-        organizationName: 'Acme Corp',
       },
-      'https://platform.voltade.app/auth/magic?token=abc',
+      'https://platform.vobase.dev/auth/magic?token=abc',
     )
     expect(result).toBe(
-      '*Vobase admin alert*\n\nHigh error rate detected\n\n_Error rate exceeded 5% in the last 5 minutes_\n\nOrganization: Acme Corp\n\nOpen the activity dashboard to investigate.\n\nOpen: https://platform.voltade.app/auth/magic?token=abc',
+      'Admin alert: *High error rate detected*\n\n_Error rate exceeded 5% in the last 5 minutes_\n\nTriggered by automation.\n\nReply to instruct the agent.\n\nOpen: https://platform.vobase.dev/auth/magic?token=abc',
     )
   })
 
   it('throws VobaseError.validation on invalid bodyParams', () => {
     expect(() =>
-      renderTemplateAsText(
-        'vobase_tenant_notification',
-        { mentionerName: '', snippet: 'x', agentName: 'A' },
-        'https://example.com',
-      ),
+      renderTemplateAsText('vobase_inbox_mention_v2', { agentName: '', snippet: 'x' }, 'https://example.com'),
     ).toThrow(VobaseError)
 
     let caught: unknown
     try {
-      renderTemplateAsText('vobase_approval_decision', { agentName: 'A' }, 'https://example.com')
+      renderTemplateAsText('vobase_decision_required_v2', { agentName: 'A' }, 'https://example.com')
     } catch (e) {
       caught = e
     }

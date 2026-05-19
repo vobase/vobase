@@ -41,7 +41,7 @@ mock.module('@auth/magic-link', () => ({
   mintMagicLink: async (..._args: unknown[]) => {
     if (_mintMagicLinkImpl) return _mintMagicLinkImpl()
     return {
-      url: 'https://platform.voltade.app/auth/magic?tenant=t&token=tok&redirect=%2Fsystem%2Factivity&organization=org1',
+      url: 'https://platform.vobase.dev/auth/magic?tenant=t&token=tok&redirect=%2Fsystem%2Factivity&organization=org1',
       token: 'tok',
       expiresAt: new Date(Date.now() + 86400_000).toISOString(),
     }
@@ -49,11 +49,11 @@ mock.module('@auth/magic-link', () => ({
   magicLinkCaptor: { deliver: () => {} },
 }))
 
-// Stub findNotificationChannel to always return a configured channel with vobase_admin_alert approved.
+// Stub findNotificationChannel to always return a configured channel with vobase_admin_alert_v2 approved.
 mock.module('@modules/channels/service/instances', () => ({
   findNotificationChannel: async (_orgId: string) => ({
     config: {
-      metaTemplateApprovals: { vobase_admin_alert: 'approved' },
+      metaTemplateApprovals: { vobase_admin_alert_v2: 'approved' },
     },
   }),
 }))
@@ -94,7 +94,6 @@ describe('dispatchAdminAlert', () => {
       kind: 'budget_breach' as const,
       alertHeadline: 'Daily budget cap exceeded — automations paused',
       alertDetail: 'Cap $1.00 — spent $2.00 today. All automations paused.',
-      organizationName: 'Test Org',
       dedupKey,
     }
   }
@@ -135,7 +134,7 @@ describe('dispatchAdminAlert', () => {
     expect(sentCalls.length).toBe(1)
     const call = sentCalls[0] as { staffPhoneE164: string; templateName: string }
     expect(call.staffPhoneE164).toBe('+6591234567')
-    expect(call.templateName).toBe('vobase_admin_alert')
+    expect(call.templateName).toBe('vobase_admin_alert_v2')
 
     // automation_runs should have status='succeeded'.
     const rows = await client`

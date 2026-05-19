@@ -16,8 +16,8 @@
  *   - returns `{status: 'suppressed_cooldown'}` without sending.
  *
  * **Send path** (US-012a): for each org admin with a phoneNumber, fires
- * `sendNotificationTemplate` with the `vobase_admin_alert` template (or
- * `vobase_tenant_notification` fallback). Mints a magic-link POST-COMMIT
+ * `sendNotificationTemplate` with the `vobase_admin_alert_v2` template (or
+ * `vobase_inbox_mention_v2` fallback). Mints a magic-link POST-COMMIT
  * (Principle 6). On `MagicLinkMintError` → writes
  * `automation_runs(status='failed', errorMessage='magic_link_mint_failed')`
  * and returns `{status: 'failed', reason: 'magic_link_mint_failed'}`.
@@ -69,8 +69,6 @@ export interface AdminAlertInput {
   alertHeadline: string
   /** Detail text for the WA template body (≤200 chars). */
   alertDetail: string
-  /** Organization display name — included in the template body. */
-  organizationName: string
   /** Stable hash for dedup — caller computes from kind+specific-payload (e.g. `budget_breach:<orgId>:<day>`). */
   dedupKey: string
 }
@@ -247,7 +245,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
           dedupKey: input.dedupKey,
           alertHeadline: input.alertHeadline,
           alertDetail: input.alertDetail,
-          organizationName: input.organizationName,
           reason: 'no_admin_recipients',
         },
       })
@@ -279,7 +276,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     {
       alertHeadline: input.alertHeadline,
       alertDetail: input.alertDetail,
-      organizationName: input.organizationName,
     },
     metaTemplateApprovals,
   )
@@ -373,7 +369,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
             dedupKey: input.dedupKey,
             alertHeadline: input.alertHeadline,
             alertDetail: input.alertDetail,
-            organizationName: input.organizationName,
             cause: String((err as MagicLinkMintError).cause ?? err),
           },
         })
@@ -412,7 +407,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
         dedupKey: input.dedupKey,
         alertHeadline: input.alertHeadline,
         alertDetail: input.alertDetail,
-        organizationName: input.organizationName,
         recipientCount: recipients.length,
         wireRoute: lastWireRoute ?? null,
         costEstimateUsd: lastWireRoute != null ? COST_ESTIMATE_USD[lastWireRoute] : null,

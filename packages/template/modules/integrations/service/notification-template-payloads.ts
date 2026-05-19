@@ -1,104 +1,85 @@
 /**
  * Typed notification-template-payloads.
  *
- * Single in-code reference for all four Meta WhatsApp templates submitted
+ * Single in-code reference for all three Meta WhatsApp templates submitted
  * under the Vobase WABA. Operators can use the table below when creating /
  * modifying templates in the Meta Business dashboard.
  *
  * All templates: LANGUAGE=en, CATEGORY=UTILITY, HEADER=none.
  *
- * ## Template 1 — `vobase_tenant_notification` (modified)
+ * ## Template 1 — `vobase_inbox_mention_v2`
  *
  * | Field   | Value                                                                                                              |
  * |---------|--------------------------------------------------------------------------------------------------------------------|
- * | NAME    | `vobase_tenant_notification`                                                                                       |
- * | BODY    | `*{{1}}* mentioned you in a conversation.\n\n_{{2}}_\n\nYour agent: {{3}}`                                        |
- * | FOOTER  | `Tap below to open the conversation in Vobase.`                                                                    |
- * | BUTTONS | URL button — text: `Open conversation`, url: `https://platform.voltade.app/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/inbox/<conversationId>` (percent-encoded). |
+ * | NAME    | `vobase_inbox_mention_v2`                                                                                          |
+ * | BODY    | `New mention from _{{1}}_:\n\n*{{2}}*\n\nFrom the conversation inbox.`                                              |
+ * | FOOTER  | `Reply to instruct the agent.`                                                                                     |
+ * | BUTTONS | URL button — text: `Open chat`, url: `https://platform.vobase.dev/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/inbox/<conversationId>` (percent-encoded). |
  *
- * Body params: 1=mentionerName, 2=snippet (≤200 chars), 3=agentName.
+ * Body params: 1=agentName, 2=snippet.
  *
- * ## Template 2 — `vobase_approval_decision` (new)
- *
- * | Field   | Value                                                                                                              |
- * |---------|--------------------------------------------------------------------------------------------------------------------|
- * | NAME    | `vobase_approval_decision`                                                                                         |
- * | BODY    | `{{1}} filed an approval request.\n\n*{{2}}*\n\n_{{3}}_\n\nTap below to review and decide.`                      |
- * | FOOTER  | `Pending approval — your decision needed.`                                                                         |
- * | BUTTONS | URL button — text: `Review approval`, url: `https://platform.voltade.app/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/inbox/<conversationId>/approvals/<approvalId>` (percent-encoded). |
- *
- * Body params: 1=agentName, 2=approvalSummary (≤80 chars), 3=approvalContext (≤200 chars).
- *
- * ## Template 3 — `vobase_proposal_decision` (new)
+ * ## Template 2 — `vobase_decision_required_v2`
  *
  * | Field   | Value                                                                                                              |
  * |---------|--------------------------------------------------------------------------------------------------------------------|
- * | NAME    | `vobase_proposal_decision`                                                                                         |
- * | BODY    | `{{1}} proposed a change to {{2}}.\n\n*{{3}}*\n\nTap below to review and decide.`                                |
- * | FOOTER  | `Pending change proposal — your decision needed.`                                                                  |
- * | BUTTONS | URL button — text: `Review proposal`, url: `https://platform.voltade.app/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/inbox/<conversationId>/proposals/<proposalId>` (percent-encoded). |
+ * | NAME    | `vobase_decision_required_v2`                                                                                      |
+ * | BODY    | `Decision needed for *{{1}}*.\n\n_{{2}}_\n\nFiled by _{{3}}_ on your behalf.`                                       |
+ * | FOOTER  | `Reply to instruct the agent.`                                                                                     |
+ * | BUTTONS | URL button — text: `Review request`, url: `https://platform.vobase.dev/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=<redirectPath>&...` (percent-encoded). |
  *
- * Body params: 1=agentName, 2=resourceLabel (e.g. `contacts/profile-field`, ≤60 chars), 3=proposalSummary (≤200 chars).
+ * Body params: 1=summary (≤80 chars), 2=detail (≤200 chars), 3=agentName (≤80 chars).
+ * Used by both `approval` and `proposal` ping kinds — the per-kind redirect
+ * path (set via `redirectPathFor`) decides which review page the magic link
+ * lands on.
  *
- * ## Template 4 — `vobase_admin_alert` (new)
+ * ## Template 3 — `vobase_admin_alert_v2`
  *
  * | Field   | Value                                                                                                              |
  * |---------|--------------------------------------------------------------------------------------------------------------------|
- * | NAME    | `vobase_admin_alert`                                                                                               |
- * | BODY    | `*Vobase admin alert*\n\n{{1}}\n\n_{{2}}_\n\nOrganization: {{3}}`                                                |
- * | FOOTER  | `Open the activity dashboard to investigate.`                                                                      |
- * | BUTTONS | URL button — text: `Open activity dashboard`, url: `https://platform.voltade.app/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/automations` (percent-encoded). |
+ * | NAME    | `vobase_admin_alert_v2`                                                                                            |
+ * | BODY    | `Admin alert: *{{1}}*\n\n_{{2}}_\n\nTriggered by automation.`                                                       |
+ * | FOOTER  | `Reply to instruct the agent.`                                                                                     |
+ * | BUTTONS | URL button — text: `View details`, url: `https://platform.vobase.dev/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/automations` (percent-encoded). |
  *
- * Body params: 1=alertHeadline (≤120 chars), 2=alertDetail (≤200 chars), 3=organizationName (≤80 chars).
+ * Body params: 1=alertHeadline (≤120 chars), 2=alertDetail (≤200 chars).
  */
 
 import { validation } from '@vobase/core'
 import { z } from 'zod'
 
 export const NOTIFICATION_TEMPLATES = [
-  'vobase_tenant_notification',
-  'vobase_approval_decision',
-  'vobase_proposal_decision',
-  'vobase_admin_alert',
+  'vobase_inbox_mention_v2',
+  'vobase_decision_required_v2',
+  'vobase_admin_alert_v2',
 ] as const
 
 export type NotificationTemplateName = (typeof NOTIFICATION_TEMPLATES)[number]
 
 const trimmedString = (max: number) => z.string().min(1).max(max)
 
-export const TenantNotificationBody = z.object({
-  mentionerName: trimmedString(80),
+export const InboxMentionBody = z.object({
+  agentName: trimmedString(80),
   snippet: trimmedString(200),
-  agentName: trimmedString(80),
 })
-export type TenantNotificationBody = z.infer<typeof TenantNotificationBody>
+export type InboxMentionBody = z.infer<typeof InboxMentionBody>
 
-export const ApprovalDecisionBody = z.object({
+export const DecisionRequiredBody = z.object({
   agentName: trimmedString(80),
-  approvalSummary: trimmedString(80),
-  approvalContext: trimmedString(200),
+  summary: trimmedString(80),
+  detail: trimmedString(200),
 })
-export type ApprovalDecisionBody = z.infer<typeof ApprovalDecisionBody>
-
-export const ProposalDecisionBody = z.object({
-  agentName: trimmedString(80),
-  resourceLabel: trimmedString(60),
-  proposalSummary: trimmedString(200),
-})
-export type ProposalDecisionBody = z.infer<typeof ProposalDecisionBody>
+export type DecisionRequiredBody = z.infer<typeof DecisionRequiredBody>
 
 export const AdminAlertBody = z.object({
   alertHeadline: trimmedString(120),
   alertDetail: trimmedString(200),
-  organizationName: trimmedString(80),
 })
 export type AdminAlertBody = z.infer<typeof AdminAlertBody>
 
 export const BODY_SCHEMAS = {
-  vobase_tenant_notification: TenantNotificationBody,
-  vobase_approval_decision: ApprovalDecisionBody,
-  vobase_proposal_decision: ProposalDecisionBody,
-  vobase_admin_alert: AdminAlertBody,
+  vobase_inbox_mention_v2: InboxMentionBody,
+  vobase_decision_required_v2: DecisionRequiredBody,
+  vobase_admin_alert_v2: AdminAlertBody,
 } satisfies Record<NotificationTemplateName, z.ZodType<unknown>>
 
 // ─── Redirect path builder ───────────────────────────────────────────────────
@@ -132,13 +113,13 @@ export function redirectPathFor(refs: RedirectRefs): string {
 export function templateNameFor(kind: 'mention' | 'approval' | 'proposal' | 'admin_alert'): NotificationTemplateName {
   switch (kind) {
     case 'mention':
-      return 'vobase_tenant_notification'
+      return 'vobase_inbox_mention_v2'
     case 'approval':
-      return 'vobase_approval_decision'
+      return 'vobase_decision_required_v2'
     case 'proposal':
-      return 'vobase_proposal_decision'
+      return 'vobase_decision_required_v2'
     case 'admin_alert':
-      return 'vobase_admin_alert'
+      return 'vobase_admin_alert_v2'
   }
 }
 
@@ -154,21 +135,17 @@ function assertNever(_: never): never {
  */
 export function bodyParamsForWire(templateName: NotificationTemplateName, body: unknown): readonly string[] {
   switch (templateName) {
-    case 'vobase_tenant_notification': {
-      const b = body as TenantNotificationBody
-      return [b.mentionerName, b.snippet, b.agentName]
+    case 'vobase_inbox_mention_v2': {
+      const b = body as InboxMentionBody
+      return [b.agentName, b.snippet]
     }
-    case 'vobase_approval_decision': {
-      const b = body as ApprovalDecisionBody
-      return [b.agentName, b.approvalSummary, b.approvalContext]
+    case 'vobase_decision_required_v2': {
+      const b = body as DecisionRequiredBody
+      return [b.summary, b.detail, b.agentName]
     }
-    case 'vobase_proposal_decision': {
-      const b = body as ProposalDecisionBody
-      return [b.agentName, b.resourceLabel, b.proposalSummary]
-    }
-    case 'vobase_admin_alert': {
+    case 'vobase_admin_alert_v2': {
       const b = body as AdminAlertBody
-      return [b.alertHeadline, b.alertDetail, b.organizationName]
+      return [b.alertHeadline, b.alertDetail]
     }
     default:
       return assertNever(templateName)
@@ -198,21 +175,17 @@ export function renderTemplateAsText(
   }
 
   switch (templateName) {
-    case 'vobase_tenant_notification': {
-      const b = parseResult.data as TenantNotificationBody
-      return `*${b.mentionerName}* mentioned you in a conversation.\n\n_${b.snippet}_\n\nYour agent: ${b.agentName}\n\nTap below to open the conversation in Vobase.\n\nOpen: ${buttonUrl}`
+    case 'vobase_inbox_mention_v2': {
+      const b = parseResult.data as InboxMentionBody
+      return `New mention from _${b.agentName}_:\n\n*${b.snippet}*\n\nFrom the conversation inbox.\n\nReply to instruct the agent.\n\nOpen: ${buttonUrl}`
     }
-    case 'vobase_approval_decision': {
-      const b = parseResult.data as ApprovalDecisionBody
-      return `${b.agentName} filed an approval request.\n\n*${b.approvalSummary}*\n\n_${b.approvalContext}_\n\nTap below to review and decide.\n\nPending approval — your decision needed.\n\nOpen: ${buttonUrl}`
+    case 'vobase_decision_required_v2': {
+      const b = parseResult.data as DecisionRequiredBody
+      return `Decision needed for *${b.summary}*.\n\n_${b.detail}_\n\nFiled by _${b.agentName}_ on your behalf.\n\nReply to instruct the agent.\n\nOpen: ${buttonUrl}`
     }
-    case 'vobase_proposal_decision': {
-      const b = parseResult.data as ProposalDecisionBody
-      return `${b.agentName} proposed a change to ${b.resourceLabel}.\n\n*${b.proposalSummary}*\n\nTap below to review and decide.\n\nPending change proposal — your decision needed.\n\nOpen: ${buttonUrl}`
-    }
-    case 'vobase_admin_alert': {
+    case 'vobase_admin_alert_v2': {
       const b = parseResult.data as AdminAlertBody
-      return `*Vobase admin alert*\n\n${b.alertHeadline}\n\n_${b.alertDetail}_\n\nOrganization: ${b.organizationName}\n\nOpen the activity dashboard to investigate.\n\nOpen: ${buttonUrl}`
+      return `Admin alert: *${b.alertHeadline}*\n\n_${b.alertDetail}_\n\nTriggered by automation.\n\nReply to instruct the agent.\n\nOpen: ${buttonUrl}`
     }
     default:
       return assertNever(templateName)

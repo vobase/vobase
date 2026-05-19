@@ -51,30 +51,30 @@ describe('createManagedTransport', () => {
   test('rewrites baseUrl + mediaDownloadUrl to platform proxy', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-123',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
     })
-    expect(t.baseUrl).toBe('https://platform.voltade.app/api/managed-whatsapp/pc-123/graph')
-    expect(t.mediaDownloadUrl).toBe('https://platform.voltade.app/api/managed-whatsapp/pc-123/media-download')
+    expect(t.baseUrl).toBe('https://platform.vobase.dev/api/managed-whatsapp/pc-123/graph')
+    expect(t.mediaDownloadUrl).toBe('https://platform.vobase.dev/api/managed-whatsapp/pc-123/media-download')
   })
 
   test('strips trailing slash from platformBaseUrl', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app/',
+      platformBaseUrl: 'https://platform.vobase.dev/',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
     })
-    expect(t.baseUrl).toBe('https://platform.voltade.app/api/managed-whatsapp/pc-1/graph')
+    expect(t.baseUrl).toBe('https://platform.vobase.dev/api/managed-whatsapp/pc-1/graph')
   })
 
   test('signRequest returns 2-key headers + tenant id + sig-v2 metadata (empty body)', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-acme',
       current: CURRENT,
       previous: null,
@@ -97,7 +97,7 @@ describe('createManagedTransport', () => {
   test('signRequest folds setPendingBody into the v2 digest', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -115,7 +115,7 @@ describe('createManagedTransport', () => {
   test('pending body resets between calls (no cross-request bleed)', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -131,7 +131,7 @@ describe('createManagedTransport', () => {
   test('signRequest folds sorted query string into the v2 payload (SH2)', () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -193,7 +193,7 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
   test('accepts v2 2-key signed payload (current pair)', async () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -214,7 +214,7 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
   test('rejects v2 with bad rotation signature', async () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -233,7 +233,7 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
   test('rejects v2 when body is tampered after signing', async () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -254,7 +254,7 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
   test('rejects when no signature headers at all', async () => {
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: CURRENT,
       previous: null,
@@ -267,7 +267,7 @@ describe('createManagedTransport.verifyInboundWebhook (wiring into adapter)', ()
     let live = CURRENT
     const t = createManagedTransport({
       platformChannelId: 'pc-1',
-      platformBaseUrl: 'https://platform.voltade.app',
+      platformBaseUrl: 'https://platform.vobase.dev',
       tenantId: 't-1',
       current: () => live,
       previous: () => null,
@@ -311,7 +311,7 @@ describe('createWhatsAppAdapterFromConfig — managed mode race condition', () =
       {
         mode: 'managed',
         platformChannelId: 'pc-race-test',
-        platformBaseUrl: 'https://platform.voltade.app',
+        platformBaseUrl: 'https://platform.vobase.dev',
         organizationId: 'org-race-test',
       },
       'inst-race',

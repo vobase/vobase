@@ -23,7 +23,7 @@ export type RotationPrevious = VaultRotation['previous']
 export interface ManagedTransportInput {
   /** Platform-issued channel id (per-tenant + per-env). */
   platformChannelId: string
-  /** Origin of the platform service, e.g. `https://platform.voltade.app`. */
+  /** Origin of the platform service, e.g. `https://platform.vobase.dev`. */
   platformBaseUrl: string
   /** Tenant identity headers attached to every proxied request. */
   tenantId: string

@@ -85,8 +85,8 @@ describe('freeform routing — meta 131047 fallback', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: STAFF_PHONE,
-      templateName: 'vobase_approval_decision',
-      bodyParams: { agentName: 'Helpdesk', approvalSummary: 'Refund', approvalContext: 'context' },
+      templateName: 'vobase_decision_required_v2',
+      bodyParams: { agentName: 'Helpdesk', summary: 'Refund', detail: 'context' },
       buttonUrlSuffix: 'auth/magic?token=abc&redirect=/inbox/conv-4/approvals/app-4',
     })
 

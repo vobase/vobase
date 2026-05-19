@@ -299,7 +299,7 @@ export function createAuth(db: ScopedDb) {
     emailAndPassword: { enabled: false },
     plugins,
     trustedOrigins: [
-      'https://platform.voltade.app',
+      'https://platform.vobase.dev',
       // baseURL's own origin is implicitly trusted by better-auth — this list is additive.
     ],
     databaseHooks: {

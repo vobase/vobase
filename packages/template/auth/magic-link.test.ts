@@ -36,9 +36,9 @@ describe('mintMagicLink', () => {
       redirectPath: '/inbox/c1/approvals/a1',
     })
 
-    // URL shape: https://platform.voltade.app/auth/magic?tenant=t1&token=...&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1
+    // URL shape: https://platform.vobase.dev/auth/magic?tenant=t1&token=...&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1
     expect(result.url).toMatch(
-      /^https:\/\/platform\.voltade\.app\/auth\/magic\?tenant=t1&token=[A-Za-z0-9_%-]+&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1$/u,
+      /^https:\/\/platform\.vobase\.dev\/auth\/magic\?tenant=t1&token=[A-Za-z0-9_%-]+&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1$/u,
     )
     expect(result.token).toBeTruthy()
     expect(result.token.length).toBeGreaterThan(10)

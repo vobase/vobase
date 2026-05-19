@@ -24,7 +24,7 @@
  * `callbackURL` is NOT included in the `sendMagicLink` payload, so we round-trip
  *   it through `metadata.callbackURL` so the captor can reconstruct the full
  *   platform deep-link URL:
- *   `https://platform.voltade.app/auth/magic?tenant=<tid>&token=<tok>&redirect=<path>&organization=<oid>`
+ *   `https://platform.vobase.dev/auth/magic?tenant=<tid>&token=<tok>&redirect=<path>&organization=<oid>`
  */
 
 import { notFound } from '@vobase/core'
@@ -51,7 +51,7 @@ export class MagicLinkMintError extends Error {
 
 const CAPTOR_TIMEOUT_MS = 5_000
 
-const PLATFORM_MAGIC_BASE = 'https://platform.voltade.app/auth/magic'
+const PLATFORM_MAGIC_BASE = 'https://platform.vobase.dev/auth/magic'
 
 /**
  * Per-mint payload threaded through better-auth into the `sendMagicLink`
@@ -137,7 +137,7 @@ export interface MintInput {
 }
 
 export interface MintResult {
-  /** https://platform.voltade.app/auth/magic?tenant=<tid>&token=<tok>&redirect=<percent-encoded-path>&organization=<oid> */
+  /** https://platform.vobase.dev/auth/magic?tenant=<tid>&token=<tok>&redirect=<percent-encoded-path>&organization=<oid> */
   url: string
   token: string
   /** ISO 8601 — 24 h from issuance (matches `expiresIn: 60 * 60 * 24` in the plugin config) */

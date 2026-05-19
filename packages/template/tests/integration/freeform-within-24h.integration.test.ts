@@ -70,11 +70,11 @@ describe('freeform routing — within 24h window', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: STAFF_PHONE,
-      templateName: 'vobase_approval_decision',
+      templateName: 'vobase_decision_required_v2',
       bodyParams: {
         agentName: 'Helpdesk',
-        approvalSummary: 'New refund',
-        approvalContext: 'Customer requested refund of $42.',
+        summary: 'New refund',
+        detail: 'Customer requested refund of $42.',
       },
       buttonUrlSuffix: 'auth/magic?token=abc&redirect=/inbox/conv-1/approvals/app-1',
     })

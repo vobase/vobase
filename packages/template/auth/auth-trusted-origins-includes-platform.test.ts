@@ -1,5 +1,5 @@
 /**
- * Regression guard: `createAuth` must always list `https://platform.voltade.app`
+ * Regression guard: `createAuth` must always list `https://platform.vobase.dev`
  * in `trustedOrigins` so the magic-link verify redirect passes the better-auth
  * origin-check middleware.
  *
@@ -9,10 +9,10 @@
  */
 import { describe, expect, it } from 'bun:test'
 
-const PLATFORM_ORIGIN = 'https://platform.voltade.app'
+const PLATFORM_ORIGIN = 'https://platform.vobase.dev'
 
 describe('createAuth trustedOrigins', () => {
-  it('includes platform.voltade.app', async () => {
+  it('includes platform.vobase.dev', async () => {
     // Read the source file and assert the literal is present in a trustedOrigins array.
     // This is a lightweight regression guard that does not require a live DB.
     const sourceText = await Bun.file(`${import.meta.dir}/index.ts`).text()
@@ -20,7 +20,7 @@ describe('createAuth trustedOrigins', () => {
     // The literal must appear in context of a trustedOrigins field — asserting
     // the string is present is sufficient; the full integration is exercised by
     // magic-link.test.ts which boots createAuth and calls signInMagicLink with
-    // callbackURL set to a platform.voltade.app URL.
+    // callbackURL set to a platform.vobase.dev URL.
     expect(sourceText).toContain(PLATFORM_ORIGIN)
     expect(sourceText).toContain('trustedOrigins')
 

@@ -2,7 +2,7 @@
  * WhatsApp interactive button payload matcher (US-009 / Slice B.4 stub).
  *
  * When Slice C (US-011 / US-012) ships kind-specific Meta templates, the
- * `vobase_approval_decision` / `vobase_proposal_decision` button taps arrive
+ * `vobase_decision_required_v2` button taps arrive
  * as `interactive.button_reply` payloads with `id = 'approve:<refId>'` or
  * `id = 'deny:<refId>'`. This matcher recognises that shape so the inbound
  * handler can short-circuit the free-text regex path.

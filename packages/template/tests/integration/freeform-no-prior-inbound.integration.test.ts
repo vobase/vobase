@@ -65,8 +65,8 @@ describe('freeform routing — no prior inbound', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: STAFF_PHONE,
-      templateName: 'vobase_approval_decision',
-      bodyParams: { agentName: 'Helpdesk', approvalSummary: 'New refund', approvalContext: 'No prior inbound.' },
+      templateName: 'vobase_decision_required_v2',
+      bodyParams: { agentName: 'Helpdesk', summary: 'New refund', detail: 'No prior inbound.' },
       buttonUrlSuffix: 'auth/magic?token=abc&redirect=/inbox/conv-3/approvals/app-3',
     })
 

@@ -322,7 +322,7 @@ describe('sendNotificationTemplate signature change', () => {
     globalThis.fetch = ORIGINAL_FETCH
   })
 
-  it('sends templateName + positional bodyParams for vobase_tenant_notification (outside 24h → template path)', async () => {
+  it('sends templateName + positional bodyParams for vobase_inbox_mention_v2 (outside 24h → template path)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-1' }, { status: 200 }))
 
     const result = await sendNotificationTemplate({
@@ -332,8 +332,8 @@ describe('sendNotificationTemplate signature change', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: '+15551234567',
-      templateName: 'vobase_tenant_notification',
-      bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+      templateName: 'vobase_inbox_mention_v2',
+      bodyParams: { agentName: 'Helpdesk', snippet: 'hi' },
       buttonUrlSuffix: 'tenant-slug',
     })
 
@@ -341,12 +341,12 @@ describe('sendNotificationTemplate signature change', () => {
     expect(calls).toHaveLength(1)
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
     expect(wireBody.staffPhoneE164).toBe('+15551234567')
-    expect(wireBody.templateName).toBe('vobase_tenant_notification')
-    expect(wireBody.bodyParams).toEqual(['Bob', 'hi', 'Helpdesk'])
+    expect(wireBody.templateName).toBe('vobase_inbox_mention_v2')
+    expect(wireBody.bodyParams).toEqual(['Helpdesk', 'hi'])
     expect(wireBody.buttonUrlSuffix).toBe('tenant-slug')
   })
 
-  it('sends positional bodyParams for vobase_approval_decision (outside 24h)', async () => {
+  it('sends positional bodyParams for vobase_decision_required_v2 (outside 24h)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-2' }, { status: 200 }))
 
     const result = await sendNotificationTemplate({
@@ -356,39 +356,18 @@ describe('sendNotificationTemplate signature change', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: '+15551234567',
-      templateName: 'vobase_approval_decision',
-      bodyParams: { agentName: 'A', approvalSummary: 'B', approvalContext: 'C' },
+      templateName: 'vobase_decision_required_v2',
+      bodyParams: { agentName: 'A', summary: 'B', detail: 'C' },
       buttonUrlSuffix: 'suf',
     })
 
     expect(result.wireRoute).toBe('template')
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
-    expect(wireBody.templateName).toBe('vobase_approval_decision')
-    expect(wireBody.bodyParams).toEqual(['A', 'B', 'C'])
+    expect(wireBody.templateName).toBe('vobase_decision_required_v2')
+    expect(wireBody.bodyParams).toEqual(['B', 'C', 'A'])
   })
 
-  it('sends positional bodyParams for vobase_proposal_decision (outside 24h)', async () => {
-    const calls = installFetchStub(() => Response.json({ messageId: 'msg-3' }, { status: 200 }))
-
-    const result = await sendNotificationTemplate({
-      db: makeDbStub(false),
-      organizationId: TEST_ORG,
-      platformBaseUrl: PLATFORM_BASE,
-      tenantId: TEST_TENANT,
-      tenantHmacSecret: TEST_HMAC,
-      staffPhoneE164: '+15551234567',
-      templateName: 'vobase_proposal_decision',
-      bodyParams: { agentName: 'A', resourceLabel: 'contacts/profile-field', proposalSummary: 'C' },
-      buttonUrlSuffix: 'suf',
-    })
-
-    expect(result.wireRoute).toBe('template')
-    const wireBody = JSON.parse(String(calls[0]?.init?.body))
-    expect(wireBody.templateName).toBe('vobase_proposal_decision')
-    expect(wireBody.bodyParams).toEqual(['A', 'contacts/profile-field', 'C'])
-  })
-
-  it('sends positional bodyParams for vobase_admin_alert (outside 24h)', async () => {
+  it('sends positional bodyParams for vobase_admin_alert_v2 (outside 24h)', async () => {
     const calls = installFetchStub(() => Response.json({ messageId: 'msg-4' }, { status: 200 }))
 
     const result = await sendNotificationTemplate({
@@ -398,15 +377,15 @@ describe('sendNotificationTemplate signature change', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: '+15551234567',
-      templateName: 'vobase_admin_alert',
-      bodyParams: { alertHeadline: 'H', alertDetail: 'D', organizationName: 'O' },
+      templateName: 'vobase_admin_alert_v2',
+      bodyParams: { alertHeadline: 'H', alertDetail: 'D' },
       buttonUrlSuffix: 'suf',
     })
 
     expect(result.wireRoute).toBe('template')
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
-    expect(wireBody.templateName).toBe('vobase_admin_alert')
-    expect(wireBody.bodyParams).toEqual(['H', 'D', 'O'])
+    expect(wireBody.templateName).toBe('vobase_admin_alert_v2')
+    expect(wireBody.bodyParams).toEqual(['H', 'D'])
   })
 
   it('throws VobaseError with code VALIDATION when bodyParams is missing required fields', async () => {
@@ -420,8 +399,8 @@ describe('sendNotificationTemplate signature change', () => {
         tenantId: TEST_TENANT,
         tenantHmacSecret: TEST_HMAC,
         staffPhoneE164: '+15551234567',
-        templateName: 'vobase_approval_decision',
-        bodyParams: { agentName: 'A' }, // missing approvalSummary + approvalContext
+        templateName: 'vobase_decision_required_v2',
+        bodyParams: { agentName: 'A' }, // missing summary + detail
         buttonUrlSuffix: 'suf',
       }),
     ).rejects.toMatchObject({ name: 'VobaseError', code: 'VALIDATION' })
@@ -439,7 +418,7 @@ describe('sendNotificationTemplate signature change', () => {
         tenantId: TEST_TENANT,
         tenantHmacSecret: TEST_HMAC,
         staffPhoneE164: '+15551234567',
-        templateName: 'vobase_approval_decision',
+        templateName: 'vobase_decision_required_v2',
         bodyParams: { agentName: 'A' },
         buttonUrlSuffix: 'suf',
       })
@@ -461,8 +440,8 @@ describe('sendNotificationTemplate signature change', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: '+15551234567',
-      templateName: 'vobase_tenant_notification',
-      bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+      templateName: 'vobase_inbox_mention_v2',
+      bodyParams: { agentName: 'Helpdesk', snippet: 'hi' },
       buttonUrlSuffix: 'auth/magic?token=abc',
     })
 
@@ -472,8 +451,8 @@ describe('sendNotificationTemplate signature change', () => {
     expect(calls[0]?.url).toContain('/api/whatsapp/freeform')
     const wireBody = JSON.parse(String(calls[0]?.init?.body))
     expect(wireBody.staffPhoneE164).toBe('+15551234567')
-    expect(wireBody.bodyText).toContain('Bob')
-    expect(wireBody.bodyText).toContain('https://platform.voltade.app/auth/magic?token=abc')
+    expect(wireBody.bodyText).toContain('Helpdesk')
+    expect(wireBody.bodyText).toContain('https://platform.vobase.dev/auth/magic?token=abc')
     expect(typeof wireBody.idempotencyKey).toBe('string')
   })
 
@@ -496,8 +475,8 @@ describe('sendNotificationTemplate signature change', () => {
       tenantId: TEST_TENANT,
       tenantHmacSecret: TEST_HMAC,
       staffPhoneE164: '+15551234567',
-      templateName: 'vobase_tenant_notification',
-      bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+      templateName: 'vobase_inbox_mention_v2',
+      bodyParams: { agentName: 'Helpdesk', snippet: 'hi' },
       buttonUrlSuffix: 'auth/magic?token=abc',
     })
 
@@ -528,8 +507,8 @@ describe('sendNotificationTemplate signature change', () => {
         tenantId: TEST_TENANT,
         tenantHmacSecret: TEST_HMAC,
         staffPhoneE164: '+15551234567',
-        templateName: 'vobase_tenant_notification',
-        bodyParams: { mentionerName: 'Bob', snippet: 'hi', agentName: 'Helpdesk' },
+        templateName: 'vobase_inbox_mention_v2',
+        bodyParams: { agentName: 'Helpdesk', snippet: 'hi' },
         buttonUrlSuffix: 'suf',
       }),
     ).rejects.toMatchObject({ name: 'PlatformHandshakeError', code: 'rate_limited', status: 429 })

@@ -1,7 +1,7 @@
 /**
  * Free-text reply parser for WhatsApp staff replies (US-009 / Slice B.4).
  *
- * Staff reply to a `vobase_tenant_notification` Meta template by sending a
+ * Staff reply to a `vobase_inbox_mention_v2` Meta template by sending a
  * plain text message back. Until Slice C (US-011) ships kind-specific
  * templates with structured `Approve` / `Deny` buttons, decisions arrive as
  * prose — we recognise a leading approve/deny verb and treat the remainder

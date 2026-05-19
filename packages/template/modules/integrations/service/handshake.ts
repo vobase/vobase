@@ -509,7 +509,7 @@ export const COST_ESTIMATE_USD: Record<WireRoute, number> = {
 }
 
 /** Full platform URL prefix used to reconstruct the button URL for free-form sends. */
-const PLATFORM_FULL_URL_PREFIX = 'https://platform.voltade.app/'
+const PLATFORM_FULL_URL_PREFIX = 'https://platform.vobase.dev/'
 
 interface SendNotificationTemplateInput {
   /** Scoped Drizzle handle — used for the within-24h lookup against `infra.channels_log`. */
@@ -522,7 +522,7 @@ interface SendNotificationTemplateInput {
   templateName: NotificationTemplateName
   bodyParams: unknown
   /**
-   * Path suffix appended to `https://platform.voltade.app/` to form the full
+   * Path suffix appended to `https://platform.vobase.dev/` to form the full
    * button URL. The template path forwards the suffix verbatim to the platform;
    * the free-form path reconstructs the full URL for the rendered text body.
    */

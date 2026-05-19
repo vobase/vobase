@@ -11,7 +11,7 @@
  * Per-kind template selector (US-011b): `templateNameFor(kind)` from
  * `notification-template-payloads.ts` picks the right Meta template name. The
  * dispatcher gates on `channel_instances.config.metaTemplateApprovals` before
- * calling `sendTemplate` and falls back to `vobase_tenant_notification_v1` when
+ * calling `sendTemplate` and falls back to `vobase_inbox_mention_v2` when
  * the per-kind template is unapproved (see `buildTemplateForDispatch`).
  *
  * Magic-link minting (US-011b / Principle 6): `mintMagicLink` is called
@@ -31,12 +31,11 @@ import { decideChangeProposal } from '@modules/changes/service/proposals'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
 import {
-  type ApprovalDecisionBody,
+  type DecisionRequiredBody,
+  type InboxMentionBody,
   type NotificationTemplateName,
-  type ProposalDecisionBody,
   type RedirectRefs,
   redirectPathFor,
-  type TenantNotificationBody,
   templateNameFor,
 } from '@modules/integrations/service/notification-template-payloads'
 import type { InternalNote } from '@modules/messaging/schema'
@@ -81,13 +80,10 @@ export interface StaffPingParams {
   /** Optional asking-agent id; defaults to a sentinel for non-mention kinds. */
   askingAgentId?: string
   // Per-kind structured params for template body building (US-011b).
-  // For 'mention': mentionerName + snippet + agentName come from the fan-out path.
-  // For 'approval': agentName + approvalSummary + approvalContext.
-  approvalSummary?: string
-  approvalContext?: string
-  // For 'proposal': agentName + resourceLabel + proposalSummary.
-  resourceLabel?: string
-  proposalSummary?: string
+  // For 'mention': agentName + snippet come from the fan-out path.
+  // For 'approval' / 'proposal': agentName + summary + detail (merged decision-required template).
+  summary?: string
+  detail?: string
   // For 'admin_alert': alertHeadline + alertDetail + organizationName.
   alertHeadline?: string
   alertDetail?: string
@@ -307,9 +303,9 @@ export type SendTemplateFn = (input: {
 /**
  * Platform base URL used to strip the prefix from a mint result URL and produce
  * the `buttonUrlSuffix` Meta expects.
- * e.g. `https://platform.voltade.app/auth/magic?...` → `auth/magic?...`
+ * e.g. `https://platform.vobase.dev/auth/magic?...` → `auth/magic?...`
  */
-const PLATFORM_BASE_URL = 'https://platform.voltade.app/'
+const PLATFORM_BASE_URL = 'https://platform.vobase.dev/'
 
 /**
  * Strip the platform base prefix from a full mint URL to get the button URL suffix.
@@ -350,46 +346,33 @@ export function buildRedirectRefs(
 
 /**
  * Build the typed body params for a given kind.
- * For 'mention', the body is built from fan-out params (mentionerName/snippet/agentName).
+ * For 'mention', the body is built from fan-out params (agentName/snippet).
  * For other kinds, it reads from the StaffPingParams structured fields.
  */
 function buildBodyParams(
   kind: PingKind,
   params: {
-    mentionerName?: string
     snippet?: string
     agentName?: string
-    approvalSummary?: string
-    approvalContext?: string
-    resourceLabel?: string
-    proposalSummary?: string
+    summary?: string
+    detail?: string
     alertHeadline?: string
     alertDetail?: string
     organizationName?: string
   },
-):
-  | TenantNotificationBody
-  | ApprovalDecisionBody
-  | ProposalDecisionBody
-  | { alertHeadline: string; alertDetail: string; organizationName: string } {
+): InboxMentionBody | DecisionRequiredBody | { alertHeadline: string; alertDetail: string; organizationName: string } {
   switch (kind) {
     case 'mention':
       return {
-        mentionerName: params.mentionerName ?? 'Unknown',
-        snippet: params.snippet ?? '',
         agentName: params.agentName ?? 'your agent',
+        snippet: params.snippet ?? '',
       }
     case 'approval':
-      return {
-        agentName: params.agentName ?? 'your agent',
-        approvalSummary: params.approvalSummary ?? '',
-        approvalContext: params.approvalContext ?? '',
-      }
     case 'proposal':
       return {
         agentName: params.agentName ?? 'your agent',
-        resourceLabel: params.resourceLabel ?? '',
-        proposalSummary: params.proposalSummary ?? '',
+        summary: params.summary ?? '',
+        detail: params.detail ?? '',
       }
     case 'admin_alert':
       return {
@@ -401,49 +384,43 @@ function buildBodyParams(
 }
 
 /**
- * Fallback body: pack the kind-specific summary into the `vobase_tenant_notification_v1`
- * 3-tuple when the per-kind template is unapproved. Preserves agentName verbatim;
- * truncates the summary to ≤200 chars + `[truncated approval/proposal summary]` if needed.
+ * Fallback body: pack the kind-specific summary into the `vobase_inbox_mention_v2`
+ * 2-tuple when the per-kind template is unapproved. Preserves agentName verbatim;
+ * truncates the summary to ≤200 chars if needed.
  */
 function buildFallbackBody(
   kind: PingKind,
   params: {
-    mentionerName?: string
     snippet?: string
     agentName?: string
-    approvalSummary?: string
-    approvalContext?: string
-    resourceLabel?: string
-    proposalSummary?: string
+    summary?: string
+    detail?: string
     alertHeadline?: string
     alertDetail?: string
     organizationName?: string
   },
-): TenantNotificationBody {
+): InboxMentionBody {
   const agentName = params.agentName ?? 'your agent'
-  const mentionerName = params.mentionerName ?? agentName
   let snippet: string
   switch (kind) {
     case 'mention':
       snippet = params.snippet ?? ''
       break
     case 'approval':
-      snippet = params.approvalSummary ?? params.approvalContext ?? ''
-      break
     case 'proposal':
-      snippet = params.proposalSummary ?? params.resourceLabel ?? ''
+      snippet = params.summary ?? params.detail ?? ''
       break
     case 'admin_alert':
       snippet = params.alertHeadline ?? params.alertDetail ?? ''
       break
   }
   const truncated = snippet.length > 200 ? `${snippet.slice(0, 197)}…` : snippet
-  return { mentionerName, snippet: truncated, agentName }
+  return { agentName, snippet: truncated }
 }
 
 /**
  * Read the `metaTemplateApprovals` jsonb from the notification channel instance config
- * and decide whether to use the per-kind template or fall back to `vobase_tenant_notification_v1`.
+ * and decide whether to use the per-kind template or fall back to `vobase_inbox_mention_v2`.
  *
  * The `channel_instances.config.metaTemplateApprovals` field is a JSONB record keyed by
  * template name → `'approved' | 'pending' | 'rejected'`. Operators populate it manually
@@ -455,13 +432,10 @@ function buildFallbackBody(
 export function buildTemplateForDispatch(
   kind: PingKind,
   params: {
-    mentionerName?: string
     snippet?: string
     agentName?: string
-    approvalSummary?: string
-    approvalContext?: string
-    resourceLabel?: string
-    proposalSummary?: string
+    summary?: string
+    detail?: string
     alertHeadline?: string
     alertDetail?: string
     organizationName?: string
@@ -474,8 +448,8 @@ export function buildTemplateForDispatch(
   if (isApproved) {
     return { templateName: perKindTemplate, bodyParams: buildBodyParams(kind, params) }
   }
-  // Fallback: re-render to vobase_tenant_notification_v1 3-tuple.
-  return { templateName: 'vobase_tenant_notification_v1', bodyParams: buildFallbackBody(kind, params) }
+  // Fallback: re-render to vobase_inbox_mention_v2 3-tuple.
+  return { templateName: 'vobase_inbox_mention_v2', bodyParams: buildFallbackBody(kind, params) }
 }
 
 /**
@@ -587,19 +561,6 @@ async function resolveAgentName(db: unknown, agentId: string): Promise<string> {
   }
 }
 
-async function resolveMentionerName(db: unknown, note: MentionFanOutNote): Promise<string> {
-  if (note.authorType === 'agent') return resolveAgentName(db, note.authorId)
-  if (note.authorType === 'staff') {
-    try {
-      const profile = await findStaff(note.authorId)
-      return profile?.displayName ?? note.authorId
-    } catch {
-      return note.authorId
-    }
-  }
-  return 'System'
-}
-
 export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNotifyService {
   const jobs = deps.jobs ?? null
   const sendTemplate = deps.sendTemplate ?? null
@@ -612,7 +573,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     profile: StaffProfile,
     kind: 'mention',
     params: {
-      mentionerName: string
       snippet: string
       agentName: string
       conversationId: string
@@ -623,14 +583,11 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     profile: StaffProfile,
     kind: PingKind,
     params: {
-      mentionerName?: string
       snippet?: string
       agentName?: string
       conversationId?: string | null
-      approvalSummary?: string
-      approvalContext?: string
-      resourceLabel?: string
-      proposalSummary?: string
+      summary?: string
+      detail?: string
       alertHeadline?: string
       alertDetail?: string
       organizationName?: string
@@ -645,14 +602,11 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     profile: StaffProfile,
     kind: PingKind,
     params: {
-      mentionerName?: string
       snippet?: string
       agentName?: string
       conversationId?: string | null
-      approvalSummary?: string
-      approvalContext?: string
-      resourceLabel?: string
-      proposalSummary?: string
+      summary?: string
+      detail?: string
       alertHeadline?: string
       alertDetail?: string
       organizationName?: string
@@ -747,10 +701,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
 
     const askingAgentId: string | null = note.authorType === 'agent' ? note.authorId : null
 
-    const [mentionerName, agentName] = await Promise.all([
-      resolveMentionerName(deps.db, note),
-      askingAgentId ? resolveAgentName(deps.db, askingAgentId) : Promise.resolve('your agent'),
-    ])
+    const agentName = await (askingAgentId ? resolveAgentName(deps.db, askingAgentId) : Promise.resolve('your agent'))
     const snippet = trimSnippet(note.body)
 
     // US-021: gate the fan-out on `auth.user.phoneNumberVerified`. Unverified
@@ -818,7 +769,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
               return
             }
             const send = await sendNotification(note.organizationId, profile, 'mention', {
-              mentionerName,
               snippet,
               agentName,
               conversationId: note.conversationId,

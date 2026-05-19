@@ -23,7 +23,7 @@ const TEST_DB_URL =
  * That optimisation was unsound — tests that mutate seed rows leave a
  * polluted DB for the next file. The skip is gone; correctness over speed.
  * If suite latency becomes a concern, swap the subprocess full-reset for an
- * in-process TRUNCATE ... CASCADE + reseed (see voltade/vobase#69).
+ * in-process TRUNCATE ... CASCADE + reseed (see vobase/vobase#69).
  *
  * Alternative considered (architect-followup, Slice B+D): pg_advisory_lock
  * inside resetAndSeedDb() using a dedicated pg connection:

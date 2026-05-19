@@ -51,7 +51,7 @@ interface MetaInboundMessage {
   text?: { body?: string }
   /**
    * Interactive payload — present when the staff member taps a button on a
-   * `vobase_approval_decision` / `vobase_proposal_decision` template
+   * `vobase_decision_required_v2` template
    * (Slice C / US-011). The Slice B.4 inbound matcher recognises the shape
    * already so the wiring is ready when the templates ship.
    */

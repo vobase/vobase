@@ -140,7 +140,6 @@ export async function runBudgetWatcherTick(opts: RunBudgetWatcherOpts = {}): Pro
             kind: 'budget_breach',
             alertHeadline: 'Daily budget cap exceeded — automations paused',
             alertDetail: `Cap $${capUsd.toFixed(2)} — spent $${spentUsd.toFixed(2)} today. All automations paused.`,
-            organizationName: cap.orgId, // orgId as fallback; caller doesn't have org name in scope
             dedupKey: `budget_breach:${cap.orgId}:${dayString}`,
           },
           { now },
