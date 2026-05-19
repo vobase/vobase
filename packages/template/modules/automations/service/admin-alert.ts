@@ -1,36 +1,12 @@
 /**
- * Admin alert dispatcher (US-012a / Slice C+).
+ * Admin-tier alert dispatcher — sends a WhatsApp notification to org owners about
+ * tenant-wide events (currently: `budget_breach`; open enum for future categories).
  *
- * `dispatchAdminAlert(input)` sends an admin-tier alert to org admins about a
- * tenant-wide event (today: only `budget_breach` from the budget watcher; the
- * `kind` is an open enum so future categories — invoice failure, integration
- * disconnect, etc. — can join).
+ * Deduplication: 1-hour window on `(kind, dedupKey)`. Suppressed runs are recorded
+ * as `status='suppressed_cooldown'` so the operator dashboard surfaces them.
  *
- * **1-hour dedup** on `(kind, dedupKey)`: the caller computes a stable
- * `dedupKey` (e.g. `budget_breach:<orgId>:<UTC-day-string>`). If a prior
- * succeeded alert with the same key landed in `automations.automation_runs`
- * within 60 minutes, the second invocation:
- *   - writes a fresh `automation_runs(status='suppressed_cooldown')` row with
- *     `payload_snapshot.reason='admin_alert_dedup'` so the operator dashboard
- *     surfaces the suppression;
- *   - returns `{status: 'suppressed_cooldown'}` without sending.
- *
- * **Send path** (US-012a): for each org admin with a phoneNumber, fires
- * `sendNotificationTemplate` with the `vobase_admin_alert_v2` template (or
- * `vobase_inbox_mention_v2` fallback). Mints a magic-link POST-COMMIT
- * (Principle 6). On `MagicLinkMintError` → writes
- * `automation_runs(status='failed', errorMessage='magic_link_mint_failed')`
- * and returns `{status: 'failed', reason: 'magic_link_mint_failed'}`.
- *
- * **Recipient resolution**: `auth.member` joined to `auth.user` filtered by
- * `organizationId` and `role = 'owner'`. Only members with a `phoneNumber` can
- * receive a WhatsApp notification — others are silently skipped. When no
- * reachable recipient exists, the run succeeds with
- * `payloadSnapshot.reason='no_admin_recipients'`.
- *
- * The auditable `automation_runs` write is the durable signal. The
- * `admin-alert.ts` path is in `AUTOMATION_RUNS_WRITE_ALLOWED` — no new
- * allowlist entries are required (see `scripts/check-module-shape.ts:73-84`).
+ * Recipients: `auth.member` (role='owner') joined to `auth.user` filtered by
+ * `phoneNumber`. Members without a phone are silently skipped.
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
@@ -51,12 +27,9 @@ import { and, desc, eq, gt, sql } from 'drizzle-orm'
 import type { Auth } from '~/auth'
 import type { ScopedDb } from '~/runtime'
 
-/** Stable event name used for every admin-alert run row — keeps dedup queries cheap. */
 export const ADMIN_ALERT_EVENT_NAME = 'budget_watcher.admin_alert'
 
-/** Synthetic rule id used when persisting the run row — there is no real
- * `automations` rule row backing the admin-alert path, so we use a sentinel
- * recognisable from dashboard queries. */
+/** Sentinel used in place of a real automation rule id for admin-alert run rows. */
 export const ADMIN_ALERT_SENTINEL_RULE_ID = 'system:admin-alert'
 
 export type AdminAlertKind = 'budget_breach' | 'other'
@@ -92,10 +65,10 @@ interface AdminAlertDeps {
    */
   auth?: Auth | null
   /**
-   * Platform tenant id from `PLATFORM_TENANT_ID` env. Required for `mintMagicLink`.
+   * Magic-link endpoint id from `MAGIC_LINK_ENDPOINT_ID` env. Required for `mintMagicLink`.
    * When absent, mint is skipped.
    */
-  tenantId?: string | null
+  endpointId?: string | null
 }
 
 let _installedDeps: AdminAlertDeps | null = null
@@ -161,20 +134,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
   const now = opts.now ?? new Date()
   const cutoff = new Date(now.getTime() - DEDUP_WINDOW_MS)
 
-  /**
-   * Production index recommendation: the dedup query below uses
-   *   payload_snapshot ->> 'dedupKey' = $key
-   * which is a sequential scan today. For tenants with >10k automation_runs/day,
-   * add (manually, per tenant DB):
-   *
-   *   CREATE INDEX CONCURRENTLY idx_automation_runs_admin_dedup
-   *     ON automations.automation_runs ((payload_snapshot ->> 'dedupKey'), event_name)
-   *     WHERE status = 'succeeded';
-   *
-   * Not landed in core schema today because admin_alert volume is low (one per
-   * orgId per day per breach) — sequential scan over a single day's runs is fine.
-   */
-  // Look for a prior succeeded alert with the same dedupKey within the window.
   const priors = await db
     .select({ id: automationRuns.id })
     .from(automationRuns)
@@ -220,8 +179,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     return { status: 'suppressed_cooldown', alertId }
   }
 
-  // ── Send path (US-012a) ──────────────────────────────────────────────────────
-  // Resolve admin recipients — org members with role='owner' and a phoneNumber.
   const recipients = await resolveOrgAdmins(db, input.orgId)
 
   if (recipients.length === 0) {
@@ -255,7 +212,7 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
   }
 
   // Attempt to send WA notifications to each admin recipient.
-  const { sendTemplate, auth, tenantId } = deps
+  const { sendTemplate, auth, endpointId } = deps
 
   // Read metaTemplateApprovals from the notification channel config.
   let metaTemplateApprovals: Record<string, unknown> | null = null
@@ -280,23 +237,20 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     metaTemplateApprovals,
   )
 
-  // Tracks the wire route used on the last successful send; written into payloadSnapshot.
   let lastWireRoute: WireRoute | undefined
 
-  // Mint and send for each recipient. MagicLinkMintError on the FIRST recipient
-  // aborts the entire send and records a failed run (the error is per-call, not
-  // per-platform, so if mint is broken it will be broken for all recipients).
+  // MagicLinkMintError on any recipient aborts the entire send — mint failures are
+  // per-platform, not per-recipient, so if it's broken it's broken for everyone.
   try {
     for (const recipient of recipients) {
       let buttonUrlSuffix: string
-      if (auth && tenantId) {
+      if (auth && endpointId) {
         const refs = buildRedirectRefs('admin_alert', { conversationId: null, referenceId: input.dedupKey })
         const redirectPath = redirectPathFor(refs)
-        // MagicLinkMintError propagates up — caught below.
         const mintResult = await mintMagicLink(auth, db, {
           userId: recipient.userId,
           email: recipient.email,
-          tenantId,
+          endpointId,
           organizationId: input.orgId,
           redirectPath,
         })
@@ -351,7 +305,6 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     }
   } catch (err) {
     if (err instanceof MagicLinkMintError) {
-      // admin-alert.ts is in AUTOMATION_RUNS_WRITE_ALLOWED — write failure row directly.
       const finishedAt = new Date()
       const inserted = await db
         .insert(automationRuns)

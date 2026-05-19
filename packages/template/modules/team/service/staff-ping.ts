@@ -1,27 +1,10 @@
 /**
- * Staff ping primitive: dispatches a WhatsApp notification to a staff user
- * about a conversation event they need to be aware of.
+ * Staff ping primitive: WhatsApp notifications to staff for conversation events.
  *
- * Four kinds (US-009 / Slice B.4 / US-011b):
- *   - 'mention'    — staff is @-mentioned in an internal note (the original kind)
- *   - 'approval'   — staff needs to decide on a pending approval (Slice B.3 emit('approval_filed'))
- *   - 'proposal'   — staff needs to decide on a change proposal (Slice B.3 emit('proposal_filed'))
- *   - 'admin_alert' — admin-tier alert (US-015 / Slice D.3)
- *
- * Per-kind template selector (US-011b): `templateNameFor(kind)` from
- * `notification-template-payloads.ts` picks the right Meta template name. The
- * dispatcher gates on `channel_instances.config.metaTemplateApprovals` before
- * calling `sendTemplate` and falls back to `vobase_inbox_mention_v2` when
- * the per-kind template is unapproved (see `buildTemplateForDispatch`).
- *
- * Magic-link minting (US-011b / Principle 6): `mintMagicLink` is called
- * POST-COMMIT inside the notification path — never inside a producer's
- * `db.transaction(...)` block. The platform base URL is stripped from the mint
- * result to produce the `buttonUrlSuffix` the Meta template expects.
- *
- * The existing mention fan-out APIs (`fanOutNoteMentions`, `enqueueMentionFanOut`,
- * `createMentionNotifyService`) are preserved for back-compat with
- * `messaging/handlers/notes.ts` + `messaging/tools/consult-staff.ts`.
+ * Four kinds: `mention` (internal note @-mention), `approval`, `proposal`, `admin_alert`.
+ * Template selection gates on `channel_instances.config.metaTemplateApprovals`; falls back
+ * to `vobase_inbox_mention_v2` when the per-kind template is unapproved.
+ * Magic-link minting is post-commit — never inside a producer transaction.
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
@@ -99,24 +82,11 @@ export type StaffPingResult =
   | { status: 'suppressed_unverified' }
 
 /**
- * Generic staff-ping primitive — used by the US-013 automations dispatcher
- * and the existing mention fan-out (which still goes through
- * `fanOutNoteMentions` for the per-staff prefs/online/no-phone checks).
+ * Send a staff ping for a conversation event.
  *
- * Per-kind template selector (US-011b): reads `templateNameFor(kind)` and gates
- * on `channel_instances.config.metaTemplateApprovals` via `buildTemplateForDispatch`.
- *
- * Records the ping in `pending_staff_pings` (sole writer, see US-007) so a
- * later staff reply can be claimed back via the two-rung ladder.
- *
- * Cooldown (see `modules/automations/service/cooldown.ts`) is enforced by
- * the caller before invoking this — `staffPing` does not re-check.
- *
- * US-021: returns `{ status: 'suppressed_unverified' }` when the target staff
- * user's `auth.user.phoneNumberVerified !== true`. The dispatcher records this
- * as `automation_runs(status='suppressed_unverified')` and skips the WA send.
- * NULL `phoneNumberVerified` (legacy rows pre-OTP) is treated as unverified,
- * matching the messaging layout middleware convention.
+ * Cooldown is enforced by the caller — this function does not re-check.
+ * Returns `suppressed_unverified` when `auth.user.phoneNumberVerified !== true`
+ * (NULL is treated as unverified).
  */
 export async function staffPing(kind: PingKind, params: StaffPingParams, ctx: { tx: Tx }): Promise<StaffPingResult> {
   // US-021: gate before any side-effects. Returns suppressed_unverified when
@@ -210,21 +180,10 @@ export interface ReplyOutcome {
 }
 
 /**
- * Parse the staff WhatsApp reply and route it.
+ * Parse a staff WhatsApp reply and route it to the appropriate decision service.
  *
- * - 'mention' → wake-only (no decision; staff replied = ack, wake the asking agent).
- *               The actual wake is done by the inbound router's existing
- *               `addNote` post-commit fan-out — this function is a no-op for
- *               'mention' beyond returning the outcome shape.
- * - 'approval' → call `pendingApprovals.decide(approvalId, decision)` — the
- *                decide path already emits `approval_decided` (US-008), so
- *                the wake chain fires automatically.
- * - 'proposal' → call `proposals.decideChangeProposal(proposalId, decision)`
- *                — same automatic wake chain via `proposal_decided`.
- *
- * Decision-enum mapping: WA-side uses `'approve' | 'deny'`; the persistence
- * services use `'approved' | 'rejected'`. The mapping is fixed here to keep
- * the call sites terse.
+ * 'mention' and 'admin_alert' are ack-only — no decision is recorded.
+ * 'approval' calls `pendingApprovals.decide`; 'proposal' calls `decideChangeProposal`.
  */
 export async function resolveReply(
   kind: PingKind,
@@ -286,12 +245,7 @@ export type MentionFanOutNote = z.infer<typeof MentionFanOutNoteSchema>
 export const FanOutMentionPingsPayloadSchema = z.object({ note: MentionFanOutNoteSchema })
 export type FanOutMentionPingsPayload = z.infer<typeof FanOutMentionPingsPayloadSchema>
 
-/**
- * Test seam: send a notification template to a staff phone.
- * Production wires the real `sendNotificationTemplate` closure with platform
- * creds resolved once at boot; tests pass a stub so they don't have to mock
- * global fetch + platform env.
- */
+/** Send a WA notification template to a staff phone. Tests inject a stub. */
 export type SendTemplateFn = (input: {
   organizationId: string
   staffPhoneE164: string
@@ -419,15 +373,9 @@ function buildFallbackBody(
 }
 
 /**
- * Read the `metaTemplateApprovals` jsonb from the notification channel instance config
- * and decide whether to use the per-kind template or fall back to `vobase_inbox_mention_v2`.
- *
- * The `channel_instances.config.metaTemplateApprovals` field is a JSONB record keyed by
- * template name → `'approved' | 'pending' | 'rejected'`. Operators populate it manually
- * via Drizzle Studio after Meta approves each template. Missing keys are treated as
- * unapproved (fallback is the DEFAULT — per-kind sends only when explicitly 'approved').
- *
- * Returns `{ templateName, bodyParams }` ready for `sendTemplate`.
+ * Select template + body params for a given kind.
+ * Uses the per-kind template only when `metaTemplateApprovals[templateName] === 'approved'`;
+ * falls back to `vobase_inbox_mention_v2` otherwise.
  */
 export function buildTemplateForDispatch(
   kind: PingKind,
@@ -452,16 +400,7 @@ export function buildTemplateForDispatch(
   return { templateName: 'vobase_inbox_mention_v2', bodyParams: buildFallbackBody(kind, params) }
 }
 
-/**
- * Email-fallback seam used by the mention fan-out for staff whose phone is
- * not OTP-verified (US-021). The team module wires this to a real email
- * adapter at boot when one is configured; tests inject a stub so the unit/
- * integration suites can count fallback fires without touching live SMTP.
- *
- * The signature is intentionally narrow — no full email template machinery is
- * declared in core today. When a proper EmailAdapter contract lands, the
- * implementation can route through it without changing this seam.
- */
+/** Email fallback for staff with unverified phones. Tests inject a stub. */
 export type SendEmailFallbackFn = (input: {
   organizationId: string
   staffUserId: string
@@ -489,10 +428,10 @@ interface MentionNotifyDeps {
    */
   auth?: Auth | null
   /**
-   * Resolved platform tenant id — baked into the service closure at boot from
-   * `PLATFORM_TENANT_ID` env. When absent, mint is skipped (dev-without-platform fallback).
+   * Magic-link endpoint id — baked into the service closure at boot from
+   * `MAGIC_LINK_ENDPOINT_ID` env. When absent, mint is skipped (dev-without-platform fallback).
    */
-  tenantId?: string | null
+  endpointId?: string | null
 }
 
 export interface FanOutResult {
@@ -528,11 +467,7 @@ interface DrizzleAgentSelect {
   }
 }
 
-/**
- * Look up a staff user's email from the `auth_user` table.
- * `StaffProfile` doesn't carry `email` — it's only on the better-auth user row.
- * Returns null when the user doesn't exist (defensive; mintMagicLink also pre-flights this).
- */
+/** `StaffProfile` doesn't carry email — look it up from `auth_user`. */
 async function resolveUserEmail(db: unknown, userId: string): Promise<{ email: string } | null> {
   try {
     const rows = await (db as ScopedDb)
@@ -566,7 +501,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   const sendTemplate = deps.sendTemplate ?? null
   const sendEmailFallback = deps.sendEmailFallback ?? null
   const auth = deps.auth ?? null
-  const tenantId = deps.tenantId ?? null
+  const endpointId = deps.endpointId ?? null
 
   async function sendNotification(
     organizationId: string,
@@ -620,8 +555,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
     if (!sendTemplate) return { ok: false, reason: 'platform_not_configured' }
 
-    // Read metaTemplateApprovals from channel config. Operators populate this
-    // manually via Drizzle Studio after Meta approves each template. Missing = unapproved.
     const metaTemplateApprovals =
       typeof channel.config?.metaTemplateApprovals === 'object' && channel.config.metaTemplateApprovals !== null
         ? (channel.config.metaTemplateApprovals as Record<string, unknown>)
@@ -629,12 +562,8 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
 
     const { templateName, bodyParams } = buildTemplateForDispatch(kind, params, metaTemplateApprovals)
 
-    // Determine the button URL suffix via magic-link mint (Principle 6: post-commit only).
-    // If `tenantId` or `auth` is not configured (dev/test without platform), skip mint
-    // and fall back to the legacy tenant-slug deep-link.
     let buttonUrlSuffix: string
-    if (auth && tenantId && profile.userId) {
-      // Resolve email from authUser — StaffProfile doesn't carry it.
+    if (auth && endpointId && profile.userId) {
       const userRow = await resolveUserEmail(deps.db, profile.userId)
       if (userRow) {
         const refs = buildRedirectRefs(kind, {
@@ -644,23 +573,20 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
           proposalId: params.proposalId,
         })
         const redirectPath = redirectPathFor(refs)
-        // MagicLinkMintError propagates up — dispatcher catches it and writes the failure row.
         const mintResult = await mintMagicLink(auth, deps.db as ScopedDb, {
           userId: profile.userId,
           email: userRow.email,
-          tenantId,
+          endpointId,
           organizationId,
           redirectPath,
         })
         buttonUrlSuffix = urlToSuffix(mintResult.url)
       } else {
-        // User row not found — fall back to tenant slug path (defensive).
         const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
         const convId = params.conversationId ?? ''
         buttonUrlSuffix = tenantSlug ? `${tenantSlug}/conversations/${convId}` : `conversations/${convId}`
       }
     } else {
-      // Dev/test fallback: use tenant slug + conversation path. Not a real magic-link.
       const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
       const convId = params.conversationId ?? ''
       buttonUrlSuffix = tenantSlug ? `${tenantSlug}/conversations/${convId}` : `conversations/${convId}`
@@ -704,10 +630,8 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     const agentName = await (askingAgentId ? resolveAgentName(deps.db, askingAgentId) : Promise.resolve('your agent'))
     const snippet = trimSnippet(note.body)
 
-    // US-021: gate the fan-out on `auth.user.phoneNumberVerified`. Unverified
-    // staff are routed through the email-fallback seam (best-effort — fires only
-    // when an adapter is wired) and recorded with `reason: 'phone_unverified'`
-    // so the caller can see exactly how many WA pings were suppressed.
+    // Unverified staff route through the email-fallback seam (best-effort) and are
+    // recorded with reason='phone_unverified' so the caller can count WA suppressions.
     const gating = await applyVerificationGating(staffIds, note.organizationId)
     const verifiedSet = new Set(gating.verified)
     await Promise.all(
@@ -761,9 +685,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
             const prefs = await getPrefs(userId)
             const cell = prefs.prefs.mention ?? {}
             if (cell.whatsapp !== true) {
-              // User has opted out of WA-for-mentions in their matrix (or never opted in).
-              // We surface this as a single 'channel_disabled' skip — the matrix collapses
-              // the old `mentions_enabled` + `whatsapp_enabled` flat toggles into one cell.
               result.skipped.push({ userId, reason: 'channel_disabled' })
               await emitMentionSuppressed(note, userId, displayName, 'paused')
               return

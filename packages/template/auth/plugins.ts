@@ -1,14 +1,9 @@
 /**
- * Single source of truth for the schema-contributing better-auth plugins.
+ * Schema-contributing better-auth plugins shared between the runtime config and the
+ * CLI-introspection config (`bun run gen:auth`), so generated `schema.ts` never drifts.
  *
- * Both the runtime config (`createAuth` in `./index.ts`) and the
- * CLI-introspection config (`./auth.config.ts`, consumed by `bun run gen:auth`)
- * build their plugin list from here, so the generated `./schema.ts` can never
- * drift from what the runtime expects.
- *
- * Env-gated plugins that contribute no tables (`platformAuth`, `devAuth`) are
- * appended separately in `createAuth` — they don't belong here because they
- * have no bearing on the schema.
+ * Env-gated plugins that contribute no tables (`platformAuth`, `devAuth`) are appended
+ * separately in `createAuth`.
  */
 
 import { apiKey } from '@better-auth/api-key'
@@ -83,9 +78,8 @@ export function buildAuthPlugins(opts: AuthPluginOpts) {
       expiresIn: 60 * 60 * 24, // 24h, matches Meta UTILITY re-engagement window
       disableSignUp: true, // staff already provisioned via org-invite path
       sendMagicLink: async ({ token, metadata }) => {
-        // url arg is the tenant's own /magic-link/verify URL — DISCARDED.
-        // metadata.{nonce,tenantId,organizationId,callbackURL} are used by the captor
-        // to construct the platform URL. See auth/magic-link.ts for details.
+        // The url arg is the tenant's own verify endpoint — discarded.
+        // metadata carries nonce + platform params round-tripped from the mint call.
         deliverMagicLinkToken({ token, metadata })
       },
     }),

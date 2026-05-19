@@ -1,31 +1,15 @@
 /**
  * Sole writer of `automations.automation_runs`.
  *
- * `dispatchAutomationRun(eventName, payload, { tx })` is the body invoked by
- * `events.emit()` after Zod-parsing the payload. For each rule matching the
- * `(eventName, organizationId?)` pair the dispatcher:
+ * For each rule matching `(eventName, organizationId?)`:
+ *   1. Insert run row with `status='queued'`.
+ *   2. Paused rule → `suppressed_paused`.
+ *   3. Cooldown check for staff-ping events → `suppressed_cooldown`.
+ *   3b. Staff-ping WA notification for `approval_filed`/`proposal_filed` with an assignee —
+ *       mints magic-link post-commit; `MagicLinkMintError` → `status='failed'`, no wake.
+ *   4. Resolve wake trigger, enqueue, → `status='succeeded'`.
  *
- *   1. Inserts an `automation_runs` row with `status='queued'`.
- *   2. If the rule is paused → updates the row to `status='suppressed_paused'`
- *      and exits.
- *   3. For staff-ping-shaped events (`approval_filed`/`proposal_filed`),
- *      consults the cooldown predicate. Suppressed →
- *      `status='suppressed_cooldown'` + exit.
- *   3b. For `approval_filed`/`proposal_filed` with an `assigneeStaffUserId`,
- *      sends a WhatsApp staff-ping notification (US-011b). Reads
- *      `channel_instances.config.metaTemplateApprovals` to gate the per-kind
- *      template vs. fallback to `vobase_inbox_mention_v2`. Mints a magic-link
- *      (post-commit, Principle 6). On `MagicLinkMintError` → marks the run
- *      `status='failed', errorMessage='magic_link_mint_failed'` and exits
- *      WITHOUT calling `sendTemplate`.
- *   4. Resolves a `WakeTrigger` from `(rule.action, eventPayload)`, enqueues a
- *      wake via the installed scheduler, updates the row to
- *      `status='succeeded'` + `wake_id=<jobId>` + `finished_at=now()`.
- *
- * On exception: status='failed', error_message=err.message.
- *
- * Note: the run-row INSERT runs through Drizzle's `tx` handle (passed by
- * `emit()`), so a producer rollback also discards the run row.
+ * The run-row INSERT uses the producer's tx — producer rollback discards the run row.
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
@@ -91,15 +75,15 @@ export interface DispatcherDeps {
   sendTemplate?: SendTemplateFn
   /**
    * better-auth instance for `mintMagicLink`. When absent (or when
-   * `tenantId` is falsy), the magic-link mint is skipped and the WA button
+   * `endpointId` is falsy), the magic-link mint is skipped and the WA button
    * URL suffix falls back to a bare path (dev-without-platform mode).
    */
   auth?: Auth | null
   /**
-   * Platform tenant id (from `PLATFORM_TENANT_ID` env). Required for
+   * Magic-link endpoint id (from `MAGIC_LINK_ENDPOINT_ID` env). Required for
    * `mintMagicLink`. When absent, mint is skipped.
    */
-  tenantId?: string | null
+  endpointId?: string | null
 }
 
 let _deps: DispatcherDeps | null = null
@@ -126,8 +110,6 @@ export async function dispatchEvent<E extends EventName>(
   payload: EventPayload<E>,
   ctx: { tx: Tx },
 ): Promise<DispatchResult[]> {
-  // The org filter is derived from the payload when present — `cron` events
-  // carry no org, so they fan out across all tenants' matching rules.
   const orgId = (payload as { organizationId?: string }).organizationId
   const rules = await automationsService.listRulesForEvent(eventName, orgId)
   const results: DispatchResult[] = []
@@ -165,10 +147,7 @@ interface DispatchOneArgs<E extends EventName> {
  */
 export async function dispatchAutomationRun<E extends EventName>(args: DispatchOneArgs<E>): Promise<DispatchResult> {
   const result = await dispatchAutomationRunInner(args)
-  // Best-effort post-tx notify so the RecentRunsTable invalidates without
-  // polling. Notify *outside* the producer tx — pg_notify deduping makes a
-  // double-emit harmless but only the post-commit version is observable to
-  // SSE consumers in another connection.
+  // Notify outside the producer tx — only post-commit events are observable to SSE consumers.
   const deps = getDeps()
   if (deps.realtime) {
     safeNotify(deps.realtime, { table: 'automation_runs', id: result.runId, action: result.status })
@@ -367,7 +346,7 @@ interface StaffPingNotificationArgs {
  * Send a staff-ping WA notification for `approval_filed`/`proposal_filed` events.
  *
  * Returns `null` when the notification succeeded (or was skipped because
- * `sendTemplate`/`auth`/`tenantId` are not configured) so the caller can
+ * `sendTemplate`/`auth`/`endpointId` are not configured) so the caller can
  * proceed to wake-enqueue (step 4). Returns a `DispatchResult` with
  * `status='failed'` when a `MagicLinkMintError` occurs — callers must return
  * this result immediately WITHOUT proceeding to step 4.
@@ -380,7 +359,7 @@ interface StaffPingNotificationArgs {
  */
 async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promise<DispatchResult | null> {
   const { kind, eventPayload, deps, t, runId, startedAt, ruleId, eventName } = args
-  const { sendTemplate, auth, tenantId } = deps
+  const { sendTemplate, auth, endpointId } = deps
 
   // Without sendTemplate the platform is not configured — skip silently.
   if (!sendTemplate) return null
@@ -439,7 +418,7 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
 
   // Mint magic-link (Principle 6: post-commit, caller already outside tx).
   let buttonUrlSuffix: string
-  if (auth && tenantId && profile.userId) {
+  if (auth && endpointId && profile.userId) {
     const email = await resolveUserEmailForDispatcher(deps.db, profile.userId)
     if (!email) {
       // Email not found — fall back to bare conversation path (defensive).
@@ -455,7 +434,7 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
         const mintResult = await mintMagicLink(auth, deps.db, {
           userId: profile.userId,
           email,
-          tenantId,
+          endpointId,
           organizationId,
           redirectPath: redirectPathFor(refs),
         })
@@ -565,9 +544,6 @@ async function emitNotificationSuppressedIfStaffPing<E extends EventName>(
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
 async function loadRuleViaTx(_t: ScopedDb, ruleId: string): Promise<RuleSnapshot | undefined> {
-  // We use the public service for cache consistency, even though this would
-  // run outside the tx; the rule snapshot is read-only here so cross-tx read
-  // is fine.
   const row = await automationsService.getRuleById(ruleId)
   if (!row) return undefined
   return {
@@ -650,13 +626,8 @@ interface WakeJobSpec {
 }
 
 /**
- * Map (rule.action, eventPayload) → (jobName, jobPayload) for the wake bus.
- *
- * Conversation-lane events route to `agents:wake`; standalone-lane events to
- * `agents:operator-thread-to-wake` (since standalone wakes today are driven
- * via operator threads — the dispatcher doesn't synthesise a new thread, it
- * just enqueues against the rule's target agent). Returns null when the
- * mapping is unsupported (caller marks the run failed).
+ * Map `(rule.action, eventPayload)` → `(jobName, jobPayload)`.
+ * Returns null when the mapping is unsupported (caller marks the run failed).
  */
 function buildWakeTrigger<E extends EventName>(
   rule: RuleSnapshot,
@@ -668,22 +639,7 @@ function buildWakeTrigger<E extends EventName>(
   if (!agentId) return null
   const lane = rule.action.lane ?? 'standalone'
 
-  // Pragmatic v1 routing: we enqueue against the existing wake bus shapes,
-  // synthesising the minimal payload the consumer expects. Triggers that need
-  // richer routing (conversation_id resolution etc.) carry the data on the
-  // event payload; we forward it.
-
   if (eventName === 'cron') {
-    // Heartbeat tick — handled by `wake/heartbeat.ts`'s emitter. We route via
-    // the operator-thread bus since there's no conversation context;
-    // standalone wakes (the canonical lane for cron triggers) are usually
-    // produced by `setHeartbeatEmitter` rather than the dispatcher. For the
-    // dispatcher path we enqueue a placeholder job that the wake/heartbeat
-    // module already handles. See plan §5 — this is the "system wakes don't
-    // get a thread, just fire-and-forget" pragma.
-    //
-    // Today we enqueue an operator-thread job; in a follow-up the dispatcher
-    // could call `getHeartbeatEmitter()` directly and skip the queue.
     return {
       jobName: 'agents:operator-thread-to-wake',
       jobPayload: {
@@ -733,7 +689,6 @@ function buildWakeTrigger<E extends EventName>(
         opts: { singletonKey: `agents:wake:${p.conversationId}` },
       }
     }
-    // standalone lane → operator-thread enqueue against the filing agent
     return {
       jobName: 'agents:operator-thread-to-wake',
       jobPayload: {

@@ -31,14 +31,14 @@ describe('mintMagicLink', () => {
     const result = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      tenantId: 't1',
+      endpointId: 't1',
       organizationId: 'o1',
       redirectPath: '/inbox/c1/approvals/a1',
     })
 
-    // URL shape: https://platform.vobase.dev/auth/magic?tenant=t1&token=...&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1
+    // URL shape: https://platform.vobase.dev/auth/magic?endpoint=t1&token=...&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1
     expect(result.url).toMatch(
-      /^https:\/\/platform\.vobase\.dev\/auth\/magic\?tenant=t1&token=[A-Za-z0-9_%-]+&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1$/u,
+      /^https:\/\/platform\.vobase\.dev\/auth\/magic\?endpoint=t1&token=[A-Za-z0-9_%-]+&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1$/u,
     )
     expect(result.token).toBeTruthy()
     expect(result.token.length).toBeGreaterThan(10)
@@ -56,7 +56,7 @@ describe('mintMagicLink', () => {
       await mintMagicLink(auth, handle.db, {
         userId: 'nonexistent-user-id',
         email: 'nobody@nowhere.test',
-        tenantId: 't1',
+        endpointId: 't1',
         organizationId: 'o1',
         redirectPath: '/inbox',
       })
@@ -78,7 +78,7 @@ describe('mintMagicLink', () => {
         mintMagicLink(auth, handle.db, {
           userId: ALICE_USER_ID,
           email: ALICE_EMAIL,
-          tenantId: 't1',
+          endpointId: 't1',
           organizationId: 'o1',
           redirectPath: '/inbox',
         }),
@@ -92,7 +92,7 @@ describe('mintMagicLink', () => {
     const result = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      tenantId: 't1',
+      endpointId: 't1',
       organizationId: 'o1',
       redirectPath: '/inbox',
     })
@@ -131,7 +131,7 @@ describe('mintMagicLink captor timeout', () => {
         await mintMagicLink(stubAuth, handle2.db, {
           userId: ALICE_USER_ID,
           email: ALICE_EMAIL,
-          tenantId: 't1',
+          endpointId: 't1',
           organizationId: 'o1',
           redirectPath: '/inbox',
         })

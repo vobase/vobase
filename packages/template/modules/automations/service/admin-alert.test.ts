@@ -41,7 +41,7 @@ mock.module('@auth/magic-link', () => ({
   mintMagicLink: async (..._args: unknown[]) => {
     if (_mintMagicLinkImpl) return _mintMagicLinkImpl()
     return {
-      url: 'https://platform.vobase.dev/auth/magic?tenant=t&token=tok&redirect=%2Fsystem%2Factivity&organization=org1',
+      url: 'https://platform.vobase.dev/auth/magic?endpoint=t&token=tok&redirect=%2Fsystem%2Factivity&organization=org1',
       token: 'tok',
       expiresAt: new Date(Date.now() + 86400_000).toISOString(),
     }
@@ -124,7 +124,7 @@ describe('dispatchAdminAlert', () => {
     installAdminAlertDeps({
       db: db as unknown as Parameters<typeof installAdminAlertDeps>[0]['db'],
       sendTemplate: stubSendTemplate,
-      // auth + tenantId omitted → mint skipped, bare suffix used
+      // auth + endpointId omitted → mint skipped, bare suffix used
     })
 
     const result = await dispatchAdminAlert(makeInput(orgId, dedupKey))
@@ -217,17 +217,17 @@ describe('dispatchAdminAlert', () => {
       VALUES (${`mem-${userId}`}, ${orgId}, ${userId}, 'owner', now())`
 
     // Stub mintMagicLink to throw MagicLinkMintError.
-    _mintMagicLinkImpl = async () => {
+    _mintMagicLinkImpl = () => {
       throw new MagicLinkMintError('magic_link_mint_failed', { cause: new Error('captor_timeout') })
     }
 
-    // Use a stub auth + tenantId so mint is attempted.
+    // Use a stub auth + endpointId so mint is attempted.
     const stubAuth = {} as Parameters<typeof installAdminAlertDeps>[0]['auth']
 
     installAdminAlertDeps({
       db: db as unknown as Parameters<typeof installAdminAlertDeps>[0]['db'],
       auth: stubAuth,
-      tenantId: 'platform-tenant-test',
+      endpointId: 'platform-tenant-test',
     })
 
     const result = await dispatchAdminAlert(makeInput(orgId, dedupKey))

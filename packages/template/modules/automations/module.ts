@@ -49,9 +49,7 @@ const automations: ModuleDef = {
     installAutomationsService(createAutomationsService({ db: ctx.db, realtime: ctx.realtime }))
     installBudgetCapsService(createBudgetCapsService({ db: ctx.db, realtime: ctx.realtime }))
     installBudgetWatcherDb(ctx.db)
-    // Build the platform-call closure for the dispatcher's staff-ping WA send path (US-011b).
-    // Env reads at boot (not per-send). When platform env is absent, sendTemplate is undefined
-    // and the dispatcher skips the WA send step gracefully.
+    // Platform env is read once at boot. When absent, sendTemplate is undefined and WA sends are skipped.
     const dispatcherSendTemplate: SendTemplateFn | undefined = (() => {
       const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
       const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
@@ -70,24 +68,22 @@ const automations: ModuleDef = {
           buttonUrlSuffix,
         })
     })()
-    const platformTenantId = process.env.PLATFORM_TENANT_ID ?? null
+    const magicLinkEndpointId = process.env.MAGIC_LINK_ENDPOINT_ID?.trim() ?? null
     installDispatcher({
       db: ctx.db,
       jobs: ctx.jobs,
       realtime: ctx.realtime,
       sendTemplate: dispatcherSendTemplate,
       auth: ctx.auth,
-      tenantId: platformTenantId || null,
+      endpointId: magicLinkEndpointId || null,
     })
     installAdminAlertDeps({
       db: ctx.db,
       sendTemplate: dispatcherSendTemplate,
       auth: ctx.auth,
-      tenantId: platformTenantId || null,
+      endpointId: magicLinkEndpointId || null,
     })
     installRunsPruneDb(ctx.db)
-    // Adapt to the void-returning DispatcherFn — emit() doesn't care about the
-    // per-rule DispatchResult[] return shape.
     setDispatcher(async (name, payload, eventCtx) => {
       await dispatchEvent(name, payload, eventCtx)
     })

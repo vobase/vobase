@@ -1,30 +1,13 @@
 /**
- * Magic-link captor + `mintMagicLink` — post-commit token issuance (Principle 6).
+ * Magic-link captor + `mintMagicLink` — post-commit token issuance.
  *
- * ## Captor pattern
+ * better-auth's `sendMagicLink` callback fires synchronously during `signInMagicLink` but
+ * returns no value. The captor pattern (see `auth/captor-pattern.ts`) registers a per-call
+ * nonce before the call and resolves once `deliver` is invoked from the plugin callback.
  *
- * better-auth's `magicLink` plugin calls `sendMagicLink({ email, url, token, metadata }, ctx)`
- * synchronously inside the `POST /sign-in/magic-link` handler. We cannot get the generated
- * token back via a return value — `signInMagicLink` returns `{ status: true }`. Instead we
- * register a per-call nonce via the shared {@link createCaptor} helper BEFORE calling
- * `auth.api.signInMagicLink`, and the plugin calls `magicLinkCaptor.deliver(...)` which
- * resolves our promise.
- *
- * The captor mechanics (pending Map, nonce generation, 5 s timeout, error wrapping) live in
- * `auth/captor-pattern.ts`. This file owns the magic-link-specific URL construction +
- * pre-flight user existence check.
- *
- * ## Why the URL is constructed, not stripped
- *
- * better-auth's `sendMagicLink` callback receives `url` =
- *   `${tenantBaseURL}${basePath}/magic-link/verify?token=…&callbackURL=…`
- *   That is the TENANT's own verify endpoint — it can't be used as a platform
- *   notification link. We DISCARD it entirely.
- *
- * `callbackURL` is NOT included in the `sendMagicLink` payload, so we round-trip
- *   it through `metadata.callbackURL` so the captor can reconstruct the full
- *   platform deep-link URL:
- *   `https://platform.vobase.dev/auth/magic?tenant=<tid>&token=<tok>&redirect=<path>&organization=<oid>`
+ * The `url` arg in `sendMagicLink` is the tenant's own verify endpoint — discarded. We
+ * construct the platform deep-link from scratch using `metadata.{endpointId, organizationId,
+ * callbackURL}` round-tripped through the `signInMagicLink` body.
  */
 
 import { notFound } from '@vobase/core'
@@ -53,16 +36,11 @@ const CAPTOR_TIMEOUT_MS = 5_000
 
 const PLATFORM_MAGIC_BASE = 'https://platform.vobase.dev/auth/magic'
 
-/**
- * Per-mint payload threaded through better-auth into the `sendMagicLink`
- * callback's `metadata` field. Captures everything the captor needs to
- * reconstruct the platform deep-link URL — see Blockers 1+2 above for why the
- * tenant verify URL is discarded.
- */
+/** Per-mint payload threaded through better-auth's `sendMagicLink` metadata. */
 interface MintPayload {
   email: string
   redirectPath: string
-  tenantId: string
+  endpointId: string
   organizationId: string
   /** The Auth instance is per-call because this module is stateless w.r.t. it. */
   auth: Auth
@@ -70,14 +48,10 @@ interface MintPayload {
 
 interface DeliveredToken {
   token: string
-  /** The platform deep-link URL, constructed by `magicLinkCaptor.deliver` from metadata. */
   url: string
 }
 
-/**
- * Shared captor instance. Stateful in the pending Map sense — exported so the
- * better-auth `sendMagicLink` callback in `auth/plugins.ts` can call `deliver`.
- */
+/** Exported so `auth/plugins.ts::sendMagicLink` can call `deliver`. */
 export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
   name: 'magic-link',
   timeoutMs: CAPTOR_TIMEOUT_MS,
@@ -89,10 +63,10 @@ export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
         callbackURL: payload.redirectPath,
         metadata: {
           nonce,
-          tenantId: payload.tenantId,
+          endpointId: payload.endpointId,
           organizationId: payload.organizationId,
-          // Round-trip callbackURL through metadata because better-auth does not
-          // include callbackURL in the sendMagicLink payload.
+          // callbackURL is not included in the sendMagicLink callback payload,
+          // so we round-trip it here so the captor can construct the platform URL.
           callbackURL: payload.redirectPath,
         },
       },
@@ -101,27 +75,19 @@ export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
   },
 })
 
-/**
- * Construct the platform deep-link URL from the captor metadata. Invoked by
- * `auth/plugins.ts::sendMagicLink` callback — it adapts better-auth's
- * `{ token, metadata }` shape into the captor's `{ metadata, result }` contract
- * and never parses the tenant verify URL (Blocker 1).
- */
+/** Invoked by `auth/plugins.ts::sendMagicLink` to resolve the pending captor promise. */
 export function deliverMagicLinkToken(args: { token: string; metadata: Record<string, unknown> | undefined }): void {
   const { token, metadata } = args
-  const tenantId = typeof metadata?.tenantId === 'string' ? metadata.tenantId : ''
+  const endpointId = typeof metadata?.endpointId === 'string' ? metadata.endpointId : ''
   const organizationId = typeof metadata?.organizationId === 'string' ? metadata.organizationId : ''
   const callbackURL = typeof metadata?.callbackURL === 'string' ? metadata.callbackURL : ''
 
-  // Construct the platform URL from scratch — never parse the tenant verify URL.
-  const url = `${PLATFORM_MAGIC_BASE}?tenant=${encodeURIComponent(tenantId)}&token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(callbackURL)}&organization=${encodeURIComponent(organizationId)}`
+  const url = `${PLATFORM_MAGIC_BASE}?endpoint=${encodeURIComponent(endpointId)}&token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(callbackURL)}&organization=${encodeURIComponent(organizationId)}`
 
   magicLinkCaptor.deliver({ metadata, result: { token, url } })
 }
 
-// Minimal Drizzle-compatible db shape for the user existence check.
-// Callers pass ScopedDb; the type is narrowed here to avoid importing
-// ~/runtime (which would create a circular dependency: auth ← runtime ← auth).
+// Narrowed to avoid importing ~/runtime (which would create auth ← runtime ← auth cycle).
 interface DbForUserLookup {
   // biome-ignore lint/suspicious/noExplicitAny: drizzle select returns unknown table shape
   select: () => any
@@ -130,47 +96,30 @@ interface DbForUserLookup {
 export interface MintInput {
   userId: string
   email: string
-  tenantId: string
+  endpointId: string
   organizationId: string
   /** Produced by `redirectPathFor(refs)` in notification-template-payloads.ts */
   redirectPath: string
 }
 
 export interface MintResult {
-  /** https://platform.vobase.dev/auth/magic?tenant=<tid>&token=<tok>&redirect=<percent-encoded-path>&organization=<oid> */
   url: string
   token: string
-  /** ISO 8601 — 24 h from issuance (matches `expiresIn: 60 * 60 * 24` in the plugin config) */
+  /** ISO 8601 — 24 h from issuance */
   expiresAt: string
 }
 
 /**
- * Issue a magic-link token for an existing staff user and return the platform
- * deep-link URL ready to embed in a notification.
+ * Issue a magic-link token for an existing staff user and return the platform deep-link URL.
  *
- * ## Constraints
- * - TTL is 24 h (matching `expiresIn: 60 * 60 * 24` in the magicLink plugin config).
- * - Single-use: better-auth's `allowedAttempts: 1` default means the token is
- *   invalidated after one successful verify.
- * - Sign-up is disabled (`disableSignUp: true`): if the email has no corresponding
- *   user, this function throws `notFound('staff_user_not_found')`.
- * - Tokens are stored hashed (`storeToken: 'hashed'`) — plain-text tokens never
- *   appear in the database.
- * - This function MUST only be called post-commit (Principle 6).
- *   Never call from inside a wake-trigger renderer or WorkspaceMaterializerFactory
- *   — `check:shape` enforces the import boundary.
- *
- * @param auth - the auth instance (from `createAuth(db)`)
- * @param db - the Drizzle DB instance (needed for user existence pre-flight)
- * @param input - mint parameters
+ * Throws `MagicLinkMintError` when the user doesn't exist or the captor times out.
+ * Must only be called post-commit — never inside a wake-trigger renderer.
  */
 export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: MintInput): Promise<MintResult> {
-  const { userId, email, tenantId, organizationId, redirectPath } = input
+  const { userId, email, endpointId, organizationId, redirectPath } = input
 
-  // Pre-flight: verify the user exists so we throw a clean error before touching
-  // better-auth's token store. `disableSignUp: true` means the verify step would
-  // redirect with "new_user_signup_disabled" if the user doesn't exist — we want
-  // to fail fast and loud here instead.
+  // Pre-flight: fail fast if the user doesn't exist rather than letting
+  // better-auth redirect with "new_user_signup_disabled" at verify time.
   let rows: unknown[]
   try {
     rows = await db.select().from(authUser).where(eq(authUser.id, userId)).limit(1)
@@ -181,23 +130,16 @@ export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: Mint
     throw new MagicLinkMintError('magic_link_mint_failed', { cause: notFound('staff_user_not_found') })
   }
 
-  // Captor mints the token; the shared helper owns the pending Map, nonce
-  // generation, 5 s timeout, and `MagicLinkMintError`-wrapped failure shape.
   let captured: DeliveredToken
   try {
-    captured = await magicLinkCaptor.mint({ email, redirectPath, tenantId, organizationId, auth })
+    captured = await magicLinkCaptor.mint({ email, redirectPath, endpointId, organizationId, auth })
   } catch (err) {
-    // The captor already wraps in MagicLinkMintError (via `errorClass` option),
-    // but re-wrap with the canonical `magic_link_mint_failed` message so the
-    // dispatcher's error-message check is unchanged.
     if (err instanceof MagicLinkMintError) {
       throw new MagicLinkMintError('magic_link_mint_failed', { cause: err.cause ?? err })
     }
     throw new MagicLinkMintError('magic_link_mint_failed', { cause: err })
   }
 
-  // Date.now() is acceptable here: this is POST-COMMIT (Principle 6), NOT inside
-  // a wake-trigger renderer (Principle 3 — deterministic frozen-snapshot zone).
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
   return { url: captured.url, token: captured.token, expiresAt }

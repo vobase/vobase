@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import { createAuth } from '@auth'
 import { createCliGrantRoutes } from '@auth/cli-grant'
 import { createInviteAcceptRedirectMiddleware } from '@auth/invite-redirect'
+import { createMagicFinishRoutes } from '@auth/magic-finish'
 import {
   createRequireRole,
   createRequireSession,
@@ -215,6 +216,7 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
   const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? process.env.BETTER_AUTH_URL ?? 'http://localhost:5173'
   app.route('/api/auth', createCliGrantRoutes({ auth, publicBaseUrl }))
   app.route('/api/auth', createWhoamiRoute(auth, db))
+  app.route('/auth/magic-finish', createMagicFinishRoutes(auth, db))
   // US-019 — phone-verification redirect for newly-accepted invitations.
   // Mounted BEFORE the catch-all so it wraps better-auth's accept-invitation
   // endpoint (forwards → inspects response → optionally rewrites to a 302

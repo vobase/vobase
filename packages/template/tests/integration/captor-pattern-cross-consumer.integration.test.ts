@@ -105,7 +105,7 @@ describe('captor-pattern cross-consumer isolation', () => {
       mintMagicLink(auth, handle.db, {
         userId: ALICE_USER_ID,
         email: ALICE_EMAIL,
-        tenantId: 't1',
+        endpointId: 't1',
         organizationId: 'o1',
         redirectPath: '/inbox',
       }),
