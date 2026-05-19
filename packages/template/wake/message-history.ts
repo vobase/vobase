@@ -32,6 +32,44 @@ export interface MessageHistory {
   onTurnEndSnapshot: (messages: readonly AgentMessage[]) => Promise<void>
 }
 
+/**
+ * Drop toolResult messages whose `toolCallId` has no matching assistant
+ * `toolCall` earlier in the transcript. OpenAI Responses rejects the entire
+ * request with `400 No tool call found for function call output with call_id …`
+ * when this invariant breaks, which wedges every subsequent wake on the
+ * conversation. The orphan can appear if the harness ever persists a
+ * tool_result without first persisting the assistant turn that issued the
+ * call (e.g. a streaming-reassembly drop in the provider adapter).
+ *
+ * Returns `{ cleaned, droppedCount }`. Order of surviving messages is
+ * preserved. Caller decides what to do with the count (warn / metric).
+ */
+export function pruneOrphanToolResults(history: readonly AgentMessage[]): {
+  cleaned: AgentMessage[]
+  droppedCount: number
+} {
+  const seenCallIds = new Set<string>()
+  const cleaned: AgentMessage[] = []
+  let droppedCount = 0
+  for (const m of history) {
+    if (m.role === 'assistant') {
+      for (const c of m.content ?? []) {
+        if (c.type === 'toolCall' && c.id) seenCallIds.add(c.id)
+      }
+      cleaned.push(m)
+    } else if (m.role === 'toolResult') {
+      if (m.toolCallId && seenCallIds.has(m.toolCallId)) {
+        cleaned.push(m)
+      } else {
+        droppedCount++
+      }
+    } else {
+      cleaned.push(m)
+    }
+  }
+  return { cleaned, droppedCount }
+}
+
 export async function setupMessageHistory(input: SetupMessageHistoryInput): Promise<MessageHistory> {
   const { db, agentId, conversationId } = input
 
@@ -43,8 +81,17 @@ export async function setupMessageHistory(input: SetupMessageHistoryInput): Prom
     try {
       threadId = await resolveThread(db, { agentId, conversationId })
       const history = await loadMessages(db, threadId)
-      loadedHistory = history
+      // Keep seqCursor at the DB row count so subsequent inserts append at the
+      // correct seq numbers — we are intentionally NOT rewriting the orphan
+      // rows in place, just hiding them from the LLM until upstream is fixed.
       seqCursor = history.length
+      const { cleaned, droppedCount } = pruneOrphanToolResults(history)
+      if (droppedCount > 0) {
+        console.warn(
+          `[wake] message-history: dropped ${droppedCount} orphan toolResult(s) on load for thread=${threadId} conversationId=${conversationId} agentId=${agentId}`,
+        )
+      }
+      loadedHistory = cleaned
     } catch (err) {
       console.warn('[wake] message-history setup failed — continuing without persistence', err)
     }
