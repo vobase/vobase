@@ -3,10 +3,12 @@ import { createFileRoute, useParams } from '@tanstack/react-router'
 import { Pencil, Plus, Users } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { z } from 'zod'
 
 import { AttributeFieldControl, type AttributeValue } from '@/components/attributes/attribute-field-control'
 import { InfoCard, InfoRow, InfoSection } from '@/components/info'
 import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
+import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AttributeFormDialog, type AttributeFormValues } from '../components/attribute-form-dialog'
@@ -37,7 +39,12 @@ export function StaffDetailPage() {
 
   const sortedDefs = [...attrDefs].sort((a, b) => a.sortOrder - b.sortOrder)
 
-  const [editOpen, setEditOpen] = useState(false)
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const editOpen = search.edit === '1'
+  const setEditOpen = (next: boolean) => {
+    navigate({ search: (prev) => ({ ...prev, edit: next ? '1' : undefined }), replace: true })
+  }
   const [addAttrOpen, setAddAttrOpen] = useState(false)
 
   const [attrs, setAttrsDraft] = useState<Record<string, AttributeValue>>({})
@@ -151,7 +158,10 @@ export function StaffDetailPage() {
                   </InfoRow>
                   <InfoRow label="WhatsApp">
                     {staff.phoneNumber ? (
-                      <span className="font-mono">{staff.phoneNumber}</span>
+                      <div className="flex items-center gap-3 leading-none">
+                        <span className="font-mono">{staff.phoneNumber}</span>
+                        <PhoneVerificationBadge verified={staff.phoneNumberVerified === true} />
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -229,6 +239,17 @@ export function StaffDetailPage() {
   )
 }
 
+const searchSchema = z.object({
+  /**
+   * When `'1'`, the page auto-opens the StaffFormDialog on mount so deep-links
+   * can route to the edit flow. String-typed (not boolean) so the global
+   * TanStack search type union stays `Record<string, string>`-compatible —
+   * other places (e.g. auth pages) feed `location.search` into URLSearchParams.
+   */
+  edit: z.literal('1').optional(),
+})
+
 export const Route = createFileRoute('/_app/team/$userId')({
+  validateSearch: searchSchema,
   component: StaffDetailPage,
 })

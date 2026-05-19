@@ -56,8 +56,8 @@ export function InfoRow({ label, children, value, fallback, className }: InfoRow
   const content = children ?? value
   const isEmpty = content === undefined || content === null || content === ''
   return (
-    <div className={cn('flex items-start gap-4 px-4 py-2.5 text-sm', className)}>
-      <div className="w-[140px] shrink-0 pt-1.5 text-muted-foreground">{label}</div>
+    <div className={cn('flex items-center gap-4 px-4 py-2.5 text-sm', className)}>
+      <div className="w-[140px] shrink-0 text-muted-foreground">{label}</div>
       <div className="min-w-0 flex-1">
         {isEmpty ? (fallback ?? <span className="text-muted-foreground">—</span>) : content}
       </div>

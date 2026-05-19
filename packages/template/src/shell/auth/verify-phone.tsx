@@ -7,11 +7,13 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { PhoneNumberInput } from '@/components/phone-number-input'
+import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { authClient } from '@/lib/auth-client'
+import { SKIP_VERIFY_KEY } from '@/shell/app-layout'
 
 const OTP_LENGTH = 6
 const FALLBACK_DELAY_MS = 60_000
@@ -77,6 +79,7 @@ export function VerifyPhonePage() {
   const [step, setStep] = useState<'phone' | 'code' | 'magic-sent' | 'template-unapproved'>('phone')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [fallbackVisible, setFallbackVisible] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
 
   const sendOtp = useMutation({ mutationFn: sendPhoneOtp })
   const verifyOtp = useMutation({ mutationFn: verifyPhoneOtp })
@@ -147,6 +150,17 @@ export function VerifyPhonePage() {
     verifyOtp.reset()
   }
 
+  function handleSkip() {
+    try {
+      window.sessionStorage?.setItem(SKIP_VERIFY_KEY, '1')
+    } catch {
+      // Private-mode browsers may throw on sessionStorage writes — fall through
+      // and just navigate; the guard will re-trigger on next route load but the
+      // user can keep clicking Skip.
+    }
+    navigate({ to: nextPath, replace: true })
+  }
+
   function handleMagicLink() {
     if (!userEmail) return
     magicLink.mutate(
@@ -164,9 +178,9 @@ export function VerifyPhonePage() {
     )
   }
 
-  if (step === 'template-unapproved') {
-    return (
-      <div className="w-full max-w-sm px-4">
+  function renderStep() {
+    if (step === 'template-unapproved') {
+      return (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>Phone verification is being set up</EmptyTitle>
@@ -184,125 +198,149 @@ export function VerifyPhonePage() {
             </Button>
           </EmptyContent>
         </Empty>
-      </div>
-    )
-  }
+      )
+    }
 
-  if (step === 'magic-sent') {
-    return (
-      <div className="w-full max-w-sm space-y-3 px-4 text-center">
-        <h1 className="font-semibold text-xl tracking-tight">Check your email for a sign-in link.</h1>
-        <p className="text-muted-foreground text-sm">
-          We sent a one-time sign-in link to{' '}
-          <span className="font-medium text-foreground">{userEmail || 'your email'}</span>.
-        </p>
-      </div>
-    )
-  }
-
-  if (step === 'phone') {
-    return (
-      <div className="w-full max-w-sm space-y-6 px-4">
-        <div className="space-y-1">
-          <h1 className="font-semibold text-xl tracking-tight">Verify your phone</h1>
+    if (step === 'magic-sent') {
+      return (
+        <div className="space-y-3 text-center">
+          <h1 className="font-semibold text-xl tracking-tight">Check your email for a sign-in link.</h1>
           <p className="text-muted-foreground text-sm">
-            We will send a one-time code over WhatsApp so the agent can reach you for notifications.
+            We sent a one-time sign-in link to{' '}
+            <span className="font-medium text-foreground">{userEmail || 'your email'}</span>.
           </p>
         </div>
-        <Form {...phoneForm}>
-          <form onSubmit={phoneForm.handleSubmit(onSubmitPhone)} className="space-y-4">
-            <FormField
-              control={phoneForm.control}
-              name="phoneNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone number</FormLabel>
-                  <FormControl>
-                    <PhoneNumberInput id={field.name} value={field.value} onChange={field.onChange} autoFocus />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+      )
+    }
+
+    if (step === 'phone') {
+      return (
+        <div className="space-y-6">
+          <div className="space-y-1">
+            <h1 className="font-semibold text-xl tracking-tight">Verify your phone</h1>
+            <p className="text-muted-foreground text-sm">
+              We will send a one-time code over WhatsApp so the agent can reach you for notifications.
+            </p>
+          </div>
+          <Form {...phoneForm}>
+            <form onSubmit={phoneForm.handleSubmit(onSubmitPhone)} className="space-y-4">
+              <FormField
+                control={phoneForm.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone number</FormLabel>
+                    <FormControl>
+                      <PhoneNumberInput id={field.name} value={field.value} onChange={field.onChange} autoFocus />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {sendOtp.error && (
+                <p className="text-destructive text-sm">
+                  {sendOtp.error instanceof Error ? sendOtp.error.message : 'Could not send the code. Try again.'}
+                </p>
               )}
-            />
-            {sendOtp.error && (
+              <Button type="submit" className="w-full" disabled={sendOtp.isPending}>
+                {sendOtp.isPending ? 'Sending…' : 'Send code'}
+              </Button>
+            </form>
+          </Form>
+        </div>
+      )
+    }
+
+    // step === 'code'
+    return (
+      <div className="space-y-6">
+        <div className="space-y-1">
+          <h1 className="font-semibold text-xl tracking-tight">Enter the code</h1>
+          <p className="text-muted-foreground text-sm">
+            We sent a 6-digit code over WhatsApp to <span className="font-medium text-foreground">{phoneNumber}</span>.
+          </p>
+        </div>
+        <div className="flex justify-center">
+          <InputOTP maxLength={OTP_LENGTH} onComplete={handleVerifyComplete} disabled={verifyOtp.isPending}>
+            <InputOTPGroup>
+              {Array.from({ length: OTP_LENGTH }, (_, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: OTP slots are stable by position
+                <InputOTPSlot key={i} index={i} />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
+        </div>
+        {verifyOtp.error && (
+          <p className="text-center text-destructive text-sm">
+            {verifyOtp.error instanceof Error ? verifyOtp.error.message : 'That code did not work. Try again.'}
+          </p>
+        )}
+        {sendOtp.isSuccess && !sendOtp.isPending && (
+          <p className="text-center text-muted-foreground text-sm">Code sent.</p>
+        )}
+        <div className="flex flex-col gap-2 text-center text-sm">
+          <button
+            type="button"
+            className="font-medium text-foreground underline-offset-4 hover:underline disabled:opacity-50"
+            disabled={sendOtp.isPending || !phoneNumber}
+            onClick={handleResend}
+          >
+            Resend code
+          </button>
+          <button
+            type="button"
+            className="text-muted-foreground underline-offset-4 hover:underline"
+            onClick={handleUseDifferentPhone}
+          >
+            Use a different phone
+          </button>
+        </div>
+        {fallbackVisible && (
+          <div className="space-y-2 border-t pt-4 text-center">
+            <p className="text-muted-foreground text-sm">
+              Didn&apos;t receive the code? Sign in with a magic-link instead.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleMagicLink}
+              disabled={!userEmail || magicLink.isPending}
+            >
+              {magicLink.isPending ? 'Sending…' : 'Send me a magic-link'}
+            </Button>
+            {magicLink.error && (
               <p className="text-destructive text-sm">
-                {sendOtp.error instanceof Error ? sendOtp.error.message : 'Could not send the code. Try again.'}
+                {magicLink.error instanceof Error ? magicLink.error.message : 'Could not send the sign-in link.'}
               </p>
             )}
-            <Button type="submit" className="w-full" disabled={sendOtp.isPending}>
-              {sendOtp.isPending ? 'Sending…' : 'Send code'}
-            </Button>
-          </form>
-        </Form>
+          </div>
+        )}
       </div>
     )
   }
 
-  // step === 'code'
   return (
     <div className="w-full max-w-sm space-y-6 px-4">
-      <div className="space-y-1">
-        <h1 className="font-semibold text-xl tracking-tight">Enter the code</h1>
-        <p className="text-muted-foreground text-sm">
-          We sent a 6-digit code over WhatsApp to <span className="font-medium text-foreground">{phoneNumber}</span>.
-        </p>
-      </div>
-      <div className="flex justify-center">
-        <InputOTP maxLength={OTP_LENGTH} onComplete={handleVerifyComplete} disabled={verifyOtp.isPending}>
-          <InputOTPGroup>
-            {Array.from({ length: OTP_LENGTH }, (_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: OTP slots are stable by position
-              <InputOTPSlot key={i} index={i} />
-            ))}
-          </InputOTPGroup>
-        </InputOTP>
-      </div>
-      {verifyOtp.error && (
-        <p className="text-center text-destructive text-sm">
-          {verifyOtp.error instanceof Error ? verifyOtp.error.message : 'That code did not work. Try again.'}
-        </p>
-      )}
-      {sendOtp.isSuccess && !sendOtp.isPending && (
-        <p className="text-center text-muted-foreground text-sm">Code sent.</p>
-      )}
-      <div className="flex flex-col gap-2 text-center text-sm">
+      {renderStep()}
+      <div className="flex items-center justify-center gap-4 border-t pt-4 text-sm">
         <button
           type="button"
-          className="font-medium text-foreground underline-offset-4 hover:underline disabled:opacity-50"
-          disabled={sendOtp.isPending || !phoneNumber}
-          onClick={handleResend}
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          onClick={handleSkip}
         >
-          Resend code
+          Skip for now
         </button>
+        <span className="text-muted-foreground/50">·</span>
         <button
           type="button"
-          className="text-muted-foreground underline-offset-4 hover:underline"
-          onClick={handleUseDifferentPhone}
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          onClick={() => setSignOutOpen(true)}
         >
-          Use a different phone
+          Sign out
         </button>
       </div>
-      {fallbackVisible && (
-        <div className="space-y-2 border-t pt-4 text-center">
-          <p className="text-muted-foreground text-sm">
-            Didn&apos;t receive the code? Sign in with a magic-link instead.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleMagicLink}
-            disabled={!userEmail || magicLink.isPending}
-          >
-            {magicLink.isPending ? 'Sending…' : 'Send me a magic-link'}
-          </Button>
-          {magicLink.error && (
-            <p className="text-destructive text-sm">
-              {magicLink.error instanceof Error ? magicLink.error.message : 'Could not send the sign-in link.'}
-            </p>
-          )}
-        </div>
-      )}
+      <SignOutDialog open={signOutOpen} onOpenChange={setSignOutOpen} />
     </div>
   )
 }

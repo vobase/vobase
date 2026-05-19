@@ -20,6 +20,7 @@ import { DataTableColumnHeader } from '@/components/data-table/data-table-column
 import { DataTableSkeleton } from '@/components/data-table/data-table-skeleton'
 import { DataTableToolbar } from '@/components/data-table/data-table-toolbar'
 import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
+import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
@@ -222,9 +223,16 @@ export function StaffListPage() {
         id: 'phoneNumber',
         accessorKey: 'phoneNumber',
         header: ({ column }) => <DataTableColumnHeader column={column} label="WhatsApp" />,
-        cell: ({ row }) => (
-          <span className="font-mono text-muted-foreground text-xs">{row.original.phoneNumber ?? '—'}</span>
-        ),
+        cell: ({ row }) => {
+          const phone = row.original.phoneNumber
+          if (!phone) return <span className="font-mono text-muted-foreground text-xs">—</span>
+          return (
+            <div className="flex items-center gap-2 leading-none">
+              <span className="font-mono text-muted-foreground text-xs">{phone}</span>
+              <PhoneVerificationBadge verified={row.original.phoneNumberVerified === true} />
+            </div>
+          )
+        },
         meta: { label: 'WhatsApp', variant: 'text', placeholder: 'Search number…' },
         enableColumnFilter: true,
         enableSorting: true,

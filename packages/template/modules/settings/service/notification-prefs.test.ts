@@ -33,7 +33,7 @@ describe('defaultMatrix', () => {
 
   it('flips whatsapp to true once phone is verified', () => {
     const m = defaultMatrix(true)
-    for (const kind of ['mention', 'approval', 'proposal', 'admin_alert'] as const) {
+    for (const kind of ['mention', 'decision', 'admin_alert'] as const) {
       expect(m[kind].in_app).toBe(true)
       expect(m[kind].whatsapp).toBe(true)
       expect(m[kind].email).toBe(false)
@@ -56,10 +56,10 @@ describe('fillMatrix', () => {
   })
 
   it('preserves explicit true when the default is false', () => {
-    const out = fillMatrix({ proposal: { email: true } }, false)
-    expect(out.proposal?.email).toBe(true)
-    expect(out.proposal?.in_app).toBe(true) // default
-    expect(out.proposal?.whatsapp).toBe(false) // unverified default
+    const out = fillMatrix({ decision: { email: true } }, false)
+    expect(out.decision?.email).toBe(true)
+    expect(out.decision?.in_app).toBe(true) // default
+    expect(out.decision?.whatsapp).toBe(false) // unverified default
   })
 
   it('drops unknown kinds in stored input and projects only known kinds', () => {
@@ -73,8 +73,7 @@ describe('fillMatrix', () => {
   it('round-trips a full matrix unchanged', () => {
     const full = {
       mention: { in_app: false, whatsapp: true, email: true },
-      approval: { in_app: true, whatsapp: false, email: false },
-      proposal: { in_app: true, whatsapp: true, email: false },
+      decision: { in_app: true, whatsapp: true, email: false },
       admin_alert: { in_app: false, whatsapp: false, email: true },
     } as const
     const out = fillMatrix(full, false)

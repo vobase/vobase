@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 
 import { InfoCard, InfoRow, InfoSection } from '@/components/info'
 import { PageBody, PageHeader, PageLayout } from '@/components/layout/page-layout'
+import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { SettingsToggle } from '@/components/settings'
 import { SettingsSegmented } from '@/components/settings/settings-segmented'
 import { useTheme } from '@/components/theme-provider'
@@ -27,7 +28,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Status } from '@/components/ui/status'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { settingsClient } from '@/lib/api-client'
@@ -55,8 +55,10 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const KIND_META: Record<NotificationKind, { label: string; description: string }> = {
   mention: { label: 'Mentions', description: 'When an internal note @-mentions me' },
-  approval: { label: 'Approvals', description: 'When an agent needs my decision on a pending approval' },
-  proposal: { label: 'Proposals', description: 'When a change proposal needs my decision' },
+  decision: {
+    label: 'Decisions',
+    description: 'When an agent needs my decision on a pending approval or change proposal',
+  },
   admin_alert: {
     label: 'Admin alerts',
     description: 'Operator-level alerts about pauses, budget breaches, system health',
@@ -158,6 +160,44 @@ function AppearanceSection() {
   )
 }
 
+/**
+ * Inline callout above the Notifications table. Shows the signed-in user's
+ * WhatsApp number + verification badge + an "Update" link that opens the
+ * staff edit dialog (via `?edit=1` on `/team/$userId`).
+ */
+function WhatsAppCallout({
+  phoneNumber,
+  verified,
+  userId,
+}: {
+  phoneNumber: string | null
+  verified: boolean
+  userId: string | null
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-border/50 border-b px-4 py-3 text-sm">
+      <div className="flex items-center gap-3 leading-none">
+        <span className="text-muted-foreground">WhatsApp:</span>
+        {phoneNumber ? (
+          <>
+            <span className="font-mono">{phoneNumber}</span>
+            <PhoneVerificationBadge verified={verified} />
+          </>
+        ) : (
+          <span className="text-muted-foreground">Not set</span>
+        )}
+      </div>
+      {userId && (
+        <Button asChild size="sm" variant="outline">
+          <Link to="/team/$userId" params={{ userId }} search={{ edit: '1' }}>
+            Update
+          </Link>
+        </Button>
+      )}
+    </div>
+  )
+}
+
 function NotificationsSection() {
   const { mutate } = useSettingsSave('notifications', notificationsSchema)
   const { data } = useQuery({
@@ -170,9 +210,14 @@ function NotificationsSection() {
   })
 
   const sessionRes = authClient.useSession() as unknown as {
-    data?: { user?: { phoneNumberVerified?: boolean | null } | null } | null
+    data?: {
+      user?: { id?: string; phoneNumber?: string | null; phoneNumberVerified?: boolean | null } | null
+    } | null
   } | null
-  const phoneVerified = sessionRes?.data?.user?.phoneNumberVerified === true
+  const sessionUser = sessionRes?.data?.user ?? null
+  const userId = sessionUser?.id ?? null
+  const phoneNumber = sessionUser?.phoneNumber ?? null
+  const phoneVerified = sessionUser?.phoneNumberVerified === true
 
   const [matrix, setMatrix] = useState<NotificationPrefsMatrix | null>(null)
   useEffect(() => {
@@ -207,6 +252,7 @@ function NotificationsSection() {
       actions={<SaveIndicator state={saveState} />}
     >
       <InfoCard>
+        <WhatsAppCallout phoneNumber={phoneNumber} verified={phoneVerified} userId={userId} />
         <Table className="text-sm">
           <TableHeader>
             <TableRow>
@@ -224,7 +270,7 @@ function NotificationsSection() {
                         <TooltipTrigger asChild>
                           <span className="inline-block">{headerCell}</span>
                         </TooltipTrigger>
-                        <TooltipContent>Verify your WhatsApp number in Profile above</TooltipContent>
+                        <TooltipContent>Verify your WhatsApp number to enable.</TooltipContent>
                       </Tooltip>
                     ) : (
                       headerCell
@@ -237,7 +283,7 @@ function NotificationsSection() {
           <TableBody>
             {NOTIFICATION_KINDS.map((kind) => (
               <TableRow key={kind}>
-                <TableCell className="align-top">
+                <TableCell className="align-middle">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">{KIND_META[kind].label}</span>
                     <span className="text-muted-foreground text-xs">{KIND_META[kind].description}</span>
@@ -255,13 +301,13 @@ function NotificationsSection() {
                     />
                   )
                   return (
-                    <TableCell key={channel} className="text-center align-top">
+                    <TableCell key={channel} className="text-center align-middle">
                       {isWhatsApp && !phoneVerified ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span className="inline-block">{checkbox}</span>
                           </TooltipTrigger>
-                          <TooltipContent>Verify your WhatsApp number in Profile above</TooltipContent>
+                          <TooltipContent>Verify your WhatsApp number to enable.</TooltipContent>
                         </Tooltip>
                       ) : (
                         checkbox
@@ -273,49 +319,6 @@ function NotificationsSection() {
             ))}
           </TableBody>
         </Table>
-      </InfoCard>
-    </InfoSection>
-  )
-}
-
-/**
- * Profile section — surfaces the signed-in user's WhatsApp number and gives
- * them a way to self-verify when an admin set or changed it. The phone itself
- * is admin-managed (per the staff/team conventions), so this section is
- * read-only for the user.
- */
-function ProfileSection() {
-  const sessionRes = authClient.useSession() as unknown as {
-    data?: { user?: { phoneNumber?: string | null; phoneNumberVerified?: boolean | null } | null } | null
-  } | null
-  const user = sessionRes?.data?.user ?? null
-  const phone = user?.phoneNumber ?? null
-  const verified = user?.phoneNumberVerified === true
-
-  return (
-    <InfoSection title="Profile" description="Your account identity for notifications.">
-      <InfoCard>
-        <InfoRow label="WhatsApp number">
-          <div className="flex w-full flex-wrap items-center justify-between gap-3">
-            {phone ? (
-              <span className="font-mono text-sm">{phone}</span>
-            ) : (
-              <span className="text-muted-foreground text-sm">No WhatsApp number set — ask your admin to add one.</span>
-            )}
-            <div className="flex items-center gap-3">
-              {phone && (
-                <Status variant={verified ? 'success' : 'warning'} label={verified ? 'Verified' : 'Unverified'} />
-              )}
-              {phone && !verified && (
-                <Button asChild size="sm" variant="outline">
-                  <Link to="/onboard/verify-phone" search={{ next: '/settings' }}>
-                    Verify WhatsApp
-                  </Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        </InfoRow>
       </InfoCard>
     </InfoSection>
   )
@@ -503,7 +506,6 @@ export function SettingsPage() {
       <PageHeader title="Settings" description="Personal preferences and access keys." />
       <PageBody>
         <div className="mx-auto w-full max-w-4xl space-y-8">
-          <ProfileSection />
           <AppearanceSection />
           <NotificationsSection />
           <OperatorAgentSection />

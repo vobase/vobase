@@ -118,8 +118,7 @@ export function InviteMemberDialog({ open, onOpenChange }: { open: boolean; onOp
               id="invite-phone"
               value={phone}
               onChange={setPhone}
-              optional
-              helperText="Used for mention-ping notifications; editable later on the staff profile."
+              helperText="The invitee will verify this number via a WhatsApp one-time code on first sign-in. Editable later on the staff profile."
             />
           </div>
           <DialogFooter>

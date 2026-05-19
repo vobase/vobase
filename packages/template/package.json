@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.63",
-    "@better-auth/api-key": "^1.6.10",
     "@ariakit/react": "^0.4.26",
+    "@better-auth/api-key": "^1.6.10",
     "@diceui/combobox": "^1.2.2",
     "@diceui/mention": "^0.8.0",
     "@dnd-kit/core": "^6.3.1",

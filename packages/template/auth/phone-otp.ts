@@ -122,7 +122,7 @@ export const phoneOtpCaptor = createCaptor<MintPayload, DeliveredCode>({
  *      the code itself.
  *   2. **Direct-client path** (`authClient.phoneNumber.sendOtp` for WhatsApp-OTP
  *      login from the auth page): no nonce header — this helper directly POSTs
- *      the OTP to the platform `/api/whatsapp/otp` endpoint so the user
+ *      the OTP to the platform `/api/managed-whatsapp/otp` endpoint so the user
  *      receives the WhatsApp message.
  *
  * The direct-client path is `await`ed (returned) so better-auth's
@@ -151,7 +151,7 @@ export async function deliverPhoneOtp(args: {
 }
 
 /**
- * POST the OTP to the platform `/api/whatsapp/otp` endpoint using HMAC v2
+ * POST the OTP to the platform `/api/managed-whatsapp/otp` endpoint using HMAC v2
  * signing. Shared by `mintPhoneOtp` (admin self-verify) and the direct-client
  * `deliverPhoneOtp` path (auth-page WhatsApp-OTP login).
  */
@@ -178,7 +178,7 @@ async function sendOtpViaPlatform(args: { phoneNumber: string; code: string }): 
     platformBaseUrl,
     tenantId,
     tenantHmacSecret,
-    path: '/api/whatsapp/otp',
+    path: '/api/managed-whatsapp/otp',
     body,
   })
   if (!res.ok) {

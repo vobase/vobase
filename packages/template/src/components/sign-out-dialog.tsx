@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { authClient } from '@/lib/auth-client'
+import { SKIP_VERIFY_KEY } from '@/shell/app-layout'
 
 interface SignOutDialogProps {
   open: boolean
@@ -29,6 +30,11 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
       // Ignore transport failures — we still want to clear local state + redirect.
     }
     queryClient.clear()
+    try {
+      window.sessionStorage?.removeItem(SKIP_VERIFY_KEY)
+    } catch {
+      // sessionStorage unavailable (private-mode); nothing to clear.
+    }
     navigate({ to: '/auth/login', replace: true })
   }
 

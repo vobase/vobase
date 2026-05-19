@@ -10,6 +10,7 @@ import { E164_RE } from '@auth/e164'
 import { useEffect, useState } from 'react'
 
 import { PhoneNumberInput } from '@/components/phone-number-input'
+import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -156,13 +157,21 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, isPending }
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="staff-whatsapp-phone">WhatsApp number</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="staff-whatsapp-phone">WhatsApp number</Label>
+              {staff.phoneNumber && phone === staff.phoneNumber && (
+                <PhoneVerificationBadge verified={staff.phoneNumberVerified === true} />
+              )}
+            </div>
             <PhoneNumberInput
               id="staff-whatsapp-phone"
               value={phone}
               onChange={setPhone}
-              optional
-              helperText="Required to receive mention-ping notifications via WhatsApp."
+              helperText={
+                phone && phone !== (staff.phoneNumber ?? '')
+                  ? 'Saving will require the staff member to re-verify via a WhatsApp one-time code on next sign-in.'
+                  : 'Required to receive mention-ping notifications via WhatsApp.'
+              }
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

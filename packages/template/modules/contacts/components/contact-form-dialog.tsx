@@ -94,7 +94,7 @@ export function ContactFormDialog({ open, onOpenChange, contact, onSave, isPendi
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="contact-phone">Phone</Label>
-              <PhoneNumberInput id="contact-phone" value={phone} onChange={setPhone} optional />
+              <PhoneNumberInput id="contact-phone" value={phone} onChange={setPhone} />
             </div>
           </div>
           <div className="space-y-1.5">

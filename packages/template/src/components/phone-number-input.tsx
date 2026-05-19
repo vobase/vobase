@@ -1,30 +1,26 @@
 /**
- * PhoneNumberInput — shared E.164 phone input used across all four call sites:
- * verify-phone, staff-form-dialog, invite-member-dialog, contact-form-dialog.
- *
- * Validates on blur against E164_RE. Strips spaces/dashes/parens on blur but
- * keeps the leading `+`. Surfaces an inline error message when the value is
- * non-empty and invalid (or required and empty).
+ * PhoneNumberInput — shared E.164 phone input used by verify-phone, login
+ * (WhatsApp tab), staff-form-dialog, invite-member-dialog, and
+ * contact-form-dialog. Wraps the DiceUI `<PhoneInput>` compound component with
+ * Singapore as the default country. Emits E.164 (`+65…`) via `onChange`; the
+ * underlying DiceUI store normalises to `+<digits>` so we never strip
+ * formatting characters here. Validates against `E164_RE` on blur (only when
+ * non-empty — required-but-empty is caught at submit by the form's Zod
+ * schema) and surfaces an inline error message.
  */
 
 import { E164_RE } from '@auth/e164'
-import { useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 
-import { Input } from '@/components/ui/input'
+import { PhoneInput, PhoneInputCountrySelect, PhoneInputField } from '@/components/ui/phone-input'
 
-const DEFAULT_PLACEHOLDER = '+6591234567'
-const DEFAULT_INVALID_MSG = 'Enter your phone in international format, e.g. +6591234567'
-
-/** Strip spaces, dashes, and parentheses while keeping the leading `+`. */
-function normalize(raw: string): string {
-  return raw.replace(/[\s\-()]/g, '')
-}
+const DEFAULT_PLACEHOLDER = '9123 4567'
+const DEFAULT_INVALID_MSG = 'Enter a valid phone number, e.g. +65 9123 4567'
+const DEFAULT_COUNTRY = 'SG'
 
 export interface PhoneNumberInputProps {
   value: string
   onChange: (e164: string) => void
-  /** When true the field is allowed to be empty; validation only fires if the user types something. */
-  optional?: boolean
   placeholder?: string
   id?: string
   disabled?: boolean
@@ -39,7 +35,6 @@ export interface PhoneNumberInputProps {
 export function PhoneNumberInput({
   value,
   onChange,
-  optional = false,
   placeholder = DEFAULT_PLACEHOLDER,
   id,
   disabled,
@@ -53,27 +48,21 @@ export function PhoneNumberInput({
   const helperId = `${inputId}-helper`
 
   const [invalid, setInvalid] = useState(false)
-  // Track whether the user has ever left the field so we don't show errors
-  // before they've had a chance to type.
-  const touched = useRef(false)
 
+  // Show the format error on blur only when the user has typed something.
+  // Empty-but-required is left to the form's submit-time validation so the user
+  // doesn't see an angry red field just for hovering past the input.
   function handleBlur() {
-    touched.current = true
-    const normalized = normalize(value)
-    if (normalized !== value) onChange(normalized)
-    const toCheck = normalized !== value ? normalized : value
-    if (toCheck === '') {
-      setInvalid(!optional)
-    } else {
-      setInvalid(!E164_RE.test(toCheck))
+    if (value === '' || value === '+') {
+      setInvalid(false)
+      return
     }
+    setInvalid(!E164_RE.test(value))
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const next = e.target.value
+  function handleChange(next: string) {
     onChange(next)
-    // Clear the error live once the value becomes valid (improves UX).
-    if (invalid && (next === '' ? optional : E164_RE.test(normalize(next)))) {
+    if (invalid && (next === '' || E164_RE.test(next))) {
       setInvalid(false)
     }
   }
@@ -83,20 +72,22 @@ export function PhoneNumberInput({
 
   return (
     <div className="space-y-1">
-      <Input
-        id={inputId}
-        type="tel"
-        inputMode="tel"
-        placeholder={placeholder}
+      <PhoneInput
         value={value}
-        onChange={handleChange}
-        onBlur={handleBlur}
+        onValueChange={handleChange}
+        defaultCountry={DEFAULT_COUNTRY}
         disabled={disabled}
-        autoFocus={autoFocus}
-        aria-invalid={invalid || undefined}
-        aria-describedby={describedBy}
-        className={invalid ? 'border-destructive focus-visible:ring-destructive' : undefined}
-      />
+        invalid={invalid}
+      >
+        <PhoneInputCountrySelect />
+        <PhoneInputField
+          id={inputId}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          onBlur={handleBlur}
+          aria-describedby={describedBy}
+        />
+      </PhoneInput>
       {(helperText || invalid) && (
         <p id={helperId} className={invalid ? 'text-destructive text-xs' : 'text-muted-foreground text-xs'}>
           {invalid ? (errorText ?? DEFAULT_INVALID_MSG) : helperText}

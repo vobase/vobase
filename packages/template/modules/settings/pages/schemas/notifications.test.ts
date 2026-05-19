@@ -10,7 +10,7 @@ describe('notificationsSchema (matrix)', () => {
     const parsed = notificationsSchema.parse({
       matrix: {
         mention: { in_app: true, whatsapp: false, email: true },
-        approval: { in_app: true, whatsapp: true, email: false },
+        decision: { in_app: true, whatsapp: true, email: false },
         proposal: { in_app: true, whatsapp: false, email: false },
         admin_alert: { in_app: true, whatsapp: true, email: true },
       },
@@ -28,8 +28,8 @@ describe('notificationsSchema (matrix)', () => {
   })
 
   it('partial cells are accepted', () => {
-    const parsed = notificationsSchema.parse({ matrix: { approval: { whatsapp: true } } })
-    expect(parsed.matrix.approval?.whatsapp).toBe(true)
+    const parsed = notificationsSchema.parse({ matrix: { decision: { whatsapp: true } } })
+    expect(parsed.matrix.decision?.whatsapp).toBe(true)
   })
 
   it('non-boolean cell value rejected', () => {

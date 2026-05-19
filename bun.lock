@@ -83,7 +83,7 @@
     },
     "packages/template": {
       "name": "@vobase/template",
-      "version": "3.14.1",
+      "version": "3.16.0",
       "dependencies": {
         "@ai-sdk/openai": "^3.0.63",
         "@ariakit/react": "^0.4.26",
