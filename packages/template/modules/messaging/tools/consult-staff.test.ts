@@ -123,6 +123,7 @@ describe('consultStaffTool', () => {
         enqueued.push(n)
         return Promise.resolve()
       },
+      sendTestNotification: () => Promise.resolve({ ok: true, messageId: null }),
     })
     const result = await consultStaffTool.execute({ conversationId: 'c', body: 'fyi', to: ['user:u1'] }, ctx())
     expect(result.ok).toBe(true)

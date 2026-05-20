@@ -13,6 +13,10 @@ import { createMagicFinishRoutes } from './magic-finish'
 import { mintMagicLink } from './magic-link'
 import { authOrganization, authVerification } from './schema'
 
+// `mintMagicLink` signs the platform-redirect URL with these env vars.
+process.env.VITE_PLATFORM_TENANT_SLUG ??= 'test-tenant'
+process.env.PLATFORM_HMAC_SECRET ??= 'test-platform-hmac-secret-32chars!!'
+
 const ALICE_USER_ID = 'usr0alice0'
 const ALICE_EMAIL = 'alice@meridian.test'
 
@@ -56,7 +60,6 @@ describe('createMagicFinishRoutes', () => {
     const { token } = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      endpointId: 't1',
       organizationId: orgId,
       redirectPath: '/inbox',
     })
@@ -76,6 +79,27 @@ describe('createMagicFinishRoutes', () => {
     // Domain= must NOT appear
     expect(setCookie).not.toContain('Domain=')
 
+    // The cookie value must be SIGNED — better-auth writes the session token
+    // via `setSignedCookie` and rejects an unsigned value on read. Verify the
+    // value round-trips as `<token>.<base64 HMAC>` and the HMAC checks out
+    // against the better-auth secret.
+    const secret = (await auth.$context).secret
+    const rawCookie = setCookie?.match(/better-auth\.session_token=([^;]+)/)?.[1] ?? ''
+    const decoded = decodeURIComponent(rawCookie)
+    const lastDot = decoded.lastIndexOf('.')
+    expect(lastDot).toBeGreaterThan(0)
+    const signedValue = decoded.slice(0, lastDot)
+    const sigBytes = Uint8Array.from(atob(decoded.slice(lastDot + 1)), (ch) => ch.charCodeAt(0))
+    const verifyKey = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    )
+    const sigValid = await crypto.subtle.verify('HMAC', verifyKey, sigBytes, new TextEncoder().encode(signedValue))
+    expect(sigValid).toBe(true)
+
     expect(res.headers.get('location')).toBe('/inbox')
     expect(res.headers.get('cache-control')).toBe('no-store')
   })
@@ -86,7 +110,6 @@ describe('createMagicFinishRoutes', () => {
     const { token } = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      endpointId: 't1',
       organizationId: orgId,
       redirectPath: '/inbox',
     })
@@ -109,7 +132,6 @@ describe('createMagicFinishRoutes', () => {
     const { token } = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      endpointId: 't1',
       organizationId: orgId,
       redirectPath: '/inbox',
     })
@@ -142,7 +164,6 @@ describe('createMagicFinishRoutes', () => {
     const { token } = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      endpointId: 't1',
       organizationId: 'org-other-test',
       redirectPath: '/inbox',
     })
@@ -166,7 +187,6 @@ describe('createMagicFinishRoutes', () => {
       const { token } = await mintMagicLink(auth, handle.db, {
         userId: ALICE_USER_ID,
         email: ALICE_EMAIL,
-        endpointId: 't1',
         organizationId: orgId,
         redirectPath: '/inbox',
       })
@@ -188,13 +208,5 @@ describe('createMagicFinishRoutes', () => {
     expect(res.status).toBe(400)
     const body = await res.text()
     expect(body).toContain('<meta name="robots" content="noindex">')
-  })
-
-  // ── Test 7: Ownership challenge probe ───────────────────────────────────────
-
-  it('challenge probe: a bare ?challenge= (no token) echoes the challenge', async () => {
-    const probe = await app.request('/?challenge=abc-123')
-    expect(probe.status).toBe(200)
-    expect(await probe.text()).toBe('abc-123')
   })
 })

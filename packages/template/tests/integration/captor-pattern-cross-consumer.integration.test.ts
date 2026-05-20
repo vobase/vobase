@@ -23,6 +23,10 @@ import { createAuth } from '../../auth/index'
 import { mintMagicLink } from '../../auth/magic-link'
 import { connectTestDb, resetAndSeedDb } from '../helpers/test-db'
 
+// `mintMagicLink` signs the platform-redirect URL with these env vars.
+process.env.VITE_PLATFORM_TENANT_SLUG ??= 'test-tenant'
+process.env.PLATFORM_HMAC_SECRET ??= 'test-platform-hmac-secret-32chars!!'
+
 const ALICE_USER_ID = 'usr0alice0'
 const ALICE_EMAIL = 'alice@meridian.test'
 
@@ -105,7 +109,6 @@ describe('captor-pattern cross-consumer isolation', () => {
       mintMagicLink(auth, handle.db, {
         userId: ALICE_USER_ID,
         email: ALICE_EMAIL,
-        endpointId: 't1',
         organizationId: 'o1',
         redirectPath: '/inbox',
       }),

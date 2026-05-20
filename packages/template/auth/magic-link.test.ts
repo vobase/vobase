@@ -10,6 +10,11 @@ import { connectTestDb, resetAndSeedDb } from '../tests/helpers/test-db'
 import { createAuth } from './index'
 import { MagicLinkMintError, mintMagicLink } from './magic-link'
 
+// The mint path signs the platform-redirect URL with these — without them
+// `deliverMagicLinkToken` throws (a real misconfiguration in production).
+process.env.VITE_PLATFORM_TENANT_SLUG ??= 'test-tenant'
+process.env.PLATFORM_HMAC_SECRET ??= 'test-platform-hmac-secret-32chars!!'
+
 // Alice is seeded by contacts/seed.ts — userId + email are stable across resets.
 const ALICE_USER_ID = 'usr0alice0'
 const ALICE_EMAIL = 'alice@meridian.test'
@@ -27,19 +32,26 @@ describe('mintMagicLink', () => {
     await handle.teardown()
   })
 
-  it('returns a platform URL with correct shape', async () => {
+  it('returns a signed platform-redirect URL with correct shape', async () => {
     const result = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      endpointId: 't1',
       organizationId: 'o1',
       redirectPath: '/inbox/c1/approvals/a1',
     })
 
-    // URL shape: https://platform.vobase.dev/auth/magic?endpoint=t1&token=...&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1
-    expect(result.url).toMatch(
-      /^https:\/\/platform\.vobase\.dev\/auth\/magic\?endpoint=t1&token=[A-Za-z0-9_%-]+&redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1&organization=o1$/u,
-    )
+    // URL shape: https://platform.vobase.dev/api/redirect?tenant=<slug>&dest=<urlenc>&sig=<hex>
+    // `dest` is the tenant-owned magic-finish URL carrying token/redirect/organization;
+    // `sig` is HMAC-SHA256 hex over the full `dest`.
+    const parsed = new URL(result.url)
+    expect(parsed.origin + parsed.pathname).toBe('https://platform.vobase.dev/api/redirect')
+    expect(parsed.searchParams.has('tenant')).toBe(true)
+    const dest = parsed.searchParams.get('dest') ?? ''
+    expect(dest).toContain('/auth/magic-finish?')
+    expect(dest).toContain('redirect=%2Finbox%2Fc1%2Fapprovals%2Fa1')
+    expect(dest).toContain('organization=o1')
+    expect(dest).toContain(`token=${encodeURIComponent(result.token)}`)
+    expect(parsed.searchParams.get('sig') ?? '').toMatch(/^[a-f0-9]{64}$/u)
     expect(result.token).toBeTruthy()
     expect(result.token.length).toBeGreaterThan(10)
     // expiresAt should be ~24h from now
@@ -56,7 +68,6 @@ describe('mintMagicLink', () => {
       await mintMagicLink(auth, handle.db, {
         userId: 'nonexistent-user-id',
         email: 'nobody@nowhere.test',
-        endpointId: 't1',
         organizationId: 'o1',
         redirectPath: '/inbox',
       })
@@ -78,7 +89,6 @@ describe('mintMagicLink', () => {
         mintMagicLink(auth, handle.db, {
           userId: ALICE_USER_ID,
           email: ALICE_EMAIL,
-          endpointId: 't1',
           organizationId: 'o1',
           redirectPath: '/inbox',
         }),
@@ -92,11 +102,10 @@ describe('mintMagicLink', () => {
     const result = await mintMagicLink(auth, handle.db, {
       userId: ALICE_USER_ID,
       email: ALICE_EMAIL,
-      endpointId: 't1',
       organizationId: 'o1',
       redirectPath: '/inbox',
     })
-    expect(result.url).not.toContain('__captor_nonce')
+    expect(decodeURIComponent(result.url)).not.toContain('__captor_nonce')
 
     // Also assert the source file itself never contains the literal string.
     const sourceText = await Bun.file(`${import.meta.dir}/magic-link.ts`).text()
@@ -131,7 +140,6 @@ describe('mintMagicLink captor timeout', () => {
         await mintMagicLink(stubAuth, handle2.db, {
           userId: ALICE_USER_ID,
           email: ALICE_EMAIL,
-          endpointId: 't1',
           organizationId: 'o1',
           redirectPath: '/inbox',
         })

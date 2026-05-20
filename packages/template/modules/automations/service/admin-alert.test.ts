@@ -18,7 +18,6 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { MagicLinkMintError } from '@auth/magic-link'
-import { __setMagicLinkEndpointIdForTests } from '@auth/magic-link-endpoint-config'
 import {
   __resetAdminAlertForTests,
   ADMIN_ALERT_EVENT_NAME,
@@ -116,7 +115,6 @@ describe('dispatchAdminAlert', () => {
 
   afterEach(() => {
     __resetAdminAlertForTests()
-    __setMagicLinkEndpointIdForTests(null)
     _mintMagicLinkImpl = null
   })
 
@@ -261,9 +259,8 @@ describe('dispatchAdminAlert', () => {
       throw new MagicLinkMintError('magic_link_mint_failed', { cause: new Error('captor_timeout') })
     }
 
-    // Use a stub auth + endpoint override so mint is attempted.
+    // Use a stub auth so mint is attempted.
     const stubAuth = {} as Parameters<typeof installAdminAlertDeps>[0]['auth']
-    __setMagicLinkEndpointIdForTests('platform-tenant-test')
 
     installAdminAlertDeps({
       db: db as unknown as Parameters<typeof installAdminAlertDeps>[0]['db'],

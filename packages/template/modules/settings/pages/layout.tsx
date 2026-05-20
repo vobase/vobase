@@ -11,7 +11,7 @@ import type { NotificationsValues } from '@modules/settings/pages/schemas'
 import { notificationsSchema } from '@modules/settings/pages/schemas'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Check, Copy, MonitorIcon, MoonIcon, SunIcon, Trash2 } from 'lucide-react'
+import { Check, Copy, MonitorIcon, MoonIcon, Send, SunIcon, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -196,8 +196,26 @@ function WhatsAppCallout({
   )
 }
 
+const isDevMode = import.meta.env.DEV
+
 function NotificationsSection() {
   const { mutate } = useSettingsSave('notifications', notificationsSchema)
+
+  const testMut = useMutation({
+    mutationFn: async (kind: NotificationKind): Promise<{ ok: boolean; reason?: string }> => {
+      const r = await settingsClient.notifications.test.$post({ json: { kind } })
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error ?? `test failed: ${r.status}`)
+      }
+      return (await r.json()) as { ok: boolean; reason?: string }
+    },
+    onSuccess: (res) => {
+      if (res.ok) toast.success('Test notification sent — check your WhatsApp')
+      else toast.error(`Test not sent: ${res.reason ?? 'unknown'}`)
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Test failed'),
+  })
   const { data } = useQuery({
     queryKey: ['settings', 'notifications'],
     queryFn: async (): Promise<NotificationPrefsResponse> => {
@@ -303,17 +321,41 @@ function NotificationsSection() {
                       aria-label={`${KIND_META[kind].label} via ${CHANNEL_LABEL[channel]}`}
                     />
                   )
+                  const cellContent =
+                    isWhatsApp && !phoneVerified ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">{checkbox}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>Verify your WhatsApp number to enable.</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      checkbox
+                    )
                   return (
                     <TableCell key={channel} className="text-center align-middle">
-                      {isWhatsApp && !phoneVerified ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-block">{checkbox}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>Verify your WhatsApp number to enable.</TooltipContent>
-                        </Tooltip>
+                      {isWhatsApp && isDevMode ? (
+                        <div className="flex items-center justify-center gap-1.5">
+                          {cellContent}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="size-6 text-muted-foreground"
+                                disabled={!phoneVerified || testMut.isPending}
+                                onClick={() => testMut.mutate(kind)}
+                                aria-label={`Send a test ${KIND_META[kind].label} notification`}
+                              >
+                                <Send className="size-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Send a test WhatsApp notification (dev only)</TooltipContent>
+                          </Tooltip>
+                        </div>
                       ) : (
-                        checkbox
+                        cellContent
                       )}
                     </TableCell>
                   )

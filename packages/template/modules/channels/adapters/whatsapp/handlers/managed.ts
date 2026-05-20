@@ -46,12 +46,14 @@ import {
 } from '@modules/integrations/service/handshake'
 import { getInstalledDb, getVaultFor } from '@modules/integrations/service/registry'
 import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
-import { setOrgSetting } from '@modules/settings/service/org-settings'
+import { syncStaffLinksEnqueue } from '@modules/team/service/staff-link-sync'
 import { logger } from '@vobase/core'
 import { and, asc, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { z } from 'zod'
+
+import { readAppBaseUrl } from '~/runtime/app-url'
 
 // Full assignee token (`agent:<id>` or `user:<id>`) — matches the format the
 // inbox `AssigneeBadge` emits and the format `config.defaultAssignee` stores
@@ -124,16 +126,6 @@ function readPlatformCreds(rowPlatformBaseUrl: string | undefined): PlatformCred
     return null
   }
   return { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret }
-}
-
-/** Reads the app's public base URL from env; throws in production when unset. */
-function readAppBaseUrl(): string {
-  const url = process.env.PUBLIC_BASE_URL?.trim() ?? process.env.WEBHOOK_BASE_URL?.trim() ?? ''
-  if (url) return url
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('PUBLIC_BASE_URL must be set in production for webhook + magic-link callbacks')
-  }
-  return `http://localhost:${process.env.PORT ?? '3001'}`
 }
 
 function tenantWebhookUrl(channelName: string, instanceId: string): string {
@@ -318,11 +310,10 @@ const app = new Hono<OrganizationEnv>()
   // Claim a notification-tier channel. Same `claimAndBootstrap` orchestration
   // as the sandbox claim — only `kind: 'notification'` differs, which the
   // registry resolves to the `whatsapp_notif` channel name + the
-  // `vobase-platform-notification` vault provider. After the channel row
-  // commits, the `magic_link` webhook endpoint is registered as a standalone
-  // step (it is per-deployment auth infrastructure, not a channel) and its
-  // platform-minted endpoint id is written to the `magicLinkEndpointId`
-  // `org_settings` key. Idempotent: re-claiming returns the existing row.
+  // `vobase-platform-notification` vault provider. Magic-link auth needs no
+  // platform-side registration: the tenant signs each `magic-finish` URL with
+  // the shared HMAC secret and the platform's `/api/redirect` endpoint
+  // verifies it. Idempotent: re-claiming returns the existing row.
   .post('/managed/notification/claim', async (c) => {
     const organizationId = c.get('organizationId')
     const environment: 'production' | 'staging' = process.env.STAGING === 'true' ? 'staging' : 'production'
@@ -339,31 +330,18 @@ const app = new Hono<OrganizationEnv>()
     // self-describing in logs.
     const channelInstanceId = `mgd-${organizationId}-${environment}-notif`
 
-    // Standalone `magic_link` webhook registration + endpoint-id persistence.
-    // Runs after the channel row commits (that is when platform creds are
-    // exercised). Best-effort: a failure here never fails the channel claim;
-    // the magic-link mint path records `magic_link_endpoint_unconfigured`
-    // until a later re-claim succeeds.
-    const registerMagicLinkEndpoint = async (): Promise<void> => {
+    // Push existing staff WhatsApp phones to the platform as staff-links.
+    // Without this, `syncStaffLinks` only runs on a staff-phone edit or the
+    // daily cron — so staff who verified their number BEFORE the channel was
+    // claimed have no platform staff-link, and their inbound WhatsApp replies
+    // are silently dropped by the platform forwarder (`forwardToLinkedStaff`).
+    const enqueueStaffLinkSync = async (): Promise<void> => {
       try {
-        const magic = await registerWebhookWithPlatform({
-          platformBaseUrl,
-          tenantId,
-          tenantHmacSecret,
-          provider: 'magic_link',
-          webhookUrl: `${readAppBaseUrl().replace(/\/$/, '')}/auth/magic-finish`,
-          verifyToken: deriveVerifyToken({
-            tenantSlug,
-            environment,
-            provider: 'magic_link',
-            betterAuthSecret,
-          }),
-        })
-        await setOrgSetting(organizationId, 'magicLinkEndpointId', magic.endpointId)
+        await syncStaffLinksEnqueue(organizationId)
       } catch (err) {
         logger.warn(
           { err, organizationId },
-          '[channels/managed] magic-link endpoint registration failed — notification claim still succeeded',
+          '[channels/managed] staff-link sync enqueue failed — notification claim still succeeded',
         )
       }
     }
@@ -377,7 +355,7 @@ const app = new Hono<OrganizationEnv>()
       const instances = await listInstances(organizationId, kindSpec.channelName)
       const existing = instances.find((i) => isManagedConfig(i.config))
       if (existing) {
-        await registerMagicLinkEndpoint()
+        await enqueueStaffLinkSync()
         return c.json({ status: 'already_claimed', instance: existing })
       }
     }
@@ -413,7 +391,7 @@ const app = new Hono<OrganizationEnv>()
         // so this value is informational, not behavioural.
         defaultAssignee: bodyAssignee,
       })
-      await registerMagicLinkEndpoint()
+      await enqueueStaffLinkSync()
       const webhook = result.webhookOk
         ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)
         : ({ ok: false, detail: result.webhookDetail ?? 'unknown' } as const)

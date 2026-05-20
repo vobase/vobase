@@ -52,6 +52,27 @@ async function hashToken(token: string): Promise<string> {
   return Buffer.from(hash).toString('base64url').replace(/=/g, '')
 }
 
+/**
+ * Reproduce better-call's `signCookieValue` (the signer behind better-auth's
+ * `setSignedCookie`): `encodeURIComponent(token + '.' + base64(HMAC-SHA256))`.
+ *
+ * better-auth writes the session-token cookie SIGNED and rejects an unsigned
+ * value on read — so this route must sign the cookie itself, exactly as
+ * `cookies/index.mjs::setSessionCookie` would, or the SPA loads unauthenticated.
+ */
+async function signSessionToken(token: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(token))
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+  return encodeURIComponent(`${token}.${sigB64}`)
+}
+
 // ─── Query schema ─────────────────────────────────────────────────────────────
 
 const finishQuerySchema = z.object({
@@ -67,12 +88,6 @@ export function createMagicFinishRoutes(auth: Auth, db: ScopedDb): Hono {
     new Hono()
       // Main finish handler — verify token, create session, set cookie, 302.
       .get('/', async (c) => {
-        // Platform magic-link ownership challenge: registration probes this
-        // URL with a bare `?challenge=<random>` (no token) and expects the
-        // body to echo it. A real finish link always carries `token`.
-        const challenge = c.req.query('challenge')
-        if (challenge && !c.req.query('token')) return c.text(challenge, 200)
-
         const parsed = finishQuerySchema.safeParse({
           token: c.req.query('token'),
           redirect: c.req.query('redirect'),
@@ -100,7 +115,8 @@ export function createMagicFinishRoutes(auth: Auth, db: ScopedDb): Hono {
           return c.html(renderErrorPage('This link is invalid. Please request a fresh one.'), 400)
         }
 
-        const internalAdapter = (await auth.$context).internalAdapter
+        const authContext = await auth.$context
+        const internalAdapter = authContext.internalAdapter
 
         // We don't call `auth.api.magicLinkVerify`: it owns the redirect via better-auth's
         // `originCheck` + `errorCallbackURL`, sets its own cookie, and has no
@@ -160,7 +176,8 @@ export function createMagicFinishRoutes(auth: Auth, db: ScopedDb): Hono {
         const expiresAt = session.expiresAt as Date
         const maxAgeSeconds = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
         const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
-        const cookieValue = `${SESSION_COOKIE_NAME}=${session.token}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAgeSeconds}`
+        const signedToken = await signSessionToken(session.token, authContext.secret)
+        const cookieValue = `${SESSION_COOKIE_NAME}=${signedToken}; HttpOnly${secure}; SameSite=Lax; Path=/; Max-Age=${maxAgeSeconds}`
 
         logger.info({ userId: user.id, organizationId }, '[magic-finish] session created, redirecting')
 

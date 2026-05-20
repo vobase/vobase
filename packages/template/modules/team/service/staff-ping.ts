@@ -8,7 +8,6 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
-import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authUser as authUserTable } from '@auth/schema'
 import { agentDefinitions } from '@modules/agents/schema'
 import { decideChangeProposal } from '@modules/changes/service/proposals'
@@ -258,7 +257,7 @@ export type SendTemplateFn = (input: {
 /**
  * Platform base URL used to strip the prefix from a mint result URL and produce
  * the `buttonUrlSuffix` Meta expects.
- * e.g. `https://platform.vobase.dev/auth/magic?...` → `auth/magic?...`
+ * e.g. `https://platform.vobase.dev/api/redirect?...` → `api/redirect?...`
  */
 const PLATFORM_BASE_URL = 'https://platform.vobase.dev/'
 
@@ -440,6 +439,55 @@ export interface MentionNotifyService {
   fanOutNoteMentions(note: MentionFanOutNote): Promise<FanOutResult>
   /** Producer side — durably enqueues the fan-out as a pg-boss job. */
   enqueueFanOut(note: InternalNote): Promise<void>
+  /**
+   * Dev-only: send a test notification of `kind` to the given staff user's own
+   * WhatsApp. No ping-ledger or timeline write — purely exercises the send path.
+   */
+  sendTestNotification(
+    kind: PingKind,
+    userId: string,
+    organizationId: string,
+  ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }>
+}
+
+/** Placeholder body content for a dev test notification of each kind. */
+function buildTestParams(kind: PingKind): {
+  snippet?: string
+  agentName?: string
+  summary?: string
+  detail?: string
+  alertHeadline?: string
+  alertDetail?: string
+  organizationName?: string
+  conversationId: string | null
+  referenceId: string
+} {
+  switch (kind) {
+    case 'mention':
+      return {
+        agentName: 'Vobase',
+        snippet: 'Test mention — your WhatsApp notifications are working.',
+        conversationId: null,
+        referenceId: 'test',
+      }
+    case 'approval':
+    case 'proposal':
+      return {
+        agentName: 'Vobase',
+        summary: 'Test decision request',
+        detail: 'This is a test notification — no action needed.',
+        conversationId: null,
+        referenceId: 'test',
+      }
+    case 'admin_alert':
+      return {
+        alertHeadline: 'Test admin alert',
+        alertDetail: 'This is a test notification — no action needed.',
+        organizationName: 'Vobase',
+        conversationId: null,
+        referenceId: 'test',
+      }
+  }
 }
 
 function parseStaffMention(raw: string): string | null {
@@ -568,11 +616,9 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
           proposalId: params.proposalId,
         })
         const redirectPath = redirectPathFor(refs)
-        const endpointId = await getMagicLinkEndpointId(deps.db as ScopedDb, organizationId)
         const mintResult = await mintMagicLink(auth, deps.db as ScopedDb, {
           userId: profile.userId,
           email: userRow.email,
-          endpointId,
           organizationId,
           redirectPath,
         })
@@ -767,7 +813,19 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     })
   }
 
-  return { fanOutNoteMentions, enqueueFanOut }
+  async function sendTestNotification(
+    kind: PingKind,
+    userId: string,
+    organizationId: string,
+  ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
+    const profile = await findStaff(userId)
+    if (!profile || profile.organizationId !== organizationId) {
+      return { ok: false, reason: 'no_profile' }
+    }
+    return sendNotification(organizationId, profile, kind, buildTestParams(kind))
+  }
+
+  return { fanOutNoteMentions, enqueueFanOut, sendTestNotification }
 }
 
 let _current: MentionNotifyService | null = null
@@ -790,6 +848,15 @@ export function fanOutNoteMentions(note: MentionFanOutNote): Promise<FanOutResul
 
 export function enqueueMentionFanOut(note: InternalNote): Promise<void> {
   return current().enqueueFanOut(note)
+}
+
+/** Dev-only: send a test WhatsApp notification of `kind` to a staff user's own phone. */
+export function sendTestNotification(
+  kind: PingKind,
+  userId: string,
+  organizationId: string,
+): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
+  return current().sendTestNotification(kind, userId, organizationId)
 }
 
 // Re-export MagicLinkMintError so dispatcher can catch it without importing auth directly.

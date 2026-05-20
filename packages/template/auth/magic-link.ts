@@ -6,13 +6,18 @@
  * nonce before the call and resolves once `deliver` is invoked from the plugin callback.
  *
  * The `url` arg in `sendMagicLink` is the tenant's own verify endpoint — discarded. We
- * construct the platform deep-link from scratch using `metadata.{endpointId, organizationId,
- * callbackURL}` round-tripped through the `signInMagicLink` body.
+ * construct the platform deep-link from scratch: the tenant builds the full
+ * `/auth/magic-finish` destination URL on its own host, HMAC-signs it with the
+ * shared `PLATFORM_HMAC_SECRET`, and wraps it in the platform's trusted-redirect
+ * endpoint (`/api/redirect?tenant=&dest=&sig=`). The platform verifies the
+ * signature against the tenant's stored secret and 302s to `dest` — no
+ * platform-side endpoint registry, no per-org endpoint id.
  */
 
-import { notFound } from '@vobase/core'
+import { notFound, signHmac } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
+import { readAppBaseUrl } from '~/runtime/app-url'
 import { createCaptor } from './captor-pattern'
 import type { Auth } from './index'
 import { authUser } from './schema'
@@ -34,13 +39,13 @@ export class MagicLinkMintError extends Error {
 
 const CAPTOR_TIMEOUT_MS = 5_000
 
-const PLATFORM_MAGIC_BASE = 'https://platform.vobase.dev/auth/magic'
+/** Platform trusted-redirect endpoint — verifies the tenant HMAC and 302s to `dest`. */
+const PLATFORM_REDIRECT_BASE = 'https://platform.vobase.dev/api/redirect'
 
 /** Per-mint payload threaded through better-auth's `sendMagicLink` metadata. */
 interface MintPayload {
   email: string
   redirectPath: string
-  endpointId: string
   organizationId: string
   /** The Auth instance is per-call because this module is stateless w.r.t. it. */
   auth: Auth
@@ -63,7 +68,6 @@ export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
         callbackURL: payload.redirectPath,
         metadata: {
           nonce,
-          endpointId: payload.endpointId,
           organizationId: payload.organizationId,
           // callbackURL is not included in the sendMagicLink callback payload,
           // so we round-trip it here so the captor can construct the platform URL.
@@ -75,14 +79,32 @@ export const magicLinkCaptor = createCaptor<MintPayload, DeliveredToken>({
   },
 })
 
-/** Invoked by `auth/plugins.ts::sendMagicLink` to resolve the pending captor promise. */
+/**
+ * Invoked by `auth/plugins.ts::sendMagicLink` to resolve the pending captor promise.
+ *
+ * Builds the tenant-owned `magic-finish` destination, HMAC-signs the full URL with
+ * the shared `PLATFORM_HMAC_SECRET`, and wraps it in the platform trusted-redirect
+ * endpoint. The platform verifies the signature against the tenant's stored secret
+ * and 302s to `dest` verbatim.
+ */
 export function deliverMagicLinkToken(args: { token: string; metadata: Record<string, unknown> | undefined }): void {
   const { token, metadata } = args
-  const endpointId = typeof metadata?.endpointId === 'string' ? metadata.endpointId : ''
   const organizationId = typeof metadata?.organizationId === 'string' ? metadata.organizationId : ''
   const callbackURL = typeof metadata?.callbackURL === 'string' ? metadata.callbackURL : ''
 
-  const url = `${PLATFORM_MAGIC_BASE}?endpoint=${encodeURIComponent(endpointId)}&token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(callbackURL)}&organization=${encodeURIComponent(organizationId)}`
+  const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
+  const hmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+  // Signing with an empty key would mint a syntactically valid URL that always
+  // 403s at the platform — fail loudly at mint time instead of at click time.
+  if (!tenantSlug || !hmacSecret) {
+    throw new MagicLinkMintError('magic_link_mint_failed', {
+      cause: new Error('VITE_PLATFORM_TENANT_SLUG and PLATFORM_HMAC_SECRET must be set to sign magic links'),
+    })
+  }
+
+  const dest = `${readAppBaseUrl()}/auth/magic-finish?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(callbackURL)}&organization=${encodeURIComponent(organizationId)}`
+  const sig = signHmac(dest, hmacSecret)
+  const url = `${PLATFORM_REDIRECT_BASE}?tenant=${encodeURIComponent(tenantSlug)}&dest=${encodeURIComponent(dest)}&sig=${sig}`
 
   magicLinkCaptor.deliver({ metadata, result: { token, url } })
 }
@@ -96,7 +118,6 @@ interface DbForUserLookup {
 export interface MintInput {
   userId: string
   email: string
-  endpointId: string
   organizationId: string
   /** Produced by `redirectPathFor(refs)` in notification-template-payloads.ts */
   redirectPath: string
@@ -116,7 +137,7 @@ export interface MintResult {
  * Must only be called post-commit — never inside a wake-trigger renderer.
  */
 export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: MintInput): Promise<MintResult> {
-  const { userId, email, endpointId, organizationId, redirectPath } = input
+  const { userId, email, organizationId, redirectPath } = input
 
   // Pre-flight: fail fast if the user doesn't exist rather than letting
   // better-auth redirect with "new_user_signup_disabled" at verify time.
@@ -132,7 +153,7 @@ export async function mintMagicLink(auth: Auth, db: DbForUserLookup, input: Mint
 
   let captured: DeliveredToken
   try {
-    captured = await magicLinkCaptor.mint({ email, redirectPath, endpointId, organizationId, auth })
+    captured = await magicLinkCaptor.mint({ email, redirectPath, organizationId, auth })
   } catch (err) {
     if (err instanceof MagicLinkMintError) {
       throw new MagicLinkMintError('magic_link_mint_failed', { cause: err.cause ?? err })

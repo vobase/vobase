@@ -120,7 +120,12 @@ function defaultReadPlatformCreds(): PlatformCreds | null {
   // provisioning at modules/provisioning/jobs.ts in vobase-platform.
   const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
   const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
-  const environment: 'production' | 'staging' = process.env.NODE_ENV === 'production' ? 'production' : 'staging'
+  // `STAGING`, not `NODE_ENV`, is the env discriminator: the Dockerfile pins
+  // `NODE_ENV=production` in every tenant container, so `NODE_ENV` cannot tell
+  // production from staging — and is unset in local dev. This MUST match the
+  // notification-channel claim in `channels/.../managed.ts`, or the synced
+  // staff-links scope to a `mgd-<org>-<env>-notif` id the channel never used.
+  const environment: 'production' | 'staging' = process.env.STAGING === 'true' ? 'staging' : 'production'
   if (!platformBaseUrl || !tenantId || !tenantHmacSecret) return null
   return { platformBaseUrl, tenantId, tenantHmacSecret, environment }
 }

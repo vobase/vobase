@@ -13,7 +13,6 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
-import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authUser as authUserTable } from '@auth/schema'
 import type { AutomationRunStatus } from '@modules/automations/schema'
 import { automationRuns } from '@modules/automations/schema'
@@ -427,11 +426,9 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
         proposalId: eventPayload.proposalId,
       })
       try {
-        const endpointId = await getMagicLinkEndpointId(deps.db, organizationId)
         const mintResult = await mintMagicLink(auth, deps.db, {
           userId: profile.userId,
           email,
-          endpointId,
           organizationId,
           redirectPath: redirectPathFor(refs),
         })

@@ -4,7 +4,7 @@ import { getOrgSetting, type OrgSettingKey, setOrgSetting } from '@modules/setti
 import { Hono } from 'hono'
 import { z } from 'zod'
 
-const ORG_SETTING_KEYS: OrgSettingKey[] = ['defaultOperatorAgentId', 'operatorHeartbeatEnabled', 'magicLinkEndpointId']
+const ORG_SETTING_KEYS: OrgSettingKey[] = ['defaultOperatorAgentId', 'operatorHeartbeatEnabled']
 
 const setSchema = z.object({ value: z.string().nullable() })
 

@@ -10,7 +10,6 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
-import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authMember, authUser } from '@auth/schema'
 import { automationRuns } from '@modules/automations/schema'
 import { findNotificationChannel } from '@modules/channels/service/instances'
@@ -243,11 +242,9 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
       if (auth) {
         const refs = buildRedirectRefs('admin_alert', { conversationId: null, referenceId: input.dedupKey })
         const redirectPath = redirectPathFor(refs)
-        const endpointId = await getMagicLinkEndpointId(db, input.orgId)
         const mintResult = await mintMagicLink(auth, db, {
           userId: recipient.userId,
           email: recipient.email,
-          endpointId,
           organizationId: input.orgId,
           redirectPath,
         })
