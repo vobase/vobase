@@ -13,17 +13,15 @@
  */
 
 import { buildAuthLookup } from '@auth/lookup'
-import { authUser } from '@auth/schema'
 import { type AgentDefinition, operatorThreads } from '@modules/agents/schema'
 import { getCliRegistry } from '@modules/agents/service/cli-registry'
 import * as syntheticIds from '@modules/agents/service/synthetic-ids'
 import { threads as threadsApi } from '@modules/agents/service/threads'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { filesServiceFor } from '@modules/drive/service/files'
-import { staffProfiles } from '@modules/team/schema'
 import type { AgentContributions, SideLoadContributor, WakeRuntime } from '@vobase/core'
 import { DirtyTracker, journalGetLastWakeTail, type OnEventListener } from '@vobase/core'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 import {
@@ -219,20 +217,13 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
             .where(eq(operatorThreads.id, threadId))
             .limit(1)
           const createdBy = thread?.createdBy ?? null
-          const [profile] = createdBy
-            ? await deps.db
-                .select({ phoneNumber: authUser.phoneNumber })
-                .from(staffProfiles)
-                .innerJoin(authUser, eq(authUser.id, staffProfiles.userId))
-                .where(and(eq(staffProfiles.userId, createdBy), eq(staffProfiles.organizationId, data.organizationId)))
-                .limit(1)
-            : [undefined]
           const notifChannel = await findNotificationChannel(data.organizationId)
           return createNotificationMirrorObserver({
             organizationId: data.organizationId,
             threadId,
             agentName: agentDefinition.name,
-            staffPhoneE164: profile?.phoneNumber ?? null,
+            db: deps.db,
+            staffUserId: createdBy,
             notificationChannelInstanceId: notifChannel?.id ?? null,
             logger: deps.logger,
           })

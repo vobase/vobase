@@ -88,6 +88,20 @@ export interface StaffReplyResult {
   decision?: 'approve' | 'deny'
 }
 
+/**
+ * Operator-agent-facing hint when a staff member quote-replied a notification
+ * whose ping no longer exists (claimed already, or aged past the 30-min TTL).
+ * The reply is likely an answer to that expired question — flag it so the
+ * operator agent confirms intent before acting on a possibly-stale decision.
+ */
+function buildStaleQuoteHint(): string {
+  return (
+    'Heads up: this teammate quote-replied a notification whose question has already expired or been answered. ' +
+    'This message may be a late answer to that earlier question rather than a fresh request — confirm what they ' +
+    'mean before acting on it, especially if it reads like a decision (an approval, a refund, a policy exception).'
+  )
+}
+
 /** Operator-agent-facing note when a reply couldn't be auto-routed to a consult. */
 function buildAmbiguousReplyHint(liveCount: number): string {
   return (
@@ -159,7 +173,16 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
     .select({ userId: staffProfiles.userId })
     .from(staffProfiles)
     .innerJoin(authUser, eq(authUser.id, staffProfiles.userId))
-    .where(and(eq(staffProfiles.organizationId, organizationId), eq(authUser.phoneNumber, candidate)))
+    .where(
+      and(
+        eq(staffProfiles.organizationId, organizationId),
+        eq(authUser.phoneNumber, candidate),
+        // Receive-side gating mirrors the send side: an unverified (or
+        // typo'd) number must not have a stranger's WhatsApp replies authored
+        // as this staff member's internal notes.
+        eq(authUser.phoneNumberVerified, true),
+      ),
+    )
     .limit(1)
   if (!staff) return { ok: true, branch: 'unmatched_staff' }
 
@@ -233,6 +256,9 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   // `ambiguous` (≥2 live pings, no quoted wamid — we refuse to guess which
   // conversation the reply answers; the operator agent gets a `system` hint).
   const ambiguousCount = claim.status === 'ambiguous' ? claim.liveCount : null
+  // A quote-reply (`context.id` present) that resolved no ping means the
+  // quoted notification's ping expired or was already claimed.
+  const staleQuote = claim.status === 'none' && Boolean(msg.context?.id)
   let agentId: string | null = await getOrgSetting(organizationId, 'defaultOperatorAgentId')
   if (!agentId) {
     const [first] = await db
@@ -287,6 +313,8 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
       role: 'system',
       content: buildAmbiguousReplyHint(ambiguousCount),
     })
+  } else if (staleQuote) {
+    await threadsApi.appendMessage({ threadId, role: 'system', content: buildStaleQuoteHint() })
   }
 
   await requireJobs().send(

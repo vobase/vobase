@@ -193,7 +193,7 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
         referenceId: input.referenceId ?? null,
       })
       .onConflictDoUpdate({
-        target: [pendingStaffPings.conversationId, pendingStaffPings.staffUserId],
+        target: [pendingStaffPings.organizationId, pendingStaffPings.conversationId, pendingStaffPings.staffUserId],
         set: {
           askingAgentId: input.askingAgentId,
           originalNoteId: input.originalNoteId,

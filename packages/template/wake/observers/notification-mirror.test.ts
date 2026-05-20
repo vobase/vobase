@@ -21,12 +21,32 @@ import {
 } from '@modules/channels/service/registry'
 import type { ChannelAdapter, HarnessLogger, WakeRuntime } from '@vobase/core'
 
+import type { ScopedDb } from '~/runtime'
 import { createNotificationMirrorObserver } from './notification-mirror'
 
 const ORG = 'org-test-mirror'
 const THREAD = 'thr-test-mirror'
+const STAFF_USER = 'usr-test-mirror'
 const STAFF_PHONE = '+6581234567'
 const NOTIF_CHANNEL_ID = `mgd-${ORG}-staging-notif`
+
+/**
+ * Stub `ScopedDb` for the observer's per-dispatch phone lookup
+ * (`select().from(staffProfiles).innerJoin(authUser).where().limit()`).
+ * Returns the given phone, or an empty result when `phone` is null (the
+ * staff member is no longer a verified member of the org).
+ */
+function makeStubDb(phone: string | null): ScopedDb {
+  const result = phone ? [{ phone }] : []
+  const chain = {
+    select: () => chain,
+    from: () => chain,
+    innerJoin: () => chain,
+    where: () => chain,
+    limit: () => Promise.resolve(result),
+  }
+  return chain as unknown as ScopedDb
+}
 
 interface SentMsg {
   to: string
@@ -128,11 +148,12 @@ function makeMessageEnd(
 }
 
 describe('createNotificationMirrorObserver', () => {
-  it('no-ops when staffPhoneE164 is null', async () => {
+  it('no-ops when staffUserId is null', async () => {
     const observer = createNotificationMirrorObserver({
       organizationId: ORG,
       threadId: THREAD,
-      staffPhoneE164: null,
+      db: makeStubDb(STAFF_PHONE),
+      staffUserId: null,
       notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
@@ -144,8 +165,22 @@ describe('createNotificationMirrorObserver', () => {
     const observer = createNotificationMirrorObserver({
       organizationId: ORG,
       threadId: THREAD,
-      staffPhoneE164: STAFF_PHONE,
+      db: makeStubDb(STAFF_PHONE),
+      staffUserId: STAFF_USER,
       notificationChannelInstanceId: null,
+      logger: NOOP_LOGGER,
+    })
+    await observer(makeMessageEnd('assistant', 'hi') as never, STUB_RUNTIME)
+    expect(sentMessages.length).toBe(0)
+  })
+
+  it('no-ops when the staff member is no longer a verified org member', async () => {
+    const observer = createNotificationMirrorObserver({
+      organizationId: ORG,
+      threadId: THREAD,
+      db: makeStubDb(null),
+      staffUserId: STAFF_USER,
+      notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('assistant', 'hi') as never, STUB_RUNTIME)
@@ -156,7 +191,8 @@ describe('createNotificationMirrorObserver', () => {
     const observer = createNotificationMirrorObserver({
       organizationId: ORG,
       threadId: THREAD,
-      staffPhoneE164: STAFF_PHONE,
+      db: makeStubDb(STAFF_PHONE),
+      staffUserId: STAFF_USER,
       notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
@@ -178,7 +214,8 @@ describe('createNotificationMirrorObserver', () => {
     const observer = createNotificationMirrorObserver({
       organizationId: ORG,
       threadId: THREAD,
-      staffPhoneE164: STAFF_PHONE,
+      db: makeStubDb(STAFF_PHONE),
+      staffUserId: STAFF_USER,
       notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
@@ -190,7 +227,8 @@ describe('createNotificationMirrorObserver', () => {
     const observer = createNotificationMirrorObserver({
       organizationId: ORG,
       threadId: THREAD,
-      staffPhoneE164: STAFF_PHONE,
+      db: makeStubDb(STAFF_PHONE),
+      staffUserId: STAFF_USER,
       notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
@@ -202,12 +240,13 @@ describe('createNotificationMirrorObserver', () => {
     const observer = createNotificationMirrorObserver({
       organizationId: ORG,
       threadId: THREAD,
-      staffPhoneE164: STAFF_PHONE,
+      db: makeStubDb(STAFF_PHONE),
+      staffUserId: STAFF_USER,
       notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('assistant', 'Hello from agent') as never, STUB_RUNTIME)
     expect(sentMessages.length).toBe(1)
-    expect(sentMessages[0]).toEqual({ to: STAFF_PHONE, text: 'Hello from agent' })
+    expect(sentMessages[0]).toEqual({ to: STAFF_PHONE, text: '[Agent]: Hello from agent' })
   })
 })

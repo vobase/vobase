@@ -223,7 +223,10 @@ export const pendingStaffPings = teamPgSchema.table(
   (t) => [
     index('idx_pending_staff_pings_staff').on(t.staffUserId, t.organizationId),
     index('idx_pending_staff_pings_created').on(t.createdAt),
-    uniqueIndex('uq_pending_staff_pings_conv_staff').on(t.conversationId, t.staffUserId),
+    uniqueIndex('uq_pending_staff_pings_conv_staff').on(t.organizationId, t.conversationId, t.staffUserId),
+    // A WAMID identifies exactly one outbound ping, so the quote-reply claim
+    // rung can treat `outbound_wamid` as a real key rather than a hint.
+    uniqueIndex('uq_pending_staff_pings_wamid').on(t.outboundWamid).where(sql`${t.outboundWamid} IS NOT NULL`),
     // Partial index for live-row scans (claimed_at IS NULL = unclaimed). Keeps
     // the count-aware claim CTE and ambiguity check fast as the table grows.
     index('idx_pending_staff_pings_live').on(t.staffUserId, t.organizationId).where(sql`${t.claimedAt} IS NULL`),
