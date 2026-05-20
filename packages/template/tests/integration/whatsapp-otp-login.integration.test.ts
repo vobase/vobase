@@ -26,7 +26,11 @@
  * would lose the column-mapping behavior we depend on.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
 import { createNanoid } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -36,31 +40,46 @@ import { mintPhoneOtp } from '../../auth/phone-otp'
 import { authOrganization, authUser } from '../../auth/schema'
 import { connectTestDb, resetAndSeedDb } from '../helpers/test-db'
 
-// ─── Notification-settings approval stub (needed by mintPhoneOtp transitively) ─
+// ─── Notification-channel approval stub (needed by mintPhoneOtp transitively) ─
 // The direct-client `deliverPhoneOtp` path does NOT touch
-// `getNotificationSettings` (no template-approval gate on the login path —
+// `findNotificationChannel` (no template-approval gate on the login path —
 // the gate lives inside `mintPhoneOtp`), but `auth/phone-otp.ts` still
-// imports `@modules/channels/service/notification-settings` dynamically inside
+// imports `@modules/channels/service/instances` dynamically inside
 // `mintPhoneOtp`. Stubbing here keeps the module graph happy if any code
 // path lazy-loads it.
 
-mock.module('@modules/channels/service/notification-settings', () => ({
-  getNotificationSettings: async (_db: unknown, _orgId: string) => ({
-    organizationId: 'stub',
-    notificationEndpointId: 'ep-notif-stub',
-    magicLinkEndpointId: 'ep-ml-stub',
-    platformHmacSecretEnvelope: 'envelope-stub',
-    platformBaseUrl: 'http://platform.test',
-    displayPhoneNumber: '+15550001',
-    phoneNumberId: 'pn-stub',
-    wabaId: 'waba-stub',
-    metaTemplateApprovals: { vobase_platform_otp: 'approved' },
-    lastVerifyStatus: null,
-    lastVerifiedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }),
-}))
+function installNotifChannelStub(): void {
+  installChannelInstancesService({
+    list: async (_organizationId: string, channel?: string) => {
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [
+        {
+          id: 'mgd-stub-staging-notif',
+          organizationId: 'stub',
+          channel: 'whatsapp_notif',
+          role: 'staff',
+          displayName: 'Staff WhatsApp notification',
+          config: { mode: 'managed', kind: 'notification', metaTemplateApprovals: { vobase_platform_otp: 'approved' } },
+          platformChannelId: 'pc-notif-stub',
+          webhookSecret: null,
+          status: 'active',
+          setupStage: 'active',
+          lastError: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          // biome-ignore lint/suspicious/noExplicitAny: stub subset of ChannelInstance
+        } as any,
+      ]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
+  })
+}
 
 // ─── Global fetch stub for the platform OTP relay ────────────────────────────
 
@@ -109,6 +128,7 @@ let orgAId: string
 
 beforeAll(async () => {
   await resetAndSeedDb()
+  installNotifChannelStub()
   // biome-ignore lint/suspicious/noExplicitAny: drizzle typed db
   auth = createAuth(handle.db as any)
   app = buildAuthApp(auth)
@@ -122,6 +142,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await handle.teardown()
   globalThis.fetch = realFetch
+  __resetChannelInstancesServiceForTests()
 })
 
 beforeEach(() => {

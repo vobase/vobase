@@ -20,7 +20,7 @@
 
 import type { InferSelectModel } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
-import { jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { settingsPgSchema } from '~/runtime'
 import type { NotificationPrefsMatrix } from './notification-prefs-types'
@@ -31,12 +31,15 @@ export { NOTIFICATION_CHANNELS, NOTIFICATION_KINDS } from './notification-prefs-
 export interface UserNotificationPrefs {
   userId: string
   prefs: NotificationPrefsMatrix
+  /** When true, this staff member receives mention WhatsApp pings even while online (instead of being skipped). */
+  notifyWhileOnline: boolean
   updatedAt: Date
 }
 
 export const userNotificationPrefs = settingsPgSchema.table('user_notification_prefs', {
   userId: text('user_id').primaryKey(),
   prefs: jsonb('prefs').$type<NotificationPrefsMatrix>().notNull().default(sql`'{}'::jsonb`),
+  notifyWhileOnline: boolean('notify_while_online').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()

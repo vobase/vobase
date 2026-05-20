@@ -12,36 +12,59 @@
  * the staff-ping side effects via stubs.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
+import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
 import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
 
-// Toggled by the "no notification settings" test to simulate the unconfigured-org
-// branch. Default = true → getNotificationSettings returns a populated row.
+// Toggled by the "no notification channel" test to simulate the unclaimed-org
+// branch. Default = true → findNotificationChannel resolves a populated row.
 let installedNotifSettings = true
 
-mock.module('@modules/channels/service/notification-settings', () => ({
-  getNotificationSettings: async (_db: unknown, _orgId: string) =>
-    installedNotifSettings
-      ? {
+/**
+ * Stub channel-instances service so `findNotificationChannel` resolves a
+ * notification-tier `whatsapp_notif` row. Installed via the real
+ * `installChannelInstancesService` seam (not `mock.module`) so it stays
+ * scoped to this file and is torn down in `afterAll`.
+ */
+function installNotifChannelStub(): void {
+  installChannelInstancesService({
+    list: async (_organizationId: string, channel?: string) => {
+      if (!installedNotifSettings) return []
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [
+        {
+          id: 'mgd-stub-staging-notif',
           organizationId: 'stub',
-          notificationEndpointId: 'ep-notif-stub',
-          magicLinkEndpointId: 'ep-ml-stub',
-          platformHmacSecretEnvelope: 'envelope-stub',
-          platformBaseUrl: 'http://platform.test',
-          displayPhoneNumber: '+15550001',
-          phoneNumberId: 'pn-stub',
-          wabaId: 'waba-stub',
-          metaTemplateApprovals: {},
-          lastVerifyStatus: null,
-          lastVerifiedAt: null,
+          channel: 'whatsapp_notif',
+          role: 'staff',
+          displayName: 'Staff WhatsApp notification',
+          config: { mode: 'managed', kind: 'notification', metaTemplateApprovals: {} },
+          platformChannelId: 'pc-notif-stub',
+          webhookSecret: null,
+          status: 'active',
+          setupStage: 'active',
+          lastError: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-        }
-      : null,
-}))
+          // biome-ignore lint/suspicious/noExplicitAny: stub subset of ChannelInstance
+        } as any,
+      ]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
+  })
+}
 
 import {
   __resetPendingStaffPingServiceForTests as __resetPendingMentionPingServiceForTests,
@@ -77,6 +100,9 @@ interface SentMsg {
 
 const sent: SentMsg[] = []
 let nextSendOk = true
+// Toggled by the presence-bypass test to simulate a staff member with the
+// per-user `notifyWhileOnline` preference on. Default = false → online staff skipped.
+let notifyWhileOnlinePref = false
 
 const stubSendTemplate: SendTemplateFn = async ({ staffPhoneE164, templateName, bodyParams, buttonUrlSuffix }) => {
   sent.push({ to: staffPhoneE164, templateName, bodyParams, buttonUrlSuffix })
@@ -153,9 +179,15 @@ function installStubs(): void {
         proposal: { in_app: true, whatsapp: true, email: false },
         admin_alert: { in_app: true, whatsapp: true, email: false },
       },
+      notifyWhileOnline: notifyWhileOnlinePref,
       updatedAt: new Date(),
     }),
-    upsert: async (userId, matrix) => ({ userId, prefs: matrix, updatedAt: new Date() }),
+    upsert: async (userId, matrix, notifyWhileOnline) => ({
+      userId,
+      prefs: matrix,
+      notifyWhileOnline,
+      updatedAt: new Date(),
+    }),
     isEnabled: async (_uid, _k, channel) => channel !== 'email',
   })
 
@@ -174,6 +206,8 @@ function installStubs(): void {
   }
   installPendingMentionPingService(pingStub)
 
+  installNotifChannelStub()
+
   // The system-under-test
   installMentionNotifyService(createMentionNotifyService({ db: null as unknown, sendTemplate: stubSendTemplate }))
 }
@@ -183,6 +217,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  __resetChannelInstancesServiceForTests()
   __resetStaffServiceForTests()
   __resetNotificationPrefsServiceForTests()
   __resetPendingMentionPingServiceForTests()
@@ -194,6 +229,7 @@ afterEach(() => {
   recordedPings.length = 0
   installedNotifSettings = true
   nextSendOk = true
+  notifyWhileOnlinePref = false
 })
 
 // biome-ignore lint/suspicious/noExplicitAny: minimal note shape for the fan-out
@@ -236,6 +272,15 @@ describe('staff-ping rewrite (Unit 8)', () => {
     expect(result.notified).toEqual([])
     expect(result.skipped[0]?.reason).toBe('online')
     expect(sent.length).toBe(0)
+  })
+
+  it('notifies online staff when their notifyWhileOnline preference is on', async () => {
+    notifyWhileOnlinePref = true
+    const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_ONLINE}`]))
+    expect(result.notified).toEqual([STAFF_ONLINE])
+    expect(result.skipped.length).toBe(0)
+    expect(sent.length).toBe(1)
+    expect(sent[0]?.to).toBe(STAFF_PHONE)
   })
 
   it('skips when no notification channel claimed', async () => {

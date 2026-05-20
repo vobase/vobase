@@ -190,15 +190,11 @@ describe('createMagicFinishRoutes', () => {
     expect(body).toContain('<meta name="robots" content="noindex">')
   })
 
-  // ── Test 7: Challenge endpoint ──────────────────────────────────────────────
+  // ── Test 7: Ownership challenge probe ───────────────────────────────────────
 
-  it('challenge endpoint: echoes challenge param, empty string when absent', async () => {
-    const withParam = await app.request('/challenge?challenge=abc-123')
-    expect(withParam.status).toBe(200)
-    expect(await withParam.text()).toBe('abc-123')
-
-    const withoutParam = await app.request('/challenge')
-    expect(withoutParam.status).toBe(200)
-    expect(await withoutParam.text()).toBe('')
+  it('challenge probe: a bare ?challenge= (no token) echoes the challenge', async () => {
+    const probe = await app.request('/?challenge=abc-123')
+    expect(probe.status).toBe(200)
+    expect(await probe.text()).toBe('abc-123')
   })
 })

@@ -12,7 +12,7 @@ import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authUser as authUserTable } from '@auth/schema'
 import { agentDefinitions } from '@modules/agents/schema'
 import { decideChangeProposal } from '@modules/changes/service/proposals'
-import { getNotificationSettings } from '@modules/channels/service/notification-settings'
+import { findNotificationChannel } from '@modules/channels/service/instances'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
 import {
   type DecisionRequiredBody,
@@ -545,12 +545,15 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
       referenceId?: string
     },
   ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
-    const settings = await getNotificationSettings(deps.db as ScopedDb, organizationId)
-    if (!settings) return { ok: false, reason: 'no_notification_channel' }
+    const channel = await findNotificationChannel(organizationId)
+    if (!channel) return { ok: false, reason: 'no_notification_channel' }
     if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
     if (!sendTemplate) return { ok: false, reason: 'platform_not_configured' }
 
-    const metaTemplateApprovals = settings.metaTemplateApprovals ?? null
+    const metaTemplateApprovals =
+      typeof channel.config?.metaTemplateApprovals === 'object' && channel.config.metaTemplateApprovals !== null
+        ? (channel.config.metaTemplateApprovals as Record<string, unknown>)
+        : null
 
     const { templateName, bodyParams } = buildTemplateForDispatch(kind, params, metaTemplateApprovals)
 
@@ -670,12 +673,15 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
               return
             }
             const displayName = profile.displayName ?? userId
-            if (!isOffline(profile.lastSeenAt)) {
+            const prefs = await getPrefs(userId)
+            // Online staff see the @-mention in-app, so the WhatsApp ping is
+            // skipped as redundant — unless this staff member opted in via the
+            // per-user "notify while online" preference.
+            if (!prefs.notifyWhileOnline && !isOffline(profile.lastSeenAt)) {
               result.skipped.push({ userId, reason: 'online' })
               await emitMentionSuppressed(note, userId, displayName, 'offline')
               return
             }
-            const prefs = await getPrefs(userId)
             const cell = prefs.prefs.mention ?? {}
             if (cell.whatsapp !== true) {
               result.skipped.push({ userId, reason: 'channel_disabled' })

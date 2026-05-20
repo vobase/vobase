@@ -28,7 +28,7 @@
 /** @contract platform-tenant-v1 */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import type { NotificationSettings } from '@modules/channels/service/notification-settings'
+import type { ChannelInstance } from '@modules/channels/schema'
 import { Hono } from 'hono'
 
 import type { StaffProfile } from '../../modules/team/schema'
@@ -159,19 +159,19 @@ function makeProfile(): StaffProfile {
   }
 }
 
-function makeSettings(): NotificationSettings {
+function makeChannel(): ChannelInstance {
   return {
+    id: `mgd-${ORG_ID}-staging-notif`,
     organizationId: ORG_ID,
-    notificationEndpointId: 'ep-notif-outage',
-    magicLinkEndpointId: 'ep-ml-outage',
-    platformHmacSecretEnvelope: 'envelope-outage',
-    platformBaseUrl: BASE_URL,
-    displayPhoneNumber: '+15550001',
-    phoneNumberId: 'pn-outage',
-    wabaId: 'waba-outage',
-    metaTemplateApprovals: {},
-    lastVerifyStatus: null,
-    lastVerifiedAt: null,
+    channel: 'whatsapp_notif',
+    role: 'staff',
+    displayName: 'Staff WhatsApp notification',
+    config: { mode: 'managed', kind: 'notification', platformBaseUrl: BASE_URL },
+    platformChannelId: 'pc-notif-outage',
+    webhookSecret: null,
+    status: 'active',
+    setupStage: 'active',
+    lastError: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -205,7 +205,7 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
         environment: 'staging' as const,
       },
       listStaff: async () => [makeProfile()],
-      getNotificationSettings: async () => makeSettings(),
+      getNotificationChannel: async () => makeChannel(),
     }
 
     // ─── Attempt 1: outage in effect ─────────────────────────────────────────
@@ -264,7 +264,7 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
         environment: 'staging' as const,
       },
       listStaff: async () => [makeProfile()],
-      getNotificationSettings: async () => makeSettings(),
+      getNotificationChannel: async () => makeChannel(),
     }
 
     // First run: converge.

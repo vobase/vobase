@@ -1,9 +1,15 @@
 /**
  * Minimal "Connect platform channel" dialog. Operators trigger it from the
  * placeholder row that the channels table renders for every managed kind
- * the org hasn't claimed yet. The dialog asks for one decision — which
- * agent should own incoming conversations on this channel — and then runs
- * the `claimAndBootstrap` sequence.
+ * the org hasn't claimed yet (sandbox + notification today; future kinds
+ * fall in automatically via `ManagedChannelKind`).
+ *
+ * The dialog asks for one decision — which agent should own incoming
+ * conversations on this channel — and then runs the same `claimAndBootstrap`
+ * sequence the previous Sheet/Dialog pair used. Notification-tier claims
+ * ignore `defaultAssignee` on the server (staff WA replies route via
+ * `org_settings.defaultOperatorAgentId`, not the channel row), so the
+ * picker is shown for UX consistency but doesn't drive behaviour there.
  */
 import type { ManagedChannelKind } from '@modules/channels/managed/registry'
 import { AssigneeBadge } from '@modules/messaging/components/assignee-badge'
@@ -42,13 +48,22 @@ const KIND_COPY: Record<ManagedChannelKind, { title: string; description: string
       'Claim a shared platform-managed WhatsApp number for testing. Customers reach you by sending `/link <endpointId>` to that number first.',
     cta: 'Connect sandbox',
   },
+  notification: {
+    title: 'Connect platform notification',
+    description:
+      'Claim a platform-managed WhatsApp number used exclusively for staff notifications. Staff link their phone in their profile to receive @-mention pings here.',
+    cta: 'Connect notification',
+  },
 }
 
 async function postClaim(kind: ManagedChannelKind, defaultAssignee: string | null): Promise<ClaimSuccessResponse> {
   // `defaultAssignee` is the full assignee token (`agent:<id>` / `user:<id>`)
   // emitted by `AssigneeBadge`. Server stores it verbatim.
   const body = defaultAssignee !== null ? { defaultAssignee } : {}
-  const r = await channelsClient.whatsapp.managed.claim.$post({ json: body })
+  const r =
+    kind === 'sandbox'
+      ? await channelsClient.whatsapp.managed.claim.$post({ json: body })
+      : await channelsClient.whatsapp.managed.notification.claim.$post({ json: body })
   const payload = (await r.json()) as ClaimSuccessResponse | ClaimErrorResponse
   if (!r.ok) {
     const err = payload as ClaimErrorResponse
@@ -129,6 +144,11 @@ export function ConnectManagedChannelDialog({
           <div className="space-y-2">
             <Label>Default assignee</Label>
             <AssigneeBadge assignee={assignee} onSelect={(val) => setAssignee(val)} />
+            {kind === 'notification' && (
+              <p className="text-muted-foreground text-xs">
+                Optional for notification channels — staff replies route via the default operator agent setting.
+              </p>
+            )}
           </div>
           {claim.isError && <p className="text-destructive text-xs">{claim.error.message}</p>}
           {softWarn && <p className="text-amber-600 text-xs dark:text-amber-400">{softWarn}</p>}

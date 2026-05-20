@@ -11,10 +11,13 @@ import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layo
 import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { authClient } from '@/lib/auth-client'
 import { AttributeFormDialog, type AttributeFormValues } from '../components/attribute-form-dialog'
 import { StaffFormDialog, type StaffFormValues } from '../components/staff-form-dialog'
+import { canInviteMembers, useActiveMember } from '../hooks/use-active-member'
 import { useAttributeDefinitions, useCreateDefinition, useSetStaffAttributes } from '../hooks/use-attributes'
 import { useStaff, useUpdateStaff } from '../hooks/use-staff'
+import { useOrgMembers, useUpdateMemberRole } from '../hooks/use-teams'
 
 function TagList({ items }: { items: string[] }) {
   if (items.length === 0) return <span className="text-muted-foreground">—</span>
@@ -38,6 +41,17 @@ export function StaffDetailPage() {
   const createDef = useCreateDefinition()
 
   const sortedDefs = [...attrDefs].sort((a, b) => a.sortOrder - b.sortOrder)
+
+  const sessionRes = authClient.useSession() as unknown as { data?: { user?: { id?: string } | null } | null } | null
+  const isSelf = Boolean(sessionRes?.data?.user?.id) && sessionRes?.data?.user?.id === userId
+
+  const { data: orgMembers = [] } = useOrgMembers()
+  const { data: activeMember } = useActiveMember()
+  const updateRole = useUpdateMemberRole()
+  const member = orgMembers.find((m) => m.userId === userId) ?? null
+  // Owners/admins may change a member's role, but not their own and not an
+  // owner's (owner transfer is a separate, deliberate flow).
+  const canEditRole = canInviteMembers(activeMember?.role) && !isSelf && member !== null && member.role !== 'owner'
 
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -86,6 +100,9 @@ export function StaffDetailPage() {
         availability: values.availability,
         phoneNumber: values.phoneNumber,
       })
+      if (canEditRole && member && values.role && values.role !== member.role) {
+        await updateRole.mutateAsync({ memberId: member.id, role: values.role })
+      }
       toast.success('Profile updated')
       setEditOpen(false)
     } catch (err) {
@@ -225,7 +242,10 @@ export function StaffDetailPage() {
           onOpenChange={setEditOpen}
           staff={staff}
           onSave={handleSaveStaff}
-          isPending={update.isPending}
+          isPending={update.isPending || updateRole.isPending}
+          isSelf={isSelf}
+          canEditRole={canEditRole}
+          memberRole={member?.role ?? null}
         />
       )}
       <AttributeFormDialog

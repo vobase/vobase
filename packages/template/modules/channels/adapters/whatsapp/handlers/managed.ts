@@ -8,33 +8,46 @@
  *   - GET    /managed/:instanceId/webhook           — proxy this channel's webhook registration status
  *   - POST   /managed/:instanceId/webhook/re-verify — re-trigger the platform challenge
  *                                                     against the registered URL (debugging aid)
+ *   - GET    /managed/notification/availability     — notification pool availability count
+ *   - POST   /managed/notification/claim            — claim a notification-tier channel from the pool
+ *   - DELETE /managed/notification/:instanceId      — release the notification channel back to the pool
  *
  * The webhook endpoints proxy signed requests to the platform's
  * `/api/provisioning/webhook-endpoints/*` so the frontend can render +
  * refresh registration status without holding the HMAC secret in the bundle.
  *
  * `claim` replaces the legacy boot-time auto-provision: a tenant operator
- * clicks "Claim sandbox" in the UI and the same handshake + vault store +
- * channel-instances upsert + webhook self-register sequence runs
- * synchronously inside the request.
+ * clicks "Claim sandbox" / "Claim notification channel" in the UI and the
+ * same handshake + vault store + channel-instances upsert + webhook
+ * self-register sequence runs synchronously inside the request.
  */
 
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { agentDefinitions } from '@modules/agents/schema'
 import { isManagedConfig } from '@modules/channels/adapters/whatsapp/factory'
 import { claimAndBootstrap } from '@modules/channels/managed/bootstrap'
-import { provisionNotificationSettings } from '@modules/channels/managed/notification-provision'
-import { getInstance, listInstances, removeInstance, upsertManagedInstance } from '@modules/channels/service/instances'
+import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
 import {
+  getInstance,
+  hardRemoveInstance,
+  listInstances,
+  removeInstance,
+  upsertManagedInstance,
+} from '@modules/channels/service/instances'
+import {
+  fetchNotificationAvailability,
   fetchSandboxAvailability,
   fetchWebhookEndpointStatus,
   PlatformHandshakeError,
   registerWebhookWithPlatform,
+  release as releasePlatformClaim,
   releaseWithPlatform,
   type WebhookEndpointStatus,
 } from '@modules/integrations/service/handshake'
 import { getInstalledDb, getVaultFor } from '@modules/integrations/service/registry'
 import { deriveVerifyToken } from '@modules/integrations/service/verify-token'
+import { setOrgSetting } from '@modules/settings/service/org-settings'
+import { logger } from '@vobase/core'
 import { and, asc, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { Hono } from 'hono'
@@ -258,13 +271,6 @@ const app = new Hono<OrganizationEnv>()
         kind: 'sandbox',
         vault,
         upsertInstance: (input) => upsertManagedInstance(getInstalledDb(), input),
-        provisionNotification: () =>
-          provisionNotificationSettings(getInstalledDb(), organizationId, {
-            tenantId,
-            tenantHmacSecret,
-            platformBaseUrl,
-            appBaseUrl: readAppBaseUrl(),
-          }),
         organizationId,
         webhookUrl,
         verifyToken,
@@ -284,6 +290,179 @@ const app = new Hono<OrganizationEnv>()
       if (mapped) return mapped
       throw err
     }
+  })
+
+  // ─── Notification tier (staff-facing managed WhatsApp) ─────────────────
+  // Parallel to the sandbox routes above; threads `kind: 'notification'`
+  // through the registry so paths/vault/discriminators all switch together.
+
+  // Notification pool availability — symmetric to `/managed/availability`.
+  .get('/managed/notification/availability', async (c) => {
+    const platformBaseUrl = process.env.VITE_PLATFORM_URL ?? ''
+    const tenantId = process.env.PLATFORM_TENANT_ID ?? ''
+    const tenantHmacSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+    if (!platformBaseUrl || !tenantId || !tenantHmacSecret) {
+      return c.json({ notificationPoolAvailable: 0, configured: false })
+    }
+    try {
+      const data = await fetchNotificationAvailability({ platformBaseUrl, tenantId, tenantHmacSecret })
+      return c.json({ notificationPoolAvailable: data.notificationPoolAvailable, configured: true })
+    } catch (err) {
+      if (err instanceof PlatformHandshakeError) {
+        return c.json({ notificationPoolAvailable: 0, configured: true, error: err.message }, 502)
+      }
+      throw err
+    }
+  })
+
+  // Claim a notification-tier channel. Same `claimAndBootstrap` orchestration
+  // as the sandbox claim — only `kind: 'notification'` differs, which the
+  // registry resolves to the `whatsapp_notif` channel name + the
+  // `vobase-platform-notification` vault provider. After the channel row
+  // commits, the `magic_link` webhook endpoint is registered as a standalone
+  // step (it is per-deployment auth infrastructure, not a channel) and its
+  // platform-minted endpoint id is written to the `magicLinkEndpointId`
+  // `org_settings` key. Idempotent: re-claiming returns the existing row.
+  .post('/managed/notification/claim', async (c) => {
+    const organizationId = c.get('organizationId')
+    const environment: 'production' | 'staging' = process.env.STAGING === 'true' ? 'staging' : 'production'
+
+    const bodyAssignee = await parseOptionalAgentBody(c)
+
+    const creds = readPlatformCreds(undefined)
+    if (!creds) return c.json({ error: 'platform_not_configured' }, 503)
+    const { platformBaseUrl, tenantId, tenantSlug, tenantHmacSecret, betterAuthSecret } = creds
+
+    const kindSpec = findKind('notification' satisfies ManagedChannelKind)
+    // `-notif` suffix keeps the row id distinct from the sandbox row so a
+    // tenant can hold both kinds simultaneously and the id is
+    // self-describing in logs.
+    const channelInstanceId = `mgd-${organizationId}-${environment}-notif`
+
+    // Standalone `magic_link` webhook registration + endpoint-id persistence.
+    // Runs after the channel row commits (that is when platform creds are
+    // exercised). Best-effort: a failure here never fails the channel claim;
+    // the magic-link mint path records `magic_link_endpoint_unconfigured`
+    // until a later re-claim succeeds.
+    const registerMagicLinkEndpoint = async (): Promise<void> => {
+      try {
+        const magic = await registerWebhookWithPlatform({
+          platformBaseUrl,
+          tenantId,
+          tenantHmacSecret,
+          provider: 'magic_link',
+          webhookUrl: `${readAppBaseUrl().replace(/\/$/, '')}/auth/magic-finish`,
+          verifyToken: deriveVerifyToken({
+            tenantSlug,
+            environment,
+            provider: 'magic_link',
+            betterAuthSecret,
+          }),
+        })
+        await setOrgSetting(organizationId, 'magicLinkEndpointId', magic.endpointId)
+      } catch (err) {
+        logger.warn(
+          { err, organizationId },
+          '[channels/managed] magic-link endpoint registration failed — notification claim still succeeded',
+        )
+      }
+    }
+
+    // Vault-first idempotency: short-circuit when the vault + row pair
+    // already exists. Post-`db:reset` (vault survived, row wiped) falls
+    // through so platform `readExistingClaim` returns the same secret pair
+    // and the row gets recreated.
+    const vault = getVaultFor(organizationId)
+    if (await vault.hasSecret(kindSpec.vaultProvider)) {
+      const instances = await listInstances(organizationId, kindSpec.channelName)
+      const existing = instances.find((i) => isManagedConfig(i.config))
+      if (existing) {
+        await registerMagicLinkEndpoint()
+        return c.json({ status: 'already_claimed', instance: existing })
+      }
+    }
+
+    // The notification kind's inbound (forwarded staff replies) is dispatched
+    // by the registry-driven router at `/api/channels/managed/inbound/:id`
+    // (`inboundDispatch: 'staff_reply'` → `dispatchStaffReply`), NOT the
+    // generic customer-webhook router — so it self-registers that path.
+    const webhookUrl = `${readAppBaseUrl().replace(/\/$/, '')}/api/channels/managed/inbound/${channelInstanceId}`
+    const verifyToken = deriveVerifyToken({
+      tenantSlug,
+      environment,
+      provider: kindSpec.channelName,
+      betterAuthSecret,
+    })
+
+    try {
+      const result = await claimAndBootstrap({
+        tenantSlug: tenantId,
+        environment,
+        channelInstanceId,
+        platformBaseUrl,
+        hmacSecret: tenantHmacSecret,
+        kind: 'notification',
+        vault,
+        upsertInstance: (input) => upsertManagedInstance(getInstalledDb(), input),
+        organizationId,
+        webhookUrl,
+        verifyToken,
+        // Stored for display in the channels table so operators see who's
+        // nominally owning the row. Staff WA replies route via
+        // `dispatchStaffReply` (`defaultOperatorAgentId` from `org_settings`),
+        // so this value is informational, not behavioural.
+        defaultAssignee: bodyAssignee,
+      })
+      await registerMagicLinkEndpoint()
+      const webhook = result.webhookOk
+        ? ({ ok: true, registeredAt: result.webhookRegisteredAt ?? '' } as const)
+        : ({ ok: false, detail: result.webhookDetail ?? 'unknown' } as const)
+      return c.json({ status: 'claimed', instance: result.instance, webhook }, 201)
+    } catch (err) {
+      const mapped = mapPlatformError(c, err)
+      if (mapped) return mapped
+      throw err
+    }
+  })
+
+  // Release the notification channel back to the platform pool. Hard-deletes
+  // the row: notification rows are staff-facing and have no inbound FK from
+  // `messaging.conversations`, so they can be dropped outright. Soft-delete
+  // would leave the deterministic `id` (`mgd-<org>-<env>-notif`) occupied,
+  // which PK-collides on the next claim when the platform allocator hands out
+  // a different pool row.
+  .delete('/managed/notification/:instanceId', async (c) => {
+    const instanceId = c.req.param('instanceId')
+    const organizationId = c.get('organizationId')
+    const row = await getInstance(instanceId)
+    if (!row || row.organizationId !== organizationId) {
+      return c.json({ error: 'not_found' }, 404)
+    }
+    const kindSpec = findKind('notification' satisfies ManagedChannelKind)
+    if (row.channel !== kindSpec.channelName || !isManagedConfig(row.config)) {
+      return c.json({ error: 'not_managed_notif' }, 400)
+    }
+    const rowPlatformBaseUrl = (row.config.platformBaseUrl as string | undefined) ?? undefined
+    const environment = (row.config.environment as 'production' | 'staging' | undefined) ?? 'production'
+    const creds = readPlatformCreds(rowPlatformBaseUrl)
+    if (!creds) return c.json({ error: 'platform_not_configured' }, 500)
+
+    try {
+      await releasePlatformClaim('notification', {
+        platformBaseUrl: creds.platformBaseUrl,
+        tenantId: creds.tenantId,
+        tenantHmacSecret: creds.tenantHmacSecret,
+        environment,
+      })
+    } catch (err) {
+      if (err instanceof PlatformHandshakeError) {
+        return c.json({ error: 'platform_release_failed', detail: err.message }, 502)
+      }
+      throw err
+    }
+
+    await hardRemoveInstance(instanceId, organizationId)
+    return c.json({ released: true })
   })
 
   .delete('/managed/:instanceId', async (c) => {

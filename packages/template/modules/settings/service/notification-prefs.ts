@@ -44,7 +44,7 @@ export type PhoneVerifiedLookup = (userId: string) => Promise<boolean>
 
 export interface NotificationPrefsService {
   get(userId: string): Promise<UserNotificationPrefs>
-  upsert(userId: string, matrix: NotificationPrefsMatrix): Promise<UserNotificationPrefs>
+  upsert(userId: string, matrix: NotificationPrefsMatrix, notifyWhileOnline: boolean): Promise<UserNotificationPrefs>
   isEnabled(userId: string, kind: NotificationKind, channel: NotificationChannel): Promise<boolean>
 }
 
@@ -109,7 +109,12 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
     const rows = await db.select().from(userNotificationPrefs).where(eq(userNotificationPrefs.userId, userId)).limit(1)
     const verified = await lookupVerified(userId)
     if (rows[0]) {
-      return { userId, prefs: fillMatrix(rows[0].prefs, verified), updatedAt: rows[0].updatedAt }
+      return {
+        userId,
+        prefs: fillMatrix(rows[0].prefs, verified),
+        notifyWhileOnline: rows[0].notifyWhileOnline,
+        updatedAt: rows[0].updatedAt,
+      }
     }
     // Lazy-create an empty row so subsequent reads have a stable updatedAt.
     const created = await db
@@ -121,20 +126,30 @@ export function createNotificationPrefsService(deps: PrefsDeps): NotificationPre
     return {
       userId,
       prefs: fillMatrix({}, verified),
+      notifyWhileOnline: row?.notifyWhileOnline ?? false,
       updatedAt: row?.updatedAt ?? new Date(),
     }
   }
 
-  async function upsert(userId: string, matrix: NotificationPrefsMatrix): Promise<UserNotificationPrefs> {
+  async function upsert(
+    userId: string,
+    matrix: NotificationPrefsMatrix,
+    notifyWhileOnline: boolean,
+  ): Promise<UserNotificationPrefs> {
     const rows = await db
       .insert(userNotificationPrefs)
-      .values({ userId, prefs: matrix })
-      .onConflictDoUpdate({ target: userNotificationPrefs.userId, set: { prefs: matrix } })
+      .values({ userId, prefs: matrix, notifyWhileOnline })
+      .onConflictDoUpdate({ target: userNotificationPrefs.userId, set: { prefs: matrix, notifyWhileOnline } })
       .returning()
     const row = rows[0]
     if (!row) throw new Error('notification-prefs/upsert: insert returned no rows')
     const verified = await lookupVerified(userId)
-    return { userId, prefs: fillMatrix(row.prefs, verified), updatedAt: row.updatedAt }
+    return {
+      userId,
+      prefs: fillMatrix(row.prefs, verified),
+      notifyWhileOnline: row.notifyWhileOnline,
+      updatedAt: row.updatedAt,
+    }
   }
 
   async function isEnabled(userId: string, kind: NotificationKind, channel: NotificationChannel): Promise<boolean> {
@@ -163,8 +178,12 @@ function current(): NotificationPrefsService {
 export function getPrefs(userId: string): Promise<UserNotificationPrefs> {
   return current().get(userId)
 }
-export function upsertPrefs(userId: string, matrix: NotificationPrefsMatrix): Promise<UserNotificationPrefs> {
-  return current().upsert(userId, matrix)
+export function upsertPrefs(
+  userId: string,
+  matrix: NotificationPrefsMatrix,
+  notifyWhileOnline: boolean,
+): Promise<UserNotificationPrefs> {
+  return current().upsert(userId, matrix, notifyWhileOnline)
 }
 export function isEnabled(userId: string, kind: NotificationKind, channel: NotificationChannel): Promise<boolean> {
   return current().isEnabled(userId, kind, channel)

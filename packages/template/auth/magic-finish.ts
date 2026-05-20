@@ -65,11 +65,14 @@ const finishQuerySchema = z.object({
 export function createMagicFinishRoutes(auth: Auth, db: ScopedDb): Hono {
   return (
     new Hono()
-      // Platform challenge probe — echoes the challenge param for endpoint registration.
-      .get('/challenge', (c) => c.text(c.req.query('challenge') ?? '', 200))
-
       // Main finish handler — verify token, create session, set cookie, 302.
       .get('/', async (c) => {
+        // Platform magic-link ownership challenge: registration probes this
+        // URL with a bare `?challenge=<random>` (no token) and expects the
+        // body to echo it. A real finish link always carries `token`.
+        const challenge = c.req.query('challenge')
+        if (challenge && !c.req.query('token')) return c.text(challenge, 200)
+
         const parsed = finishQuerySchema.safeParse({
           token: c.req.query('token'),
           redirect: c.req.query('redirect'),

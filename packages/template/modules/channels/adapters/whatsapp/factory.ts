@@ -24,6 +24,15 @@ import { createManagedTransport } from './managed-transport'
 
 export const WHATSAPP_CHANNEL_NAME = 'whatsapp'
 
+/**
+ * Channel name for the staff-notification-tier WhatsApp channel. Same adapter
+ * shape as customer-WA — only the registry kind (`notification`), vault
+ * namespace, and inbound dispatch (`staff_reply`) differ. The registry pins
+ * the mapping in `managed/registry.ts`; the factory's `resolveKindSpec` reads
+ * `config.kind` to route to the `vobase-platform-notification` vault.
+ */
+export const WHATSAPP_NOTIF_CHANNEL_NAME = 'whatsapp_notif'
+
 export const WHATSAPP_CAPABILITIES: ChannelCapabilities = {
   templates: true,
   media: true,
@@ -32,6 +41,22 @@ export const WHATSAPP_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: true,
   streaming: false,
   messagingWindow: true,
+  nativeThreading: false,
+}
+
+/**
+ * Notification-tier capabilities. Same primitive shape as customer-WA but
+ * messaging-window semantics never apply — outbound dispatch is the org's
+ * mention pings + assistant mirrors, both staff-initiated.
+ */
+export const WHATSAPP_NOTIF_CAPABILITIES: ChannelCapabilities = {
+  templates: false,
+  media: false,
+  reactions: false,
+  readReceipts: false,
+  typingIndicators: false,
+  streaming: false,
+  messagingWindow: false,
   nativeThreading: false,
 }
 

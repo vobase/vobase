@@ -19,7 +19,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import type { NotificationSettings } from '@modules/channels/service/notification-settings'
+import type { ChannelInstance } from '@modules/channels/schema'
 import { Hono } from 'hono'
 
 import type { StaffProfile } from '../schema'
@@ -125,19 +125,19 @@ function makeProfile(userId: string, phone: string | null): StaffProfile {
   }
 }
 
-function makeSettings(): NotificationSettings {
+function makeChannel(): ChannelInstance {
   return {
+    id: `mgd-${ORG_ID}-staging-notif`,
     organizationId: ORG_ID,
-    notificationEndpointId: 'ep-notif-int',
-    magicLinkEndpointId: 'ep-ml-int',
-    platformHmacSecretEnvelope: 'envelope-int',
-    platformBaseUrl: BASE_URL,
-    displayPhoneNumber: '+15550101',
-    phoneNumberId: 'pn-int',
-    wabaId: 'waba-int',
-    metaTemplateApprovals: {},
-    lastVerifyStatus: null,
-    lastVerifiedAt: null,
+    channel: 'whatsapp_notif',
+    role: 'staff',
+    displayName: 'Staff WhatsApp notification',
+    config: { mode: 'managed', kind: 'notification', platformBaseUrl: BASE_URL },
+    platformChannelId: 'pc-notif-int',
+    webhookSecret: null,
+    status: 'active',
+    setupStage: 'active',
+    lastError: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -170,7 +170,7 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile('u-1', '+6591111111')],
-      getNotificationSettings: async () => makeSettings(),
+      getNotificationChannel: async () => makeChannel(),
     })
 
     if (result.kind !== 'applied') throw new Error('expected applied')
@@ -201,7 +201,7 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
         environment: 'staging',
       },
       listStaff: async () => [],
-      getNotificationSettings: async () => makeSettings(),
+      getNotificationChannel: async () => makeChannel(),
     })
 
     if (result.kind !== 'applied') throw new Error('expected applied')
@@ -229,7 +229,7 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile('u-1', '+6591111111')],
-      getNotificationSettings: async () => makeSettings(),
+      getNotificationChannel: async () => makeChannel(),
     })
 
     if (result.kind !== 'applied') throw new Error('expected applied')

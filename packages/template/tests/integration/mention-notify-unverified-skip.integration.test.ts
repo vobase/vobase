@@ -16,6 +16,10 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
+import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
@@ -62,6 +66,32 @@ function installStubs(): void {
     const verified = staffIds.filter((id) => id === STAFF_A)
     const unverified = staffIds.filter((id) => id !== STAFF_A)
     return { verified, unverified }
+  })
+
+  // Notification channel stub: returns a minimal notification-tier instance.
+  installChannelInstancesService({
+    list: async (organizationId: string, channel?: string) => {
+      if (organizationId !== ORG) return []
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [
+        {
+          id: 'notif-inst',
+          organizationId: ORG,
+          channel: 'whatsapp_notif',
+          role: 'staff',
+          status: 'active',
+          config: { mode: 'managed', kind: 'notification', organizationId: ORG, platformChannelId: 'plat-test' },
+          // biome-ignore lint/suspicious/noExplicitAny: stub returning subset of ChannelInstance
+        } as any,
+      ]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
   })
 
   // Staff service stub: A has phone, B has phone (both offline).
@@ -119,9 +149,15 @@ function installStubs(): void {
         proposal: { in_app: true, whatsapp: true, email: true },
         admin_alert: { in_app: true, whatsapp: true, email: true },
       },
+      notifyWhileOnline: false,
       updatedAt: new Date(),
     }),
-    upsert: async (userId, matrix) => ({ userId, prefs: matrix, updatedAt: new Date() }),
+    upsert: async (userId, matrix, notifyWhileOnline) => ({
+      userId,
+      prefs: matrix,
+      notifyWhileOnline,
+      updatedAt: new Date(),
+    }),
     isEnabled: async () => true,
   })
 
@@ -147,6 +183,7 @@ beforeAll(() => {
 
 afterAll(() => {
   __resetVerificationGatingForTests()
+  __resetChannelInstancesServiceForTests()
   __resetStaffServiceForTests()
   __resetNotificationPrefsServiceForTests()
   __resetPendingStaffPingServiceForTests()

@@ -39,15 +39,16 @@ beforeAll(() => {
       userId,
       prefs: {
         mention: { in_app: true, whatsapp: false, email: false },
-        approval: { in_app: true, whatsapp: false, email: false },
-        proposal: { in_app: true, whatsapp: false, email: false },
+        decision: { in_app: true, whatsapp: false, email: false },
         admin_alert: { in_app: true, whatsapp: false, email: false },
       },
+      notifyWhileOnline: false,
       updatedAt: new Date(),
     }),
-    upsert: async (userId, matrix) => ({
+    upsert: async (userId, matrix, notifyWhileOnline) => ({
       userId,
       prefs: matrix,
+      notifyWhileOnline,
       updatedAt: new Date(),
     }),
     isEnabled: async (_userId, _kind, channel) => ({ in_app: true, whatsapp: false, email: false })[channel] ?? false,
@@ -111,11 +112,18 @@ describe('POST /settings/profile', () => {
 describe('POST /settings/notifications', () => {
   it('happy path: valid matrix returns 200 + matrix echo', async () => {
     const res = await POST('/notifications', {
-      matrix: { approval: { whatsapp: true, email: false } },
+      matrix: { decision: { whatsapp: true, email: false } },
     })
     expect(res.status).toBe(200)
-    const json = (await res.json()) as { matrix: { approval?: { whatsapp?: boolean } } }
-    expect(json.matrix.approval?.whatsapp).toBe(true)
+    const json = (await res.json()) as { matrix: { decision?: { whatsapp?: boolean } } }
+    expect(json.matrix.decision?.whatsapp).toBe(true)
+  })
+
+  it('persists notifyWhileOnline', async () => {
+    const res = await POST('/notifications', { matrix: {}, notifyWhileOnline: true })
+    expect(res.status).toBe(200)
+    const json = (await res.json()) as { notifyWhileOnline?: boolean }
+    expect(json.notifyWhileOnline).toBe(true)
   })
 
   it('rejection: string where boolean expected returns 400', async () => {

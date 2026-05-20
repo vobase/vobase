@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
+import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
@@ -64,6 +68,31 @@ function installStubs(): void {
     return { verified, unverified }
   })
 
+  installChannelInstancesService({
+    list: async (organizationId: string, channel?: string) => {
+      if (organizationId !== ORG) return []
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [
+        {
+          id: 'notif-inst',
+          organizationId: ORG,
+          channel: 'whatsapp_notif',
+          role: 'staff',
+          status: 'active',
+          config: { mode: 'managed', kind: 'notification', organizationId: ORG, platformChannelId: 'plat-test' },
+          // biome-ignore lint/suspicious/noExplicitAny: stub returning subset of ChannelInstance
+        } as any,
+      ]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
+  })
+
   installStaffService({
     list: async () => [],
     find: async (userId: string) => {
@@ -117,9 +146,15 @@ function installStubs(): void {
         proposal: { in_app: true, whatsapp: true, email: true },
         admin_alert: { in_app: true, whatsapp: true, email: true },
       },
+      notifyWhileOnline: false,
       updatedAt: new Date(),
     }),
-    upsert: async (userId, matrix) => ({ userId, prefs: matrix, updatedAt: new Date() }),
+    upsert: async (userId, matrix, notifyWhileOnline) => ({
+      userId,
+      prefs: matrix,
+      notifyWhileOnline,
+      updatedAt: new Date(),
+    }),
     isEnabled: async () => true,
   })
 
@@ -144,6 +179,7 @@ beforeAll(() => {
 
 afterAll(() => {
   __resetVerificationGatingForTests()
+  __resetChannelInstancesServiceForTests()
   __resetStaffServiceForTests()
   __resetNotificationPrefsServiceForTests()
   __resetPendingStaffPingServiceForTests()

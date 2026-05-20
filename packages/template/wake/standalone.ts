@@ -18,7 +18,7 @@ import { type AgentDefinition, operatorThreads } from '@modules/agents/schema'
 import { getCliRegistry } from '@modules/agents/service/cli-registry'
 import * as syntheticIds from '@modules/agents/service/synthetic-ids'
 import { threads as threadsApi } from '@modules/agents/service/threads'
-import { getNotificationSettings } from '@modules/channels/service/notification-settings'
+import { findNotificationChannel } from '@modules/channels/service/instances'
 import { filesServiceFor } from '@modules/drive/service/files'
 import { staffProfiles } from '@modules/team/schema'
 import type { AgentContributions, SideLoadContributor, WakeRuntime } from '@vobase/core'
@@ -227,13 +227,12 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
                 .where(and(eq(staffProfiles.userId, createdBy), eq(staffProfiles.organizationId, data.organizationId)))
                 .limit(1)
             : [undefined]
-          const notifSettings = await getNotificationSettings(deps.db, data.organizationId)
+          const notifChannel = await findNotificationChannel(data.organizationId)
           return createNotificationMirrorObserver({
-            db: deps.db,
             organizationId: data.organizationId,
             threadId,
             staffPhoneE164: profile?.phoneNumber ?? null,
-            hasNotificationSettings: notifSettings !== null,
+            notificationChannelInstanceId: notifChannel?.id ?? null,
             logger: deps.logger,
           })
         })()

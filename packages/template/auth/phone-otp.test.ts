@@ -10,43 +10,65 @@
  * platform POST carries the expected `{staffPhoneE164, code, expiresInSec}`
  * body shape under the HMAC v2 signing path.
  */
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
 
 import { connectTestDb, resetAndSeedDb } from '../tests/helpers/test-db'
 import { createAuth } from './index'
 import { mintPhoneOtp, PhoneOtpMintError } from './phone-otp'
 
-// ─── Per-test mock seam: getNotificationSettings ─────────────────────────────
-// Each test sets `_settingsOverride` to control the per-org notification
-// settings returned to the production code path. `mock.module` is set once at
-// file scope so the stub is in place before `mintPhoneOtp` dynamically imports
-// the real module.
+// ─── Per-test seam: notification-channel template-approval gate ──────────────
+// Each test sets `_settingsOverride` to control the org's notification-tier
+// channel returned to the production code path. We install a stub
+// channel-instances service (via the real `installChannelInstancesService`
+// seam, not `mock.module`) so `findNotificationChannel` resolves accordingly
+// and the stub stays scoped to this file.
 
 type SettingsStub = { metaTemplateApprovals: Record<string, unknown> } | null
 let _settingsOverride: SettingsStub = {
   metaTemplateApprovals: { vobase_platform_otp: 'approved' },
 }
 
-mock.module('@modules/channels/service/notification-settings', () => ({
-  getNotificationSettings: async (_db: unknown, _orgId: string) =>
-    _settingsOverride === null
-      ? null
-      : {
+function installNotifChannelStub(): void {
+  installChannelInstancesService({
+    list: async (_organizationId: string, channel?: string) => {
+      if (_settingsOverride === null) return []
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [
+        {
+          id: 'mgd-stub-staging-notif',
           organizationId: 'stub',
-          notificationEndpointId: 'ep-notif-stub',
-          magicLinkEndpointId: 'ep-ml-stub',
-          platformHmacSecretEnvelope: 'envelope-stub',
-          platformBaseUrl: 'http://platform.test',
-          displayPhoneNumber: '+15550001',
-          phoneNumberId: 'pn-stub',
-          wabaId: 'waba-stub',
-          metaTemplateApprovals: _settingsOverride.metaTemplateApprovals,
-          lastVerifyStatus: null,
-          lastVerifiedAt: null,
+          channel: 'whatsapp_notif',
+          role: 'staff',
+          displayName: 'Staff WhatsApp notification',
+          config: {
+            mode: 'managed',
+            kind: 'notification',
+            metaTemplateApprovals: _settingsOverride.metaTemplateApprovals,
+          },
+          platformChannelId: 'pc-notif-stub',
+          webhookSecret: null,
+          status: 'active',
+          setupStage: 'active',
+          lastError: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-        },
-}))
+          // biome-ignore lint/suspicious/noExplicitAny: stub subset of ChannelInstance
+        } as any,
+      ]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
+  })
+}
 
 // ─── Per-test mock seam: global fetch ────────────────────────────────────────
 // `mintPhoneOtp` POSTs to `<platformBaseUrl>/api/managed-whatsapp/otp` via
@@ -86,11 +108,13 @@ describe('mintPhoneOtp', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     auth = createAuth(handle.db as Parameters<typeof createAuth>[0])
+    installNotifChannelStub()
   })
 
   afterAll(async () => {
     await handle.teardown()
     globalThis.fetch = realFetch
+    __resetChannelInstancesServiceForTests()
   })
 
   beforeEach(() => {
@@ -216,6 +240,7 @@ describe('mintPhoneOtp captor timeout', () => {
     const handle2 = connectTestDb()
     try {
       await resetAndSeedDb()
+      installNotifChannelStub()
       const realAuth = createAuth(handle2.db as Parameters<typeof createAuth>[0])
 
       // Stub auth where sendPhoneNumberOTP resolves silently without invoking

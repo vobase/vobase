@@ -26,6 +26,10 @@ import {
   dispatchAdminAlert,
   installAdminAlertDeps,
 } from '@modules/automations/service/admin-alert'
+import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
 import { sql } from 'drizzle-orm'
 
 import type { TestDbHandle } from '../../../tests/helpers/test-db'
@@ -50,24 +54,46 @@ mock.module('@auth/magic-link', () => ({
   magicLinkCaptor: { deliver: () => {} },
 }))
 
-// Stub getNotificationSettings to always return settings with vobase_admin_alert_v2 approved.
-mock.module('@modules/channels/service/notification-settings', () => ({
-  getNotificationSettings: async (_db: unknown, _orgId: string) => ({
-    organizationId: 'stub',
-    notificationEndpointId: 'ep-notif-stub',
-    magicLinkEndpointId: 'ep-ml-stub',
-    platformHmacSecretEnvelope: 'envelope-stub',
-    platformBaseUrl: 'http://platform.test',
-    displayPhoneNumber: '+15550001',
-    phoneNumberId: 'pn-stub',
-    wabaId: 'waba-stub',
-    metaTemplateApprovals: { vobase_admin_alert_v2: 'approved' },
-    lastVerifyStatus: null,
-    lastVerifiedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }),
-}))
+// Stub the channel-instances service so `findNotificationChannel` resolves a
+// notification channel whose config marks vobase_admin_alert_v2 as
+// Meta-approved. Uses the real `installChannelInstancesService` seam (not
+// `mock.module`) so it stays scoped to this file.
+function installNotifChannelStub(): void {
+  installChannelInstancesService({
+    list: async (_organizationId: string, channel?: string) => {
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [
+        {
+          id: 'mgd-stub-staging-notif',
+          organizationId: 'stub',
+          channel: 'whatsapp_notif',
+          role: 'staff',
+          displayName: 'Staff WhatsApp notification',
+          config: {
+            mode: 'managed',
+            kind: 'notification',
+            metaTemplateApprovals: { vobase_admin_alert_v2: 'approved' },
+          },
+          platformChannelId: 'pc-notif-stub',
+          webhookSecret: null,
+          status: 'active',
+          setupStage: 'active',
+          lastError: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          // biome-ignore lint/suspicious/noExplicitAny: stub subset of ChannelInstance
+        } as any,
+      ]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
+  })
+}
 
 // Stub authMember + authUser joins used by resolveOrgAdmins.
 // We inject recipients through the mock by controlling what the DB returns.
@@ -80,6 +106,7 @@ describe('dispatchAdminAlert', () => {
   beforeAll(async () => {
     await resetAndSeedDb()
     handle = connectTestDb()
+    installNotifChannelStub()
   }, 60_000)
 
   beforeEach(() => {
@@ -95,6 +122,7 @@ describe('dispatchAdminAlert', () => {
 
   afterAll(async () => {
     __resetAdminAlertForTests()
+    __resetChannelInstancesServiceForTests()
     if (handle) await handle.teardown()
   })
 

@@ -22,6 +22,8 @@ export const notificationsSchema = z.object({
       >,
     )
     .default({}),
+  /** Per-user opt-in: receive mention WhatsApp pings even while online. */
+  notifyWhileOnline: z.boolean().default(false),
 })
 
 export type NotificationsValues = z.infer<typeof notificationsSchema>

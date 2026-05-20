@@ -10,7 +10,7 @@
  * through the installed instance for cross-module imports.
  */
 
-import { findKind } from '@modules/channels/managed/registry'
+import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
 import { type ChannelInstance, channelInstances } from '@modules/channels/schema'
 import { and, eq, ne, sql } from 'drizzle-orm'
 
@@ -299,6 +299,11 @@ export async function upsertManagedInstance(
  * Resolve the org's active platform-managed channel instance for a given
  * registry kind, or `null` when the tenant has not claimed one yet.
  *
+ * Parameterised by `kind` so callers stay registry-driven — adding a new
+ * managed-channel kind needs only a new registry entry, not a new lookup
+ * helper. Resolves the kind to its persisted `channelName` via the registry,
+ * then picks the first active row.
+ *
  * The `kind` argument is typed as `string` rather than `ManagedChannelKind`
  * so callers reading `kind` from JSONB config (where it's `string | null`)
  * don't need a runtime cast — `findKind` throws on unknown values.
@@ -307,4 +312,14 @@ export async function findManagedChannel(organizationId: string, kind: string): 
   const entry = findKind(kind)
   const rows = await current().list(organizationId, entry.channelName)
   return rows.find((r) => r.status === 'active') ?? null
+}
+
+/**
+ * Resolve the org's active notification-tier WhatsApp channel instance, or
+ * `null` when the tenant has not claimed one yet. Convenience wrapper over
+ * the parameterised `findManagedChannel` so notification callers (`staff-ping`,
+ * `automations`, `auth/phone-otp`, the notification-mirror observer) stay terse.
+ */
+export function findNotificationChannel(organizationId: string): Promise<ChannelInstance | null> {
+  return findManagedChannel(organizationId, 'notification' satisfies ManagedChannelKind)
 }

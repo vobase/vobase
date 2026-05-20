@@ -1,6 +1,4 @@
-import { useAgentDefinitions } from '@modules/agents/hooks/use-agent-definitions'
 import type { ApiKeySummaryDto, CreatedApiKeyDto } from '@modules/settings/handlers/api-keys'
-import { useOrgSetting } from '@modules/settings/hooks/use-org-setting'
 import { useSettingsSave } from '@modules/settings/hooks/use-settings-save'
 import {
   NOTIFICATION_CHANNELS,
@@ -27,7 +25,6 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { RelativeTimeCard } from '@/components/ui/relative-time'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { settingsClient } from '@/lib/api-client'
@@ -49,6 +46,7 @@ const FONT_SIZE_MAP: Record<string, string> = { sm: '13px', md: '15px', lg: '17p
 
 interface NotificationPrefsResponse {
   matrix: NotificationPrefsMatrix
+  notifyWhileOnline: boolean
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
@@ -220,8 +218,12 @@ function NotificationsSection() {
   const phoneVerified = sessionUser?.phoneNumberVerified === true
 
   const [matrix, setMatrix] = useState<NotificationPrefsMatrix | null>(null)
+  const [notifyWhileOnline, setNotifyWhileOnline] = useState<boolean | null>(null)
   useEffect(() => {
-    if (data) setMatrix(data.matrix)
+    if (data) {
+      setMatrix(data.matrix)
+      setNotifyWhileOnline(data.notifyWhileOnline)
+    }
   }, [data])
 
   const save = useCallback(
@@ -230,7 +232,8 @@ function NotificationsSection() {
     },
     [mutate],
   )
-  const saveValues: NotificationsValues | null = matrix && data ? { matrix } : null
+  const saveValues: NotificationsValues | null =
+    matrix && data && notifyWhileOnline !== null ? { matrix, notifyWhileOnline } : null
   const saveState = useAutoSave<NotificationsValues>(saveValues, save)
 
   function setCell(kind: NotificationKind, channel: NotificationChannel, value: boolean): void {
@@ -319,59 +322,12 @@ function NotificationsSection() {
             ))}
           </TableBody>
         </Table>
-      </InfoCard>
-    </InfoSection>
-  )
-}
-
-function OperatorAgentSection() {
-  const { data: agents = [], isLoading: agentsLoading } = useAgentDefinitions()
-  const operator = useOrgSetting('defaultOperatorAgentId')
-  const heartbeat = useOrgSetting('operatorHeartbeatEnabled')
-
-  const heartbeatEnabled = heartbeat.value !== 'false'
-
-  return (
-    <InfoSection
-      title="Automation defaults"
-      description="Org-wide defaults for agent-driven automations — which agent handles staff replies and whether scheduled reviews run."
-    >
-      <InfoCard>
-        <InfoRow label="Default agent" className="items-center">
-          <div className="space-y-1">
-            {agentsLoading ? (
-              <span className="text-muted-foreground text-sm">Loading agents…</span>
-            ) : (
-              <Select
-                value={operator.value ?? ''}
-                onValueChange={(v) => operator.setValue(v === '__auto__' ? null : v)}
-                disabled={operator.isPending}
-              >
-                <SelectTrigger className="w-[280px]">
-                  <SelectValue placeholder="Auto (first enabled)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__auto__">Auto (first enabled)</SelectItem>
-                  {agents.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                      {!a.enabled && <span className="ml-1 text-muted-foreground text-xs">(disabled)</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <p className="text-muted-foreground text-xs">
-              The agent that picks up incoming WhatsApp messages when a staff member replies outside an active
-              conversation. Defaults to the first enabled agent.
-            </p>
-          </div>
-        </InfoRow>
         <SettingsToggle
-          label="Scheduled reviews"
-          description="Enable cron-scheduled standalone reviews. When off, only event-triggered automations fire."
-          checked={heartbeatEnabled}
-          onCheckedChange={(v) => heartbeat.setValue(v ? 'true' : 'false')}
+          label="Notify me while online"
+          description="When on, mention WhatsApp notifications reach me even when I'm currently online (otherwise they're skipped since I'd see the note in-app)."
+          checked={notifyWhileOnline === true}
+          onCheckedChange={(v) => setNotifyWhileOnline(v)}
+          disabled={notifyWhileOnline === null}
         />
       </InfoCard>
     </InfoSection>
@@ -508,7 +464,6 @@ export function SettingsPage() {
         <div className="mx-auto w-full max-w-4xl space-y-8">
           <AppearanceSection />
           <NotificationsSection />
-          <OperatorAgentSection />
           <ApiKeysSection />
         </div>
       </PageBody>

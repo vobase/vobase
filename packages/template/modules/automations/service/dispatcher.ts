@@ -20,7 +20,7 @@ import { automationRuns } from '@modules/automations/schema'
 import { automationsService } from '@modules/automations/service/automations'
 import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
-import { getNotificationSettings } from '@modules/channels/service/notification-settings'
+import { findNotificationChannel } from '@modules/channels/service/instances'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
 import { recordNotificationSent, recordNotificationSuppressed } from '@modules/messaging/service/notification-events'
 import { applyVerificationGating } from '@modules/team/service/mention-notify'
@@ -378,18 +378,18 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
   }
   if (!profile?.phoneNumber) return null
 
-  // Read metaTemplateApprovals from notification_settings.
+  // Read metaTemplateApprovals from the notification channel config.
   // Missing = unapproved (fallback is the DEFAULT per plan §8a.4).
   let metaTemplateApprovals: Record<string, unknown> | null = null
   try {
-    const settings = await getNotificationSettings(deps.db, organizationId)
-    if (settings?.metaTemplateApprovals != null) {
-      metaTemplateApprovals = settings.metaTemplateApprovals
+    const channel = await findNotificationChannel(organizationId)
+    if (channel?.config?.metaTemplateApprovals != null && typeof channel.config.metaTemplateApprovals === 'object') {
+      metaTemplateApprovals = channel.config.metaTemplateApprovals as Record<string, unknown>
     }
   } catch (err) {
     logger.warn(
       { err, organizationId, ruleId },
-      '[automations/dispatcher] getNotificationSettings failed — using fallback template',
+      '[automations/dispatcher] findNotificationChannel failed — using fallback template',
     )
   }
 

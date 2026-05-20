@@ -91,14 +91,6 @@ export interface ClaimAndBootstrapOpts {
   /** Verify-token derived from `BETTER_AUTH_SECRET` for the GET hub challenge. */
   verifyToken: string
   /**
-   * Per-org notification + magic-link provisioning seam. Runs after the
-   * sandbox claim commits; production binds
-   * `() => provisionNotificationSettings(db, organizationId, { tenantId, tenantHmacSecret, platformBaseUrl, appBaseUrl })`.
-   * Tests inject a stub so they don't need a real Postgres for the
-   * `notification_settings` table.
-   */
-  provisionNotification: () => Promise<void>
-  /**
    * Optional id of the AI agent that should be the channel's default assignee
    * — written into `channel_instances.config.defaultAssignee` so the inbound
    * webhook router routes new conversations to this agent. Resolved by the
@@ -266,11 +258,5 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
     }
   }
 
-  // ─── Step 4: per-org notification + magic-link provisioning ────────────
-  // Idempotent on existing `notification_settings` row — the first successful
-  // run no-ops on subsequent `claimAndBootstrap` retries. Throws on failure;
-  // the sandbox row is already committed, so a retry re-enters this path with
-  // sandbox no-ops and notification provisioning re-attempted.
-  await opts.provisionNotification()
   return result
 }

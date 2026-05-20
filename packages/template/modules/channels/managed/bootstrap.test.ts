@@ -254,14 +254,9 @@ function buildFakeUpsert(): {
 describe('claimAndBootstrap (US-011, §4.4)', () => {
   let stubState: StubState
   let env: PatchedFetchEnv | null = null
-  let provisionCalls = 0
-  const noopProvision = async () => {
-    provisionCalls += 1
-  }
 
   beforeEach(() => {
     stubState = { handshakeCalls: 0, registerCalls: 0, registerFailsWith: null }
-    provisionCalls = 0
   })
 
   afterEach(() => {
@@ -290,7 +285,6 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
       organizationId: ORG_ID,
       webhookUrl: WEBHOOK_URL,
       verifyToken: VERIFY_TOKEN,
-      provisionNotification: noopProvision,
     })
 
     expect(stubState.handshakeCalls).toBe(1)
@@ -331,7 +325,6 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
         organizationId: ORG_ID,
         webhookUrl: WEBHOOK_URL,
         verifyToken: VERIFY_TOKEN,
-        provisionNotification: noopProvision,
       }),
     ).rejects.toThrow(/simulated vault commit failure/)
 
@@ -361,7 +354,6 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
       organizationId: ORG_ID,
       webhookUrl: WEBHOOK_URL,
       verifyToken: VERIFY_TOKEN,
-      provisionNotification: noopProvision,
     }
 
     const first = await claimAndBootstrap(opts)
@@ -405,7 +397,6 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
       organizationId: ORG_ID,
       webhookUrl: WEBHOOK_URL,
       verifyToken: VERIFY_TOKEN,
-      provisionNotification: noopProvision,
     })
 
     expect(result.webhookOk).toBe(false)
@@ -434,67 +425,8 @@ describe('claimAndBootstrap (US-011, §4.4)', () => {
         organizationId: ORG_ID,
         webhookUrl: WEBHOOK_URL,
         verifyToken: VERIFY_TOKEN,
-        provisionNotification: noopProvision,
       }),
     ).rejects.toThrow(/unknown channel kind/)
-  })
-
-  it('provisionNotification runs once after sandbox claim succeeds', async () => {
-    const stub = buildPlatformStub(stubState)
-    env = patchGlobalFetch(stub, PLATFORM_BASE_URL)
-
-    const { vault } = buildFakeVault()
-    const { fn: upsertInstance } = buildFakeUpsert()
-
-    await claimAndBootstrap({
-      tenantSlug: TENANT_SLUG,
-      environment: 'staging',
-      channelInstanceId: CHANNEL_INSTANCE_ID,
-      platformBaseUrl: PLATFORM_BASE_URL,
-      hmacSecret: HMAC_SECRET,
-      kind: 'sandbox',
-      vault,
-      upsertInstance,
-      organizationId: ORG_ID,
-      webhookUrl: WEBHOOK_URL,
-      verifyToken: VERIFY_TOKEN,
-      provisionNotification: noopProvision,
-    })
-
-    expect(provisionCalls).toBe(1)
-  })
-
-  it('provisionNotification still runs after a successful re-click (caller short-circuits idempotently)', async () => {
-    // The provisioner itself is responsible for short-circuiting on an
-    // existing `notification_settings` row — `claimAndBootstrap` always calls
-    // it. This test confirms the orchestrator does NOT add a "skip on second
-    // click" guard that would prevent the provisioner from re-attempting if
-    // the first attempt failed and the operator clicked again.
-    const stub = buildPlatformStub(stubState)
-    env = patchGlobalFetch(stub, PLATFORM_BASE_URL)
-
-    const { vault } = buildFakeVault()
-    const { fn: upsertInstance } = buildFakeUpsert()
-
-    const opts = {
-      tenantSlug: TENANT_SLUG,
-      environment: 'staging' as const,
-      channelInstanceId: CHANNEL_INSTANCE_ID,
-      platformBaseUrl: PLATFORM_BASE_URL,
-      hmacSecret: HMAC_SECRET,
-      kind: 'sandbox' as const,
-      vault,
-      upsertInstance,
-      organizationId: ORG_ID,
-      webhookUrl: WEBHOOK_URL,
-      verifyToken: VERIFY_TOKEN,
-      provisionNotification: noopProvision,
-    }
-
-    await claimAndBootstrap(opts)
-    await claimAndBootstrap(opts)
-
-    expect(provisionCalls).toBe(2)
   })
 
   it('signRequest + verifyRequest round-trip used by the stub stays symmetric', () => {

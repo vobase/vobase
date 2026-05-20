@@ -61,9 +61,6 @@ const SESSIONS_WRITE_ALLOWED = ['modules/messaging/service/sessions.ts']
 const SIGNUP_NONCES_WRITE_RE = /\.(insert|update|delete)\s*\(\s*signupNonces\b/
 const SIGNUP_NONCES_WRITE_ALLOWED = ['modules/channels/service/signup-nonces.ts']
 
-const NOTIFICATION_SETTINGS_WRITE_RE = /\.(insert|update|delete)\s*\(\s*notificationSettings\b/
-const NOTIFICATION_SETTINGS_WRITE_ALLOWED = ['modules/channels/service/notification-settings.ts']
-
 // Automations module sole-writer guards. Pattern mirrors
 // `JOURNAL_WRITE_RE`/`JOURNAL_WRITE_ALLOWED` above.
 
@@ -227,16 +224,6 @@ async function checkJournalWriteAuthority(): Promise<void> {
             file: fullPath,
             line: i + 1,
             message: `writes to "${m[2]}" only allowed in channels/service/signup-nonces.ts (one-write-path)`,
-          })
-        }
-      }
-      if (!NOTIFICATION_SETTINGS_WRITE_ALLOWED.some((p) => relFromModules === p)) {
-        const m = NOTIFICATION_SETTINGS_WRITE_RE.exec(line)
-        if (m) {
-          errors.push({
-            file: fullPath,
-            line: i + 1,
-            message: `writes to "notificationSettings" only allowed in channels/service/notification-settings.ts (one-write-path)`,
           })
         }
       }

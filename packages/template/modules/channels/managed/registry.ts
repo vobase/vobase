@@ -2,9 +2,13 @@
 /**
  * channels/managed/registry — channel-kind catalog (per §4.1, tenant side).
  *
- * One record per platform-pool kind. Today only `sandbox` exists — the
- * registry is the single extension point so `handshake.ts`, `factory.ts`, and
- * `bootstrap.ts` consult it instead of branching on `kind`.
+ * One record per platform-pool kind. `sandbox` is the customer-facing tier;
+ * `notification` is the staff-facing tier (the platform-pooled WhatsApp
+ * number staff ping dispatch from and reply to). The registry is the single
+ * extension point so `handshake.ts`, `factory.ts`, and `bootstrap.ts` consult
+ * it instead of branching on `kind` — a new kind plugs in via one record
+ * here. The two kinds are structurally identical channel rows; only
+ * `inboundDispatch` (and therefore the claim path + row `role`) differs.
  *
  * BYO WhatsApp is intentionally NOT a registry entry (see §7.3 + §4.8) —
  * it follows a parallel oauth-proxy/whatsapp-setup-job flow.
@@ -19,16 +23,22 @@
 import type { VaultProvider } from '@modules/integrations/service/vault'
 
 /** Union of all registered channel kinds. Widen when adding a new entry. */
-export type ManagedChannelKind = 'sandbox'
+export type ManagedChannelKind = 'sandbox' | 'notification'
 
 /**
- * Inbound dispatch discriminator. Each kind tells the registry-driven router
- * which downstream branch to take when a verified webhook lands. Today the
- * only entry is `'customer'` — sandbox-tier inbound flows through the
- * existing customer-WA webhook router, not the registry-driven router (so
- * the value is reserved; the registry-driven router 410s when it sees it).
+ * Inbound dispatch discriminator. Each kind tells `handlers/inbound-router.ts`
+ * which downstream branch to take when a verified webhook lands.
+ *
+ *   - `'customer'`    — sandbox tier; inbound is a real customer message.
+ *                       Reserved — sandbox inbound currently flows through
+ *                       the existing customer-WA webhook router, NOT the
+ *                       registry-driven router, so the registry-driven
+ *                       router 410s when it sees this value.
+ *   - `'staff_reply'` — notification tier; inbound is a staff WA reply and
+ *                       routes through `dispatchStaffReply` (ask-staff-answer
+ *                       + operator-thread branches).
  */
-export type InboundDispatch = 'customer'
+export type InboundDispatch = 'customer' | 'staff_reply'
 
 export interface ChannelKind {
   readonly kind: ManagedChannelKind
@@ -50,13 +60,17 @@ export interface ChannelKind {
    */
   readonly channelName: string
   /**
-   * Channel-instance row `role` — `'customer'` for sandbox.
+   * Channel-instance row `role` — `'customer'` for sandbox, `'staff'` for
+   * the notification tier.
    */
   readonly role: 'customer' | 'staff'
   /**
    * `channel_instances.config.mode` discriminator written at claim time.
-   * `'managed'` for sandbox (customer-facing). Threading it through the
-   * registry keeps `bootstrap.ts` kind-agnostic.
+   * `'managed'` for every managed kind — the WhatsApp factory's
+   * `isManagedConfig` predicate reads `mode === 'managed'` and resolves the
+   * vault provider via `config.kind`, so the notification tier needs no
+   * separate mode literal. Threading it through the registry keeps
+   * `bootstrap.ts` kind-agnostic.
    */
   readonly instanceMode: 'managed'
   /**
@@ -86,6 +100,19 @@ export const KINDS: readonly ChannelKind[] = [
     displayLabel: 'Platform sandbox',
     inboundDispatch: 'customer',
     description: 'Pooled platform-managed sandbox WhatsApp number. Tenant fetches secrets via vobase-platform vault.',
+  },
+  {
+    kind: 'notification',
+    vaultProvider: 'vobase-platform-notification',
+    claimPath: '/api/managed-whatsapp/notification/claim',
+    releasePath: '/api/managed-whatsapp/notification/release',
+    channelName: 'whatsapp_notif',
+    role: 'staff',
+    instanceMode: 'managed',
+    displayLabel: 'Staff WhatsApp notification',
+    inboundDispatch: 'staff_reply',
+    description:
+      'Pooled platform-managed staff-notification WhatsApp number. Inbound from linked staff phones dispatches as `staff_reply`.',
   },
 ] as const
 

@@ -43,7 +43,7 @@
 // The captor + deliverPhoneOtp (consumed by plugins.ts::sendOTP) are safe
 // because they only import from '@vobase/core', 'drizzle-orm', and sibling
 // auth/ files — all resolvable by jiti. The @modules/* dependencies
-// (getNotificationSettings, signedPlatformRequest) are only needed inside
+// (findNotificationChannel, signedPlatformRequest) are only needed inside
 // mintPhoneOtp, so they are loaded via dynamic import() at call time.
 import { logger, notFound } from '@vobase/core'
 import { eq } from 'drizzle-orm'
@@ -256,18 +256,19 @@ export async function mintPhoneOtp(auth: Auth, db: DbForUserLookup, input: MintI
     throw new PhoneOtpMintError('phone_otp_mint_failed', { cause: notFound('staff_user_not_found') })
   }
 
-  // Pre-flight 2: template-approval gate. The notification_settings row holds
-  // the operator-curated `metaTemplateApprovals` jsonb that tells us whether
-  // Meta has greenlit `vobase_platform_otp`. Missing row / missing key /
-  // non-`'approved'` value all fail the same way — we never relay an
-  // unapproved template.
+  // Pre-flight 2: template-approval gate. The org's notification-tier WhatsApp
+  // channel config holds the operator-curated `metaTemplateApprovals` jsonb
+  // that tells us whether Meta has greenlit `vobase_platform_otp`. Missing
+  // channel / missing key / non-`'approved'` value all fail the same way — we
+  // never relay an unapproved template.
   //
   // Dynamic import — see module-level NOTE above for why @modules/* cannot be
   // a static top-level import in this file.
   // biome-ignore lint/plugin/no-dynamic-import: @modules/* cannot be a static import here (jiti compat — see NOTE)
-  const { getNotificationSettings } = await import('@modules/channels/service/notification-settings')
-  const settings = await getNotificationSettings(db as never, organizationId)
-  const approval = settings?.metaTemplateApprovals?.[PHONE_OTP_TEMPLATE_NAME]
+  const { findNotificationChannel } = await import('@modules/channels/service/instances')
+  const channel = await findNotificationChannel(organizationId)
+  const config = (channel?.config ?? null) as { metaTemplateApprovals?: Record<string, unknown> } | null
+  const approval = config?.metaTemplateApprovals?.[PHONE_OTP_TEMPLATE_NAME]
   if (approval !== 'approved') {
     throw new PhoneOtpMintError('phone_otp_template_unapproved', {
       cause: { templateName: PHONE_OTP_TEMPLATE_NAME, status: approval ?? null },

@@ -44,8 +44,10 @@ const app = new Hono()
   .route('/adapters/web', webAdapter)
   .route('/whatsapp', managedWhatsapp)
   .route('/whatsapp/signup', whatsappSignup)
-  // Registry-driven managed-channel inbound (notification tier + future
-  // kinds). Public — verified inline via the v2 HMAC transport.
+  // Registry-driven managed-channel inbound (sandbox + notification tiers).
+  // Public — verified inline via the v2 HMAC transport. The notification
+  // channel's forwarded staff replies arrive here too: it is an ordinary
+  // `channel_instances` row, so the same `/managed/inbound/:id` path serves it.
   .route('/managed', inboundRouter)
 
 export default app

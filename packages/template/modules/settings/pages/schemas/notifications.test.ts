@@ -20,11 +20,16 @@ describe('notificationsSchema (matrix)', () => {
   })
 
   it('empty matrix object parses', () => {
-    expect(notificationsSchema.parse({ matrix: {} })).toEqual({ matrix: {} })
+    expect(notificationsSchema.parse({ matrix: {} })).toEqual({ matrix: {}, notifyWhileOnline: false })
   })
 
   it('omitted matrix defaults to {}', () => {
-    expect(notificationsSchema.parse({})).toEqual({ matrix: {} })
+    expect(notificationsSchema.parse({})).toEqual({ matrix: {}, notifyWhileOnline: false })
+  })
+
+  it('notifyWhileOnline parses and defaults to false', () => {
+    expect(notificationsSchema.parse({ notifyWhileOnline: true }).notifyWhileOnline).toBe(true)
+    expect(notificationsSchema.parse({}).notifyWhileOnline).toBe(false)
   })
 
   it('partial cells are accepted', () => {

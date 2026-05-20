@@ -21,8 +21,8 @@
  */
 /** @contract platform-tenant-v1 — invoked by team:sync-staff-link pg-boss job. */
 
-import type { NotificationSettings } from '@modules/channels/service/notification-settings'
-import { getNotificationSettings } from '@modules/channels/service/notification-settings'
+import type { ChannelInstance } from '@modules/channels/schema'
+import { findNotificationChannel } from '@modules/channels/service/instances'
 import {
   staffLinks as defaultStaffLinks,
   PlatformHandshakeError,
@@ -83,7 +83,7 @@ export interface StaffLinksApi {
 }
 
 export interface SyncStaffLinksOptions {
-  /** ScopedDb for `getNotificationSettings`. Required outside test injection. */
+  /** ScopedDb for `findNotificationChannel`. Required outside test injection. */
   db?: ScopedDb
   /**
    * Platform credentials. Required at production call-sites (cron + enqueue);
@@ -95,8 +95,8 @@ export interface SyncStaffLinksOptions {
   // ─── Injection points (used by unit + integration tests) ──────────────────
   /** List staff for an org. Defaults to the installed staff service. */
   listStaff?: (orgId: string) => Promise<StaffProfile[]>
-  /** Resolve the org's notification settings row. */
-  getNotificationSettings?: (orgId: string) => Promise<NotificationSettings | null>
+  /** Resolve the org's notification-tier WhatsApp channel row. */
+  getNotificationChannel?: (orgId: string) => Promise<ChannelInstance | null>
   /** Platform staff-link CRUD. Defaults to the env-bound handshake helpers. */
   staffLinksApi?: StaffLinksApi
   /** Override the env-based platform-creds reader (tests). */
@@ -150,20 +150,20 @@ export async function syncStaffLinks(
   options: SyncStaffLinksOptions = {},
 ): Promise<SyncStaffLinksResult> {
   const listStaffFn = options.listStaff ?? listStaff
-  const getSettingsFn =
-    options.getNotificationSettings ??
+  const getChannelFn =
+    options.getNotificationChannel ??
     ((id: string) => {
       if (!options.db)
-        throw new Error('syncStaffLinks: options.db required when getNotificationSettings is not injected')
-      return getNotificationSettings(options.db, id)
+        throw new Error('syncStaffLinks: options.db required when getNotificationChannel is not injected')
+      return findNotificationChannel(id)
     })
   const api = options.staffLinksApi ?? defaultStaffLinks
   const readCreds = options.readPlatformCreds ?? defaultReadPlatformCreds
 
   const errors: SyncStaffLinkError[] = []
 
-  const settings = await getSettingsFn(orgId)
-  if (!settings) {
+  const channel = await getChannelFn(orgId)
+  if (!channel) {
     return { kind: 'skipped', orgId, reason: 'no_notification_channel' }
   }
 

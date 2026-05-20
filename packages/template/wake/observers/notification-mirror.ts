@@ -1,36 +1,32 @@
 /**
  * Mirror standalone-lane assistant `message_end` events out the org's
- * notification WhatsApp number to the staff member's personal WhatsApp via
- * `sendNotificationText` (the per-org notification send seam backed by
- * `notification_settings`).
+ * notification WhatsApp channel to the staff member's personal WhatsApp.
  *
  * Resolved at wake start (so we never query mid-turn or thread DB lookups
  * into the frozen-snapshot inputs):
- *   - hasNotificationSettings — whether the org has a notification row
- *   - staffPhoneE164          — the better-auth `user.phone_number` of the
- *                               operator-thread's createdBy user
+ *   - notificationChannelInstanceId — the org's single `whatsapp_notif` channel
+ *   - staffPhoneE164                — the better-auth `user.phone_number` of
+ *                                     the operator-thread's createdBy user
  *
  * Fires on `message_end` (final assistant text) only — not on
  * `message_update` deltas (per `template/CLAUDE.md` "Wake event order").
  *
  * Frozen-snapshot safe: this observer is wired into `coreListeners` only,
- * never into the system-prompt input chain.  All identity is captured at
- * wake-builder time and frozen for the wake's lifetime.
+ * never into the system-prompt input chain. All identity (channel id, staff
+ * phone) is captured at wake-builder time and frozen for the wake's lifetime.
  */
 
-import { sendNotificationText } from '@modules/channels/service/notification-send'
+import { findNotificationChannel } from '@modules/channels/service/instances'
+import { get as channelRegistryGet } from '@modules/channels/service/registry'
 import type { HarnessLogger, OnEventListener } from '@vobase/core'
 
-import type { ScopedDb } from '~/runtime'
 import type { WakeTrigger } from '../events'
 
 export interface NotificationMirrorOpts {
-  db: ScopedDb
   organizationId: string
   threadId: string
   staffPhoneE164: string | null
-  /** True iff `notification_settings` exists for this org at wake time. */
-  hasNotificationSettings: boolean
+  notificationChannelInstanceId: string | null
   logger: HarnessLogger
 }
 
@@ -41,10 +37,20 @@ export function createNotificationMirrorObserver(opts: NotificationMirrorOpts): 
     if (ev.role !== 'assistant') return
     const text = (ev.content ?? '').trim()
     if (!text) return
-    if (!opts.staffPhoneE164 || !opts.hasNotificationSettings) return
+    if (!opts.staffPhoneE164 || !opts.notificationChannelInstanceId) return
 
     try {
-      const res = await sendNotificationText(opts.db, opts.organizationId, { to: opts.staffPhoneE164, text })
+      // Fresh adapter per dispatch — the registry creates one per call too.
+      // `findNotificationChannel` is the source of truth for the live config
+      // (in case the row's `config` mutated mid-wake from a row update).
+      const channel = await findNotificationChannel(opts.organizationId)
+      if (!channel || channel.id !== opts.notificationChannelInstanceId) {
+        // Channel was released or replaced mid-wake — silently skip.
+        return
+      }
+      const adapter = await channelRegistryGet(channel.channel, channel.config ?? {}, channel.id)
+      if (!adapter) return
+      const res = await adapter.send({ to: opts.staffPhoneE164, text })
       if (!res.success) {
         opts.logger.warn?.(
           { threadId: opts.threadId, code: res.code, error: res.error },

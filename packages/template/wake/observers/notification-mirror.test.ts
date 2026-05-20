@@ -1,31 +1,89 @@
 /**
  * Unit tests for the notification-mirror observer.
  *
- * The observer's only side effect is calling `sendNotificationText`. We
- * stub that module so no DB / platform fetch is needed; the assertions
- * verify the (to, text) the observer dispatches under each trigger shape.
+ * The observer resolves the org's notification channel via
+ * `findNotificationChannel`, builds an adapter via the channels registry,
+ * and calls `adapter.send`. We use the real install seams — a stub
+ * channel-instances service + a stub adapter registered under
+ * `whatsapp_notif` — so no DB / platform fetch is needed and no global
+ * `mock.module` leaks into sibling test files.
  */
 
-import { afterEach, describe, expect, it, mock } from 'bun:test'
-import type { HarnessLogger, WakeRuntime } from '@vobase/core'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
+import type { ChannelInstance } from '@modules/channels/schema'
+import {
+  __resetChannelInstancesServiceForTests,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
+import {
+  register as registerAdapter,
+  __resetForTests as resetChannelRegistry,
+} from '@modules/channels/service/registry'
+import type { ChannelAdapter, HarnessLogger, WakeRuntime } from '@vobase/core'
 
-import type { ScopedDb } from '~/runtime'
+import { createNotificationMirrorObserver } from './notification-mirror'
+
+const ORG = 'org-test-mirror'
+const THREAD = 'thr-test-mirror'
+const STAFF_PHONE = '+6581234567'
+const NOTIF_CHANNEL_ID = `mgd-${ORG}-staging-notif`
 
 interface SentMsg {
-  orgId: string
   to: string
   text: string
 }
 const sentMessages: SentMsg[] = []
 
-mock.module('@modules/channels/service/notification-send', () => ({
-  sendNotificationText: async (_db: unknown, orgId: string, input: { to: string; text: string }) => {
-    sentMessages.push({ orgId, to: input.to, text: input.text })
-    return { success: true, messageId: 'stub-msg-id', wireRoute: 'freeform' as const }
-  },
-}))
+function makeChannel(): ChannelInstance {
+  return {
+    id: NOTIF_CHANNEL_ID,
+    organizationId: ORG,
+    channel: 'whatsapp_notif',
+    role: 'staff',
+    displayName: 'Staff WhatsApp notification',
+    config: { mode: 'managed', kind: 'notification' },
+    platformChannelId: 'pc-notif-mirror',
+    webhookSecret: null,
+    status: 'active',
+    setupStage: 'active',
+    lastError: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+}
 
-import { createNotificationMirrorObserver } from './notification-mirror'
+const STUB_ADAPTER: ChannelAdapter = {
+  // biome-ignore lint/suspicious/noExplicitAny: stub adapter — only `send` is exercised
+  capabilities: {} as any,
+  send: async (input: { to: string; text: string }) => {
+    sentMessages.push({ to: input.to, text: input.text })
+    return { success: true, messageId: 'stub-msg-id' }
+  },
+  // biome-ignore lint/suspicious/noExplicitAny: stub adapter — unused surface
+} as any
+
+beforeAll(() => {
+  installChannelInstancesService({
+    list: async (organizationId: string, channel?: string) => {
+      if (organizationId !== ORG) return []
+      if (channel && channel !== 'whatsapp_notif') return []
+      return [makeChannel()]
+    },
+    get: async () => null,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    create: async () => null as any,
+    // biome-ignore lint/suspicious/noExplicitAny: stub
+    update: async () => null as any,
+    remove: async () => undefined,
+    hardRemove: async () => undefined,
+  })
+  registerAdapter('whatsapp_notif', () => STUB_ADAPTER, STUB_ADAPTER.capabilities)
+})
+
+afterAll(() => {
+  __resetChannelInstancesServiceForTests()
+  resetChannelRegistry()
+})
 
 // Stub runtime — the mirror observer never uses WakeRuntime; we pass it to
 // satisfy the OnEventListener<WakeTrigger> signature.
@@ -37,11 +95,6 @@ const NOOP_LOGGER: HarnessLogger = {
   warn: () => {},
   error: () => {},
 }
-
-const ORG = 'org-test-mirror'
-const THREAD = 'thr-test-mirror'
-const STAFF_PHONE = '+6581234567'
-const STUB_DB = {} as ScopedDb
 
 afterEach(() => {
   sentMessages.length = 0
@@ -77,24 +130,22 @@ function makeMessageEnd(
 describe('createNotificationMirrorObserver', () => {
   it('no-ops when staffPhoneE164 is null', async () => {
     const observer = createNotificationMirrorObserver({
-      db: STUB_DB,
       organizationId: ORG,
       threadId: THREAD,
       staffPhoneE164: null,
-      hasNotificationSettings: true,
+      notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('assistant', 'hi') as never, STUB_RUNTIME)
     expect(sentMessages.length).toBe(0)
   })
 
-  it('no-ops when hasNotificationSettings is false', async () => {
+  it('no-ops when notificationChannelInstanceId is null', async () => {
     const observer = createNotificationMirrorObserver({
-      db: STUB_DB,
       organizationId: ORG,
       threadId: THREAD,
       staffPhoneE164: STAFF_PHONE,
-      hasNotificationSettings: false,
+      notificationChannelInstanceId: null,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('assistant', 'hi') as never, STUB_RUNTIME)
@@ -103,11 +154,10 @@ describe('createNotificationMirrorObserver', () => {
 
   it('no-ops on non-message_end events', async () => {
     const observer = createNotificationMirrorObserver({
-      db: STUB_DB,
       organizationId: ORG,
       threadId: THREAD,
       staffPhoneE164: STAFF_PHONE,
-      hasNotificationSettings: true,
+      notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(
@@ -126,11 +176,10 @@ describe('createNotificationMirrorObserver', () => {
 
   it('no-ops on tool message_end (only assistant role mirrored)', async () => {
     const observer = createNotificationMirrorObserver({
-      db: STUB_DB,
       organizationId: ORG,
       threadId: THREAD,
       staffPhoneE164: STAFF_PHONE,
-      hasNotificationSettings: true,
+      notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('tool', 'tool output') as never, STUB_RUNTIME)
@@ -139,28 +188,26 @@ describe('createNotificationMirrorObserver', () => {
 
   it('no-ops on empty assistant content', async () => {
     const observer = createNotificationMirrorObserver({
-      db: STUB_DB,
       organizationId: ORG,
       threadId: THREAD,
       staffPhoneE164: STAFF_PHONE,
-      hasNotificationSettings: true,
+      notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('assistant', '   ') as never, STUB_RUNTIME)
     expect(sentMessages.length).toBe(0)
   })
 
-  it('calls sendNotificationText with (staffPhone, assistant text) on a real message_end', async () => {
+  it('sends (staffPhone, assistant text) via the channel adapter on a real message_end', async () => {
     const observer = createNotificationMirrorObserver({
-      db: STUB_DB,
       organizationId: ORG,
       threadId: THREAD,
       staffPhoneE164: STAFF_PHONE,
-      hasNotificationSettings: true,
+      notificationChannelInstanceId: NOTIF_CHANNEL_ID,
       logger: NOOP_LOGGER,
     })
     await observer(makeMessageEnd('assistant', 'Hello from agent') as never, STUB_RUNTIME)
     expect(sentMessages.length).toBe(1)
-    expect(sentMessages[0]).toEqual({ orgId: ORG, to: STAFF_PHONE, text: 'Hello from agent' })
+    expect(sentMessages[0]).toEqual({ to: STAFF_PHONE, text: 'Hello from agent' })
   })
 })

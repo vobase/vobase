@@ -9,12 +9,15 @@
  *   2. Resolve the channel-instance row → look up its `kind` in the managed
  *      registry (`findByChannelName`).
  *   3. Dispatch on `registry.inboundDispatch`:
- *        - `'customer'` — reserved; today the customer-WA webhook router
- *          owns customer inbound, so this branch 410s with a clear hint.
+ *        - `'staff_reply'` → notification-tier branch (ask-staff-answer or
+ *           operator-thread fallback).
+ *        - `'customer'`    → reserved; today the customer-WA webhook router
+ *           owns customer inbound, so this branch 410s with a clear hint.
  *
- * Verification + parsing live in this file. Branch bodies live in dedicated
- * helper files so the router stays small and a new kind plugs in via a new
- * branch helper without growing this router.
+ * Verification + parsing live in this file. Branch bodies live in
+ * `staff-reply-dispatch.ts` so the router stays small and a new kind
+ * (e.g. SMS-notification) plugs in via a new branch helper without growing
+ * this router.
  */
 
 import { timingSafeEqual } from 'node:crypto'
@@ -31,10 +34,7 @@ import { errorHandler, notFound, unauthorized } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 
-interface MetaInbound {
-  object?: string
-  entry?: unknown[]
-}
+import { dispatchStaffReply, type MetaInbound } from './staff-reply-dispatch'
 
 const app = new Hono()
   .onError(errorHandler)
@@ -122,12 +122,17 @@ const app = new Hono()
     if (!verifyResult.ok) throw unauthorized(`invalid_sig: ${verifyResult.reason}`)
 
     // ─── Parse + dispatch on registry kind ───────────────────────────────────
+    let payload: MetaInbound
     try {
-      JSON.parse(rawBody) as MetaInbound
+      payload = JSON.parse(rawBody) as MetaInbound
     } catch {
       return c.json({ ok: true, branch: 'unparseable_body' })
     }
     switch (entry.inboundDispatch) {
+      case 'staff_reply': {
+        const result = await dispatchStaffReply({ db, organizationId: instance.organizationId, payload })
+        return c.json(result)
+      }
       case 'customer':
         // Reserved — sandbox-tier inbound today routes via the customer-WA
         // webhook router (`handlers/webhook.ts`). Return a clear hint rather

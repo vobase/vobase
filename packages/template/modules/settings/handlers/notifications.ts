@@ -13,13 +13,13 @@ const app = new Hono<SessionEnv>()
   .get('/notifications', async (c) => {
     const userId = c.get('session').user.id
     const prefs = await getPrefs(userId)
-    return c.json({ matrix: prefs.prefs })
+    return c.json({ matrix: prefs.prefs, notifyWhileOnline: prefs.notifyWhileOnline })
   })
   .post('/notifications', zValidator('json', notificationsSchema, invalidBody), async (c) => {
     const userId = c.get('session').user.id
-    const { matrix } = c.req.valid('json')
-    const prefs = await upsertPrefs(userId, matrix)
-    return c.json({ matrix: prefs.prefs })
+    const { matrix, notifyWhileOnline } = c.req.valid('json')
+    const prefs = await upsertPrefs(userId, matrix, notifyWhileOnline)
+    return c.json({ matrix: prefs.prefs, notifyWhileOnline: prefs.notifyWhileOnline })
   })
 
 export default app

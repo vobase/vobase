@@ -1,9 +1,12 @@
 /**
  * Per-org generic key/value settings (org_settings table).
  *
- * Used today only for `defaultOperatorAgentId` (the agent that handles
- * first-time staff inbound on the notification-tier WhatsApp channel). Future
- * org-scoped preferences plug in here without a schema change.
+ * Keys today: `defaultOperatorAgentId` (the agent that handles first-time
+ * staff inbound on the notification-tier WhatsApp channel),
+ * `operatorHeartbeatEnabled`, and `magicLinkEndpointId` (the platform-minted
+ * webhook endpoint id for this org's magic-link finish route — written at
+ * notification-channel claim time). Future org-scoped preferences plug in
+ * here without a schema change.
  */
 
 import { orgSettings } from '@modules/settings/schema'
@@ -15,7 +18,7 @@ import type { ScopedDb } from '~/runtime'
  * String-typed key union — extend as new keys are added so callers cannot
  * fat-finger the namespace.
  */
-export type OrgSettingKey = 'defaultOperatorAgentId' | 'operatorHeartbeatEnabled'
+export type OrgSettingKey = 'defaultOperatorAgentId' | 'operatorHeartbeatEnabled' | 'magicLinkEndpointId'
 
 export interface OrgSettingsService {
   get(organizationId: string, key: OrgSettingKey): Promise<string | null>

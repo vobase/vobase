@@ -24,13 +24,13 @@
  *
  * No live network, no live DB. Platform is an in-process Hono stub. Tenant
  * side uses the real `syncStaffLinks` + `staffLinks.*` helpers; the only
- * stubs are the `listStaff` and `getNotificationSettings` deps, which the
+ * stubs are the `listStaff` and `getNotificationChannel` deps, which the
  * reconciler already exposes for the unit-test seam.
  */
 /** @contract platform-tenant-v1 */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import type { NotificationSettings } from '@modules/channels/service/notification-settings'
+import type { ChannelInstance } from '@modules/channels/schema'
 import { Hono } from 'hono'
 
 import type { StaffProfile } from '../../modules/team/schema'
@@ -153,19 +153,19 @@ function makeProfile(orgId: string, userId: string, phone: string): StaffProfile
   }
 }
 
-function makeSettings(orgId: string): NotificationSettings {
+function makeChannel(orgId: string): ChannelInstance {
   return {
+    id: `mgd-${orgId}-staging-notif`,
     organizationId: orgId,
-    notificationEndpointId: `ep-notif-${orgId}`,
-    magicLinkEndpointId: `ep-ml-${orgId}`,
-    platformHmacSecretEnvelope: 'envelope-fixture',
-    platformBaseUrl: BASE_URL,
-    displayPhoneNumber: '+15550001',
-    phoneNumberId: `pn-${orgId}`,
-    wabaId: `waba-${orgId}`,
-    metaTemplateApprovals: {},
-    lastVerifyStatus: null,
-    lastVerifiedAt: null,
+    channel: 'whatsapp_notif',
+    role: 'staff',
+    displayName: 'Staff WhatsApp notification',
+    config: { mode: 'managed', kind: 'notification', platformBaseUrl: BASE_URL },
+    platformChannelId: `pc-notif-${orgId}`,
+    webhookSecret: null,
+    status: 'active',
+    setupStage: 'active',
+    lastError: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -201,9 +201,9 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         expect(orgId).toBe(ORG_A)
         return [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)]
       },
-      getNotificationSettings: async (orgId: string) => {
+      getNotificationChannel: async (orgId: string) => {
         expect(orgId).toBe(ORG_A)
-        return makeSettings(ORG_A)
+        return makeChannel(ORG_A)
       },
     })
     if (resultA.kind !== 'applied') throw new Error('expected applied')
@@ -223,9 +223,9 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         expect(orgId).toBe(ORG_B)
         return [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)]
       },
-      getNotificationSettings: async (orgId: string) => {
+      getNotificationChannel: async (orgId: string) => {
         expect(orgId).toBe(ORG_B)
-        return makeSettings(ORG_B)
+        return makeChannel(ORG_B)
       },
     })
     if (resultB.kind !== 'applied') throw new Error('expected applied')
@@ -271,7 +271,7 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)],
-      getNotificationSettings: async () => makeSettings(ORG_A),
+      getNotificationChannel: async () => makeChannel(ORG_A),
     })
     await syncStaffLinks(ORG_B, {
       creds: {
@@ -281,7 +281,7 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)],
-      getNotificationSettings: async () => makeSettings(ORG_B),
+      getNotificationChannel: async () => makeChannel(ORG_B),
     })
 
     // Inbound from `+6591234567` lands on orgA's channel webhook — resolver

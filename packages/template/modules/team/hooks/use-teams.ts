@@ -179,6 +179,22 @@ export function useRemoveTeamMember() {
   })
 }
 
+/**
+ * Changes an org member's role (`admin` ⇄ `member`) via better-auth. `memberId`
+ * is the membership row id (`OrgMemberRow.id`), not the user id. Owner-only /
+ * admin-only gating is the caller's responsibility.
+ */
+export function useUpdateMemberRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { memberId: string; role: 'admin' | 'member' }): Promise<void> => {
+      const { error } = await client.updateMemberRole({ memberId: input.memberId, role: input.role })
+      if (error) throw new Error(error.message ?? 'updateMemberRole failed')
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: teamsKeys.orgMembers }),
+  })
+}
+
 export function useTeamDescriptions() {
   return useQuery({
     queryKey: teamsKeys.descriptions,

@@ -112,6 +112,13 @@ async function fetchSandboxAvailability(): Promise<number | null> {
   return data.configured ? data.sandboxPoolAvailable : null
 }
 
+async function fetchNotifAvailability(): Promise<number | null> {
+  const r = await channelsClient.whatsapp.managed.notification.availability.$get()
+  if (!r.ok) return null
+  const data = (await r.json()) as { notificationPoolAvailable: number; configured: boolean }
+  return data.configured ? data.notificationPoolAvailable : null
+}
+
 function configFromCreate(body: CreateBody): Record<string, unknown> {
   const next: { defaultAssignee?: string; origin?: string } = {}
   if (body.defaultAssignee) next.defaultAssignee = body.defaultAssignee
@@ -305,10 +312,16 @@ export function ChannelsPage() {
     enabled: PLATFORM_CONFIGURED,
     staleTime: 30_000,
   })
+  const { data: notifAvailable = null } = useQuery({
+    queryKey: ['channels', 'managed', 'availability', 'notification'] as const,
+    queryFn: fetchNotifAvailability,
+    enabled: PLATFORM_CONFIGURED,
+    staleTime: 30_000,
+  })
 
   const [connectWaOpen, setConnectWaOpen] = useState(false)
-  // Connect-dialog state for managed-kind rows. Triggered from the in-table
-  // placeholder rows' "Connect" button.
+  // Single state for both managed-kind connect dialogs (sandbox + notification).
+  // Triggered from the in-table placeholder rows' "Connect" button.
   const [connectKind, setConnectKind] = useState<ManagedChannelKind | null>(null)
   const [createWebOpen, setCreateWebOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<WebInstance | null>(null)
@@ -321,6 +334,7 @@ export function ChannelsPage() {
   const [detailsTarget, setDetailsTarget] = useState<string | null>(null)
 
   const hasWhatsApp = instances.some((i) => i.channel === 'whatsapp')
+  const hasWhatsAppNotif = instances.some((i) => i.channel === 'whatsapp_notif')
   const wabaId = instances.find((i) => i.channel === 'whatsapp')?.config.wabaId as string | undefined
 
   const createMutation = useMutation({
@@ -353,9 +367,9 @@ export function ChannelsPage() {
   // have to discover the kind from a dropdown. Suppressed entirely when the
   // tenant isn't wired to a platform (no `VITE_PLATFORM_URL`).
   //
-  // Rows are then sorted by `groupRank` so the platform-managed sandbox row
-  // (real or placeholder) always sits at the bottom of the table, regardless
-  // of how the API ordered the underlying instances.
+  // Rows are then sorted by `groupRank` so the two platform-managed rows
+  // (sandbox + notification — real or placeholder) always sit at the bottom
+  // of the table, regardless of how the API ordered the underlying instances.
   const tableRows = useMemo<ChannelInstanceRow[]>(() => {
     const all: ChannelInstanceRow[] = [...instances]
     if (PLATFORM_CONFIGURED) {
@@ -373,14 +387,29 @@ export function ChannelsPage() {
           placeholderAvailable: sandboxAvailable,
         })
       }
+      if (!hasWhatsAppNotif) {
+        all.push({
+          id: '__placeholder__-notification',
+          organizationId: '',
+          channel: 'whatsapp_notif',
+          displayName: 'Platform notification',
+          config: { mode: 'managed-notif' },
+          status: null,
+          createdAt: '',
+          updatedAt: '',
+          placeholderKind: 'notification',
+          placeholderAvailable: notifAvailable,
+        })
+      }
     }
     const groupRank = (row: ChannelInstanceRow): number => {
+      if (row.channel === 'whatsapp_notif') return 3
       if (row.channel === 'whatsapp' && row.config.mode === 'managed') return 2
       if (row.channel === 'whatsapp') return 1
       return 0
     }
     return all.sort((a, b) => groupRank(a) - groupRank(b))
-  }, [instances, sandboxAvailable])
+  }, [instances, hasWhatsAppNotif, sandboxAvailable, notifAvailable])
 
   return (
     <PageLayout>
@@ -442,8 +471,8 @@ export function ChannelsPage() {
         onConnected={handleWhatsAppConnected}
       />
 
-      {/* Platform-channel connect dialog. The `kind` is set when the operator
-          clicks "Connect" on a placeholder row in the table. */}
+      {/* Unified platform-channel connect dialog. The `kind` is set when the
+          operator clicks "Connect" on a placeholder row in the table. */}
       {connectKind && (
         <ConnectManagedChannelDialog
           open={connectKind !== null}
