@@ -18,6 +18,7 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { MagicLinkMintError } from '@auth/magic-link'
+import { __setMagicLinkEndpointIdForTests } from '@auth/magic-link-endpoint-config'
 import {
   __resetAdminAlertForTests,
   ADMIN_ALERT_EVENT_NAME,
@@ -49,12 +50,22 @@ mock.module('@auth/magic-link', () => ({
   magicLinkCaptor: { deliver: () => {} },
 }))
 
-// Stub findNotificationChannel to always return a configured channel with vobase_admin_alert_v2 approved.
-mock.module('@modules/channels/service/instances', () => ({
-  findNotificationChannel: async (_orgId: string) => ({
-    config: {
-      metaTemplateApprovals: { vobase_admin_alert_v2: 'approved' },
-    },
+// Stub getNotificationSettings to always return settings with vobase_admin_alert_v2 approved.
+mock.module('@modules/channels/service/notification-settings', () => ({
+  getNotificationSettings: async (_db: unknown, _orgId: string) => ({
+    organizationId: 'stub',
+    notificationEndpointId: 'ep-notif-stub',
+    magicLinkEndpointId: 'ep-ml-stub',
+    platformHmacSecretEnvelope: 'envelope-stub',
+    platformBaseUrl: 'http://platform.test',
+    displayPhoneNumber: '+15550001',
+    phoneNumberId: 'pn-stub',
+    wabaId: 'waba-stub',
+    metaTemplateApprovals: { vobase_admin_alert_v2: 'approved' },
+    lastVerifyStatus: null,
+    lastVerifiedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }),
 }))
 
@@ -78,6 +89,7 @@ describe('dispatchAdminAlert', () => {
 
   afterEach(() => {
     __resetAdminAlertForTests()
+    __setMagicLinkEndpointIdForTests(null)
     _mintMagicLinkImpl = null
   })
 
@@ -221,13 +233,13 @@ describe('dispatchAdminAlert', () => {
       throw new MagicLinkMintError('magic_link_mint_failed', { cause: new Error('captor_timeout') })
     }
 
-    // Use a stub auth + endpointId so mint is attempted.
+    // Use a stub auth + endpoint override so mint is attempted.
     const stubAuth = {} as Parameters<typeof installAdminAlertDeps>[0]['auth']
+    __setMagicLinkEndpointIdForTests('platform-tenant-test')
 
     installAdminAlertDeps({
       db: db as unknown as Parameters<typeof installAdminAlertDeps>[0]['db'],
       auth: stubAuth,
-      endpointId: 'platform-tenant-test',
     })
 
     const result = await dispatchAdminAlert(makeInput(orgId, dedupKey))

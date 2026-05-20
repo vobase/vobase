@@ -19,14 +19,16 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import type { NotificationSettings } from '@modules/channels/service/notification-settings'
 import { Hono } from 'hono'
 
-import type { ChannelInstance } from '../../channels/schema'
 import type { StaffProfile } from '../schema'
 import { syncStaffLinks } from './staff-link-sync'
 
 const ORG_ID = 'org-int-001'
-const CHANNEL_INSTANCE_ID = 'ch-notif-int-001'
+// syncStaffLinks derives the channel id from `notificationChannelInstanceId(orgId, env)`
+// — see staff-link-sync.ts. Stays in lockstep with the deterministic `mgd-<orgId>-<env>-notif`.
+const CHANNEL_INSTANCE_ID = `mgd-${ORG_ID}-staging-notif`
 const BASE_URL = 'http://localhost:9998' // never bound — in-process via globalThis.fetch patch
 const TENANT_ID = 'tnt-int'
 const HMAC = 'integration-test-hmac'
@@ -123,19 +125,19 @@ function makeProfile(userId: string, phone: string | null): StaffProfile {
   }
 }
 
-function makeChannel(): ChannelInstance {
+function makeSettings(): NotificationSettings {
   return {
-    id: CHANNEL_INSTANCE_ID,
     organizationId: ORG_ID,
-    channel: 'whatsapp_notif',
-    role: 'staff',
-    displayName: 'Notification WA',
-    config: { mode: 'managed', kind: 'notification' },
-    platformChannelId: 'plat-ch-int',
-    webhookSecret: null,
-    status: 'active',
-    setupStage: null,
-    lastError: null,
+    notificationEndpointId: 'ep-notif-int',
+    magicLinkEndpointId: 'ep-ml-int',
+    platformHmacSecretEnvelope: 'envelope-int',
+    platformBaseUrl: BASE_URL,
+    displayPhoneNumber: '+15550101',
+    phoneNumberId: 'pn-int',
+    wabaId: 'waba-int',
+    metaTemplateApprovals: {},
+    lastVerifyStatus: null,
+    lastVerifiedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -168,7 +170,7 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile('u-1', '+6591111111')],
-      findNotificationChannel: async () => makeChannel(),
+      getNotificationSettings: async () => makeSettings(),
     })
 
     if (result.kind !== 'applied') throw new Error('expected applied')
@@ -199,7 +201,7 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
         environment: 'staging',
       },
       listStaff: async () => [],
-      findNotificationChannel: async () => makeChannel(),
+      getNotificationSettings: async () => makeSettings(),
     })
 
     if (result.kind !== 'applied') throw new Error('expected applied')
@@ -227,7 +229,7 @@ describe('syncStaffLinks — in-process platform stub (integration)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile('u-1', '+6591111111')],
-      findNotificationChannel: async () => makeChannel(),
+      getNotificationSettings: async () => makeSettings(),
     })
 
     if (result.kind !== 'applied') throw new Error('expected applied')

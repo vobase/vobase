@@ -21,8 +21,8 @@
  */
 /** @contract platform-tenant-v1 — invoked by team:sync-staff-link pg-boss job. */
 
-import type { ChannelInstance } from '@modules/channels/schema'
-import { findNotificationChannel } from '@modules/channels/service/instances'
+import type { NotificationSettings } from '@modules/channels/service/notification-settings'
+import { getNotificationSettings } from '@modules/channels/service/notification-settings'
 import {
   staffLinks as defaultStaffLinks,
   PlatformHandshakeError,
@@ -30,6 +30,7 @@ import {
 } from '@modules/integrations/service/handshake'
 import { normalizeWaId } from '@modules/integrations/service/phone'
 
+import type { ScopedDb } from '~/runtime'
 import type { StaffProfile } from '../schema'
 import { list as listStaff } from './staff'
 
@@ -82,6 +83,8 @@ export interface StaffLinksApi {
 }
 
 export interface SyncStaffLinksOptions {
+  /** ScopedDb for `getNotificationSettings`. Required outside test injection. */
+  db?: ScopedDb
   /**
    * Platform credentials. Required at production call-sites (cron + enqueue);
    * optional in tests where `staffLinksApi` is injected to bypass the platform.
@@ -92,8 +95,8 @@ export interface SyncStaffLinksOptions {
   // ─── Injection points (used by unit + integration tests) ──────────────────
   /** List staff for an org. Defaults to the installed staff service. */
   listStaff?: (orgId: string) => Promise<StaffProfile[]>
-  /** Resolve the org's notification-tier channel. */
-  findNotificationChannel?: (orgId: string) => Promise<ChannelInstance | null>
+  /** Resolve the org's notification settings row. */
+  getNotificationSettings?: (orgId: string) => Promise<NotificationSettings | null>
   /** Platform staff-link CRUD. Defaults to the env-bound handshake helpers. */
   staffLinksApi?: StaffLinksApi
   /** Override the env-based platform-creds reader (tests). */
@@ -123,6 +126,16 @@ function defaultReadPlatformCreds(): PlatformCreds | null {
 }
 
 /**
+ * Per-org platform-side identifier used to scope `staff_links` rows. Mirrors
+ * the deterministic channel-instance id format that `claimAndBootstrap`
+ * synthesized for the notification tier (`mgd-<orgId>-<env>-notif`), so the
+ * platform-side rows seeded under the old shape stay addressable post-cutover.
+ */
+function notificationChannelInstanceId(orgId: string, environment: 'production' | 'staging'): string {
+  return `mgd-${orgId}-${environment}-notif`
+}
+
+/**
  * Compute the per-org delta between tenant-side staff (those with a non-null
  * `phoneNumber`) and platform-side `staff_links`, then apply via
  * `staffLinks.upsert` / `staffLinks.delete` until they converge.
@@ -137,14 +150,20 @@ export async function syncStaffLinks(
   options: SyncStaffLinksOptions = {},
 ): Promise<SyncStaffLinksResult> {
   const listStaffFn = options.listStaff ?? listStaff
-  const findChannelFn = options.findNotificationChannel ?? findNotificationChannel
+  const getSettingsFn =
+    options.getNotificationSettings ??
+    ((id: string) => {
+      if (!options.db)
+        throw new Error('syncStaffLinks: options.db required when getNotificationSettings is not injected')
+      return getNotificationSettings(options.db, id)
+    })
   const api = options.staffLinksApi ?? defaultStaffLinks
   const readCreds = options.readPlatformCreds ?? defaultReadPlatformCreds
 
   const errors: SyncStaffLinkError[] = []
 
-  const channel = await findChannelFn(orgId)
-  if (!channel) {
+  const settings = await getSettingsFn(orgId)
+  if (!settings) {
     return { kind: 'skipped', orgId, reason: 'no_notification_channel' }
   }
 
@@ -152,6 +171,8 @@ export async function syncStaffLinks(
   if (!creds) {
     return { kind: 'skipped', orgId, reason: 'platform_not_configured' }
   }
+
+  const channelInstanceId = notificationChannelInstanceId(orgId, creds.environment)
 
   // Tenant-side: staff with a populated WhatsApp phone. Normalize once so
   // the diff compares canonical wa_ids (no leading `+`, no whitespace) on
@@ -182,7 +203,7 @@ export async function syncStaffLinks(
       platformBaseUrl: creds.platformBaseUrl,
       tenantId: creds.tenantId,
       tenantHmacSecret: creds.tenantHmacSecret,
-      channelInstanceId: channel.id,
+      channelInstanceId,
     })
   } catch (err) {
     errors.push({
@@ -248,7 +269,6 @@ export async function syncStaffLinks(
   // Apply upserts + deletes in parallel — they target the same platform
   // endpoint, but the platform stays behind the per-job singleton-rate-limit
   // (R9-E) so worst-case fanout is bounded by job concurrency.
-  const channelInstanceId = channel.id
   const [upsertOutcomes, deleteOutcomes] = await Promise.all([
     Promise.all(
       upserts.map((u) =>

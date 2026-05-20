@@ -6,16 +6,34 @@
  */
 
 import { describe, expect, it } from 'bun:test'
+import type { NotificationSettings } from '@modules/channels/service/notification-settings'
 
-import type { ChannelInstance } from '../../channels/schema'
 import type { StaffProfile } from '../schema'
 import { type SyncStaffLinksOptions, syncStaffLinks } from './staff-link-sync'
 
 const ORG_ID = 'org-test-001'
-const CHANNEL_INSTANCE_ID = 'ch-notif-001'
+const CHANNEL_INSTANCE_ID = 'mgd-org-test-001-staging-notif'
 const PLATFORM_URL = 'https://platform.test.local'
 const TENANT_ID = 'tenant-test'
 const HMAC = 'hmac-secret-test'
+
+function makeSettings(): NotificationSettings {
+  return {
+    organizationId: ORG_ID,
+    notificationEndpointId: 'ep-notif-test',
+    magicLinkEndpointId: 'ep-ml-test',
+    platformHmacSecretEnvelope: 'envelope-fixture',
+    platformBaseUrl: PLATFORM_URL,
+    displayPhoneNumber: '+15550001',
+    phoneNumberId: 'pn-test',
+    wabaId: 'waba-test',
+    metaTemplateApprovals: {},
+    lastVerifyStatus: null,
+    lastVerifiedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+}
 
 function makeProfile(overrides: Partial<StaffProfile> = {}): StaffProfile {
   return {
@@ -40,24 +58,6 @@ function makeProfile(overrides: Partial<StaffProfile> = {}): StaffProfile {
   }
 }
 
-function makeChannel(): ChannelInstance {
-  return {
-    id: CHANNEL_INSTANCE_ID,
-    organizationId: ORG_ID,
-    channel: 'whatsapp_notif',
-    role: 'staff',
-    displayName: 'Notification WA',
-    config: { mode: 'managed', kind: 'notification' },
-    platformChannelId: 'plat-ch-1',
-    webhookSecret: null,
-    status: 'active',
-    setupStage: null,
-    lastError: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  }
-}
-
 interface StubCalls {
   upsert: Array<{ staffUserId: string; staffPhoneE164: string }>
   delete: Array<{ staffPhoneE164: string }>
@@ -67,7 +67,8 @@ interface StubCalls {
 function buildOptions(opts: {
   staff: StaffProfile[]
   platform: Array<{ staffUserId: string; staffPhoneE164: string }>
-  channel?: ChannelInstance | null
+  /** Pass `null` to simulate the no-notification-settings skip path; default = present. */
+  settings?: NotificationSettings | null
   listFails?: boolean
   upsertFailsFor?: string
   deleteFailsFor?: string
@@ -76,9 +77,10 @@ function buildOptions(opts: {
 }): { options: SyncStaffLinksOptions; calls: StubCalls } {
   const calls: StubCalls = { upsert: [], delete: [], listCalls: 0 }
   const withCreds = opts.withCreds ?? true
+  const resolved = opts.settings === undefined ? makeSettings() : opts.settings
   const options: SyncStaffLinksOptions = {
-    listStaff: async (_orgId) => opts.staff,
-    findNotificationChannel: async (_orgId) => (opts.channel === undefined ? makeChannel() : opts.channel),
+    listStaff: async (_orgId: string) => opts.staff,
+    getNotificationSettings: async (_orgId: string) => resolved,
     staffLinksApi: {
       list: async () => {
         calls.listCalls += 1
@@ -256,11 +258,11 @@ describe('syncStaffLinks() — diff/apply', () => {
     expect(calls.delete.length).toBe(0)
   })
 
-  it('no notification channel → skipped, no platform calls', async () => {
+  it('no notification settings → skipped, no platform calls', async () => {
     const { options, calls } = buildOptions({
       staff: [makeProfile({ userId: 'u-1', phoneNumber: '+6591111111' })],
       platform: [],
-      channel: null,
+      settings: null,
     })
     const result = await syncStaffLinks(ORG_ID, options)
     expect(result.kind).toBe('skipped')

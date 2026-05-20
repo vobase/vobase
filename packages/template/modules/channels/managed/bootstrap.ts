@@ -4,9 +4,7 @@
  *
  * Replaces the inline 4-step claim sequence that used to live at
  * `adapters/whatsapp/handlers/managed.ts:113-232`. Synchronous under §7.12:
- * the UI POSTs the claim and the handler runs steps 1-6 inline. Step 7
- * (`team:sync-staff-link` enqueue) only fires for `kind === 'notification'`
- * and is wired in Slice 3 — for sandbox-only it is a no-op.
+ * the UI POSTs the claim and the handler runs steps 1-3 inline.
  *
  * Steps:
  *   1. POST `/api/managed-whatsapp/sandbox/create` (handshake) — get
@@ -93,6 +91,14 @@ export interface ClaimAndBootstrapOpts {
   /** Verify-token derived from `BETTER_AUTH_SECRET` for the GET hub challenge. */
   verifyToken: string
   /**
+   * Per-org notification + magic-link provisioning seam. Runs after the
+   * sandbox claim commits; production binds
+   * `() => provisionNotificationSettings(db, organizationId, { tenantId, tenantHmacSecret, platformBaseUrl, appBaseUrl })`.
+   * Tests inject a stub so they don't need a real Postgres for the
+   * `notification_settings` table.
+   */
+  provisionNotification: () => Promise<void>
+  /**
    * Optional id of the AI agent that should be the channel's default assignee
    * — written into `channel_instances.config.defaultAssignee` so the inbound
    * webhook router routes new conversations to this agent. Resolved by the
@@ -132,8 +138,7 @@ export interface ClaimAndBootstrapResult {
 export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<ClaimAndBootstrapResult> {
   // Registry consult: today only `sandbox` exists, so `vaultProvider` is
   // `'vobase-platform'`. Looking it up via the registry (instead of inlining
-  // the literal) is what lets Slice 3's `notification` kind swap providers
-  // without touching this file.
+  // the literal) is the seam a future kind plugs into.
   const kindSpec = findKind(opts.kind)
 
   // ─── Step 1: platform handshake (claim) ────────────────────────────────
@@ -187,14 +192,12 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
     platformChannelId: allocation.platformChannelId,
     displayName,
     role: kindSpec.role,
-    mode: kindSpec.instanceMode,
     config: {
       // `organizationId` lives in config too because the WhatsApp adapter's
-      // `isManagedConfig` / `isManagedNotifConfig` predicates read it from
-      // `config` (the registry only passes `(name, config, instanceId)`).
-      // Without it the predicate fails and the factory falls into the
-      // explicit-config branch, demanding accessToken/appSecret/verifyToken
-      // from env.
+      // `isManagedConfig` predicate reads it from `config` (the registry only
+      // passes `(name, config, instanceId)`). Without it the predicate fails
+      // and the factory falls into the explicit-config branch, demanding
+      // accessToken/appSecret/verifyToken from env.
       organizationId: opts.organizationId,
       platformChannelId: allocation.platformChannelId,
       platformBaseUrl: opts.platformBaseUrl,
@@ -214,14 +217,14 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
   //
   // Provider literal MUST match what the adapter's GET-challenge handler
   // uses to derive the verify token (see `factory.ts::createManagedAdapter`
-  // — it reads the same `kindSpec.channelName`). Sandbox is `'whatsapp'`,
-  // notification is `'whatsapp_notif'`; the literals also scope distinct
-  // slots in the platform's `tenant_webhook_endpoints` table.
+  // — it reads the same `kindSpec.channelName`); the literal also scopes a
+  // distinct slot in the platform's `tenant_webhook_endpoints` table.
   //
   // v3: the register call no longer carries `channelInstanceId`; the
   // platform mints an `endpointId` and returns it on success. We persist
   // that id back into `config.endpointId` so the `/link <endpointId>` QR
   // encoding can read it without re-fetching from the platform.
+  let result: ClaimAndBootstrapResult
   try {
     const registered = await registerWebhookWithPlatform({
       platformBaseUrl: opts.platformBaseUrl,
@@ -241,13 +244,12 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
       platformChannelId: allocation.platformChannelId,
       displayName: instance.displayName ?? displayName,
       role: kindSpec.role,
-      mode: kindSpec.instanceMode,
       config: {
         ...(instance.config ?? {}),
         endpointId: registered.endpointId,
       },
     })
-    return {
+    result = {
       instanceId: refreshed.id,
       instance: refreshed,
       webhookOk: true,
@@ -256,11 +258,19 @@ export async function claimAndBootstrap(opts: ClaimAndBootstrapOpts): Promise<Cl
     }
   } catch (err) {
     const detail = err instanceof PlatformHandshakeError ? err.message : err instanceof Error ? err.message : 'unknown'
-    return {
+    result = {
       instanceId: instance.id,
       instance,
       webhookOk: false,
       webhookDetail: detail,
     }
   }
+
+  // ─── Step 4: per-org notification + magic-link provisioning ────────────
+  // Idempotent on existing `notification_settings` row — the first successful
+  // run no-ops on subsequent `claimAndBootstrap` retries. Throws on failure;
+  // the sandbox row is already committed, so a retry re-enters this path with
+  // sandbox no-ops and notification provisioning re-attempted.
+  await opts.provisionNotification()
+  return result
 }

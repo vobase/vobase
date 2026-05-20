@@ -8,10 +8,11 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
+import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authUser as authUserTable } from '@auth/schema'
 import { agentDefinitions } from '@modules/agents/schema'
 import { decideChangeProposal } from '@modules/changes/service/proposals'
-import { findNotificationChannel } from '@modules/channels/service/instances'
+import { getNotificationSettings } from '@modules/channels/service/notification-settings'
 import { PlatformHandshakeError } from '@modules/integrations/service/handshake'
 import {
   type DecisionRequiredBody,
@@ -427,11 +428,6 @@ interface MentionNotifyDeps {
    * tenant-slug buttonUrlSuffix is used as fallback.
    */
   auth?: Auth | null
-  /**
-   * Magic-link endpoint id — baked into the service closure at boot from
-   * `MAGIC_LINK_ENDPOINT_ID` env. When absent, mint is skipped (dev-without-platform fallback).
-   */
-  endpointId?: string | null
 }
 
 export interface FanOutResult {
@@ -501,7 +497,6 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
   const sendTemplate = deps.sendTemplate ?? null
   const sendEmailFallback = deps.sendEmailFallback ?? null
   const auth = deps.auth ?? null
-  const endpointId = deps.endpointId ?? null
 
   async function sendNotification(
     organizationId: string,
@@ -550,20 +545,17 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
       referenceId?: string
     },
   ): Promise<{ ok: true; messageId: string | null } | { ok: false; reason: string }> {
-    const channel = await findNotificationChannel(organizationId)
-    if (!channel) return { ok: false, reason: 'no_notification_channel' }
+    const settings = await getNotificationSettings(deps.db as ScopedDb, organizationId)
+    if (!settings) return { ok: false, reason: 'no_notification_channel' }
     if (!profile.phoneNumber) return { ok: false, reason: 'no_whatsapp_phone' }
     if (!sendTemplate) return { ok: false, reason: 'platform_not_configured' }
 
-    const metaTemplateApprovals =
-      typeof channel.config?.metaTemplateApprovals === 'object' && channel.config.metaTemplateApprovals !== null
-        ? (channel.config.metaTemplateApprovals as Record<string, unknown>)
-        : null
+    const metaTemplateApprovals = settings.metaTemplateApprovals ?? null
 
     const { templateName, bodyParams } = buildTemplateForDispatch(kind, params, metaTemplateApprovals)
 
     let buttonUrlSuffix: string
-    if (auth && endpointId && profile.userId) {
+    if (auth && profile.userId) {
       const userRow = await resolveUserEmail(deps.db, profile.userId)
       if (userRow) {
         const refs = buildRedirectRefs(kind, {
@@ -573,6 +565,7 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
           proposalId: params.proposalId,
         })
         const redirectPath = redirectPathFor(refs)
+        const endpointId = await getMagicLinkEndpointId(deps.db as ScopedDb, organizationId)
         const mintResult = await mintMagicLink(auth, deps.db as ScopedDb, {
           userId: profile.userId,
           email: userRow.email,

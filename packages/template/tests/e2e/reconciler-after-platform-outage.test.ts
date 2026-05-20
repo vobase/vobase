@@ -28,9 +28,9 @@
 /** @contract platform-tenant-v1 */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import type { NotificationSettings } from '@modules/channels/service/notification-settings'
 import { Hono } from 'hono'
 
-import type { ChannelInstance } from '../../modules/channels/schema'
 import type { StaffProfile } from '../../modules/team/schema'
 import { syncStaffLinks } from '../../modules/team/service/staff-link-sync'
 
@@ -38,7 +38,9 @@ const TENANT_ID = 'tnt-us026-outage'
 const HMAC = 'test-fixture-hmac-secret-us026-outage'
 const BASE_URL = 'http://localhost:19028' // never bound; in-process only
 const ORG_ID = 'org-us026-outage'
-const CHANNEL_INSTANCE_ID = 'ch-notif-us026-outage'
+// syncStaffLinks derives the channel id from `notificationChannelInstanceId(orgId, env)`
+// — see staff-link-sync.ts. Stays in lockstep with the deterministic `mgd-<orgId>-<env>-notif`.
+const CHANNEL_INSTANCE_ID = `mgd-${ORG_ID}-staging-notif`
 const STAFF_USER_ID = 'u-us026-outage'
 const STAFF_PHONE = '+6598765432'
 const STAFF_WA_ID = '6598765432'
@@ -157,19 +159,19 @@ function makeProfile(): StaffProfile {
   }
 }
 
-function makeChannel(): ChannelInstance {
+function makeSettings(): NotificationSettings {
   return {
-    id: CHANNEL_INSTANCE_ID,
     organizationId: ORG_ID,
-    channel: 'whatsapp_notif',
-    role: 'staff',
-    displayName: 'Notification WA (outage test)',
-    config: { mode: 'managed', kind: 'notification' },
-    platformChannelId: 'plat-us026-outage',
-    webhookSecret: null,
-    status: 'active',
-    setupStage: null,
-    lastError: null,
+    notificationEndpointId: 'ep-notif-outage',
+    magicLinkEndpointId: 'ep-ml-outage',
+    platformHmacSecretEnvelope: 'envelope-outage',
+    platformBaseUrl: BASE_URL,
+    displayPhoneNumber: '+15550001',
+    phoneNumberId: 'pn-outage',
+    wabaId: 'waba-outage',
+    metaTemplateApprovals: {},
+    lastVerifyStatus: null,
+    lastVerifiedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -203,7 +205,7 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
         environment: 'staging' as const,
       },
       listStaff: async () => [makeProfile()],
-      findNotificationChannel: async () => makeChannel(),
+      getNotificationSettings: async () => makeSettings(),
     }
 
     // ─── Attempt 1: outage in effect ─────────────────────────────────────────
@@ -262,7 +264,7 @@ describe('reconciler after platform outage (US-026, slice-3)', () => {
         environment: 'staging' as const,
       },
       listStaff: async () => [makeProfile()],
-      findNotificationChannel: async () => makeChannel(),
+      getNotificationSettings: async () => makeSettings(),
     }
 
     // First run: converge.

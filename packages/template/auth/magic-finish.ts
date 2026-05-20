@@ -99,9 +99,14 @@ export function createMagicFinishRoutes(auth: Auth, db: ScopedDb): Hono {
 
         const internalAdapter = (await auth.$context).internalAdapter
 
-        const tokenValue = await internalAdapter.findVerificationValue(hashed)
+        // We don't call `auth.api.magicLinkVerify`: it owns the redirect via better-auth's
+        // `originCheck` + `errorCallbackURL`, sets its own cookie, and has no
+        // org-membership gate or `activeOrganizationId` write. We do reuse its core helper
+        // — `consumeVerificationValue` atomically reads+deletes, giving us single-use
+        // semantics without the race between find + manual attempt-bump.
+        const tokenValue = await internalAdapter.consumeVerificationValue(hashed)
         if (!tokenValue) {
-          logger.warn({ organizationId }, '[magic-finish] token not found')
+          logger.warn({ organizationId }, '[magic-finish] token not found or already consumed')
           return c.html(
             renderErrorPage('This link has already been used or has expired. Please request a fresh one.'),
             400,
@@ -109,32 +114,18 @@ export function createMagicFinishRoutes(auth: Auth, db: ScopedDb): Hono {
         }
 
         if (tokenValue.expiresAt < new Date()) {
-          await internalAdapter.deleteVerificationByIdentifier(hashed)
           logger.warn({ organizationId }, '[magic-finish] token expired')
           return c.html(renderErrorPage('This link has expired. Please request a fresh one.'), 400)
         }
 
         let email: string
-        let attempt = 0
         try {
-          const stored = JSON.parse(tokenValue.value) as { email: string; name?: string; attempt?: number }
-          email = stored.email
-          attempt = stored.attempt ?? 0
+          email = (JSON.parse(tokenValue.value) as { email: string }).email
+          if (!email) throw new Error('email missing from token payload')
         } catch {
           logger.warn({ organizationId }, '[magic-finish] could not parse token value')
           return c.html(renderErrorPage('This link is invalid. Please request a fresh one.'), 400)
         }
-
-        const MAX_ATTEMPTS = 1 // matches magicLink plugin's allowedAttempts: 1
-        if (attempt >= MAX_ATTEMPTS) {
-          await internalAdapter.deleteVerificationByIdentifier(hashed)
-          logger.warn({ email, organizationId }, '[magic-finish] token already used')
-          return c.html(renderErrorPage('This link has already been used. Please request a fresh one.'), 400)
-        }
-
-        await internalAdapter.updateVerificationByIdentifier(hashed, {
-          value: JSON.stringify({ email, attempt: attempt + 1 }),
-        })
 
         const existing = await internalAdapter.findUserByEmail(email)
         const user = existing?.user

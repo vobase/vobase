@@ -164,3 +164,36 @@ export interface SignupNonce {
   sessionId: string
   expiresAt: Date
 }
+
+/**
+ * Per-org notification settings — single row per organization keyed by
+ * `organizationId`. Holds the per-org HMAC secret (envelope-encrypted via the
+ * same scheme as `integrations.secrets`) plus the two endpoint ids the
+ * platform mints for this org: the WhatsApp notification webhook and the
+ * magic-link finish webhook. The platform notification surface is a one-off
+ * per-org endpoint, not a full channel, so it lives in a dedicated tightly-
+ * typed table rather than `channel_instances`.
+ *
+ * Single-writer: `channels/service/notification-settings.ts`.
+ */
+export const notificationSettings = channelsPgSchema.table('notification_settings', {
+  organizationId: text('organization_id').primaryKey(),
+  notificationEndpointId: text('notification_endpoint_id').notNull(),
+  magicLinkEndpointId: text('magic_link_endpoint_id').notNull(),
+  platformHmacSecretEnvelope: text('platform_hmac_secret_envelope').notNull(),
+  platformBaseUrl: text('platform_base_url').notNull(),
+  displayPhoneNumber: text('display_phone_number'),
+  phoneNumberId: text('phone_number_id'),
+  wabaId: text('waba_id'),
+  metaTemplateApprovals: jsonb('meta_template_approvals')
+    .notNull()
+    .$type<Record<string, unknown>>()
+    .default(sql`'{}'::jsonb`),
+  lastVerifyStatus: text('last_verify_status'),
+  lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+})

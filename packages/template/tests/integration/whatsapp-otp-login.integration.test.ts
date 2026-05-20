@@ -4,7 +4,7 @@
  * Exercises the `authClient.phoneNumber.sendOtp` → `authClient.phoneNumber.verify`
  * flow that the login page wires up. The two endpoints are mounted on a real
  * better-auth handler over a real Postgres DB; the platform relay
- * (`/api/whatsapp/otp`) is stubbed via a global fetch monkey-patch so we can
+ * (`/api/managed-whatsapp/otp`) is stubbed via a global fetch monkey-patch so we can
  * assert the relay was hit with the captor-minted code.
  *
  * Coverage:
@@ -36,17 +36,29 @@ import { mintPhoneOtp } from '../../auth/phone-otp'
 import { authOrganization, authUser } from '../../auth/schema'
 import { connectTestDb, resetAndSeedDb } from '../helpers/test-db'
 
-// ─── Channel approval stub (needed by mintPhoneOtp transitively) ─────────────
+// ─── Notification-settings approval stub (needed by mintPhoneOtp transitively) ─
 // The direct-client `deliverPhoneOtp` path does NOT touch
-// `findNotificationChannel` (no template-approval gate on the login path —
+// `getNotificationSettings` (no template-approval gate on the login path —
 // the gate lives inside `mintPhoneOtp`), but `auth/phone-otp.ts` still
-// imports `@modules/channels/service/instances` dynamically inside
+// imports `@modules/channels/service/notification-settings` dynamically inside
 // `mintPhoneOtp`. Stubbing here keeps the module graph happy if any code
 // path lazy-loads it.
 
-mock.module('@modules/channels/service/instances', () => ({
-  findNotificationChannel: async (_orgId: string) => ({
-    config: { metaTemplateApprovals: { vobase_platform_otp: 'approved' } },
+mock.module('@modules/channels/service/notification-settings', () => ({
+  getNotificationSettings: async (_db: unknown, _orgId: string) => ({
+    organizationId: 'stub',
+    notificationEndpointId: 'ep-notif-stub',
+    magicLinkEndpointId: 'ep-ml-stub',
+    platformHmacSecretEnvelope: 'envelope-stub',
+    platformBaseUrl: 'http://platform.test',
+    displayPhoneNumber: '+15550001',
+    phoneNumberId: 'pn-stub',
+    wabaId: 'waba-stub',
+    metaTemplateApprovals: { vobase_platform_otp: 'approved' },
+    lastVerifyStatus: null,
+    lastVerifiedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }),
 }))
 
@@ -79,7 +91,7 @@ function buildAuthApp(auth: ReturnType<typeof createAuth>): Hono {
 
 /** Extract the freshly-minted OTP from the captured platform-relay POST body. */
 function extractOtpFromRelay(): string {
-  const otpCalls = fetchCalls.filter((c) => c.url.endsWith('/api/whatsapp/otp'))
+  const otpCalls = fetchCalls.filter((c) => c.url.endsWith('/api/managed-whatsapp/otp'))
   expect(otpCalls.length).toBe(1)
   const body = otpCalls[0]?.init?.body
   expect(typeof body).toBe('string')
@@ -225,6 +237,6 @@ describe('WhatsApp-OTP login (signed-out → signed-in)', () => {
 
     const result = await mintPhoneOtp(auth, handle.db, { userId, phoneNumber, organizationId: orgAId })
     expect(result.code).toMatch(/^\d{6}$/u)
-    expect(fetchCalls.some((c) => c.url.endsWith('/api/whatsapp/otp'))).toBe(true)
+    expect(fetchCalls.some((c) => c.url.endsWith('/api/managed-whatsapp/otp'))).toBe(true)
   })
 })

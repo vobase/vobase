@@ -10,7 +10,7 @@
  * through the installed instance for cross-module imports.
  */
 
-import { findKind, type ManagedChannelKind } from '@modules/channels/managed/registry'
+import { findKind } from '@modules/channels/managed/registry'
 import { type ChannelInstance, channelInstances } from '@modules/channels/schema'
 import { and, eq, ne, sql } from 'drizzle-orm'
 
@@ -207,17 +207,11 @@ export interface UpsertManagedInput {
    */
   config: Record<string, unknown>
   /**
-   * Channel role — `'customer'` for inbound customer-facing channels, `'staff'`
-   * for staff-notification routing (`whatsapp_notif`). The CHECK constraint at
-   * `channels/schema.ts` permits both values. Defaults to `'customer'`.
+   * Channel role — `'customer'` for inbound customer-facing channels. The
+   * CHECK constraint at `channels/schema.ts` permits both `'customer'` and
+   * `'staff'`; today only sandbox claims land here so the default is enough.
    */
   role?: 'customer' | 'staff'
-  /**
-   * Discriminator written into `config.mode`. Defaults to `'managed'`.
-   * Notification claims pass `'managed-notif'` so `isManagedNotifConfig`
-   * recognises the row.
-   */
-  mode?: 'managed' | 'managed-notif'
 }
 
 /**
@@ -236,9 +230,8 @@ export async function upsertManagedInstance(
   db: ScopedDb,
   input: UpsertManagedInput,
 ): Promise<{ instance: ChannelInstance; isNew: boolean }> {
-  const mode = input.mode ?? 'managed'
   const role = input.role ?? 'customer'
-  const seedConfig = { ...input.config, platformChannelId: input.platformChannelId, mode }
+  const seedConfig = { ...input.config, platformChannelId: input.platformChannelId, mode: 'managed' }
   const [row] = await db
     .insert(channelInstances)
     .values({
@@ -306,11 +299,6 @@ export async function upsertManagedInstance(
  * Resolve the org's active platform-managed channel instance for a given
  * registry kind, or `null` when the tenant has not claimed one yet.
  *
- * Parameterised by `kind` so callers stay registry-driven — adding a new
- * managed-channel kind (e.g. a future SMS-notification tier) needs only a new
- * registry entry, not a new lookup helper. Resolves the kind to its persisted
- * `channelName` via the registry, then picks the first active row.
- *
  * The `kind` argument is typed as `string` rather than `ManagedChannelKind`
  * so callers reading `kind` from JSONB config (where it's `string | null`)
  * don't need a runtime cast — `findKind` throws on unknown values.
@@ -319,13 +307,4 @@ export async function findManagedChannel(organizationId: string, kind: string): 
   const entry = findKind(kind)
   const rows = await current().list(organizationId, entry.channelName)
   return rows.find((r) => r.status === 'active') ?? null
-}
-
-/**
- * Resolve the org's active notification-tier WhatsApp channel instance.
- * Convenience wrapper over the parameterised `findManagedChannel` so existing
- * callers (`staff-ping`, notification-mirror observer) stay terse.
- */
-export function findNotificationChannel(organizationId: string): Promise<ChannelInstance | null> {
-  return findManagedChannel(organizationId, 'notification' satisfies ManagedChannelKind)
 }

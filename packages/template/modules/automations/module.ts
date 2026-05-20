@@ -68,20 +68,17 @@ const automations: ModuleDef = {
           buttonUrlSuffix,
         })
     })()
-    const magicLinkEndpointId = process.env.MAGIC_LINK_ENDPOINT_ID?.trim() ?? null
     installDispatcher({
       db: ctx.db,
       jobs: ctx.jobs,
       realtime: ctx.realtime,
       sendTemplate: dispatcherSendTemplate,
       auth: ctx.auth,
-      endpointId: magicLinkEndpointId || null,
     })
     installAdminAlertDeps({
       db: ctx.db,
       sendTemplate: dispatcherSendTemplate,
       auth: ctx.auth,
-      endpointId: magicLinkEndpointId || null,
     })
     installRunsPruneDb(ctx.db)
     setDispatcher(async (name, payload, eventCtx) => {

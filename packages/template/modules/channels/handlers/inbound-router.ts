@@ -9,19 +9,15 @@
  *   2. Resolve the channel-instance row → look up its `kind` in the managed
  *      registry (`findByChannelName`).
  *   3. Dispatch on `registry.inboundDispatch`:
- *        - `'staff_reply'` → notification-tier branch (ask-staff-answer or
- *           operator-thread fallback).
- *        - `'customer'`    → reserved; today the customer-WA webhook router
- *           owns customer inbound, so this branch 410s with a clear hint.
+ *        - `'customer'` — reserved; today the customer-WA webhook router
+ *          owns customer inbound, so this branch 410s with a clear hint.
  *
- * Verification + parsing live in this file. Branch bodies live in
- * `staff-reply-dispatch.ts` so the router stays under 150 LOC and a new kind
- * (e.g. SMS-notification) plugs in via a new branch helper without growing
- * this router.
+ * Verification + parsing live in this file. Branch bodies live in dedicated
+ * helper files so the router stays small and a new kind plugs in via a new
+ * branch helper without growing this router.
  */
 
 import { timingSafeEqual } from 'node:crypto'
-import { isManagedNotifConfig } from '@modules/channels/adapters/whatsapp/factory'
 import {
   sha256Hex,
   splitPathAndQuery,
@@ -35,7 +31,10 @@ import { errorHandler, notFound, unauthorized } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 
-import { dispatchStaffReply, type MetaInbound } from './staff-reply-dispatch'
+interface MetaInbound {
+  object?: string
+  entry?: unknown[]
+}
 
 const app = new Hono()
   .onError(errorHandler)
@@ -59,7 +58,7 @@ const app = new Hono()
       .limit(1)
     if (!instance || instance.status !== 'active') return c.text('Forbidden', 403)
     const entry = findByChannelName(instance.channel)
-    if (!entry || !isManagedNotifConfig(instance.config)) return c.text('Forbidden', 403)
+    if (!entry) return c.text('Forbidden', 403)
 
     const tenantSlug = process.env.VITE_PLATFORM_TENANT_SLUG ?? ''
     const betterAuthSecret = process.env.BETTER_AUTH_SECRET ?? ''
@@ -105,8 +104,7 @@ const app = new Hono()
     const entry = findByChannelName(instance.channel)
     if (!entry) throw notFound(`channel kind for ${instance.channel}`)
 
-    // ─── HMAC v2 verify (notification-tier vault) ────────────────────────────
-    if (!isManagedNotifConfig(instance.config)) throw notFound('managed-notif config')
+    // ─── HMAC v2 verify ──────────────────────────────────────────────────────
     const vault = getVaultFor(instance.organizationId)
     const rotation = await vault.readSecret(entry.vaultProvider)
     if (!rotation) return c.json({ error: 'no_vault_secret' }, 500)
@@ -124,17 +122,12 @@ const app = new Hono()
     if (!verifyResult.ok) throw unauthorized(`invalid_sig: ${verifyResult.reason}`)
 
     // ─── Parse + dispatch on registry kind ───────────────────────────────────
-    let payload: MetaInbound
     try {
-      payload = JSON.parse(rawBody) as MetaInbound
+      JSON.parse(rawBody) as MetaInbound
     } catch {
       return c.json({ ok: true, branch: 'unparseable_body' })
     }
     switch (entry.inboundDispatch) {
-      case 'staff_reply': {
-        const result = await dispatchStaffReply({ db, organizationId: instance.organizationId, payload })
-        return c.json(result)
-      }
       case 'customer':
         // Reserved — sandbox-tier inbound today routes via the customer-WA
         // webhook router (`handlers/webhook.ts`). Return a clear hint rather

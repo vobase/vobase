@@ -46,22 +46,15 @@ async function deleteInstance(id: string) {
 }
 
 /**
- * Managed-WhatsApp release. Goes through the dedicated endpoint so the
- * platform-side claim row is released (`releaseWithPlatform`) BEFORE the
+ * Managed-WhatsApp sandbox release. Goes through the dedicated endpoint so
+ * the platform-side claim row is released (`releaseWithPlatform`) BEFORE the
  * tenant-side `channel_instances` row is soft-deleted. Calling the generic
  * `DELETE /instances/:id` path for a managed channel would leak the
  * platform claim (orphaning the per-(tenant, env) cap until manual cleanup)
  * AND still hit the same FK constraint on `conversations`.
- *
- * `mode` switches between the sandbox (`/managed/:id`) and notification
- * (`/managed/notification/:id`) tiers — each tier has its own platform
- * release endpoint scoped to its registry kind.
  */
-async function releaseManagedInstance(instanceId: string, mode: 'managed' | 'managed-notif') {
-  const r =
-    mode === 'managed-notif'
-      ? await channelsClient.whatsapp.managed.notification[':instanceId'].$delete({ param: { instanceId } })
-      : await channelsClient.whatsapp.managed[':instanceId'].$delete({ param: { instanceId } })
+async function releaseManagedInstance(instanceId: string) {
+  const r = await channelsClient.whatsapp.managed[':instanceId'].$delete({ param: { instanceId } })
   if (!r.ok) throw new Error(`release failed: ${r.status}`)
 }
 
@@ -112,19 +105,17 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
     displayPhoneNumber?: string
     endpointId?: string
   }
-  // Both platform tiers (sandbox = 'managed', notification = 'managed-notif')
-  // are platform-managed claims and release through the dedicated platform
-  // endpoints; only `'managed'` shows the Link QR (sandbox is the only tier
-  // testers scan to join).
-  const isManaged = config.mode === 'managed' || config.mode === 'managed-notif'
+  // Sandbox is a platform-managed claim and releases through the dedicated
+  // platform endpoint; it's also the only tier that shows the Link QR
+  // (testers scan it to join).
+  const isManaged = config.mode === 'managed'
   const showLinkQr = config.mode === 'managed'
-  const releaseMode: 'managed' | 'managed-notif' = config.mode === 'managed-notif' ? 'managed-notif' : 'managed'
   const wabaId = config.wabaId
   const displayPhoneNumber = config.displayPhoneNumber ?? null
   const endpointId = config.endpointId ?? null
 
   const deleteMutation = useMutation({
-    mutationFn: () => (isManaged ? releaseManagedInstance(row.id, releaseMode) : deleteInstance(row.id)),
+    mutationFn: () => (isManaged ? releaseManagedInstance(row.id) : deleteInstance(row.id)),
     onSuccess: () => {
       setDeleteOpen(false)
       qc.invalidateQueries({ queryKey: listQueryKey })
@@ -214,13 +205,7 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
 }
 
 export function ChannelRowMenu(props: ChannelRowMenuProps) {
-  // Both customer-facing WhatsApp (`whatsapp`) and staff-notification
-  // WhatsApp (`whatsapp_notif`) route through the same menu — they share
-  // the platform-managed release path and the "Edit name & default
-  // assignee" affordance. Falling through to `WebRowMenu` for `whatsapp_notif`
-  // would render the wrong actions (Embed code, Open chat URL) for a row
-  // that never has a public chat URL or embed snippet.
-  if (props.row.channel === 'whatsapp' || props.row.channel === 'whatsapp_notif') {
+  if (props.row.channel === 'whatsapp') {
     return <WhatsAppRowMenu {...props} />
   }
   return <WebRowMenu {...props} />

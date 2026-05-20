@@ -24,15 +24,15 @@
  *
  * No live network, no live DB. Platform is an in-process Hono stub. Tenant
  * side uses the real `syncStaffLinks` + `staffLinks.*` helpers; the only
- * stubs are the `listStaff` and `findNotificationChannel` deps, which the
+ * stubs are the `listStaff` and `getNotificationSettings` deps, which the
  * reconciler already exposes for the unit-test seam.
  */
 /** @contract platform-tenant-v1 */
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
+import type { NotificationSettings } from '@modules/channels/service/notification-settings'
 import { Hono } from 'hono'
 
-import type { ChannelInstance } from '../../modules/channels/schema'
 import type { StaffProfile } from '../../modules/team/schema'
 import { syncStaffLinks } from '../../modules/team/service/staff-link-sync'
 
@@ -44,8 +44,10 @@ const SHARED_WA_ID = '6591234567'
 
 const ORG_A = 'org-us026-a'
 const ORG_B = 'org-us026-b'
-const ORG_A_CHANNEL_ID = 'ch-notif-us026-a'
-const ORG_B_CHANNEL_ID = 'ch-notif-us026-b'
+// syncStaffLinks derives the per-org channel id from `notificationChannelInstanceId(orgId, env)`
+// — see staff-link-sync.ts. Stays in lockstep with the deterministic `mgd-<orgId>-<env>-notif` format.
+const ORG_A_CHANNEL_ID = `mgd-${ORG_A}-staging-notif`
+const ORG_B_CHANNEL_ID = `mgd-${ORG_B}-staging-notif`
 const ORG_A_STAFF_USER_ID = 'u-orgA-staff'
 const ORG_B_STAFF_USER_ID = 'u-orgB-staff'
 
@@ -151,19 +153,19 @@ function makeProfile(orgId: string, userId: string, phone: string): StaffProfile
   }
 }
 
-function makeChannel(orgId: string, channelInstanceId: string): ChannelInstance {
+function makeSettings(orgId: string): NotificationSettings {
   return {
-    id: channelInstanceId,
     organizationId: orgId,
-    channel: 'whatsapp_notif',
-    role: 'staff',
-    displayName: `Notification WA (${orgId})`,
-    config: { mode: 'managed', kind: 'notification' },
-    platformChannelId: `plat-${channelInstanceId}`,
-    webhookSecret: null,
-    status: 'active',
-    setupStage: null,
-    lastError: null,
+    notificationEndpointId: `ep-notif-${orgId}`,
+    magicLinkEndpointId: `ep-ml-${orgId}`,
+    platformHmacSecretEnvelope: 'envelope-fixture',
+    platformBaseUrl: BASE_URL,
+    displayPhoneNumber: '+15550001',
+    phoneNumberId: `pn-${orgId}`,
+    wabaId: `waba-${orgId}`,
+    metaTemplateApprovals: {},
+    lastVerifyStatus: null,
+    lastVerifiedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -199,9 +201,9 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         expect(orgId).toBe(ORG_A)
         return [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)]
       },
-      findNotificationChannel: async (orgId) => {
+      getNotificationSettings: async (orgId: string) => {
         expect(orgId).toBe(ORG_A)
-        return makeChannel(ORG_A, ORG_A_CHANNEL_ID)
+        return makeSettings(ORG_A)
       },
     })
     if (resultA.kind !== 'applied') throw new Error('expected applied')
@@ -221,9 +223,9 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         expect(orgId).toBe(ORG_B)
         return [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)]
       },
-      findNotificationChannel: async (orgId) => {
+      getNotificationSettings: async (orgId: string) => {
         expect(orgId).toBe(ORG_B)
-        return makeChannel(ORG_B, ORG_B_CHANNEL_ID)
+        return makeSettings(ORG_B)
       },
     })
     if (resultB.kind !== 'applied') throw new Error('expected applied')
@@ -269,7 +271,7 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile(ORG_A, ORG_A_STAFF_USER_ID, SHARED_PHONE)],
-      findNotificationChannel: async () => makeChannel(ORG_A, ORG_A_CHANNEL_ID),
+      getNotificationSettings: async () => makeSettings(ORG_A),
     })
     await syncStaffLinks(ORG_B, {
       creds: {
@@ -279,7 +281,7 @@ describe('staff-in-two-orgs disambiguation (US-026, slice-3)', () => {
         environment: 'staging',
       },
       listStaff: async () => [makeProfile(ORG_B, ORG_B_STAFF_USER_ID, SHARED_PHONE)],
-      findNotificationChannel: async () => makeChannel(ORG_B, ORG_B_CHANNEL_ID),
+      getNotificationSettings: async () => makeSettings(ORG_B),
     })
 
     // Inbound from `+6591234567` lands on orgA's channel webhook — resolver

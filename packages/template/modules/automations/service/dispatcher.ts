@@ -13,13 +13,14 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
+import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authUser as authUserTable } from '@auth/schema'
 import type { AutomationRunStatus } from '@modules/automations/schema'
 import { automationRuns } from '@modules/automations/schema'
 import { automationsService } from '@modules/automations/service/automations'
 import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
-import { findNotificationChannel } from '@modules/channels/service/instances'
+import { getNotificationSettings } from '@modules/channels/service/notification-settings'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
 import { recordNotificationSent, recordNotificationSuppressed } from '@modules/messaging/service/notification-events'
 import { applyVerificationGating } from '@modules/team/service/mention-notify'
@@ -74,16 +75,11 @@ export interface DispatcherDeps {
    */
   sendTemplate?: SendTemplateFn
   /**
-   * better-auth instance for `mintMagicLink`. When absent (or when
-   * `endpointId` is falsy), the magic-link mint is skipped and the WA button
-   * URL suffix falls back to a bare path (dev-without-platform mode).
+   * better-auth instance for `mintMagicLink`. When absent the magic-link
+   * mint is skipped and the WA button URL suffix falls back to a bare path
+   * (dev-without-platform mode).
    */
   auth?: Auth | null
-  /**
-   * Magic-link endpoint id (from `MAGIC_LINK_ENDPOINT_ID` env). Required for
-   * `mintMagicLink`. When absent, mint is skipped.
-   */
-  endpointId?: string | null
 }
 
 let _deps: DispatcherDeps | null = null
@@ -359,7 +355,7 @@ interface StaffPingNotificationArgs {
  */
 async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promise<DispatchResult | null> {
   const { kind, eventPayload, deps, t, runId, startedAt, ruleId, eventName } = args
-  const { sendTemplate, auth, endpointId } = deps
+  const { sendTemplate, auth } = deps
 
   // Without sendTemplate the platform is not configured — skip silently.
   if (!sendTemplate) return null
@@ -382,18 +378,18 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
   }
   if (!profile?.phoneNumber) return null
 
-  // Read metaTemplateApprovals from the notification channel config.
+  // Read metaTemplateApprovals from notification_settings.
   // Missing = unapproved (fallback is the DEFAULT per plan §8a.4).
   let metaTemplateApprovals: Record<string, unknown> | null = null
   try {
-    const channel = await findNotificationChannel(organizationId)
-    if (channel?.config?.metaTemplateApprovals != null && typeof channel.config.metaTemplateApprovals === 'object') {
-      metaTemplateApprovals = channel.config.metaTemplateApprovals as Record<string, unknown>
+    const settings = await getNotificationSettings(deps.db, organizationId)
+    if (settings?.metaTemplateApprovals != null) {
+      metaTemplateApprovals = settings.metaTemplateApprovals
     }
   } catch (err) {
     logger.warn(
       { err, organizationId, ruleId },
-      '[automations/dispatcher] findNotificationChannel failed — using fallback template',
+      '[automations/dispatcher] getNotificationSettings failed — using fallback template',
     )
   }
 
@@ -418,7 +414,7 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
 
   // Mint magic-link (Principle 6: post-commit, caller already outside tx).
   let buttonUrlSuffix: string
-  if (auth && endpointId && profile.userId) {
+  if (auth && profile.userId) {
     const email = await resolveUserEmailForDispatcher(deps.db, profile.userId)
     if (!email) {
       // Email not found — fall back to bare conversation path (defensive).
@@ -431,6 +427,7 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
         proposalId: eventPayload.proposalId,
       })
       try {
+        const endpointId = await getMagicLinkEndpointId(deps.db, organizationId)
         const mintResult = await mintMagicLink(auth, deps.db, {
           userId: profile.userId,
           email,

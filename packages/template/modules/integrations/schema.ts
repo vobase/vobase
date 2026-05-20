@@ -13,8 +13,8 @@
  *
  * Per `.omc/architecture/platform-tenant-decoupling.md` §4.5 the `provider`
  * column carries no CHECK constraint — tenant code is the source of truth for
- * valid kinds (`'vobase-platform'`, `'vobase-platform-notification'`), and
- * adding a notification tier should not require a schema migration.
+ * valid kinds (today only `'vobase-platform'`), and adding a new tier should
+ * not require a schema migration.
  */
 
 import { nanoidPrimaryKey } from '@vobase/core/schema'

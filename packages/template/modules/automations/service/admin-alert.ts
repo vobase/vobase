@@ -10,9 +10,10 @@
  */
 
 import { MagicLinkMintError, mintMagicLink } from '@auth/magic-link'
+import { getMagicLinkEndpointId } from '@auth/magic-link-endpoint-config'
 import { authMember, authUser } from '@auth/schema'
 import { automationRuns } from '@modules/automations/schema'
-import { findNotificationChannel } from '@modules/channels/service/instances'
+import { getNotificationSettings } from '@modules/channels/service/notification-settings'
 import { COST_ESTIMATE_USD, type WireRoute } from '@modules/integrations/service/handshake'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
 import {
@@ -64,11 +65,6 @@ interface AdminAlertDeps {
    * When absent (dev without platform), mint is skipped and a bare-path suffix is used.
    */
   auth?: Auth | null
-  /**
-   * Magic-link endpoint id from `MAGIC_LINK_ENDPOINT_ID` env. Required for `mintMagicLink`.
-   * When absent, mint is skipped.
-   */
-  endpointId?: string | null
 }
 
 let _installedDeps: AdminAlertDeps | null = null
@@ -212,19 +208,19 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
   }
 
   // Attempt to send WA notifications to each admin recipient.
-  const { sendTemplate, auth, endpointId } = deps
+  const { sendTemplate, auth } = deps
 
-  // Read metaTemplateApprovals from the notification channel config.
+  // Read metaTemplateApprovals from notification_settings.
   let metaTemplateApprovals: Record<string, unknown> | null = null
   try {
-    const channel = await findNotificationChannel(input.orgId)
-    if (channel?.config?.metaTemplateApprovals != null && typeof channel.config.metaTemplateApprovals === 'object') {
-      metaTemplateApprovals = channel.config.metaTemplateApprovals as Record<string, unknown>
+    const settings = await getNotificationSettings(db, input.orgId)
+    if (settings?.metaTemplateApprovals != null) {
+      metaTemplateApprovals = settings.metaTemplateApprovals
     }
   } catch (err) {
     logger.warn(
       { err, orgId: input.orgId },
-      '[automations/admin-alert] findNotificationChannel failed — using fallback template',
+      '[automations/admin-alert] getNotificationSettings failed — using fallback template',
     )
   }
 
@@ -244,9 +240,10 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
   try {
     for (const recipient of recipients) {
       let buttonUrlSuffix: string
-      if (auth && endpointId) {
+      if (auth) {
         const refs = buildRedirectRefs('admin_alert', { conversationId: null, referenceId: input.dedupKey })
         const redirectPath = redirectPathFor(refs)
+        const endpointId = await getMagicLinkEndpointId(db, input.orgId)
         const mintResult = await mintMagicLink(auth, db, {
           userId: recipient.userId,
           email: recipient.email,

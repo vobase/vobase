@@ -18,7 +18,7 @@ import { type AgentDefinition, operatorThreads } from '@modules/agents/schema'
 import { getCliRegistry } from '@modules/agents/service/cli-registry'
 import * as syntheticIds from '@modules/agents/service/synthetic-ids'
 import { threads as threadsApi } from '@modules/agents/service/threads'
-import { findNotificationChannel } from '@modules/channels/service/instances'
+import { getNotificationSettings } from '@modules/channels/service/notification-settings'
 import { filesServiceFor } from '@modules/drive/service/files'
 import { staffProfiles } from '@modules/team/schema'
 import type { AgentContributions, SideLoadContributor, WakeRuntime } from '@vobase/core'
@@ -204,9 +204,9 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
 
   // Notification-mirror observer: for operator-thread wakes, also mirror the
   // assistant's terminal text reply OUT through the org's notification-tier
-  // WhatsApp channel back to the staff member's personal phone. Resolve both
+  // WhatsApp number back to the staff member's personal phone. Resolve both
   // identity inputs at wake-builder time (frozen-snapshot discipline — no
-  // mid-turn DB lookups) and pass `null` for either when the row is missing
+  // mid-turn DB lookups) and pass `null` / `false` when the row is missing
   // so the observer no-ops cleanly.
   const notificationMirrorListener: OnEventListener<WakeTrigger> | null =
     data.triggerKind === 'operator_thread' && data.threadId
@@ -227,12 +227,13 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
                 .where(and(eq(staffProfiles.userId, createdBy), eq(staffProfiles.organizationId, data.organizationId)))
                 .limit(1)
             : [undefined]
-          const notifChannel = await findNotificationChannel(data.organizationId)
+          const notifSettings = await getNotificationSettings(deps.db, data.organizationId)
           return createNotificationMirrorObserver({
+            db: deps.db,
             organizationId: data.organizationId,
             threadId,
             staffPhoneE164: profile?.phoneNumber ?? null,
-            notificationChannelInstanceId: notifChannel?.id ?? null,
+            hasNotificationSettings: notifSettings !== null,
             logger: deps.logger,
           })
         })()

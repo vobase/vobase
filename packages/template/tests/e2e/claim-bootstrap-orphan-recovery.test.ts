@@ -249,6 +249,8 @@ function buildFakeUpsert(): {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
+const noopProvision = async () => {}
+
 describe('claim-bootstrap orphan recovery (US-012, slice-2)', () => {
   let stubState: StubState
   let env: PatchedFetchEnv | null = null
@@ -284,6 +286,7 @@ describe('claim-bootstrap orphan recovery (US-012, slice-2)', () => {
         organizationId: ORG_ID,
         webhookUrl: WEBHOOK_URL,
         verifyToken: VERIFY_TOKEN,
+        provisionNotification: noopProvision,
       }),
     ).rejects.toThrow(/simulated vault commit failure/)
 
@@ -313,6 +316,7 @@ describe('claim-bootstrap orphan recovery (US-012, slice-2)', () => {
       organizationId: ORG_ID,
       webhookUrl: WEBHOOK_URL,
       verifyToken: VERIFY_TOKEN,
+      provisionNotification: noopProvision,
     }
 
     // First call: vault fails → orphan window.
@@ -380,6 +384,7 @@ describe('claim-bootstrap orphan recovery (US-012, slice-2)', () => {
       organizationId: ORG_ID,
       webhookUrl: WEBHOOK_URL,
       verifyToken: VERIFY_TOKEN,
+      provisionNotification: noopProvision,
     })
 
     // HMAC verified by stub — if it weren't, stub returns 401 and this throws.

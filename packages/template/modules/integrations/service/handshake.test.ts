@@ -65,19 +65,6 @@ const SANDBOX_ALLOCATION = {
   previousValidUntil: null,
 }
 
-const NOTIFICATION_ALLOCATION = {
-  platformChannelId: 'pc-notif-1',
-  wabaId: 'waba-notif-1',
-  phoneNumberId: 'pn-notif-1',
-  displayPhoneNumber: '+15550002222',
-  routineSecret: 'rs-notif',
-  rotationKey: 'rk-notif',
-  keyVersion: 1,
-  routineSecretPrevious: null,
-  rotationKeyPrevious: null,
-  previousValidUntil: null,
-}
-
 interface FetchCall {
   url: string
   init: RequestInit | undefined
@@ -127,32 +114,16 @@ describe('handshake parameterized claim/release', () => {
     expect(headers.get('X-Vobase-Rotation-Sig')).toBeTruthy()
   })
 
-  it('claim("notification") POSTs the notification claimPath from the registry', async () => {
-    const calls = installFetchStub((_url, _init) => Response.json(NOTIFICATION_ALLOCATION, { status: 200 }))
-
-    const result = await claim('notification', {
-      platformBaseUrl: PLATFORM_BASE,
-      tenantId: TEST_TENANT,
-      tenantHmacSecret: TEST_HMAC,
-      environment: 'production',
-      channelInstanceId: 'ci-notif-1',
-    })
-
-    expect(result.platformChannelId).toBe(NOTIFICATION_ALLOCATION.platformChannelId)
-    expect(calls).toHaveLength(1)
-    expect(calls[0]?.url).toBe(`${PLATFORM_BASE}/api/managed-whatsapp/notification/claim`)
-  })
-
   it('claim() surfaces PlatformHandshakeError with status + code on platform 4xx', async () => {
     installFetchStub((_url, _init) => Response.json({ code: 'pool_exhausted' }, { status: 503 }))
 
     await expect(
-      claim('notification', {
+      claim('sandbox', {
         platformBaseUrl: PLATFORM_BASE,
         tenantId: TEST_TENANT,
         tenantHmacSecret: TEST_HMAC,
         environment: 'production',
-        channelInstanceId: 'ci-notif-2',
+        channelInstanceId: 'ci-sb-err',
       }),
     ).rejects.toMatchObject({
       name: 'PlatformHandshakeError',
@@ -173,20 +144,6 @@ describe('handshake parameterized claim/release', () => {
 
     expect(result).toEqual({ released: true })
     expect(calls[0]?.url).toBe(`${PLATFORM_BASE}/api/managed-whatsapp/tenant/release`)
-  })
-
-  it('release("notification") POSTs the notification releasePath', async () => {
-    const calls = installFetchStub((_url, _init) => Response.json({ released: true }, { status: 200 }))
-
-    const result = await release('notification', {
-      platformBaseUrl: PLATFORM_BASE,
-      tenantId: TEST_TENANT,
-      tenantHmacSecret: TEST_HMAC,
-      environment: 'production',
-    })
-
-    expect(result).toEqual({ released: true })
-    expect(calls[0]?.url).toBe(`${PLATFORM_BASE}/api/managed-whatsapp/notification/release`)
   })
 
   it('claim() rejects when platformBaseUrl host does not match VITE_PLATFORM_URL', async () => {

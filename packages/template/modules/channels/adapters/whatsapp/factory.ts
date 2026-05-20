@@ -24,13 +24,6 @@ import { createManagedTransport } from './managed-transport'
 
 export const WHATSAPP_CHANNEL_NAME = 'whatsapp'
 
-/**
- * Discriminator for staff-notification-tier WhatsApp channel instances. Same
- * adapter shape, different vault namespace + inbound dispatch (staff_reply
- * branch). The registry pins the mapping in `managed/registry.ts`.
- */
-export const WHATSAPP_NOTIF_CHANNEL_NAME = 'whatsapp_notif'
-
 export const WHATSAPP_CAPABILITIES: ChannelCapabilities = {
   templates: true,
   media: true,
@@ -39,22 +32,6 @@ export const WHATSAPP_CAPABILITIES: ChannelCapabilities = {
   typingIndicators: true,
   streaming: false,
   messagingWindow: true,
-  nativeThreading: false,
-}
-
-/**
- * Notification-tier capabilities. Same primitive shape as customer-WA but
- * messaging-window semantics never apply (outbound dispatch is the org's
- * mention pings + assistant mirrors — both staff-initiated).
- */
-export const WHATSAPP_NOTIF_CAPABILITIES: ChannelCapabilities = {
-  templates: false,
-  media: false,
-  reactions: false,
-  readReceipts: false,
-  typingIndicators: false,
-  streaming: false,
-  messagingWindow: false,
   nativeThreading: false,
 }
 
@@ -82,9 +59,6 @@ interface ManagedConfig {
    * (`modules/channels/managed/registry.ts`). Written by `claimAndBootstrap`;
    * absent on rows created before US-011 (sandbox-only world — fall back to
    * `'sandbox'` and the vault provider stays `'vobase-platform'`).
-   *
-   * Widened in Slice 3 to include `'notification'`; future kinds plug in via
-   * the registry without touching this discriminator.
    */
   kind?: ManagedChannelKind
   /**
@@ -105,25 +79,6 @@ export function isManagedConfig(c: Record<string, unknown>): c is ManagedConfig 
   )
 }
 
-/**
- * Notification-tier managed config. Same shape as `ManagedConfig` but the
- * `mode` discriminator is `'managed-notif'` so a single `channel_instances`
- * row's `config.mode` field unambiguously selects which vault namespace +
- * dispatch branch the inbound router uses.
- */
-interface ManagedNotifConfig extends Omit<ManagedConfig, 'mode'> {
-  mode: 'managed-notif'
-}
-
-export function isManagedNotifConfig(c: Record<string, unknown>): c is ManagedNotifConfig & Record<string, unknown> {
-  return (
-    c.mode === 'managed-notif' &&
-    typeof c.platformChannelId === 'string' &&
-    typeof c.platformBaseUrl === 'string' &&
-    typeof c.organizationId === 'string'
-  )
-}
-
 // biome-ignore lint/suspicious/useAwait: managed branch awaits internally; sync branch keeps contract uniform
 export async function createWhatsAppAdapterFromConfig(
   rawConfig: Record<string, unknown>,
@@ -131,14 +86,6 @@ export async function createWhatsAppAdapterFromConfig(
 ): Promise<ChannelAdapter> {
   if (isManagedConfig(rawConfig)) {
     return createManagedAdapter(rawConfig)
-  }
-  if (isManagedNotifConfig(rawConfig)) {
-    // The notification config is structurally identical to the managed
-    // sandbox config — only `mode` differs — and `resolveVaultProvider`
-    // already routes by `kind`. Forward via the same managed adapter
-    // builder; the `kind: 'notification'` discriminator pins the vault
-    // provider to `'vobase-platform-notification'` through the registry.
-    return createManagedAdapter({ ...rawConfig, mode: 'managed', kind: rawConfig.kind ?? 'notification' })
   }
 
   const partial = rawConfig as Partial<{
@@ -168,13 +115,10 @@ import type { VaultRotation } from '@modules/integrations/service/vault'
 
 /**
  * Module-level cache of decrypted vault rotations, keyed by
- * `${organizationId}:${vaultProvider}` so the customer-WA secret
- * (`vobase-platform`) and the notification secret
- * (`vobase-platform-notification`) coexist on the same org without
- * overwriting one another. The registry creates a new adapter per dispatch
- * (`registry.get(...)`), so caching inside the closure would never hit.
- * Module-scope keeps the read at O(1) per dispatch with a bounded TTL so a
- * `vault.rotate(...)` propagates within seconds.
+ * `${organizationId}:${vaultProvider}`. The registry creates a new adapter
+ * per dispatch (`registry.get(...)`), so caching inside the closure would
+ * never hit. Module-scope keeps the read at O(1) per dispatch with a bounded
+ * TTL so a `vault.rotate(...)` propagates within seconds.
  */
 const ROTATION_CACHE_TTL_MS = 60_000
 interface RotationCacheEntry {
@@ -255,9 +199,9 @@ async function createManagedAdapter(config: ManagedConfig): Promise<ChannelAdapt
     throw new Error('whatsapp adapter (managed): VITE_PLATFORM_TENANT_SLUG env var is required')
   }
 
-  // Consult the managed-channels registry once at adapter construction.
-  // Slice 3's `notification` kind plugs in here without touching this file —
-  // it just registers a new `(kind, vaultProvider, channelName)` triple.
+  // Consult the managed-channels registry once at adapter construction so
+  // a new `(kind, vaultProvider, channelName)` triple plugs in without
+  // touching this file.
   const kindSpec = resolveKindSpec(config)
   const vaultProvider = kindSpec.vaultProvider
 

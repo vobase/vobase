@@ -64,14 +64,12 @@ const team: ModuleDef = {
           buttonUrlSuffix,
         })
     })()
-    const magicLinkEndpointId = process.env.MAGIC_LINK_ENDPOINT_ID?.trim() ?? null
     installMentionNotifyService(
       createMentionNotifyService({
         db: ctx.db,
         jobs: ctx.jobs,
         sendTemplate,
         auth: ctx.auth,
-        endpointId: magicLinkEndpointId || null,
       }),
     )
     installPendingStaffPingService(createPendingStaffPingService({ db: ctx.db }))

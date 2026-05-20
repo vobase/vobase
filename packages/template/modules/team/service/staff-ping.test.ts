@@ -2,7 +2,7 @@
  * Unit tests for the staff-ping rewrite (Unit 8).
  *
  * Covers the WHERE/WHO contract:
- *   - sends through `findNotificationChannel` (NOT the customer-WA channel)
+ *   - sends through the per-org notification settings (NOT the customer-WA channel)
  *   - dials the staff member's `phoneNumber` (joined from the better-auth user)
  *   - records a `pendingStaffPings` row ONLY on a successful WA send AND
  *     when an agent authored the note
@@ -12,15 +12,36 @@
  * the staff-ping side effects via stubs.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
-import {
-  __resetChannelInstancesServiceForTests,
-  installChannelInstancesService,
-} from '@modules/channels/service/instances'
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test'
 import {
   __resetNotificationPrefsServiceForTests,
   installNotificationPrefsService,
 } from '@modules/settings/service/notification-prefs'
+
+// Toggled by the "no notification settings" test to simulate the unconfigured-org
+// branch. Default = true → getNotificationSettings returns a populated row.
+let installedNotifSettings = true
+
+mock.module('@modules/channels/service/notification-settings', () => ({
+  getNotificationSettings: async (_db: unknown, _orgId: string) =>
+    installedNotifSettings
+      ? {
+          organizationId: 'stub',
+          notificationEndpointId: 'ep-notif-stub',
+          magicLinkEndpointId: 'ep-ml-stub',
+          platformHmacSecretEnvelope: 'envelope-stub',
+          platformBaseUrl: 'http://platform.test',
+          displayPhoneNumber: '+15550001',
+          phoneNumberId: 'pn-stub',
+          wabaId: 'waba-stub',
+          metaTemplateApprovals: {},
+          lastVerifyStatus: null,
+          lastVerifiedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      : null,
+}))
 
 import {
   __resetPendingStaffPingServiceForTests as __resetPendingMentionPingServiceForTests,
@@ -44,7 +65,6 @@ const ORG = 'org-test-mn'
 const STAFF_X = 'usr-test-mn-x'
 const STAFF_NO_PHONE = 'usr-test-mn-y'
 const STAFF_ONLINE = 'usr-test-mn-z'
-const NOTIF_INSTANCE_ID = 'mgd-notif-test'
 const AGENT_ID = 'agt-test-mn'
 const STAFF_PHONE = '+6581234567'
 
@@ -70,49 +90,7 @@ const recordedPings: Array<{
   outboundWamid: string | null | undefined
 }> = []
 
-interface FakeChannelInstance {
-  id: string
-  organizationId: string
-  channel: string
-  role: 'staff' | 'customer'
-  status: string | null
-  config: Record<string, unknown>
-}
-
-const notifInstance: FakeChannelInstance = {
-  id: NOTIF_INSTANCE_ID,
-  organizationId: ORG,
-  channel: 'whatsapp_notif',
-  role: 'staff',
-  status: 'active',
-  config: {
-    mode: 'managed-notif',
-    organizationId: ORG,
-    platformChannelId: 'plat-test',
-    platformBaseUrl: 'http://test.local',
-    environment: 'staging',
-  },
-}
-
-let installedNotifChannel = true
-
 function installStubs(): void {
-  installChannelInstancesService({
-    list: async (organizationId: string, channel?: string) => {
-      if (organizationId !== ORG) return []
-      if (channel && channel !== 'whatsapp_notif') return []
-      // biome-ignore lint/suspicious/noExplicitAny: stub returning subset of ChannelInstance
-      return installedNotifChannel ? [notifInstance as any] : []
-    },
-    get: async () => null,
-    // biome-ignore lint/suspicious/noExplicitAny: stub
-    create: async () => notifInstance as any,
-    // biome-ignore lint/suspicious/noExplicitAny: stub
-    update: async () => notifInstance as any,
-    remove: async () => undefined,
-    hardRemove: async () => undefined,
-  })
-
   // The platform-call seam used to be an adapter behind the channel
   // registry; now it's a DI'd `sendTemplate` closure on the service. Tests
   // capture sends + toggle success via the `stubSendTemplate` closed-over
@@ -205,7 +183,6 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  __resetChannelInstancesServiceForTests()
   __resetStaffServiceForTests()
   __resetNotificationPrefsServiceForTests()
   __resetPendingMentionPingServiceForTests()
@@ -215,7 +192,7 @@ afterAll(() => {
 afterEach(() => {
   sent.length = 0
   recordedPings.length = 0
-  installedNotifChannel = true
+  installedNotifSettings = true
   nextSendOk = true
 })
 
@@ -262,7 +239,7 @@ describe('staff-ping rewrite (Unit 8)', () => {
   })
 
   it('skips when no notification channel claimed', async () => {
-    installedNotifChannel = false
+    installedNotifSettings = false
     const result = await fanOutNoteMentions(makeAgentNote([`staff:${STAFF_X}`]))
     expect(result.notified).toEqual([])
     expect(result.skipped[0]?.reason).toBe('no_notification_channel')

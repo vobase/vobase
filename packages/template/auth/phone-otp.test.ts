@@ -4,7 +4,7 @@
  * Requires a running Postgres on :5432 (docker compose up -d).
  * Each describe resets and seeds the DB via resetAndSeedDb().
  *
- * The platform `/api/whatsapp/otp` endpoint is stubbed via global `fetch`
+ * The platform `/api/managed-whatsapp/otp` endpoint is stubbed via global `fetch`
  * monkeypatch — US-018 ships the real endpoint in a parallel slice; until then
  * the tests assert only that the captor produces a 6-digit code and the
  * platform POST carries the expected `{staffPhoneE164, code, expiresInSec}`
@@ -16,22 +16,40 @@ import { connectTestDb, resetAndSeedDb } from '../tests/helpers/test-db'
 import { createAuth } from './index'
 import { mintPhoneOtp, PhoneOtpMintError } from './phone-otp'
 
-// ─── Per-test mock seam: findNotificationChannel ─────────────────────────────
-// Each test sets `_channelOverride` to control the channel-instance config
-// returned to the production code path. `mock.module` is set once at file scope
-// so the stub is in place before `mintPhoneOtp` imports the real module.
+// ─── Per-test mock seam: getNotificationSettings ─────────────────────────────
+// Each test sets `_settingsOverride` to control the per-org notification
+// settings returned to the production code path. `mock.module` is set once at
+// file scope so the stub is in place before `mintPhoneOtp` dynamically imports
+// the real module.
 
-type ChannelStub = { config: { metaTemplateApprovals?: Record<string, unknown> } } | null
-let _channelOverride: ChannelStub = {
-  config: { metaTemplateApprovals: { vobase_platform_otp: 'approved' } },
+type SettingsStub = { metaTemplateApprovals: Record<string, unknown> } | null
+let _settingsOverride: SettingsStub = {
+  metaTemplateApprovals: { vobase_platform_otp: 'approved' },
 }
 
-mock.module('@modules/channels/service/instances', () => ({
-  findNotificationChannel: async (_orgId: string) => _channelOverride,
+mock.module('@modules/channels/service/notification-settings', () => ({
+  getNotificationSettings: async (_db: unknown, _orgId: string) =>
+    _settingsOverride === null
+      ? null
+      : {
+          organizationId: 'stub',
+          notificationEndpointId: 'ep-notif-stub',
+          magicLinkEndpointId: 'ep-ml-stub',
+          platformHmacSecretEnvelope: 'envelope-stub',
+          platformBaseUrl: 'http://platform.test',
+          displayPhoneNumber: '+15550001',
+          phoneNumberId: 'pn-stub',
+          wabaId: 'waba-stub',
+          metaTemplateApprovals: _settingsOverride.metaTemplateApprovals,
+          lastVerifyStatus: null,
+          lastVerifiedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
 }))
 
 // ─── Per-test mock seam: global fetch ────────────────────────────────────────
-// `mintPhoneOtp` POSTs to `<platformBaseUrl>/api/whatsapp/otp` via
+// `mintPhoneOtp` POSTs to `<platformBaseUrl>/api/managed-whatsapp/otp` via
 // `signedPlatformRequest`. We stub global fetch to capture the request shape
 // and return a configurable response. The original fetch is restored in
 // afterAll so the test runtime isn't polluted.
@@ -78,8 +96,8 @@ describe('mintPhoneOtp', () => {
   beforeEach(() => {
     fetchCalls.length = 0
     _fetchImpl = async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
-    _channelOverride = {
-      config: { metaTemplateApprovals: { vobase_platform_otp: 'approved' } },
+    _settingsOverride = {
+      metaTemplateApprovals: { vobase_platform_otp: 'approved' },
     }
   })
 
@@ -87,7 +105,7 @@ describe('mintPhoneOtp', () => {
     fetchCalls.length = 0
   })
 
-  it('mints a 6-digit OTP, expires in 10 minutes, and POSTs to /api/whatsapp/otp', async () => {
+  it('mints a 6-digit OTP, expires in 10 minutes, and POSTs to /api/managed-whatsapp/otp', async () => {
     const result = await mintPhoneOtp(auth, handle.db, {
       userId: ALICE_USER_ID,
       phoneNumber: ALICE_PHONE,
@@ -100,8 +118,8 @@ describe('mintPhoneOtp', () => {
     expect(expiresAt).toBeGreaterThan(Date.now() + 9 * 60 * 1000)
     expect(expiresAt).toBeLessThan(Date.now() + 11 * 60 * 1000)
 
-    // Exactly one fetch hit /api/whatsapp/otp with the expected body shape.
-    const otpCalls = fetchCalls.filter((c) => c.url.endsWith('/api/whatsapp/otp'))
+    // Exactly one fetch hit /api/managed-whatsapp/otp with the expected body shape.
+    const otpCalls = fetchCalls.filter((c) => c.url.endsWith('/api/managed-whatsapp/otp'))
     expect(otpCalls.length).toBe(1)
     const body = otpCalls[0]?.init?.body
     expect(typeof body).toBe('string')
@@ -134,11 +152,11 @@ describe('mintPhoneOtp', () => {
       expect(innerText).toContain('staff_user_not_found')
     }
     // No platform fetch should have fired on the pre-flight failure path.
-    expect(fetchCalls.filter((c) => c.url.endsWith('/api/whatsapp/otp')).length).toBe(0)
+    expect(fetchCalls.filter((c) => c.url.endsWith('/api/managed-whatsapp/otp')).length).toBe(0)
   })
 
   it('throws phone_otp_template_unapproved when the template approval is missing', async () => {
-    _channelOverride = { config: { metaTemplateApprovals: {} } }
+    _settingsOverride = { metaTemplateApprovals: {} }
     try {
       await mintPhoneOtp(auth, handle.db, {
         userId: ALICE_USER_ID,
@@ -151,11 +169,11 @@ describe('mintPhoneOtp', () => {
       expect((err as PhoneOtpMintError).message).toBe('phone_otp_template_unapproved')
     }
     // Captor was never invoked → no platform fetch.
-    expect(fetchCalls.filter((c) => c.url.endsWith('/api/whatsapp/otp')).length).toBe(0)
+    expect(fetchCalls.filter((c) => c.url.endsWith('/api/managed-whatsapp/otp')).length).toBe(0)
   })
 
-  it('throws phone_otp_template_unapproved when the notification channel is missing entirely', async () => {
-    _channelOverride = null
+  it('throws phone_otp_template_unapproved when notification settings are missing entirely', async () => {
+    _settingsOverride = null
     try {
       await mintPhoneOtp(auth, handle.db, {
         userId: ALICE_USER_ID,
