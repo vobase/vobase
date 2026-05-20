@@ -1,5 +1,81 @@
 # @vobase/template
 
+## 3.17.0
+
+### Minor Changes
+
+- [`95a2c2e`](https://github.com/vobase/vobase/commit/95a2c2e558f3e8db0c2be858634b17edaf8717ad) Thanks [@mdluo](https://github.com/mdluo)! - # Magic-link finish + notification-settings collapse
+
+  Closes out the per-env magic-link refactor and collapses the notification-tier channel into a single first-class table. Hard cutover — no dual-shape, no env-var fallback, no deferred follow-ups.
+
+  ## Tenant-side magic-link finish
+
+  The `/auth/magic-finish` route is now covered by a full security test suite (`auth/magic-finish.test.ts`, 7 cases): happy-path cookie issuance, single-use replay rejection, expired-token deletion, organization-membership gating, open-redirect rejection, missing-param handling, and the platform challenge probe.
+
+  Token verification was simplified to better-auth's internal `consumeVerificationValue` (atomic read+delete), removing the hand-rolled attempt-counter and the race between `findVerificationValue` and the manual attempt bump. A pinned comment documents why the full `auth.api.magicLinkVerify` endpoint is not adopted (it owns the redirect, sets its own cookie, and has no organization-membership gate).
+
+  ## notification_settings — one row per org
+
+  The platform-routed notification number is no longer modeled as a fake `channel_instances` row. A new `notification_settings` table holds one row per organization:
+
+  | Column                                            | Purpose                                                      |
+  | ------------------------------------------------- | ------------------------------------------------------------ |
+  | `notificationEndpointId`                          | platform webhook endpoint for staff-notification routing     |
+  | `magicLinkEndpointId`                             | platform webhook endpoint for the magic-link finish redirect |
+  | `platformHmacSecretEnvelope`                      | envelope-encrypted HMAC secret for outbound platform calls   |
+  | `platformBaseUrl`                                 | platform host for relayed sends                              |
+  | `displayPhoneNumber` / `phoneNumberId` / `wabaId` | WhatsApp number metadata                                     |
+
+  `getNotificationSettings` / `upsertNotificationSettings` / `decryptNotificationHmac` are the single write path. `sendNotificationText` replaces the WhatsApp adapter's `managed-notif` send branch.
+
+  ## Bootstrap auto-registration — no manual operator step
+
+  `claimAndBootstrap` now runs `provisionNotificationSettings` as a required step: it claims the platform notification number, registers both the `whatsapp_notif` and `magic_link` webhook endpoints, and writes the `notification_settings` row — idempotently, so re-running on a provisioned org is a no-op. The old `MAGIC_LINK_ENDPOINT_ID` environment variable is gone; the endpoint id is read from the database row.
+
+  ## Removed
+
+  Hard cutover deleted every surface that existed only because the notification number was forced through the channel registry:
+
+  - `notification` kind from the managed-channel registry; `ManagedChannelKind` narrowed to `sandbox`
+  - `isManagedNotifConfig` predicate + the `managed-notif` instance mode
+  - `vobase-platform-notification` vault provider
+  - `staff_reply` inbound-dispatch branch + `staff-reply-dispatch.ts`
+  - `whatsapp_notif` channel registration + `WHATSAPP_NOTIF_CHANNEL_NAME`
+  - `findNotificationChannel` service helper
+  - `MAGIC_LINK_ENDPOINT_ID` environment variable
+  - "Connect platform notification" rows, chips, and dialog options across the channels UI
+
+  ## Test coverage
+
+  43 files changed. New: `magic-finish.test.ts` (7 cases), `notification-provision.test.ts` (2 cases), plus two notification-path cases in `bootstrap.test.ts`. 13 existing test files migrated from the `findNotificationChannel` / `whatsapp_notif` fixture shape to `getNotificationSettings` / `upsertNotificationSettings`. Targeted suites 77/77 green; full template suite 741 passing.
+
+### Patch Changes
+
+- [`fb2755d`](https://github.com/vobase/vobase/commit/fb2755d717deb0962f141ed96e682fd15b4d4724) Thanks [@mdluo](https://github.com/mdluo)! - # Staff-notification reply routing — correctness + cross-tenant hardening
+
+  Reply-routing fixes and a security review on the shared WhatsApp notification channel.
+
+  ## Reply routing fixes
+
+  - A staff member's WhatsApp reply to an agent's notification now re-engages the right party. The reply note's body is prefixed with the `@handle` of whoever authored the note that triggered the ping — agent or staff — so the body-driven staff-note fan-out actually fires. A bare reply previously set the `mentions` column but woke nobody.
+  - The operator-thread wake reads the latest _user_ message off the thread, not the latest message of any role, so a second back-to-back message is the one the agent sees.
+  - Agent replies mirrored out the notification channel carry an `[Agent]` prefix so staff can tell them apart from other notification-channel traffic.
+
+  ## Cross-tenant / cross-user hardening
+
+  Security review of the notification paths (one shared number across all tenants):
+
+  - The notification-mirror observer resolves the recipient phone fresh per dispatch, re-confirming verified org membership, instead of freezing it at wake start — a mid-wake phone change can no longer leak a reply.
+  - The `pending_staff_pings` upsert key is org-qualified, and a partial unique index on `outbound_wamid` lets the quote-reply claim rung treat the WAMID as a real key rather than a non-unique hint.
+  - The inbound staff-phone match is gated on `phone_number_verified`.
+  - A quote-reply to an already-expired ping now appends an operator-thread system hint instead of silently becoming a fresh agent instruction.
+
+  The platform-side counterpart — constraining reply routing to a phone's known `staff_link` set and binding quote-reply WAMIDs to the sender phone — ships in `vobase-platform`.
+
+  ## Terminology
+
+  Scoped "ping" (the WhatsApp staff-notification primitive, any kind) against "mention" (the `@-mention` act): removed the dead `PendingMentionPing*` aliases and corrected UI strings that called all-kind staff pings "mention pings".
+
 ## 3.16.0
 
 ### Minor Changes
