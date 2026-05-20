@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Code2, ExternalLink, MoreVertical, QrCode, Trash2, UserCog } from 'lucide-react'
+import { Code2, ExternalLink, MoreVertical, Pencil, QrCode, Trash2, UserCog } from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -82,7 +82,10 @@ function WebRowMenu({ row, onEdit, onDelete, onOpenDetails }: ChannelRowMenuProp
             <Code2 className="size-4" />
             Embed code…
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+          <DropdownMenuItem onClick={onEdit}>
+            <Pencil className="size-4" />
+            Edit
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
             <Trash2 className="size-4" />
@@ -105,11 +108,12 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
     displayPhoneNumber?: string
     endpointId?: string
   }
-  // Sandbox is a platform-managed claim and releases through the dedicated
-  // platform endpoint; it's also the only tier that shows the Link QR
-  // (testers scan it to join).
+  // Both managed tiers (sandbox + notification) release through the dedicated
+  // platform endpoint. The Link QR, however, is sandbox-only — it's the
+  // customer-facing number testers scan to join; the staff notification
+  // number has no such opt-in.
   const isManaged = config.mode === 'managed'
-  const showLinkQr = config.mode === 'managed'
+  const showLinkQr = config.mode === 'managed' && row.channel === 'whatsapp'
   const wabaId = config.wabaId
   const displayPhoneNumber = config.displayPhoneNumber ?? null
   const endpointId = config.endpointId ?? null
@@ -205,7 +209,10 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
 }
 
 export function ChannelRowMenu(props: ChannelRowMenuProps) {
-  if (props.row.channel === 'whatsapp') {
+  // `whatsapp_notif` (the staff-notification channel) shares the WhatsApp
+  // menu — it is a managed WhatsApp number, not a web channel. Without this
+  // it fell through to WebRowMenu and rendered a bogus "Open" chat button.
+  if (props.row.channel === 'whatsapp' || props.row.channel === 'whatsapp_notif') {
     return <WhatsAppRowMenu {...props} />
   }
   return <WebRowMenu {...props} />

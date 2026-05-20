@@ -43,18 +43,27 @@ export const MODE_CHIP_MAP = {
   self_cloud: { label: 'Cloud API', variant: 'info' },
   self_coexistence: { label: 'Business App', variant: 'success' },
   managed: { label: 'Platform sandbox', variant: 'info' },
+  'managed-notif': { label: 'Platform notification', variant: 'success' },
 } as const
 
 export type ModeChipKey = keyof typeof MODE_CHIP_MAP
 
-export function getModeChip(config: Record<string, unknown>): {
+export function getModeChip(
+  channel: string,
+  config: Record<string, unknown>,
+): {
   label: string
   variant: 'info' | 'success' | 'neutral'
 } {
   const mode = config.mode as string | undefined
   const coexistence = config.coexistence === true
 
-  if (mode === 'managed') return MODE_CHIP_MAP.managed
+  // Every managed kind stores `config.mode === 'managed'` (the WhatsApp
+  // adapter's `isManagedConfig` predicate keys on it). Sandbox vs notification
+  // is distinguished by the `channel` discriminator, not by `mode`.
+  if (mode === 'managed') {
+    return channel === 'whatsapp_notif' ? MODE_CHIP_MAP['managed-notif'] : MODE_CHIP_MAP.managed
+  }
   if (mode === 'self' && coexistence) return MODE_CHIP_MAP.self_coexistence
   if (mode === 'self' && !coexistence) return MODE_CHIP_MAP.self_cloud
   return { label: '', variant: 'neutral' }
@@ -76,7 +85,9 @@ function getHealthChip(status: string | null): { variant: 'success' | 'warning' 
 }
 
 function ChannelGlyph({ channel }: { channel: string }) {
-  if (channel === 'whatsapp') {
+  // `whatsapp_notif` is the notification-tier managed channel and shares
+  // the WhatsApp brand mark with the customer-facing `whatsapp` row.
+  if (channel === 'whatsapp' || channel === 'whatsapp_notif') {
     return <MessageCircle className="size-4 text-[#25d366]" />
   }
   return <Globe className="size-4 text-muted-foreground" />
@@ -103,11 +114,12 @@ function buildColumns(
       cell: ({ row }) => {
         const instance = row.original
         // Show the mode chip for every WhatsApp row (self-cloud, business-app,
-        // platform sandbox). The chip is the only place the channel kind is
-        // surfaced once the `displayName` is set from the platform `label`
-        // instead of `${kindSpec.displayLabel} (${env})`.
-        const isWhatsApp = instance.channel === 'whatsapp'
-        const modeChip = isWhatsApp ? getModeChip(instance.config) : null
+        // platform sandbox, platform notification). The chip is the only
+        // place the channel kind is surfaced once the `displayName` is set
+        // from the platform `label` instead of `${kindSpec.displayLabel}
+        // (${env})`.
+        const isWhatsApp = instance.channel === 'whatsapp' || instance.channel === 'whatsapp_notif'
+        const modeChip = isWhatsApp ? getModeChip(instance.channel, instance.config) : null
         return (
           <div className="flex flex-wrap items-center gap-2">
             <ChannelGlyph channel={instance.channel} />
@@ -122,7 +134,7 @@ function buildColumns(
       header: 'Number / Origin',
       cell: ({ row }) => {
         const { channel, config } = row.original
-        const isWhatsApp = channel === 'whatsapp'
+        const isWhatsApp = channel === 'whatsapp' || channel === 'whatsapp_notif'
         const text = isWhatsApp
           ? ((config.displayPhoneNumber as string | undefined) ?? (config.phoneNumberId as string | undefined) ?? '—')
           : ((config.origin as string | undefined) ?? '—')
@@ -143,7 +155,9 @@ function buildColumns(
           }
           return <Status variant="neutral" label="Not connected" />
         }
-        const isManagedWhatsApp = instance.channel === 'whatsapp' && instance.config.mode === 'managed'
+        const isManagedWhatsApp =
+          (instance.channel === 'whatsapp' || instance.channel === 'whatsapp_notif') &&
+          instance.config.mode === 'managed'
         if (isManagedWhatsApp) {
           return <WebhookStatusBadge instanceId={instance.id} />
         }
@@ -193,7 +207,7 @@ function buildColumns(
             </div>
           )
         }
-        const isWhatsApp = row.original.channel === 'whatsapp'
+        const isWhatsApp = row.original.channel === 'whatsapp' || row.original.channel === 'whatsapp_notif'
         return (
           <ChannelRowMenu
             row={row.original}

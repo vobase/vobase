@@ -20,26 +20,36 @@ describe('mode chip → label + variant mapping', () => {
     expect(MODE_CHIP_MAP.managed).toEqual({ label: 'Platform sandbox', variant: 'info' })
   })
 
+  test('managed-notif maps to Platform notification / success', () => {
+    expect(MODE_CHIP_MAP['managed-notif']).toEqual({ label: 'Platform notification', variant: 'success' })
+  })
+
   test('getModeChip: self + coexistence=false → Cloud API', () => {
-    const chip = getModeChip({ mode: 'self', coexistence: false })
+    const chip = getModeChip('whatsapp', { mode: 'self', coexistence: false })
     expect(chip.label).toBe('Cloud API')
     expect(chip.variant).toBe('info')
   })
 
   test('getModeChip: self + coexistence=true → Business App', () => {
-    const chip = getModeChip({ mode: 'self', coexistence: true })
+    const chip = getModeChip('whatsapp', { mode: 'self', coexistence: true })
     expect(chip.label).toBe('Business App')
     expect(chip.variant).toBe('success')
   })
 
-  test('getModeChip: managed → Platform sandbox', () => {
-    const chip = getModeChip({ mode: 'managed' })
+  test('getModeChip: whatsapp + managed → Platform sandbox', () => {
+    const chip = getModeChip('whatsapp', { mode: 'managed' })
     expect(chip.label).toBe('Platform sandbox')
     expect(chip.variant).toBe('info')
   })
 
+  test('getModeChip: whatsapp_notif + managed → Platform notification', () => {
+    const chip = getModeChip('whatsapp_notif', { mode: 'managed' })
+    expect(chip.label).toBe('Platform notification')
+    expect(chip.variant).toBe('success')
+  })
+
   test('getModeChip: unknown → neutral empty label', () => {
-    const chip = getModeChip({})
+    const chip = getModeChip('whatsapp', {})
     expect(chip.label).toBe('')
     expect(chip.variant).toBe('neutral')
   })
