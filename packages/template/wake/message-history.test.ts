@@ -87,7 +87,7 @@ describe('pruneOrphanToolResults', () => {
     ]
     const { cleaned, droppedCount } = pruneOrphanToolResults(history)
     expect(droppedCount).toBe(1)
-    expect(cleaned).toEqual([history[0]!, history[1]!, history[3]!])
+    expect(cleaned).toEqual([history[0], history[1], history[3]])
   })
 
   it('reproduction of the prod incident — orphan send_card sandwiched between two empty-stop assistants', () => {
@@ -122,13 +122,10 @@ describe('pruneOrphanToolResults', () => {
   })
 
   it('toolResult appearing BEFORE its assistant — dropped (out-of-order means broken)', () => {
-    const history: AgentMessage[] = [
-      toolResult('call_A'),
-      assistantWithToolCalls(['call_A']),
-    ]
+    const history: AgentMessage[] = [toolResult('call_A'), assistantWithToolCalls(['call_A'])]
     const { cleaned, droppedCount } = pruneOrphanToolResults(history)
     expect(droppedCount).toBe(1)
-    expect(cleaned).toEqual([history[1]!])
+    expect(cleaned).toEqual([history[1]])
   })
 
   it('multiple orphans — all dropped', () => {
@@ -141,16 +138,11 @@ describe('pruneOrphanToolResults', () => {
     ]
     const { cleaned, droppedCount } = pruneOrphanToolResults(history)
     expect(droppedCount).toBe(2)
-    expect(cleaned).toEqual([history[0]!, history[1]!, history[4]!])
+    expect(cleaned).toEqual([history[0], history[1], history[4]])
   })
 
   it('non-message roles (user, assistant-text-only) — always preserved', () => {
-    const history: AgentMessage[] = [
-      userMsg('first'),
-      assistantText('hi'),
-      userMsg('second'),
-      assistantText('bye'),
-    ]
+    const history: AgentMessage[] = [userMsg('first'), assistantText('hi'), userMsg('second'), assistantText('bye')]
     const { cleaned, droppedCount } = pruneOrphanToolResults(history)
     expect(droppedCount).toBe(0)
     expect(cleaned).toEqual(history)
