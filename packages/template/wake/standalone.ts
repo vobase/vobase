@@ -231,6 +231,7 @@ export async function standaloneWakeConfig(input: StandaloneWakeConfigInput): Pr
           return createNotificationMirrorObserver({
             organizationId: data.organizationId,
             threadId,
+            agentName: agentDefinition.name,
             staffPhoneE164: profile?.phoneNumber ?? null,
             notificationChannelInstanceId: notifChannel?.id ?? null,
             logger: deps.logger,

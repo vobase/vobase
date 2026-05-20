@@ -122,7 +122,7 @@ function WhatsAppVerifyInline({
           {sendOtp.isPending ? 'Sending…' : 'Send verification code'}
         </Button>
         <p className="text-muted-foreground text-xs">
-          Verify this number now to receive mention-ping notifications on WhatsApp.
+          Verify this number now to receive staff notifications on WhatsApp.
         </p>
         {error && <p className="text-destructive text-xs">{error}</p>}
       </div>
@@ -170,7 +170,7 @@ export interface StaffFormValues {
   languages: string[]
   capacity: number
   availability: Availability
-  /** E.164 with leading `+`, or null to clear. Stored on the better-auth user; used for WhatsApp mention pings. */
+  /** E.164 with leading `+`, or null to clear. Stored on the better-auth user; used for WhatsApp staff pings. */
   phoneNumber: string | null
   /**
    * Org membership role to apply on save, or `null` when the editor can't
@@ -348,7 +348,7 @@ export function StaffFormDialog({
                   ? undefined
                   : phone && phone !== savedPhone
                     ? 'Saving will require the staff member to re-verify via a WhatsApp one-time code on next sign-in.'
-                    : 'Required to receive mention-ping notifications via WhatsApp.'
+                    : 'Required to receive staff notifications via WhatsApp.'
               }
             />
             {canVerifyInline && (

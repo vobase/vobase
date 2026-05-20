@@ -15,7 +15,7 @@ import { operatorThreadMessages, operatorThreads } from '@modules/agents/schema'
 import { getById as getAgentDefinition } from '@modules/agents/service/agent-definitions'
 import type { AgentContributions, HarnessLogger, ScopedScheduler } from '@vobase/core'
 import { createHarness } from '@vobase/core'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 
 import type { RealtimeService, ScopedDb } from '~/runtime'
@@ -72,7 +72,7 @@ export function createOperatorThreadWakeHandler(
     const latestMsgRow = await deps.db
       .select({ content: operatorThreadMessages.content })
       .from(operatorThreadMessages)
-      .where(eq(operatorThreadMessages.threadId, data.threadId))
+      .where(and(eq(operatorThreadMessages.threadId, data.threadId), eq(operatorThreadMessages.role, 'user')))
       .orderBy(desc(operatorThreadMessages.seq))
       .limit(1)
       .then((rows) => rows[0])

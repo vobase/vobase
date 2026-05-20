@@ -28,6 +28,7 @@ import { authUser } from '@auth/schema'
 import { agentDefinitions, operatorThreads } from '@modules/agents/schema'
 import { requireJobs } from '@modules/agents/service/state'
 import { threads as threadsApi } from '@modules/agents/service/threads'
+import { internalNotes } from '@modules/messaging/schema'
 import { addNote } from '@modules/messaging/service/notes'
 import { getOrgSetting } from '@modules/settings/service/org-settings'
 import { staffProfiles } from '@modules/team/schema'
@@ -95,6 +96,43 @@ function buildAmbiguousReplyHint(liveCount: number): string {
     'an answer to one of those, ask which customer or conversation they mean before relaying it. They can also ' +
     'long-press a question in WhatsApp and reply to it directly so future answers route on their own.'
   )
+}
+
+/**
+ * The @-mention used to thread a staff WhatsApp reply back into the
+ * conversation: the author of the note that triggered this ping — an agent or
+ * a staff member. Agent authors re-wake via the body-driven staff-note
+ * fan-out; staff authors get a visible threaded mention. Falls back to the
+ * ping's asking agent when the note row or its author cannot be resolved.
+ */
+async function resolveNoteAuthorMention(
+  db: ScopedDb,
+  organizationId: string,
+  originalNoteId: string,
+  fallbackAgentId: string,
+): Promise<{ name: string; token: string } | null> {
+  const [note] = await db
+    .select({ authorType: internalNotes.authorType, authorId: internalNotes.authorId })
+    .from(internalNotes)
+    .where(and(eq(internalNotes.id, originalNoteId), eq(internalNotes.organizationId, organizationId)))
+    .limit(1)
+
+  if (note?.authorType === 'staff' && note.authorId) {
+    const [staff] = await db
+      .select({ displayName: staffProfiles.displayName })
+      .from(staffProfiles)
+      .where(and(eq(staffProfiles.userId, note.authorId), eq(staffProfiles.organizationId, organizationId)))
+      .limit(1)
+    if (staff?.displayName) return { name: staff.displayName, token: `staff:${note.authorId}` }
+  }
+
+  const agentId = note?.authorType === 'agent' && note.authorId ? note.authorId : fallbackAgentId
+  const [agent] = await db
+    .select({ name: agentDefinitions.name })
+    .from(agentDefinitions)
+    .where(and(eq(agentDefinitions.id, agentId), eq(agentDefinitions.organizationId, organizationId)))
+    .limit(1)
+  return agent?.name ? { name: agent.name, token: `agent:${agentId}` } : null
 }
 
 export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffReplyResult> {
@@ -168,13 +206,19 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
 
   if (claim.status === 'claimed') {
     const { ping } = claim
+    // The staff-note fan-out is body-driven (`resolveAgentMentionsInBody` scans
+    // for `@Name`), so the original note's author only re-engages if their
+    // handle is in the body — a bare WhatsApp reply has none. Prepend it,
+    // mirroring an inbox @-mention and threading the reply back to the asker.
+    const mention = await resolveNoteAuthorMention(db, organizationId, ping.originalNoteId, ping.askingAgentId)
+    const noteBody = mention ? `@${mention.name} ${text ?? ''}`.trim() : (text ?? '')
     try {
       await addNote({
         organizationId,
         conversationId: ping.conversationId,
         author: { kind: 'staff', id: staff.userId },
-        body: text ?? '',
-        mentions: [`agent:${ping.askingAgentId}`],
+        body: noteBody,
+        mentions: mention ? [mention.token] : [`agent:${ping.askingAgentId}`],
         parentNoteId: ping.originalNoteId,
       })
       return { ok: true, branch: 'ask_staff_answer' }

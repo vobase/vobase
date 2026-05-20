@@ -18,7 +18,7 @@ export interface PhoneVerificationBadgeProps {
 export function PhoneVerificationBadge({ verified, hidden }: PhoneVerificationBadgeProps) {
   if (hidden) return null
   const tip = verified
-    ? 'Confirmed via a WhatsApp one-time code. Mention pings will be delivered.'
+    ? 'Confirmed via a WhatsApp one-time code. Staff notifications will be delivered.'
     : 'Cannot receive WhatsApp pings until verified. The owner will receive a one-time code on next sign-in.'
   return (
     <Tooltip>

@@ -51,7 +51,7 @@ const KIND_COPY: Record<ManagedChannelKind, { title: string; description: string
   notification: {
     title: 'Connect platform notification',
     description:
-      'Claim a platform-managed WhatsApp number used exclusively for staff notifications. Staff link their phone in their profile to receive @-mention pings here.',
+      'Claim a platform-managed WhatsApp number used exclusively for staff notifications. Staff link their phone in their profile to receive notifications here.',
     cta: 'Connect notification',
   },
 }

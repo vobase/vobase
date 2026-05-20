@@ -32,7 +32,7 @@
  */
 
 import { type PendingStaffPing, pendingStaffPings } from '@modules/team/schema'
-import { sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 
@@ -102,9 +102,6 @@ export interface PendingStaffPingService {
    */
   pruneOlderThan(cutoff: Date): Promise<number>
 }
-
-/** @deprecated Use {@link PendingStaffPingService}. */
-export type PendingMentionPingService = PendingStaffPingService
 
 interface PingDeps {
   db: ScopedDb
@@ -218,26 +215,33 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
     return new Date(Date.now() - PING_TTL_MS).toISOString()
   }
 
-  /** Rung 1 — exact wamid match. Null when no row matches (caller falls through). */
+  /**
+   * Rung 1 — exact wamid match. No `claimed_at IS NULL` filter: a quote-reply's
+   * `context.id` unambiguously identifies the conversation, so repeat replies
+   * to the same notification still route back to it.
+   */
   async function claimByWamid(input: ClaimPingInput, wamid: string): Promise<PendingStaffPing | null> {
-    const inboundWamid = input.inboundWamid ?? null
-    const result = await db.execute<RawPingRow>(sql`
-      UPDATE ${pendingStaffPings}
-      SET claimed_at = now(), claimed_wamid = ${inboundWamid}
-      WHERE id = (
-        SELECT id FROM ${pendingStaffPings}
-        WHERE staff_user_id = ${input.staffUserId}
-          AND organization_id = ${input.organizationId}
-          AND outbound_wamid = ${wamid}
-          AND claimed_at IS NULL
-          AND created_at > ${ttlCutoffIso()}::timestamptz
-        ORDER BY created_at DESC
-        LIMIT 1
+    const target = db
+      .select({ id: pendingStaffPings.id })
+      .from(pendingStaffPings)
+      .where(
+        and(
+          eq(pendingStaffPings.staffUserId, input.staffUserId),
+          eq(pendingStaffPings.organizationId, input.organizationId),
+          eq(pendingStaffPings.outboundWamid, wamid),
+          gt(pendingStaffPings.createdAt, new Date(Date.now() - PING_TTL_MS)),
+        ),
       )
-      RETURNING ${PING_COLUMNS}
-    `)
-    const row = extractRows(result)[0]
-    return isClaimedRow(row) ? rowToPing(row) : null
+      .orderBy(desc(pendingStaffPings.createdAt))
+      .limit(1)
+    const [row] = await db
+      .update(pendingStaffPings)
+      .set({ claimedAt: new Date(), claimedWamid: input.inboundWamid ?? null })
+      .where(inArray(pendingStaffPings.id, target))
+      .returning()
+    if (!row) return null
+    const { id: _id, ...ping } = row
+    return ping
   }
 
   /**
@@ -305,21 +309,13 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
   return { recordPing, claimPing, pruneOlderThan }
 }
 
-/** @deprecated Use {@link createPendingStaffPingService}. */
-export const createPendingMentionPingService = createPendingStaffPingService
-
 let _current: PendingStaffPingService | null = null
 export function installPendingStaffPingService(svc: PendingStaffPingService): void {
   _current = svc
 }
-/** @deprecated Use {@link installPendingStaffPingService}. */
-export const installPendingMentionPingService = installPendingStaffPingService
-
 export function __resetPendingStaffPingServiceForTests(): void {
   _current = null
 }
-/** @deprecated Use {@link __resetPendingStaffPingServiceForTests}. */
-export const __resetPendingMentionPingServiceForTests = __resetPendingStaffPingServiceForTests
 
 function current(): PendingStaffPingService {
   if (!_current) {

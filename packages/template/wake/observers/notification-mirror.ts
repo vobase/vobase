@@ -18,6 +18,7 @@
 
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { get as channelRegistryGet } from '@modules/channels/service/registry'
+import { hasStaffPrefix } from '@modules/messaging/lib/staff-prefix'
 import type { HarnessLogger, OnEventListener } from '@vobase/core'
 
 import type { WakeTrigger } from '../events'
@@ -25,6 +26,7 @@ import type { WakeTrigger } from '../events'
 export interface NotificationMirrorOpts {
   organizationId: string
   threadId: string
+  agentName?: string | null
   staffPhoneE164: string | null
   notificationChannelInstanceId: string | null
   logger: HarnessLogger
@@ -39,6 +41,10 @@ export function createNotificationMirrorObserver(opts: NotificationMirrorOpts): 
     if (!text) return
     if (!opts.staffPhoneE164 || !opts.notificationChannelInstanceId) return
 
+    // Bracket-prefix so staff can tell the agent's reply apart from other
+    // notification-channel traffic; skip if the agent already bracketed it.
+    const outboundText = hasStaffPrefix(text) ? text : `[${opts.agentName || 'Agent'}]: ${text}`
+
     try {
       // Fresh adapter per dispatch — the registry creates one per call too.
       // `findNotificationChannel` is the source of truth for the live config
@@ -50,7 +56,7 @@ export function createNotificationMirrorObserver(opts: NotificationMirrorOpts): 
       }
       const adapter = await channelRegistryGet(channel.channel, channel.config ?? {}, channel.id)
       if (!adapter) return
-      const res = await adapter.send({ to: opts.staffPhoneE164, text })
+      const res = await adapter.send({ to: opts.staffPhoneE164, text: outboundText })
       if (!res.success) {
         opts.logger.warn?.(
           { threadId: opts.threadId, code: res.code, error: res.error },
