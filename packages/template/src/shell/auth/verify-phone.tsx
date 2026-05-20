@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { authClient } from '@/lib/auth-client'
+import { authClient, refreshSession } from '@/lib/auth-client'
 import { SKIP_VERIFY_KEY } from '@/shell/app-layout'
 
 const OTP_LENGTH = 6
@@ -26,6 +26,7 @@ type PhoneValues = z.infer<typeof phoneSchema>
 
 interface SessionUser {
   email?: string
+  phoneNumber?: string | null
 }
 
 type AuthClientResult = { error?: { message?: string; code?: string } | null } | null | undefined
@@ -57,8 +58,16 @@ async function sendPhoneOtp({ phoneNumber }: { phoneNumber: string }) {
 }
 
 // biome-ignore lint/suspicious/useAwait: mutation contract must be async
-async function verifyPhoneOtp({ phoneNumber, code }: { phoneNumber: string; code: string }) {
-  return authClient.phoneNumber.verify({ phoneNumber, code })
+async function verifyPhoneOtp({
+  phoneNumber,
+  code,
+  updatePhoneNumber,
+}: {
+  phoneNumber: string
+  code: string
+  updatePhoneNumber: boolean
+}) {
+  return authClient.phoneNumber.verify({ phoneNumber, code, updatePhoneNumber })
 }
 
 // biome-ignore lint/suspicious/useAwait: mutation contract must be async
@@ -75,6 +84,7 @@ export function VerifyPhonePage() {
     data?: { user?: SessionUser | null } | null
   } | null
   const userEmail = sessionRes?.data?.user?.email ?? ''
+  const userPhone = sessionRes?.data?.user?.phoneNumber ?? ''
 
   const [step, setStep] = useState<'phone' | 'code' | 'magic-sent' | 'template-unapproved'>('phone')
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -125,14 +135,24 @@ export function VerifyPhonePage() {
 
   function handleVerifyComplete(code: string) {
     verifyOtp.mutate(
-      { phoneNumber, code },
+      // `updatePhoneNumber: true` attaches the number to the signed-in user's
+      // row (by session id) and marks it verified. The plain path looks a user
+      // up BY the number and 500s with FAILED_TO_UPDATE_USER when no row carries
+      // it yet — the case for every first-time onboarding. Skip the flag only
+      // when the number is already saved, since better-auth then rejects it as
+      // PHONE_NUMBER_EXIST against the user's own row.
+      { phoneNumber, code, updatePhoneNumber: phoneNumber !== userPhone },
       {
-        onSuccess: (res) => {
+        onSuccess: async (res) => {
           const message = readErrorMessage(res as AuthClientResult, 'That code did not work. Try again.')
           if (message) {
             verifyOtp.reset()
             throw new Error(message)
           }
+          // Pull the freshly-verified phone into the session store before
+          // leaving, so pages reading `useSession()` (e.g. settings) don't
+          // show the pre-verify "Not set" state from the cookie cache.
+          await refreshSession()
           navigate({ to: nextPath })
         },
       },
