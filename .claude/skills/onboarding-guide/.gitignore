@@ -1,0 +1,4 @@
+# Renderer outputs the HTML preview + a copy of voltade.css next to each markdown source.
+# The .md and .pdf are the canonical artefacts — html/css copies are regenerable.
+examples/*.html
+examples/voltade.css
