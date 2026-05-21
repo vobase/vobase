@@ -23,6 +23,7 @@ Every change must be clean, high quality, and maintainable. No exceptions.
 - End-to-end type safety: Drizzle for queries, Zod validation on all inputs, Hono typed RPC client, TanStack generated routes, TanStack Query (not raw fetch).
 - No `any`, no `as` casts unless provably safe, no `// @ts-ignore`.
 - Every handler validates input with Zod. Return typed errors via `VobaseError` factories.
+- Color tokens are hex (Voltade DS v1 Radix-style scales `--v-mauve-*` / `--v-purple-*`); shadcn semantic tokens (`--background`, `--foreground`, `--primary`, …) alias onto the DS palette. Do not introduce new OKLCH or raw hex colors in components — reference the DS variables.
 - Tests for every feature. Colocate tests next to implementation (`*.test.ts`).
 - Zero tech debt tolerance: fix what you touch. No TODO comments without linked issues.
 - Biome for formatting + linting. Run `bun run lint` before committing. Biome's `lineWidth` is 120.
@@ -96,7 +97,7 @@ There is **no `defineModule()` factory** and no `defineBuiltinModule()`. Modules
 
 ## Design Direction
 
-Clean, information-forward, keyboard-friendly UI for non-technical helpdesk staff and the customers they serve. Comfortable type scale (15px base, no sizes below 12px outside numeric badges), generous row padding, recognizable avatars on every list item. Light + dark mode, neutral gray + one accent. OKLCH colors. No gradients, no glassmorphism, no decoration without purpose. shadcn/ui components are owned source — customize freely.
+Clean, information-forward, keyboard-friendly UI for non-technical helpdesk staff and the customers they serve. Built on the **Voltade Design System v1**: 14px base body (DM Sans), Source Serif 4 for display/headlines, IBM Plex Mono as the workhorse mono for eyebrows/badges/table cells, Departure Mono reserved for display signposts. Numeric badges may go to 11px (`text-2xs`); body content sits at 12px/14px. Generous row padding, recognizable avatars on every list item. Light + dark mode, **Radix-style 12-step Mauve neutrals + Purple brand accent** (hex tokens `--v-mauve-*` / `--v-purple-*`); one italic accent word per heading in `purple-9`. Hairline 1px `mauve-7` dividers — no gradients, no glassmorphism, no decoration without purpose. shadcn/ui components are owned source — customize freely.
 
 ### Component Libraries (priority order)
 

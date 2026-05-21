@@ -10,49 +10,116 @@
 @property --background {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(1 0 0);
+  initial-value: #fdfcfd;
 }
 @property --foreground {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.129 0.042 264.695);
+  initial-value: #211f26;
 }
 @property --accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: oklch(0.968 0.007 247.896);
+  initial-value: #f2eff3;
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --success: oklch(0.65 0.14 152);
-  --warning: oklch(0.72 0.15 60);
-  --info: oklch(0.6 0.14 280);
-  --info-fg: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* Voltade Design System v1 — color tokens (Radix-style 12-step hex). */
+  --v-mauve-1: #fdfcfd;
+  --v-mauve-2: #faf9fb;
+  --v-mauve-3: #f2eff3;
+  --v-mauve-4: #eae7ec;
+  --v-mauve-5: #e3dfe6;
+  --v-mauve-6: #dbd8e0;
+  --v-mauve-7: #d0cdd7;
+  --v-mauve-8: #bcbac7;
+  --v-mauve-9: #8e8c99;
+  --v-mauve-10: #84828e;
+  --v-mauve-11: #65636d;
+  --v-mauve-12: #211f26;
+
+  --v-purple-1: #fdfdfe;
+  --v-purple-2: #f8f8ff;
+  --v-purple-3: #f0effe;
+  --v-purple-4: #e6e4fc;
+  --v-purple-5: #dbd8fa;
+  --v-purple-6: #cec9f6;
+  --v-purple-7: #bbb4f0;
+  --v-purple-8: #a199e8;
+  --v-purple-9: #6e5dd9;
+  --v-purple-10: #7b6ae4;
+  --v-purple-11: #4b3cb0;
+  --v-purple-12: #1a1645;
+
+  --v-success: #10b981;
+  --v-warning: #f59e0b;
+  --v-error: #ef4444;
+  --v-info: #3b82f6;
+
+  --v-black: #0d0b14;
+  --v-black-ui: #15131e;
+  --v-white: #ffffff;
+
+  /* Spacing scale · 8px base. */
+  --v-space-xs: 4px;
+  --v-space-sm: 8px;
+  --v-space-md: 16px;
+  --v-space-lg: 24px;
+  --v-space-xl: 32px;
+  --v-space-2xl: 48px;
+  --v-space-3xl: 64px;
+  --v-space-4xl: 96px;
+
+  /* Radius · functional UI only; editorial surfaces stay square. */
+  --v-radius-sm: 6px;
+  --v-radius-md: 10px;
+  --v-radius-lg: 16px;
+  --v-radius-xl: 24px;
+
+  /* Motion. */
+  --v-dur-fast: 150ms;
+  --v-dur-base: 300ms;
+  --v-dur-slow: 500ms;
+  --v-ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --v-ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* Type stacks. Departure Mono is reserved for display signposts; falls back
+     to Plex until a hosted font file is wired up. */
+  --v-font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --v-font-serif: "Source Serif 4", ui-serif, Georgia, serif;
+  --v-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --v-font-mono-display: "Departure Mono", "IBM Plex Mono", ui-monospace, monospace;
+
+  /* shadcn semantic tokens — light mode, mapped onto the Voltade palette. */
+  --radius: 0.625rem; /* 10px → DS radius-md (buttons/inputs). */
+  --background: var(--v-mauve-1);
+  --foreground: var(--v-mauve-12);
+  --card: var(--v-mauve-1);
+  --card-foreground: var(--v-mauve-12);
+  --popover: var(--v-mauve-1);
+  --popover-foreground: var(--v-mauve-12);
+  --primary: var(--v-purple-9);
+  --primary-foreground: var(--v-mauve-1);
+  --secondary: var(--v-mauve-3);
+  --secondary-foreground: var(--v-mauve-12);
+  --muted: var(--v-mauve-3);
+  --muted-foreground: var(--v-mauve-11);
+  --accent: var(--v-mauve-3);
+  --accent-foreground: var(--v-mauve-12);
+  --destructive: var(--v-error);
+  --destructive-foreground: var(--v-mauve-1);
+  --success: var(--v-success);
+  --warning: var(--v-warning);
+  --info: var(--v-info);
+  --info-fg: var(--v-mauve-1);
+  --border: var(--v-mauve-7);
+  --input: var(--v-mauve-7);
+  --ring: var(--v-purple-9);
+  --chart-1: var(--v-purple-9);
+  --chart-2: var(--v-success);
+  --chart-3: var(--v-info);
+  --chart-4: var(--v-warning);
+  --chart-5: var(--v-error);
 
   --sidebar: var(--background);
   --sidebar-foreground: var(--foreground);
@@ -94,12 +161,12 @@
   --foreground-90: color-mix(in srgb, var(--foreground) 90%, var(--background));
   --foreground-95: color-mix(in srgb, var(--foreground) 95%, var(--background));
 
-  /* RGB approximations of OKLCH for shadow utilities (low-opacity, exactness not required). */
-  --foreground-rgb: 15, 23, 42;
-  --destructive-rgb: 220, 38, 38;
-  --success-rgb: 34, 159, 90;
-  --warning-rgb: 217, 119, 6;
-  --info-rgb: 95, 95, 200;
+  /* RGB approximations for shadow utilities (low-opacity, exactness not required). */
+  --foreground-rgb: 33, 31, 38; /* mauve-12 */
+  --destructive-rgb: 239, 68, 68;
+  --success-rgb: 16, 185, 129;
+  --warning-rgb: 245, 158, 11;
+  --info-rgb: 59, 130, 246;
 
   /* Shadow opacity (light mode = subtle). */
   --shadow-border-opacity: 0.08;
@@ -117,34 +184,36 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.14 0.04 259.21);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --success: oklch(0.696 0.17 162.48);
-  --warning: oklch(0.828 0.189 84.429);
-  --info: oklch(0.627 0.265 303.9);
-  --info-fg: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  /* DS dark surface anchors: black-ui as page, near-black-ui card lift,
+     mauve-12 as the deepest popover surface. */
+  --background: #15131e;
+  --foreground: #f3f4f6;
+  --card: #1a1822;
+  --card-foreground: #f3f4f6;
+  --popover: var(--v-mauve-12);
+  --popover-foreground: #f3f4f6;
+  --primary: var(--v-purple-9);
+  --primary-foreground: var(--v-mauve-1);
+  --secondary: var(--v-mauve-12);
+  --secondary-foreground: #f3f4f6;
+  --muted: var(--v-mauve-12);
+  --muted-foreground: #9ca3af;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #f3f4f6;
+  --destructive: #f87171;
+  --destructive-foreground: #15131e;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+  --info-fg: #15131e;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: var(--v-purple-8);
+  --chart-1: var(--v-purple-8);
+  --chart-2: #34d399;
+  --chart-3: #60a5fa;
+  --chart-4: #fbbf24;
+  --chart-5: #f87171;
 
   /* Legacy Vobase semantic token aliases (dark palette). */
   --color-bg: var(--background);
@@ -163,19 +232,21 @@
 
   /* --foreground-N is defined once on :root; color-mix re-resolves against
      this scope's --foreground/--background, so no override is needed. */
-  --foreground-rgb: 248, 250, 252;
-  --destructive-rgb: 248, 113, 100;
-  --success-rgb: 40, 200, 130;
-  --warning-rgb: 240, 180, 40;
-  --info-rgb: 160, 80, 230;
+  --foreground-rgb: 243, 244, 246;
+  --destructive-rgb: 248, 113, 113;
+  --success-rgb: 52, 211, 153;
+  --warning-rgb: 251, 191, 36;
+  --info-rgb: 96, 165, 250;
 
   --shadow-border-opacity: 0.15;
   --shadow-blur-opacity: 0.12;
 }
 
 @theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: var(--v-font-sans);
+  --font-serif: var(--v-font-serif);
+  --font-mono: var(--v-font-mono);
+  --font-mono-display: var(--v-font-mono-display);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -259,7 +330,7 @@
   }
   html {
     @apply overflow-x-hidden;
-    font-size: 15px;
+    font-size: 14px;
   }
   body {
     @apply min-h-svh w-full bg-background text-foreground;

@@ -24,7 +24,7 @@ Core identity: **AI agents need codebase they understand.** One folder per featu
 
 - Drizzle queries; Zod every handler input; Hono typed RPC client (`src/lib/api-client.ts`); TanStack Query, never raw `fetch` (biome `no-raw-fetch.grit` over `src/`, `pages/`, `components/`, `hooks/`).
 - No `any`, no unsafe `as`, no `// @ts-ignore`.
-- Dates render via `<RelativeTimeCard>`. OKLCH colors. shadcn overrides need `// shadcn-override-ok: <reason>`.
+- Dates render via `<RelativeTimeCard>`. Colors come from the Voltade DS v1 hex scales (`--v-mauve-*` / `--v-purple-*`); shadcn semantic tokens alias onto them. shadcn overrides need `// shadcn-override-ok: <reason>`.
 - Agent/staff identity in UI through `usePrincipalDirectory()` + `<PrincipalAvatar>` (purple robot = agent, blue person = staff). Never render raw ids.
 - Services `pg_notify` after commit; `use-realtime-invalidation.ts` maps `table` → first element TanStack `queryKey`. No WebSocket.
 - Bun-native APIs (`Bun.file`/`write`/`Glob`/`$`). `require()` banned. Dynamic `import()` only heavy optional deps + test mocking.
@@ -156,7 +156,7 @@ Anti-patterns: don't mock database (mocks hide migration / CHECK / pg_notify bug
 
 ## Design tokens
 
-OKLCH (`:root` + `.dark`). Search shadcn / ai-elements / DiceUI before writing custom: `bunx shadcn@latest add <c>`, `bunx --bun ai-elements@latest add <c>`, `bunx shadcn@latest add "https://diceui.com/r/<c>.json"`.
+Voltade Design System v1 (`packages/template/src/styles/app.css`, `:root` + `.dark`). Hex Radix-style 12-step scales: `--v-mauve-*` (warm neutrals), `--v-purple-*` (brand). Semantic: `--v-success` / `--v-warning` / `--v-error` / `--v-info`. Spacing `--v-space-{xs..4xl}` (8px base), radius `--v-radius-{sm,md,lg,xl}`, motion `--v-dur-{fast,base,slow}` + `--v-ease-{smooth,bounce}`. Type stacks: `--v-font-sans` (DM Sans), `--v-font-serif` (Source Serif 4), `--v-font-mono` (IBM Plex Mono), `--v-font-mono-display` (Departure Mono, falls back to Plex until hosted). shadcn semantic tokens (`--background`, `--primary`, …) alias onto the DS palette — reference those in components, not raw hex. Search shadcn / ai-elements / DiceUI before writing custom: `bunx shadcn@latest add <c>`, `bunx --bun ai-elements@latest add <c>`, `bunx shadcn@latest add "https://diceui.com/r/<c>.json"`.
 
 ## CLI
 
