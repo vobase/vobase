@@ -1,9 +1,31 @@
+import {
+  driveFileRawUrl,
+  humanBytes,
+  type MediaKind,
+  mediaKindFromMime,
+  mediaKindFromUrlExt,
+} from '@modules/drive/lib/format'
+import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import type { Message } from '@modules/messaging/schema'
 
 import { cn } from '@/lib/utils'
 import type { ButtonElement, LinkButtonElement } from './card-actions'
 import { CardActions } from './card-actions'
 import { CardFields } from './card-fields'
+import {
+  MediaPlayer,
+  MediaPlayerAudio,
+  MediaPlayerControls,
+  MediaPlayerControlsOverlay,
+  MediaPlayerDownload,
+  MediaPlayerFullscreen,
+  MediaPlayerPiP,
+  MediaPlayerPlay,
+  MediaPlayerSeek,
+  MediaPlayerTime,
+  MediaPlayerVideo,
+  MediaPlayerVolume,
+} from './ui/media-player'
 
 interface TextElement {
   type: 'text'
@@ -143,6 +165,125 @@ function CardChildNode({
   }
 }
 
+interface MediaAttachmentProps {
+  src: string
+  kind: MediaKind
+  caption?: string | null
+  /** Used only by the image alt and the document-fallback link text. */
+  fallbackLabel?: string | null
+  /** Used only by the document-fallback link. */
+  sizeBytes?: number | null
+}
+
+function MediaFrame({
+  children,
+  caption,
+  className,
+  captionClassName,
+}: {
+  children: React.ReactNode
+  caption?: string | null
+  className?: string
+  captionClassName?: string
+}) {
+  return (
+    <div className={cn('overflow-hidden rounded-lg border border-border bg-muted/40', className)}>
+      {children}
+      {caption && <p className={cn('px-3 py-2 text-muted-foreground text-xs', captionClassName)}>{caption}</p>}
+    </div>
+  )
+}
+
+function MediaAttachment({ src, kind, caption, fallbackLabel, sizeBytes }: MediaAttachmentProps) {
+  if (kind === 'video') {
+    return (
+      <MediaFrame caption={caption}>
+        <MediaPlayer className="w-full">
+          <MediaPlayerVideo
+            className="max-h-[28rem] w-full bg-black object-contain"
+            src={src}
+            preload="metadata"
+            playsInline
+            crossOrigin=""
+          />
+          <MediaPlayerControls className="flex-col items-stretch gap-1.5">
+            <MediaPlayerControlsOverlay />
+            <MediaPlayerSeek />
+            <div className="flex items-center gap-1.5">
+              <MediaPlayerPlay />
+              <MediaPlayerVolume expandable />
+              <MediaPlayerTime />
+              <div className="ml-auto flex items-center gap-1.5">
+                <MediaPlayerPiP />
+                <MediaPlayerDownload />
+                <MediaPlayerFullscreen />
+              </div>
+            </div>
+          </MediaPlayerControls>
+        </MediaPlayer>
+      </MediaFrame>
+    )
+  }
+  if (kind === 'audio') {
+    return (
+      <MediaFrame caption={caption} className="p-2" captionClassName="px-1 pt-2">
+        <MediaPlayer>
+          <MediaPlayerAudio src={src} preload="metadata" crossOrigin="" />
+          <MediaPlayerControls className="flex items-center gap-1.5">
+            <MediaPlayerPlay />
+            <MediaPlayerSeek />
+            <MediaPlayerTime />
+            <MediaPlayerVolume expandable />
+            <MediaPlayerDownload />
+          </MediaPlayerControls>
+        </MediaPlayer>
+      </MediaFrame>
+    )
+  }
+  if (kind === 'image') {
+    return (
+      <MediaFrame caption={caption}>
+        <img alt={caption ?? fallbackLabel ?? 'attachment'} className="max-h-80 w-full object-contain" src={src} />
+      </MediaFrame>
+    )
+  }
+  const sizeLabel = humanBytes(sizeBytes ?? null)
+  return (
+    <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+      <a className="text-xs underline" href={src} rel="noreferrer" target="_blank">
+        📎 {caption ?? fallbackLabel ?? 'Attachment'}
+        {sizeLabel ? ` (${sizeLabel})` : ''}
+      </a>
+    </div>
+  )
+}
+
+function AttachmentBubble({ attachment }: { attachment: MessageAttachmentRef }) {
+  return (
+    <MediaAttachment
+      src={driveFileRawUrl(attachment.driveFileId)}
+      kind={mediaKindFromMime(attachment.mimeType) ?? 'document'}
+      caption={attachment.caption}
+      fallbackLabel={attachment.name ?? attachment.path ?? null}
+      sizeBytes={attachment.sizeBytes}
+    />
+  )
+}
+
+/**
+ * `kind='image'` is the schema's catch-all bucket for every `send_file` row
+ * (CHECK constraint only allows text/image/card/card_reply). `content.type`
+ * is the real discriminant set by post-feature writes; legacy rows fall back
+ * to attachment mime, then url extension, then plain `'image'`.
+ */
+function resolveImageKind(content: ImageContent, attachmentRef: MessageAttachmentRef | undefined): MediaKind {
+  if (content.type) return content.type
+  const fromMime = mediaKindFromMime(attachmentRef?.mimeType)
+  if (fromMime) return fromMime
+  if (content.url) return mediaKindFromUrlExt(content.url) ?? 'image'
+  return 'image'
+}
+
 function renderCard(
   card: CardElement,
   message: Message,
@@ -192,6 +333,29 @@ export function MessageCard({
 
   if (message.kind === 'text') {
     const content = message.content as TextContent
+    const attachments = message.attachments ?? []
+    // Inbound media (WhatsApp video/audio/image/document) lands as `kind='text'`
+    // with attachments on the side — see `messaging/service/conversations.ts`.
+    if (attachments.length > 0) {
+      const captionText = (content.text ?? '').trim()
+      return (
+        <div className="flex max-w-[min(78%,560px)] flex-col gap-2">
+          {attachments.map((att) => (
+            <AttachmentBubble key={att.driveFileId} attachment={att} />
+          ))}
+          {captionText && (
+            <div
+              className={cn(
+                bubbleBase,
+                message.role === 'customer' ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground',
+              )}
+            >
+              {captionText}
+            </div>
+          )}
+        </div>
+      )
+    }
     return (
       <div
         className={cn(
@@ -230,25 +394,23 @@ export function MessageCard({
 
   if (message.kind === 'image') {
     const content = message.content as ImageContent
-    if (content.url && (content.type ?? 'image') === 'image') {
+    const attachmentRef = message.attachments?.[0]
+    const src = content.url ?? (content.driveFileId ? driveFileRawUrl(content.driveFileId) : null)
+    if (!src) {
       return (
-        <div className="overflow-hidden rounded-lg border border-border bg-muted/40">
-          <img alt={content.caption ?? 'attachment'} className="max-h-80 w-full object-contain" src={content.url} />
-          {content.caption && <p className="px-3 py-2 text-muted-foreground text-xs">{content.caption}</p>}
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+          <span className="text-xs">📎 {content.caption ?? content.driveFileId ?? 'Attachment'}</span>
         </div>
       )
     }
-    const label = content.caption ?? content.driveFileId ?? content.url ?? 'Attachment'
     return (
-      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-        {content.url ? (
-          <a className="text-xs underline" href={content.url} rel="noreferrer" target="_blank">
-            📎 {label}
-          </a>
-        ) : (
-          <span className="text-xs">📎 {label}</span>
-        )}
-      </div>
+      <MediaAttachment
+        src={src}
+        kind={resolveImageKind(content, attachmentRef)}
+        caption={content.caption ?? null}
+        fallbackLabel={attachmentRef?.name ?? content.caption ?? content.driveFileId ?? content.url ?? null}
+        sizeBytes={attachmentRef?.sizeBytes ?? null}
+      />
     )
   }
 

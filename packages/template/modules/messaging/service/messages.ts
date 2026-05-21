@@ -66,7 +66,13 @@ export interface AppendMediaMessageInput {
   driveFileId?: string
   /** Public http(s) URL when the artefact lives outside the drive (e.g. a product image). */
   url?: string
-  /** Media kind; only meaningful (and only persisted) for url-mode messages. */
+  /**
+   * Media kind persisted on the message row so the staff inbox renderer can pick
+   * `<MediaPlayerVideo>` vs `<img>` vs file-card without re-fetching the drive
+   * row. The schema's `kind` column is always `'image'` for `send_file` (the
+   * CHECK constraint only allows text/image/card/card_reply); `content.type`
+   * is the real discriminant.
+   */
   type?: 'image' | 'document' | 'video' | 'audio'
   caption?: string
 }
@@ -280,9 +286,10 @@ export function createMessagesService(deps: MessagesServiceDeps): MessagesServic
     if (input.driveFileId && input.url) {
       throw new Error('appendMediaMessage: driveFileId and url are mutually exclusive')
     }
+    const type = input.type ?? 'image'
     const content = input.url
-      ? { url: input.url, type: input.type ?? 'image', caption: input.caption ?? null }
-      : { driveFileId: input.driveFileId, caption: input.caption ?? null }
+      ? { url: input.url, type, caption: input.caption ?? null }
+      : { driveFileId: input.driveFileId, type, caption: input.caption ?? null }
     return appendAgentMessage(input, 'image', content, 'send_file')
   }
 

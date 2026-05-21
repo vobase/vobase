@@ -352,12 +352,20 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
             bytes: att.bytes,
             source: 'customer_inbound',
             uploadedBy: null,
-            basePath: `/contacts/${input.contactId}/${input.channelInstanceId}/attachments/`,
+            // Scope-relative basePath: contact-scope rows store paths like
+            // `/attachments/<file>` (not `/contacts/<id>/attachments/<file>`)
+            // so the contact-details drive view nests them under a real
+            // `attachments/` folder row rather than dumping the literal
+            // absolute path string at scope root.
+            basePath: '/attachments/',
           })
           ingestedFileIds.push(ingest.id)
           attachmentRefs.push({
             driveFileId: ingest.id,
-            path: ingest.path,
+            // Denormalize the bash-view path so the agent's wake cue and the
+            // staff-inbox renderer get a directly-usable path (the DB row
+            // stores the scope-relative `/attachments/<file>`).
+            path: `/contacts/${input.contactId}/drive${ingest.path}`,
             mimeType: att.mimeType,
             sizeBytes: att.sizeBytes,
             name: att.name,

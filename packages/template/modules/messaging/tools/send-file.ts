@@ -1,6 +1,8 @@
 import { sendOutbound, throwIfFailed } from '@modules/channels/service/outbound'
 import { DRIVE_STORAGE_BUCKET } from '@modules/drive/constants'
-import { filesServiceFor, getDriveStorage } from '@modules/drive/service/files'
+import { mediaKindFromMime, mediaKindFromUrlExt } from '@modules/drive/lib/format'
+import { type FilesService, filesServiceFor, getDriveStorage } from '@modules/drive/service/files'
+import type { DriveScope } from '@modules/drive/service/types'
 import { type Static, Type } from '@sinclair/typebox'
 import { defineAgentTool, type OutboundMedia } from '@vobase/core'
 
@@ -29,27 +31,30 @@ async function runThreatScan(_driveFileId: string): Promise<{ ok: boolean }> {
   return { ok: true }
 }
 
-function mediaTypeFor(mime: string | null | undefined): OutboundMedia['type'] {
-  const m = (mime ?? '').toLowerCase()
-  if (m.startsWith('image/')) return 'image'
-  if (m.startsWith('video/')) return 'video'
-  if (m.startsWith('audio/')) return 'audio'
-  return 'document'
-}
-
-function mediaTypeForUrl(url: string, explicit: OutboundMedia['type'] | undefined): OutboundMedia['type'] {
-  if (explicit) return explicit
-  const pathname = (() => {
-    try {
-      return new URL(url).pathname.toLowerCase()
-    } catch {
-      return url.toLowerCase()
-    }
-  })()
-  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/u.test(pathname)) return 'image'
-  if (/\.(mp4|mov|webm|m4v)$/u.test(pathname)) return 'video'
-  if (/\.(mp3|wav|ogg|m4a|aac)$/u.test(pathname)) return 'audio'
-  return 'document'
+/**
+ * Build a "did you mean" listing when `send_file` can't resolve a drive file.
+ * Lists recent attachments under this conversation's contact scope plus a hint
+ * at the org-drive root. A bare "Drive file not found" makes the agent burn
+ * turns retrying with hallucinated ids — this gives it real candidates.
+ */
+async function describeAvailableFiles(drive: FilesService, contactId: string | null): Promise<string> {
+  // Listings are advisory — never fail the tool because the hint couldn't render.
+  const safeList = (scope: DriveScope) => drive.listFolder(scope, null).catch(() => [])
+  const [contactRoots, orgRoots] = await Promise.all([
+    contactId ? safeList({ scope: 'contact', contactId }) : Promise.resolve([]),
+    safeList({ scope: 'organization' }),
+  ])
+  const topPaths = (rows: Awaited<ReturnType<FilesService['listFolder']>>) =>
+    rows
+      .map((r) => r.path)
+      .filter((p): p is string => typeof p === 'string')
+      .slice(0, 6)
+  const lines: string[] = []
+  const contactPaths = topPaths(contactRoots)
+  if (contactPaths.length > 0) lines.push(`Recent contact-scope folders: ${contactPaths.join(', ')}`)
+  const orgPaths = topPaths(orgRoots)
+  if (orgPaths.length > 0) lines.push(`Recent org-drive paths: ${orgPaths.join(', ')}`)
+  return lines.join(' ')
 }
 
 export const sendFileTool = defineAgentTool({
@@ -74,7 +79,7 @@ export const sendFileTool = defineAgentTool({
       if (!/^https?:\/\//u.test(args.url)) {
         throw new Error('send_file: url must be http(s)')
       }
-      const type = mediaTypeForUrl(args.url, args.type)
+      const type: OutboundMedia['type'] = args.type ?? mediaKindFromUrlExt(args.url) ?? 'document'
       const msg = await appendMediaMessage({
         conversationId: ctx.conversationId,
         organizationId: ctx.organizationId,
@@ -103,21 +108,16 @@ export const sendFileTool = defineAgentTool({
     if (!scan.ok) {
       throw new Error('File failed threat scan')
     }
-    const msg = await appendMediaMessage({
-      conversationId: ctx.conversationId,
-      organizationId: ctx.organizationId,
-      agentId: ctx.agentId,
-      wakeId: ctx.wakeId,
-      turnIndex: ctx.turnIndex,
-      toolCallId: ctx.toolCallId,
-      driveFileId,
-      caption: args.caption,
-    })
-
     // Resolve the drive row + bytes here so `outbound.ts` stays payload-
     // agnostic. Virtual files (no storageKey) cannot be sent as media.
-    const file = await filesServiceFor(ctx.organizationId).get(driveFileId)
-    if (!file) throw new Error('Drive file not found')
+    const drive = filesServiceFor(ctx.organizationId)
+    const file = await drive.get(driveFileId)
+    if (!file) {
+      const conv = await getConversation(ctx.conversationId).catch(() => null)
+      const candidates = await describeAvailableFiles(drive, conv?.contactId ?? null)
+      const suffix = candidates ? ` ${candidates}` : ''
+      throw new Error(`Drive file not found: ${driveFileId}.${suffix}`)
+    }
     if (!file.storageKey) throw new Error('Cannot send virtual drive file as media')
 
     // Within-tenant scope check: an agent serving contact-X must not be able
@@ -139,10 +139,28 @@ export const sendFileTool = defineAgentTool({
     if (!storage) throw new Error('Drive storage not installed — cannot send file')
     const bytes = await storage.bucket(DRIVE_STORAGE_BUCKET).download(file.storageKey)
 
+    const mediaType = mediaKindFromMime(file.mimeType) ?? 'document'
+
+    // All validation passed — only NOW persist the placeholder and dispatch.
+    const msg = await appendMediaMessage({
+      conversationId: ctx.conversationId,
+      organizationId: ctx.organizationId,
+      agentId: ctx.agentId,
+      wakeId: ctx.wakeId,
+      turnIndex: ctx.turnIndex,
+      toolCallId: ctx.toolCallId,
+      driveFileId,
+      type: mediaType,
+      caption: args.caption,
+    })
+
+    // WhatsApp Cloud API only accepts `filename` on `document`-typed media;
+    // passing it on image/video/audio makes Meta reject the whole send.
+    const filename = mediaType === 'document' ? (file.name ?? file.originalName ?? undefined) : undefined
     const media: OutboundMedia = {
-      type: mediaTypeFor(file.mimeType),
+      type: mediaType,
       data: Buffer.from(bytes),
-      filename: file.name ?? file.originalName ?? undefined,
+      filename,
       caption: args.caption,
       mimeType: file.mimeType ?? undefined,
     }

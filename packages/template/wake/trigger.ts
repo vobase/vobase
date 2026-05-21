@@ -17,6 +17,7 @@
  * byte-stable.
  */
 
+import { humanBytes } from '@modules/drive/lib/format'
 import {
   blockquoteBody,
   conversationRow,
@@ -98,13 +99,33 @@ function quoteBody(body: string): string {
   return blockquoteBody(truncateForCue(body))
 }
 
+function renderInboundAttachments(
+  attachments: ReadonlyArray<{ path: string; mimeType: string; sizeBytes: number }> | undefined,
+): string {
+  if (!attachments || attachments.length === 0) return ''
+  // Cap at the first 5 attachments so a runaway "20 image album" inbound
+  // can't blow the cue budget. The agent can still see the full set under
+  // CONVERSATION.md.
+  const shown = attachments.slice(0, 5)
+  const extra = attachments.length - shown.length
+  const lines = shown.map((a) => `- [attached: ${a.path} (${a.mimeType}, ${humanBytes(a.sizeBytes)})]`)
+  if (extra > 0) lines.push(`- …and ${extra} more attachment${extra === 1 ? '' : 's'} (see CONVERSATION.md).`)
+  return `\n\nAttached:\n${lines.join('\n')}\n\nUse \`send_file --driveFileId=<path>\` to forward an attachment back to the customer, or \`request_caption\` for richer extraction on a binary stub.`
+}
+
 function renderInboundMessage(trigger: WakeTrigger, refs: RenderRefs): string {
   if (trigger.trigger !== 'inbound_message') return ''
   const pointer = `See ${convoFolder(refs)}/CONVERSATION.md for the full thread.`
+  const attachmentsBlock = renderInboundAttachments(trigger.attachments)
   const body = trigger.body?.trim()
-  if (!body) return `New customer message(s). ${pointer}`
+  if (!body) {
+    if (attachmentsBlock) {
+      return `New customer message(s).${attachmentsBlock}\n\n${pointer}`
+    }
+    return `New customer message(s). ${pointer}`
+  }
   const row = conversationRow({ label: messageAudienceLabel('customer'), body: truncateForCue(body) })
-  return `New customer message:\n\n${row}\n\n${pointer}`
+  return `New customer message:\n\n${row}${attachmentsBlock}\n\n${pointer}`
 }
 
 function renderApprovalResumed(trigger: WakeTrigger, _refs: RenderRefs): string {

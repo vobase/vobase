@@ -41,6 +41,17 @@ const KIND_FALLBACK: Record<MessageRowKind, string> = {
   contact: 'Contact',
 }
 
+/**
+ * True when the message renders a media attachment (kind='image' rows AND
+ * kind='text' rows whose body is empty/captioned but carry attachments[]).
+ * Drives the wider column-cap so video controls don't crowd.
+ */
+function hasMediaBody(msg: Message): boolean {
+  if (msg.kind === 'image') return true
+  if (msg.kind === 'text' && (msg.attachments?.length ?? 0) > 0) return true
+  return false
+}
+
 export interface MessageRowProps {
   msg: Message
   /** Parent message — required for `card_reply` rows that quote the original card. */
@@ -106,7 +117,15 @@ export function MessageRow({
           </span>
         )}
       </div>
-      <div className={cn('flex min-w-0 max-w-[min(78%,560px)] flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
+      <div
+        className={cn(
+          'flex min-w-0 flex-col gap-1',
+          // Wider column for media so video controls (seek + play/volume/time/PiP/download/fullscreen)
+          // don't crowd, and so a portrait photo isn't squeezed.
+          hasMediaBody(msg) ? 'max-w-[min(92%,720px)]' : 'max-w-[min(78%,560px)]',
+          isMine ? 'items-end' : 'items-start',
+        )}
+      >
         <div className={cn('flex items-center gap-1.5 text-muted-foreground text-xs', isMine && 'flex-row-reverse')}>
           {authorLabel || fallbackLabel}
           {msg.createdAt && (
@@ -133,7 +152,11 @@ function defaultBody(
   scope: 'public' | 'staff',
   onCardOptimisticReply: ((btn: { buttonId: string; buttonValue: string; buttonLabel: string }) => void) | undefined,
 ): ReactNode {
-  if (msg.kind === 'text') {
+  // `kind='text'` rows with attachments are inbound media (WhatsApp video /
+  // audio / image / document) — see `messaging/service/conversations.ts`.
+  // Delegate to MessageCard so the attachment renders via MediaPlayer; only
+  // the pure-text case short-circuits to MessageResponse.
+  if (msg.kind === 'text' && (msg.attachments?.length ?? 0) === 0) {
     return <MessageResponse>{String((msg.content as { text?: unknown })?.text ?? '')}</MessageResponse>
   }
   return (

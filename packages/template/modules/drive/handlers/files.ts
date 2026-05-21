@@ -2,6 +2,7 @@ import type { Auth } from '@auth'
 import { assertScopeAccess, type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import { DRIVE_STORAGE_BUCKET } from '@modules/drive/constants'
+import { extensionFromMime } from '@modules/drive/lib/format'
 import { lookupMime } from '@modules/drive/lib/lookup-mime'
 import { filesServiceFor, getDriveAuth, getDriveStorage } from '@modules/drive/service/files'
 import type { DriveScope } from '@modules/drive/service/types'
@@ -226,17 +227,72 @@ const app = new Hono<OrganizationEnv>()
     } catch {
       return c.json({ error: 'download_failed' }, 500)
     }
-    const filename = row.originalName ?? row.name
+    const rawName = row.originalName ?? row.name
+    const contentType = row.mimeType ?? 'application/octet-stream'
+    // Inbound WhatsApp media arrives with a wamid-shaped `originalName` and
+    // no extension; downloads land as e.g. `wamid.HBgK…-0` which the OS
+    // can't open. Append a mime-derived extension when the filename is
+    // bare. Untyped/unknown mimes keep the original — better than
+    // forcing the wrong extension.
+    const hasExtension = /\.[A-Za-z0-9]{1,8}$/u.test(rawName)
+    const ext = hasExtension ? null : extensionFromMime(contentType)
+    const filename = ext ? `${rawName}.${ext}` : rawName
     // Re-wrap as a fresh Uint8Array<ArrayBuffer> — drizzle / S3-stub may hand
     // us a `SharedArrayBuffer`-backed view which `Response` rejects.
     const buf = new Uint8Array(bytes.byteLength)
     buf.set(bytes)
+    // Inline disposition for image / video / audio so the staff inbox renders
+    // them in-place; force download only for documents and the octet-stream
+    // fallback.
+    const mimePrefix = contentType.split('/', 1)[0].toLowerCase()
+    const isInline = mimePrefix === 'image' || mimePrefix === 'video' || mimePrefix === 'audio'
+    const disposition = `${isInline ? 'inline' : 'attachment'}; filename="${filename.replace(/"/gu, '_')}"`
+    const baseHeaders: Record<string, string> = {
+      'content-type': contentType,
+      'content-disposition': disposition,
+    }
+    // We deliberately do NOT advertise `Accept-Ranges: bytes`. The storage
+    // port has no ranged read (see `runtime/storage.ts`), so honoring Range
+    // would re-download the whole object per chunk and N× the egress on every
+    // `<video>` scrub. Without the advertisement, browsers issue a single
+    // GET and scrub from the in-memory buffer — fine for the typical
+    // 5–15 MB inbound WhatsApp video. TODO: once `AppStorage.bucket(...)` grows
+    // a `downloadRange(key, start, end)` (S3 `Range` GetObject / fs slice),
+    // re-add the header and the 206 branch below.
+    const rangeHeader = c.req.header('range')
+    if (rangeHeader) {
+      const match = /^bytes=(\d+)-(\d*)$/u.exec(rangeHeader)
+      if (!match || Number.isNaN(Number(match[1]))) {
+        return new Response(null, {
+          status: 416,
+          headers: { ...baseHeaders, 'content-range': `bytes */${buf.length}` },
+        })
+      }
+      const start = Number(match[1])
+      // Clamp `end` to the last byte (RFC 7233 §2.1) rather than 416ing on
+      // a slightly stale length.
+      const rawEnd = match[2] === '' ? buf.length - 1 : Number(match[2])
+      const end = Math.min(buf.length - 1, Number.isNaN(rawEnd) ? buf.length - 1 : rawEnd)
+      if (start > end || start >= buf.length) {
+        return new Response(null, {
+          status: 416,
+          headers: { ...baseHeaders, 'content-range': `bytes */${buf.length}` },
+        })
+      }
+      const slice = buf.subarray(start, end + 1)
+      const sliceCopy = new Uint8Array(slice.byteLength)
+      sliceCopy.set(slice)
+      return new Response(sliceCopy, {
+        status: 206,
+        headers: {
+          ...baseHeaders,
+          'content-range': `bytes ${start}-${end}/${buf.length}`,
+          'content-length': String(sliceCopy.length),
+        },
+      })
+    }
     return new Response(buf, {
-      headers: {
-        'content-type': row.mimeType ?? 'application/octet-stream',
-        'content-disposition': `attachment; filename="${filename.replace(/"/gu, '_')}"`,
-        'content-length': String(buf.length),
-      },
+      headers: { ...baseHeaders, 'content-length': String(buf.length) },
     })
   })
   .post(

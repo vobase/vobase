@@ -859,10 +859,24 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
   async function ensureParentFolderId(scope: DriveScope, path: string): Promise<string | null> {
     const parent = parentPathOf(path)
     if (!parent) return null
-    const row = await getByPath(scope, parent)
-    if (row && row.kind === 'folder') return row.id
-    if (row) throw new Error(`parent is not a folder: ${parent}`)
-    return null
+    const existing = await getByPath(scope, parent)
+    if (existing) {
+      if (existing.kind !== 'folder') throw new Error(`parent is not a folder: ${parent}`)
+      return existing.id
+    }
+    // Recursively materialise the parent chain so an ingest into
+    // `/foo/bar/baz.mp4` produces real folder rows for `/foo` and `/foo/bar`
+    // (with `parentFolderId` wired up). Without this the file ends up
+    // orphaned at the scope root in the drive UI even though its `path`
+    // string suggests otherwise.
+    const grandParentId = await ensureParentFolderId(scope, parent)
+    const created = await create(scope, {
+      kind: 'folder',
+      name: basenameOf(parent),
+      path: parent,
+      parentFolderId: grandParentId,
+    })
+    return created.id
   }
 
   async function requestCaption(input: RequestCaptionInput): Promise<RequestCaptionResult> {
