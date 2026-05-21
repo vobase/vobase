@@ -153,12 +153,19 @@ export async function createWorkspace(opts: CreateWorkspaceOpts): Promise<Worksp
       if (result?.content) await innerFs.writeFile(`${agentPrefix}${file.path}`, result.content)
     })
 
-  // Contact drive mount — conversation lane only.
+  // Contact drive mount — conversation lane only. PROFILE.md / MEMORY.md are
+  // skipped: they are virtual built-ins backed by `contacts.profile|memory`
+  // and the contacts materializer already surfaces them at
+  // `/contacts/<id>/{PROFILE,MEMORY}.md`. Re-mounting them under `/drive/`
+  // would round-trip through `workspace-sync` and birth a shadow `drive.files`
+  // row at `(scope='contact', path='/MEMORY.md'|'/PROFILE.md')` that then
+  // shadows the overlay on every subsequent read.
   const contactWrites: Promise<void>[] = []
   if (isConversation) {
     const contactPrefix = `/contacts/${opts.contactId}`
     const contactFiles = await listAllDriveFiles(opts.drivePort, { scope: 'contact', contactId: opts.contactId })
     for (const file of contactFiles) {
+      if (file.path === '/PROFILE.md' || file.path === '/MEMORY.md') continue
       contactWrites.push(
         (async () => {
           const body = await opts.drivePort.readContent(file.id).catch(() => null)
