@@ -8,14 +8,14 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   payload: ChangePayload
-  /** Optional resource id used as the file label inside the diff header. */
-  resourceLabel?: string
+  /** Filename shown inside the diff header (e.g. "MEMORY.md"). */
+  fileName?: string
   className?: string
 }
 
-export function DiffView({ payload, resourceLabel, className }: Props) {
+export function DiffView({ payload, fileName, className }: Props) {
   if (payload.kind === 'markdown_patch') {
-    return <MarkdownPatchView payload={payload} resourceLabel={resourceLabel} className={className} />
+    return <MarkdownPatchView payload={payload} fileName={fileName} className={className} />
   }
   if (payload.kind === 'field_set') {
     return <FieldSetView payload={payload} className={className} />
@@ -25,27 +25,27 @@ export function DiffView({ payload, resourceLabel, className }: Props) {
 
 function MarkdownPatchView({
   payload,
-  resourceLabel,
+  fileName: fileNameProp,
   className,
 }: {
   payload: Extract<ChangePayload, { kind: 'markdown_patch' }>
-  resourceLabel?: string
+  fileName?: string
   className?: string
 }) {
-  const fileName = resourceLabel?.endsWith('.md') ? resourceLabel : `${payload.field}.md`
-  const lineCount = useMemo(() => payload.body.split('\n').length, [payload.body])
-  // The proposal payload doesn't carry the prior body, so we synthesize a patch
-  // against an empty before-state — both append and replace render as pure
-  // additions. parseDiffFromFile auto-derives a combined cacheKey from old/new
-  // cacheKeys, so the worker pool reuses highlighting across re-renders.
+  const fileName = fileNameProp ?? `${payload.field}.md`
+  // Force a trailing newline on both sides so the diff parser doesn't emit a
+  // confusing "\ No newline at end of file" marker when the proposed body is
+  // missing one.
+  const normalizedBody = payload.body.endsWith('\n') ? payload.body : `${payload.body}\n`
+  const lineCount = useMemo(() => normalizedBody.replace(/\n$/, '').split('\n').length, [normalizedBody])
   const fileDiff = useMemo(
     () =>
       parseDiffFromFile(
-        { name: fileName, contents: '', cacheKey: `${fileName}:empty` },
-        { name: fileName, contents: payload.body, cacheKey: `${fileName}:${payload.body.length}` },
+        { name: fileName, contents: '\n', cacheKey: `${fileName}:empty` },
+        { name: fileName, contents: normalizedBody, cacheKey: `${fileName}:${normalizedBody.length}` },
         { context: 3 },
       ),
-    [fileName, payload.body],
+    [fileName, normalizedBody],
   )
 
   return (

@@ -22,7 +22,7 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 }
 
-export function ChangeHistoryList() {
+export function ChangeHistoryList({ highlightId }: { highlightId?: string } = {}) {
   const [status, setStatus] = useState<StatusFilter>('all')
   const { data, isLoading, error } = useChangeHistory({ status })
 
@@ -86,13 +86,13 @@ export function ChangeHistoryList() {
 
       {groups.map((group) => (
         <section key={group.key} className="space-y-2">
-          <div className="sticky top-12 z-[1] bg-background/95 py-1 font-medium text-muted-foreground text-xs uppercase tracking-wide backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="sticky top-0 z-[1] bg-background/95 py-1 font-medium text-muted-foreground text-xs uppercase tracking-wide backdrop-blur supports-[backdrop-filter]:bg-background/80">
             {group.label}
           </div>
           <ul className="space-y-2">
             {group.rows.map((row) => (
               <li key={row.id} data-proposal-id={row.id} className="rounded-lg">
-                <HistoryRow proposal={row} />
+                <HistoryRow proposal={row} highlight={row.id === highlightId} />
               </li>
             ))}
           </ul>

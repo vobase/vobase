@@ -1,4 +1,4 @@
-import { getHeadlineParts } from '@modules/changes/lib/humanize'
+import { diffFileName, getHeadlineParts } from '@modules/changes/lib/humanize'
 import type { ChangeProposalInboxItem } from '@modules/changes/schema'
 import { MessageThread } from '@modules/messaging/components/message-thread'
 import { useMessages } from '@modules/messaging/hooks/use-messages'
@@ -18,10 +18,12 @@ import { DiffView } from './diff-view'
 import { DriveSuggestionView } from './drive-suggestion-view'
 import { HeadlineTarget } from './headline-target'
 import { ProsePanel } from './prose-panel'
+import { useHighlightRow } from './use-highlight-row'
 
 interface Props {
   proposal: ChangeProposalInboxItem
   onDecided?: () => void
+  highlight?: boolean
 }
 
 const CONFIDENCE_TIERS: Array<{ min: number; cls: string }> = [
@@ -34,7 +36,8 @@ function confidenceTone(pct: number): string {
   return CONFIDENCE_TIERS.find((t) => pct >= t.min)?.cls ?? CONFIDENCE_TIERS[CONFIDENCE_TIERS.length - 1]?.cls
 }
 
-export function ProposalRow({ proposal, onDecided }: Props) {
+export function ProposalRow({ proposal, onDecided, highlight = false }: Props) {
+  const { rowRef, detailsOpen, onDetailsToggle } = useHighlightRow<HTMLDivElement>(highlight)
   const [loading, setLoading] = useState<'approved' | 'rejected' | null>(null)
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
@@ -102,19 +105,15 @@ export function ProposalRow({ proposal, onDecided }: Props) {
   const confidencePct = proposal.confidence !== null ? Math.round(proposal.confidence * 100) : null
 
   return (
-    <div className="rounded-lg bg-card shadow-sm transition-shadow hover:shadow-md">
+    <div ref={rowRef} className="rounded-lg bg-card shadow-sm transition-shadow hover:shadow-md">
       <div className="space-y-4 p-5">
-        {/* Subtle proposer line — engineer-y target/resource lives behind the
-            disclosure below; SMEs only need to know "Sentinel proposed
-            something" plus the problem/outcome prose. */}
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
           <Principal id={proposal.proposedById} variant="inline" directory={directory} className="text-foreground" />
           <span>proposes a change</span>
           <RelativeTimeCard date={proposal.createdAt} className="ml-auto" />
         </div>
 
-        {/* Two-row WYSIWYG payload — both written by the proposer. Hidden if
-            null so the row stays clean instead of showing placeholder copy. */}
+        {/* Two-row WYSIWYG payload — both written by the proposer. Hidden if null so the row stays clean instead of showing placeholder copy. */}
         {proposal.rationale && (
           <ProsePanel label="Problem" tone="amber">
             {proposal.rationale}
@@ -176,12 +175,7 @@ export function ProposalRow({ proposal, onDecided }: Props) {
             </Button>
           </div>
         )}
-
-        {/* Collapsed technical detail — target, diff, conversation context,
-            metadata. SMEs never need to expand this; advanced operators can.
-            Native <details> beats Radix Collapsible here: zero JS, free
-            keyboard accessibility, persists open state across rerenders. */}
-        <details className="group border-border/40 border-t pt-3">
+        <details className="group border-border/40 border-t pt-3" open={detailsOpen} onToggle={onDetailsToggle}>
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
             <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
             Show technical details
@@ -197,7 +191,14 @@ export function ProposalRow({ proposal, onDecided }: Props) {
             proposal.payload.kind === 'markdown_patch' ? (
               <DriveSuggestionView payload={proposal.payload} resourceId={proposal.resourceId} />
             ) : (
-              <DiffView payload={proposal.payload} resourceLabel={proposal.resourceId} />
+              <DiffView
+                payload={proposal.payload}
+                fileName={
+                  proposal.payload.kind === 'markdown_patch'
+                    ? diffFileName(proposal, proposal.payload.field)
+                    : undefined
+                }
+              />
             )}
 
             {proposal.conversationId && (

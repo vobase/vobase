@@ -83,6 +83,26 @@ export function getHeadlineParts(proposal: ChangeProposalInboxItem): HeadlinePar
   }
 }
 
+/** Filename shown in the diff header for a markdown_patch proposal. Resolves
+ *  to the actual on-disk name when we can name it (drive basename, MEMORY.md
+ *  for memory stores, `<slug>.md` for learned skills) and falls back to
+ *  `<field>.md` for unrecognised shapes. */
+export function diffFileName(
+  resource: { resourceModule: string; resourceType: string; resourceId: string },
+  field: string,
+): string {
+  const { resourceModule, resourceType, resourceId } = resource
+  if (resourceModule === 'drive') {
+    const basename = resourceId.split('/').filter(Boolean).pop()
+    if (basename) return basename
+  }
+  const key = `${resourceModule}:${resourceType}`
+  if (key === 'agents:agent_memory' || key === 'contacts:contact_memory') return 'MEMORY.md'
+  if (key === 'agents:agent' && field === 'workingMemory') return 'MEMORY.md'
+  if (key === 'agents:learned_skill') return `${resourceId}.md`
+  return `${field}.md`
+}
+
 /** Plain-English noun for a `(module, type)` pair, e.g. "Agent memory". Falls
  *  back to a title-cased pair so unknown kinds still read sensibly. */
 export function humanizeResourceKind(module: string, type: string): string {

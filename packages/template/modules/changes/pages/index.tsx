@@ -52,24 +52,10 @@ function ChangesPage() {
     }
   }, [highlightId, data, search.tab, navigate])
 
-  // Scroll + highlight the matching row once it mounts. Latched on the
-  // (highlightId, tab) pair so the ring fires once per navigation, not on
-  // every realtime data refetch.
-  const ringFiredFor = useRef<string | null>(null)
-  useEffect(() => {
-    if (!highlightId) return
-    const key = `${highlightId}:${tab}`
-    if (ringFiredFor.current === key) return
-    const el = document.querySelector(`[data-proposal-id="${highlightId}"]`)
-    if (!(el instanceof HTMLElement)) return
-    ringFiredFor.current = key
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    el.classList.add('ring-2', 'ring-primary/60', 'ring-offset-2', 'ring-offset-background', 'transition-shadow')
-    const t = window.setTimeout(() => {
-      el.classList.remove('ring-2', 'ring-primary/60', 'ring-offset-2', 'ring-offset-background')
-    }, 2400)
-    return () => window.clearTimeout(t)
-  }, [highlightId, tab])
+  // Per-row mount effects handle scroll/expand/ring — see `ProposalRow` and
+  // `HistoryRow`. Doing it here from the page caused races when the matching
+  // row hadn't mounted yet (history-tab data loads inside `ChangeHistoryList`
+  // and isn't visible to this effect's deps).
 
   const moduleCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -156,6 +142,7 @@ function ChangesPage() {
                     <li key={proposal.id} data-proposal-id={proposal.id} className="rounded-lg">
                       <ProposalRow
                         proposal={proposal}
+                        highlight={proposal.id === highlightId}
                         onDecided={() => qc.invalidateQueries({ queryKey: ['change_proposals'] })}
                       />
                     </li>
@@ -165,7 +152,7 @@ function ChangesPage() {
             </TabsContent>
 
             <TabsContent value="history">
-              <ChangeHistoryList />
+              <ChangeHistoryList highlightId={highlightId} />
             </TabsContent>
           </Tabs>
         </div>
