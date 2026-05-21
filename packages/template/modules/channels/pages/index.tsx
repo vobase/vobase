@@ -448,7 +448,13 @@ export function ChannelsPage() {
       />
 
       <PageBody>
-        {!isLoading && instances.length === 0 ? (
+        {/* Empty state gates on `tableRows`, not `instances`: when the tenant
+            is wired to a platform, `tableRows` always carries the two managed
+            placeholder rows (sandbox + notification), so the table renders and
+            surfaces their "Connect" buttons even before any real instance
+            exists. The bare empty state only shows when there is genuinely
+            nothing to display — no instances and no platform to claim from. */}
+        {!isLoading && tableRows.length === 0 ? (
           <WhatsAppEmptyState onConnected={handleWhatsAppConnected} onAddWebChannel={() => setCreateWebOpen(true)} />
         ) : (
           <ChannelsTable
