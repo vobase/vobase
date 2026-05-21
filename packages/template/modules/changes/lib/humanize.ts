@@ -17,6 +17,7 @@ const RESOURCE_KIND_LABELS: Record<string, string> = {
   'agents:learned_skill': 'Agent skill',
   'agents:schedule': 'Agent schedule',
   'contacts:contact': 'Contact',
+  'contacts:contact_memory': 'Contact memory',
   'drive:doc': 'Document',
   'drive:file': 'File',
   'messaging:label': 'Conversation label',
@@ -51,6 +52,11 @@ export function getHeadlineParts(proposal: ChangeProposalInboxItem): HeadlinePar
       // the visible label — "Sentinel's Memory" is enough since each agent has
       // exactly one memory store.
       return { kind: 'owned-resource', ownerToken: `agent:${resourceId}`, ownerLabel: 'Memory', resourceName: null }
+    case 'contacts:contact_memory':
+      // Same shape as agent memory — resource id is the contact id, one
+      // memory store per contact, so "Liam's Memory" reads better than the
+      // raw `ctt00liam0` token.
+      return { kind: 'owned-resource', ownerToken: `contact:${resourceId}`, ownerLabel: 'Memory', resourceName: null }
     case 'agents:learned_skill':
       // Skill slug stays useful (e.g. "escalate-vip-when-stuck"). Owning agent
       // isn't encoded in resource id, so use the proposer when it's an agent;
