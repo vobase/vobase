@@ -488,7 +488,8 @@ function signupApp(sessionId: string): Hono {
   return buildApp({ organizationId: TEST_ORG_ID, userId: TEST_USER_ID, sessionId })
 }
 
-function getCallback(app: Hono, handoff: string): Promise<Response> {
+// biome-ignore lint/suspicious/useAwait: async keeps the return type Promise<Response> (app.request is Response | Promise<Response>)
+async function getCallback(app: Hono, handoff: string): Promise<Response> {
   return app.request(`/api/channels/whatsapp/signup/callback?handoff=${encodeURIComponent(handoff)}`, {
     method: 'GET',
   })
