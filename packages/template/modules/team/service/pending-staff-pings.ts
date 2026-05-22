@@ -19,6 +19,9 @@
  *     2. Count-aware — otherwise, claim iff the staff member has exactly one
  *        live (claimed_at IS NULL) ping. Two or more is `ambiguous`; zero is
  *        `none`. Both fall through to operator-thread chat in the caller.
+ *        Gated by `allowCountAware`: it runs for a WhatsApp button tap (which
+ *        carries no `context.id`) but NOT for a plain text reply — a plain
+ *        reply must never silently claim a ping; it starts an operator thread.
  *   Claims are now soft-deletes (`UPDATE … SET claimed_at = now(), claimed_wamid = $wamid`)
  *   rather than DELETE…RETURNING, so the dispatcher can post-hoc inspect what
  *   each ping was answered with. The logical contract (atomic, idempotent, a
@@ -76,6 +79,14 @@ export interface ClaimPingInput {
    * claimed each ping.
    */
   inboundWamid?: string | null
+  /**
+   * Gates the count-aware rung. That rung claims the staff member's sole live
+   * ping when the inbound carries no exact `context.id` wamid — needed for a
+   * WhatsApp button tap, which carries no `context.id`. A plain text reply
+   * sets this `false`: it must never silently claim a ping, so the caller can
+   * route it to an operator thread instead. Defaults to enabled when omitted.
+   */
+  allowCountAware?: boolean
 }
 
 /**
@@ -299,6 +310,10 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
       // wamid miss — the quoted message isn't a tracked ping (already pruned,
       // or never a ping at all); fall through to the count-aware rung.
     }
+    // The count-aware rung resolves a button tap (buttons carry no
+    // `context.id`). A plain text reply sets `allowCountAware: false` so it
+    // never claims a ping — the caller routes it to an operator thread.
+    if (input.allowCountAware === false) return { status: 'none' }
     return claimSoleLivePing(input)
   }
 

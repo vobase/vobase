@@ -73,8 +73,12 @@ let handle: TestDbHandle
 let db: ScopedDb
 let organizationId: string
 
-/** Builds a Meta-shaped inbound carrying a single forwarded staff text reply. */
-function makeInbound(fromPhoneE164: string, body: string): MetaInbound {
+/**
+ * Builds a Meta-shaped inbound carrying a single forwarded staff text reply.
+ * Pass `contextWamid` to simulate a WhatsApp quote-reply (the native reply
+ * gesture) — it sets `context.id` to the quoted notification's wamid.
+ */
+function makeInbound(fromPhoneE164: string, body: string, contextWamid?: string): MetaInbound {
   // Meta's `wa_id` has no leading `+`; the dispatcher tolerates both forms.
   const from = fromPhoneE164.replace(/^\+/, '')
   return {
@@ -85,7 +89,15 @@ function makeInbound(fromPhoneE164: string, body: string): MetaInbound {
           {
             value: {
               metadata: { phone_number_id: 'plat-staffreply' },
-              messages: [{ from, type: 'text', id: `wamid.${from}.${Date.now()}`, text: { body } }],
+              messages: [
+                {
+                  from,
+                  type: 'text',
+                  id: `wamid.${from}.${Date.now()}`,
+                  text: { body },
+                  ...(contextWamid ? { context: { id: contextWamid } } : {}),
+                },
+              ],
             },
           },
         ],
@@ -277,8 +289,10 @@ describe('dispatchStaffReply — forwarded staff replies on the managed notifica
     expect(result.agentId).toBe(MERIGPT_AGENT_ID)
   })
 
-  it('ask-staff-answer branch: a staff member with a live ping replies into an internal note mentioning the asking agent', async () => {
-    // Seed a single live pending ping for this staff member.
+  it('operator-thread branch: a plain reply does NOT claim a live ping — it opens an operator thread', async () => {
+    // A live mention ping exists for this staff member — an agent asked them
+    // something — but a PLAIN reply (no quote gesture) must not silently
+    // answer it. It opens an operator thread instead.
     await handle.db.insert(pendingStaffPings).values({
       organizationId,
       conversationId: PING_CONVERSATION_ID,
@@ -286,12 +300,46 @@ describe('dispatchStaffReply — forwarded staff replies on the managed notifica
       askingAgentId: MERIGPT_AGENT_ID,
       originalNoteId: 'note-staffreply-origin',
       kind: 'mention',
+      outboundWamid: 'wamid.ping-outbound',
     })
 
     const result = await dispatchStaffReply({
       db,
       organizationId,
-      payload: makeInbound(STAFF_PING_PHONE, 'Yes, refunds within 14 days — go ahead and tell the customer.'),
+      payload: makeInbound(STAFF_PING_PHONE, 'Hey, can you summarise what is still open?'),
+    })
+    expect(result.branch).toBe('operator_thread')
+
+    // The ping is untouched — still live for a quote-reply to claim later.
+    const [ping] = await handle.db
+      .select({ claimedAt: pendingStaffPings.claimedAt })
+      .from(pendingStaffPings)
+      .where(
+        and(eq(pendingStaffPings.staffUserId, STAFF_PING_USER), eq(pendingStaffPings.organizationId, organizationId)),
+      )
+      .limit(1)
+    expect(ping?.claimedAt).toBeNull()
+
+    // No internal note was filed on the ping's conversation.
+    const notes = await handle.db
+      .select({ id: internalNotes.id })
+      .from(internalNotes)
+      .where(eq(internalNotes.conversationId, PING_CONVERSATION_ID))
+    expect(notes).toHaveLength(0)
+  })
+
+  it('ask-staff-answer branch: a quote-reply claims the pinged conversation as an internal note', async () => {
+    // Reuses the still-live ping seeded above. A quote-reply carries
+    // `context.id` = the ping's outbound wamid, so the exact-match rung claims
+    // it — this is the only path that files a reply into a conversation.
+    const result = await dispatchStaffReply({
+      db,
+      organizationId,
+      payload: makeInbound(
+        STAFF_PING_PHONE,
+        'Yes, refunds within 14 days — go ahead and tell the customer.',
+        'wamid.ping-outbound',
+      ),
     })
 
     expect(result.branch).toBe('ask_staff_answer')

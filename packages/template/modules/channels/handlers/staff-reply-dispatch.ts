@@ -11,11 +11,12 @@
  *      `pendingApprovals.decide` / `proposals.decideChangeProposal`. The decide
  *      path emits `approval_decided` / `proposal_decided` so the wake chain
  *      fires automatically — no separate addNote.
- *   A. ask-staff-answer — `claimPing` resolves the inbound to a single pending
- *      mention ping (exact `context.id` wamid match, or the staff member's sole
- *      live ping). Appends a staff-authored internal note carrying
- *      `mentions: ['agent:<askingAgentId>']`; the existing `addNote` post-commit
- *      fan-out enqueues a wake for the asking agent.
+ *   A. ask-staff-answer — a quote-reply (`context.id`) resolves to a pending
+ *      mention ping by exact wamid match. Appends a staff-authored internal
+ *      note carrying `mentions: ['agent:<askingAgentId>']`; the existing
+ *      `addNote` post-commit fan-out enqueues a wake for the asking agent.
+ *      A plain text reply never reaches this branch — it is not a quote, so it
+ *      claims no ping and falls through to the operator thread (Branch B).
  *   B. operator-thread — no single ping resolved: enqueue/append into the
  *      operator chat thread. A NEW thread's agent is resolved by priority:
  *      the notification channel's `defaultAssignee` (set on /channels) → the
@@ -189,12 +190,15 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   if (!staff) return { ok: true, branch: 'unmatched_staff' }
 
   // ─── Branch A — ask-staff-answer ─────────────────────────────────────────
-  // Ladder: exact `context.id` wamid match → the staff member's sole live ping.
-  // (Buttons don't carry `context.id`; rely on the sole-live-ping rung.)
+  // A ping is claimed only by an exact `context.id` wamid match (a quote-reply)
+  // or a button tap. A plain text reply never claims a ping — `allowCountAware`
+  // is false for it, so it falls through to an operator thread (Branch B).
+  // Buttons carry no `context.id`, so they rely on the count-aware rung.
   const claim = await claimPing({
     staffUserId: staff.userId,
     organizationId,
     outboundWamid: msg.context?.id,
+    allowCountAware: Boolean(buttonMatch),
   })
 
   // ─── Branch 0 — decision-route ───────────────────────────────────────────
