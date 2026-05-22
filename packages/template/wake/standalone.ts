@@ -322,9 +322,13 @@ function renderStandaloneBrief(data: StandaloneWakeConfigInput['data']): string 
     // current turn only, so the replayed history stays a clean chat and the
     // agent never sees stale "respond now" imperatives on past turns.
     lines.push(
-      'You are in a direct chat thread with a staff member — your "operator thread". It is an ongoing back-and-forth, like a normal chat: they message you and your reply goes straight back to them.',
+      'You are in a direct chat thread with a staff member — your "operator thread", an ongoing back-and-forth chat. Your reply goes straight back to them.',
       '',
-      'The staff member\'s new message is the LAST message in this turn, immediately below this brief. Reply to that message, and only that message — the earlier user and assistant turns above are conversation history you have already handled, not open requests. Answer directly and conversationally in plain text. Do not re-introduce yourself if the thread already has earlier messages. Treat the message as complete on its own — do not call it a fragment or ask them to resend. Only run a tool or CLI verb when the message actually asks you to look something up or change something; if it asks you to remember or record something, actually perform the write instead of claiming it is "logged". Per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
+      "The staff member's new message is the LAST message in this turn, just below this brief. Reply to it; the earlier user and assistant turns above are history you have already handled, not open requests. Do not re-introduce yourself, and treat the message as complete — do not ask them to resend it.",
+      '',
+      'This wake is your only chance to act — there is no later turn. If the message asks you to look something up, count something, draft, or change something, do it NOW: run the tools, bash, and CLI verbs you need, get the real result, and reply with that result. Never reply "on it", "I\'ll check", "let me look", or "got it" and stop — that leaves the staff member with nothing. If you genuinely cannot get the answer, say exactly what you tried and what blocked you.',
+      '',
+      'A short reply such as "yes", "ok", or "go ahead" approves the action you proposed in your previous message — carry it out now, do not just acknowledge it. Reply in plain text and never echo the staff member\'s message back to them. If the message asks you to remember or record something, actually perform the write instead of claiming it is "logged". Per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
     )
   } else {
     lines.push(
