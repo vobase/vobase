@@ -1,5 +1,12 @@
 # @vobase/template
 
+## 3.17.1
+
+### Patch Changes
+
+- Updated dependencies [[`4cf453c`](https://github.com/vobase/vobase/commit/4cf453c83adc1bd161b9a85acd111d3860e6426e)]:
+  - @vobase/core@0.43.1
+
 ## 3.17.0
 
 ### Minor Changes
