@@ -204,22 +204,21 @@ describe('standaloneWakeConfig (real PG)', () => {
     expect(briefEntry).toBeDefined()
     if (briefEntry?.kind === 'custom') {
       const rendered = briefEntry.render()
-      // Brief is framing only; do NOT duplicate the staff message body here.
+      // The brief carries the operator-chat framing + per-wake instructions —
+      // it is side-loaded onto the current turn only, so replayed history
+      // stays a clean chat.
+      expect(rendered).toContain('operator thread')
+      expect(rendered).toContain('LAST message')
+      // Framing only; the message body itself must NOT be duplicated here.
       expect(rendered).not.toContain('## Latest staff message')
     }
 
-    // The staff message body lives in the trigger-render text — the user-turn
-    // cue prepended to the first turn. This is what fixed the discipline
-    // failure where the agent verbalised "I don't have the message" while the
-    // body sat unused in the side-load.
+    // The user-turn render is the BARE staff message — no imperatives, no
+    // framing. It is persisted to `agent_messages` and replayed as history on
+    // later wakes, so it must read as a plain chat line; imperatives in every
+    // persisted turn made the agent answer an older turn (the off-by-one bug).
     const renderedTrigger = config.renderTrigger?.(config.trigger)
-    expect(renderedTrigger).toContain('Summarize today and propose any follow-ups.')
-    expect(renderedTrigger).toContain('A staff member just messaged you in your operator thread')
-
-    // Trigger renderer should produce the operator-friendly cue, NOT the
-    // conversation-lane "see CONVERSATION.md" cue.
-    const cue = config.renderTrigger?.(config.trigger)
-    expect(cue).toContain('messaged you in your operator thread')
+    expect(renderedTrigger).toBe('Summarize today and propose any follow-ups.')
   })
 
   it('heartbeat wake: heartbeat-<scheduleId> conversationId, heartbeat brief side-load', async () => {

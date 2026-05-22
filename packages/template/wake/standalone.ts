@@ -316,14 +316,15 @@ function buildStandaloneTrigger(data: StandaloneWakeConfigInput['data']): WakeTr
 function renderStandaloneBrief(data: StandaloneWakeConfigInput['data']): string {
   const lines: string[] = ['# Operator Brief', '']
   if (data.triggerKind === 'operator_thread') {
-    // Body of the staff message is embedded in the user-turn render text
-    // (see `renderOperatorThread` in `wake/trigger.ts`) so the agent treats
-    // it as the actual request, not as background context. Keep this brief
-    // to framing only — the message itself lives in the user turn.
+    // The staff member's message is the bare user-turn text (see
+    // `renderOperatorThread` in `wake/trigger.ts`). This brief is the only
+    // place the per-wake instructions live: it is side-loaded onto the
+    // current turn only, so the replayed history stays a clean chat and the
+    // agent never sees stale "respond now" imperatives on past turns.
     lines.push(
-      'You are in a direct chat thread with a staff member — your "operator thread". It is an ongoing back-and-forth: they message you and your reply goes straight back to them.',
+      'You are in a direct chat thread with a staff member — your "operator thread". It is an ongoing back-and-forth, like a normal chat: they message you and your reply goes straight back to them.',
       '',
-      'The specific message to answer on this wake is in the user turn (the blockquoted text). Read that message and reply to it directly, like a normal chat. If it asks for an action, per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
+      'The staff member\'s new message is the LAST message in this turn, immediately below this brief. Reply to that message, and only that message — the earlier user and assistant turns above are conversation history you have already handled, not open requests. Answer directly and conversationally in plain text. Do not re-introduce yourself if the thread already has earlier messages. Treat the message as complete on its own — do not call it a fragment or ask them to resend. Only run a tool or CLI verb when the message actually asks you to look something up or change something; if it asks you to remember or record something, actually perform the write instead of claiming it is "logged". Per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
     )
   } else {
     lines.push(

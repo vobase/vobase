@@ -173,18 +173,16 @@ function renderManual(trigger: WakeTrigger, _refs: RenderRefs): string {
 function renderOperatorThread(trigger: WakeTrigger, _refs: RenderRefs): string {
   if (trigger.trigger !== 'operator_thread') return ''
   const body = trigger.threadMessage.trim()
-  if (!body) {
-    // Empty body shouldn't happen in practice (the operator-thread handler
-    // always drains a real staff message), but guard so the cue still parses.
-    return 'A staff member messaged you in your operator thread, but the message is empty. Reply with a brief, friendly acknowledgement and end the turn.'
-  }
-  return [
-    'A staff member just messaged you in your operator thread. Reply to exactly this message:',
-    '',
-    quoteBody(body),
-    '',
-    'This is an ongoing back-and-forth chat — your reply goes straight back to that staff member. Answer this message directly and conversationally. It is complete on its own: do not treat it as a fragment, wait for more, or ask them to resend it. Do not re-introduce yourself if the thread already has earlier messages — just continue the conversation. Reply in plain text unless the message actually asks you to look something up or change something; only then run a tool or CLI verb, and if it asks you to remember or record something, actually perform the write rather than claiming it is "logged".',
-  ].join('\n')
+  // The user turn is kept to the BARE staff message. It is persisted to
+  // `agent_messages` and replayed as conversation history on every later
+  // wake, so it must read as a plain chat line. Wrapping each turn in
+  // "respond now" / "reply to exactly this" imperatives made the agent see N
+  // competing instructions in the replayed history and answer an older turn
+  // (the off-by-one bug). All per-wake framing now lives in the operator
+  // brief side-load, which is attached to the current turn only — see
+  // `renderStandaloneBrief` in `wake/standalone.ts`.
+  if (!body) return '(The staff member sent an empty message.)'
+  return truncateForCue(body)
 }
 
 function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {
