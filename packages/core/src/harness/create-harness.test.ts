@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'bun:test'
-import type { StreamFn } from '@mariozechner/pi-agent-core'
+import type { AgentMessage, StreamFn } from '@mariozechner/pi-agent-core'
 import type { AssistantMessage, AssistantMessageEvent, Model } from '@mariozechner/pi-ai'
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai'
 import { Bash, InMemoryFs } from 'just-bash'
@@ -212,5 +212,44 @@ describe('createHarness (pi-agent-core path)', () => {
       expect(entry.runtime).toBe(runtime)
       expect(entry.runtime.fs).toBe(workspace.innerFs)
     }
+  })
+
+  it('transformContext prepends the side-load to the current user message instead of replacing it', async () => {
+    // Regression: pi-ai stores user content as an array of parts, so the old
+    // `typeof last.content === 'string'` check always failed and the side-load
+    // *substituted* the message. The agent then lost every fresh user message
+    // and answered the previous turn (the operator-thread off-by-one bug).
+    const workspace = makeWorkspace()
+    const captured: { messages: AgentMessage[] } = { messages: [] }
+    const baseStream = stubStreamFn([simpleReplyScript('ok')])
+    const streamFn: StreamFn = (model, context, options) => {
+      captured.messages = context.messages
+      return baseStream(model, context, options)
+    }
+
+    await createHarness({
+      ...COMMON,
+      renderTrigger: () => 'CURRENT-USER-MESSAGE',
+      workspace,
+      runtime: makeRuntime(workspace),
+      streamFn,
+      maxTurns: 1,
+      loadMessageHistory: () =>
+        Promise.resolve([
+          { role: 'user', content: [{ type: 'text', text: 'OLD-USER-MESSAGE' }], timestamp: 1 },
+          makeAssistantPartial('old-reply'),
+        ]),
+      sideLoadContributors: [
+        () => Promise.resolve([{ kind: 'custom', priority: 100, render: () => 'SIDE-LOAD-MARKER' }]),
+      ],
+    })
+
+    const last = captured.messages.at(-1)
+    expect(last?.role).toBe('user')
+    const serialized = JSON.stringify(last?.content)
+    // The current user message must survive transformContext...
+    expect(serialized).toContain('CURRENT-USER-MESSAGE')
+    // ...with the side-load prepended, not substituted for it.
+    expect(serialized).toContain('SIDE-LOAD-MARKER')
   })
 })
