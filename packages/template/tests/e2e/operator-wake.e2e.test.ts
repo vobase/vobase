@@ -214,12 +214,12 @@ describe('standaloneWakeConfig (real PG)', () => {
     // body sat unused in the side-load.
     const renderedTrigger = config.renderTrigger?.(config.trigger)
     expect(renderedTrigger).toContain('Summarize today and propose any follow-ups.')
-    expect(renderedTrigger).toContain('A staff member posted in your operator thread')
+    expect(renderedTrigger).toContain('A staff member just messaged you in your operator thread')
 
     // Trigger renderer should produce the operator-friendly cue, NOT the
     // conversation-lane "see CONVERSATION.md" cue.
     const cue = config.renderTrigger?.(config.trigger)
-    expect(cue).toContain('staff member posted')
+    expect(cue).toContain('messaged you in your operator thread')
   })
 
   it('heartbeat wake: heartbeat-<scheduleId> conversationId, heartbeat brief side-load', async () => {

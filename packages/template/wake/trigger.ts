@@ -174,11 +174,17 @@ function renderOperatorThread(trigger: WakeTrigger, _refs: RenderRefs): string {
   if (trigger.trigger !== 'operator_thread') return ''
   const body = trigger.threadMessage.trim()
   if (!body) {
-    // Empty body shouldn't happen in practice (operator-thread handler always
-    // reads the latest user message), but guard so the cue still parses.
-    return 'A staff member posted in your operator thread, but the latest message is empty. Acknowledge politely and end the turn.'
+    // Empty body shouldn't happen in practice (the operator-thread handler
+    // always drains a real staff message), but guard so the cue still parses.
+    return 'A staff member messaged you in your operator thread, but the message is empty. Reply with a brief, friendly acknowledgement and end the turn.'
   }
-  return `A staff member posted in your operator thread:\n\n${quoteBody(body)}\n\nRespond or act on this now. If the message implies a write to a workspace file, use bash (or the matching CLI verb) — do not reply "logged for review" without actually performing the write.`
+  return [
+    'A staff member just messaged you in your operator thread. Reply to exactly this message:',
+    '',
+    quoteBody(body),
+    '',
+    'This is an ongoing back-and-forth chat — your reply goes straight back to that staff member. Answer this message directly and conversationally. It is complete on its own: do not treat it as a fragment, wait for more, or ask them to resend it. Do not re-introduce yourself if the thread already has earlier messages — just continue the conversation. Reply in plain text unless the message actually asks you to look something up or change something; only then run a tool or CLI verb, and if it asks you to remember or record something, actually perform the write rather than claiming it is "logged".',
+  ].join('\n')
 }
 
 function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {

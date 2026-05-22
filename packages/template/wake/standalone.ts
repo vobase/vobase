@@ -321,9 +321,9 @@ function renderStandaloneBrief(data: StandaloneWakeConfigInput['data']): string 
     // it as the actual request, not as background context. Keep this brief
     // to framing only — the message itself lives in the user turn.
     lines.push(
-      'You were woken by a staff message in your operator thread.',
+      'You are in a direct chat thread with a staff member — your "operator thread". It is an ongoing back-and-forth: they message you and your reply goes straight back to them.',
       '',
-      'The message body is at the top of this turn (the user-turn cue). Read it, decide what action it implies, and either reply via the thread (your assistant message goes back to staff) or call one of the operator tools. Per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
+      'The specific message to answer on this wake is in the user turn (the blockquoted text). Read that message and reply to it directly, like a normal chat. If it asks for an action, per-tool guidance is in your AGENTS.md `## Tool guidance` section.',
     )
   } else {
     lines.push(
