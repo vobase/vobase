@@ -3,7 +3,7 @@
  *
  * Calls `createInboundMessage` with a buffered PDF attachment and asserts
  * the message row carries an `attachments[]` ref pointing at a drive file
- * that lives at `/contacts/<id>/<channelInstanceId>/attachments/{stem}.md`.
+ * that lives at `/contacts/<id>/drive/attachments/{stem}.md`.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
@@ -58,7 +58,7 @@ describe('messaging inbound attachments — happy path', () => {
     expect(persisted[0]?.attachments).toHaveLength(1)
     const ref = persisted[0]?.attachments[0]
     expect(ref?.name).toBe('quote.pdf')
-    expect(ref?.path).toBe(`/contacts/${SEEDED_CONTACT_ID}/${CUSTOMER_CHANNEL_INSTANCE_ID}/attachments/quote.md`)
+    expect(ref?.path).toBe(`/contacts/${SEEDED_CONTACT_ID}/drive/attachments/quote.md`)
 
     // Drive row matches.
     const driveRows = (

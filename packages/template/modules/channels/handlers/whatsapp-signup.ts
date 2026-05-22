@@ -2,7 +2,7 @@
  * WhatsApp Embedded Signup HTTP surface — mounted at
  * `/api/channels/whatsapp/signup/*` by the channels umbrella router.
  *
- * Three endpoints — all behind `requireOrganization`:
+ * Four endpoints — all behind `requireOrganization`:
  *
  *   POST /start
  *     Mints a single-use, 5-minute CSRF nonce bound to (orgId, sessionId)
@@ -21,6 +21,15 @@
  *        `channel_instances.config`. Mark `setupStage='subscribing'`.
  *     6. Return `{ instanceId, displayPhoneNumber }`.
  *
+ *   GET /callback?handoff=<JWT>
+ *     Platform-handoff landing. When the tenant is platform-wired, WhatsApp
+ *     onboarding runs on the platform's Facebook entry point; the platform
+ *     exchanges the code and 302s the browser here with a short-lived JWT
+ *     (signed under `PLATFORM_HMAC_SECRET`) carrying the self-WABA
+ *     credentials. This handler verifies the JWT, persists the channel via
+ *     the same `persistSelfInstance` writer as `/exchange`, and redirects to
+ *     `/channels`. No platform→tenant call — the browser is the only courier.
+ *
  *   POST /finish/:instanceId
  *     Re-enqueues the `whatsapp:setup` job. Idempotent — used by the admin UI
  *     to retry after `setupStage='failed'`.
@@ -33,6 +42,7 @@
  *     onto the victim org.
  *   - No request body is logged; sanitised metadata only on `console.error`.
  */
+import { randomUUID } from 'node:crypto'
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
 import {
@@ -47,10 +57,11 @@ import {
   type MetaOAuthError,
   verifyAccessTokenViaDebugToken,
 } from '@modules/channels/adapters/whatsapp/meta-oauth'
-import { createInstance, getInstance } from '@modules/channels/service/instances'
+import { createInstance, getInstance, listInstances, updateInstance } from '@modules/channels/service/instances'
 import { consumeNonce, mintNonce } from '@modules/channels/service/signup-nonces'
 import { getJobs, getRateLimits, getRequireAdmin } from '@modules/channels/service/state'
 import { Hono } from 'hono'
+import { jwtVerify } from 'jose'
 import { z } from 'zod'
 
 import { sourceIpFromHeaders } from '~/runtime/request-ip'
@@ -62,6 +73,22 @@ const exchangeBody = z.object({
   mode: z.enum(['cloud', 'coexistence']),
   nonce: z.string().min(8).max(128),
   displayPhoneNumber: z.string().min(1).max(32).optional(),
+})
+
+/**
+ * Shape of the `wa` claim inside the platform-handoff JWT. Validated after the
+ * HS256 signature check so a tampered-but-unsigned payload still can't slip a
+ * malformed credential bag through.
+ */
+const handoffWaSchema = z.object({
+  accessToken: z.string().min(1),
+  wabaId: z.string().min(1).max(64),
+  phoneNumberId: z.string().min(1).max(64),
+  displayPhoneNumber: z.string().max(32).nullable().optional(),
+  appId: z.string().min(1),
+  appSecret: z.string().min(1),
+  apiVersion: z.string().min(1).max(16),
+  coexistence: z.boolean(),
 })
 
 const invalidBody = (
@@ -83,6 +110,93 @@ async function bumpValidationFailureBucket(headers: Headers): Promise<void> {
     VALIDATION_FAILURE_BUCKET_PER_MINUTE,
     VALIDATION_FAILURE_WINDOW_SECONDS,
   )
+}
+
+interface SelfInstanceParams {
+  accessToken: string
+  wabaId: string
+  phoneNumberId: string
+  displayPhoneNumber: string | null
+  appId: string
+  appSecret: string
+  /** Optional — `loadMetaOAuthConfigFromEnv` types it loosely; the adapter falls back to env. */
+  apiVersion?: string
+  coexistence: boolean
+}
+
+/**
+ * Shared writer for a self-mode WhatsApp `channel_instances` row — used by both
+ * the in-tenant Embedded Signup `/exchange` and the platform-handoff
+ * `/callback`. Envelope-encrypts the access token AND the Meta App Secret
+ * (neither plaintext value lands in any persistent store), mints a webhook
+ * verify token so the setup job can register a per-WABA callback override,
+ * and enqueues the post-signup `whatsapp:setup` job.
+ *
+ * Idempotent on `(organizationId, self-mode, phoneNumberId)`: a re-run
+ * reactivates the matching row — including a soft-released one — rather than
+ * inserting a duplicate, and reuses its existing verify token so the
+ * registered callback URL stays stable.
+ */
+async function persistSelfInstance(
+  organizationId: string,
+  params: SelfInstanceParams,
+): Promise<{ instanceId: string; displayPhoneNumber: string | null; coexistence: boolean }> {
+  // Resolve an existing self-mode row for this number — released rows
+  // included, so a reconnect after disconnect reactivates instead of
+  // duplicating.
+  const existing = (await listInstances(organizationId, 'whatsapp', { includeReleased: true })).find(
+    (i) => i.config.mode === 'self' && i.config.phoneNumberId === params.phoneNumberId,
+  )
+  // Keep the verify token stable across re-runs so the per-WABA override
+  // callback URL doesn't need re-verification.
+  const existingVerifyToken =
+    existing && typeof existing.config.webhookVerifyToken === 'string' ? existing.config.webhookVerifyToken : undefined
+  const webhookVerifyToken = existingVerifyToken ?? randomUUID()
+
+  const config: WhatsappInstanceConfig = {
+    mode: 'self',
+    coexistence: params.coexistence,
+    wabaId: params.wabaId,
+    phoneNumberId: params.phoneNumberId,
+    displayPhoneNumber: params.displayPhoneNumber ?? undefined,
+    appId: params.appId,
+    apiVersion: params.apiVersion,
+    appSecretEnvelope: buildEncryptedAccessTokenField(params.appSecret),
+    webhookVerifyToken,
+    accessTokenEnvelope: buildEncryptedAccessTokenField(params.accessToken),
+  }
+  const configJson = config as unknown as Record<string, unknown>
+  const displayName = params.displayPhoneNumber ?? `WhatsApp ${params.phoneNumberId}`
+
+  const instance = existing
+    ? await updateInstance(existing.id, organizationId, {
+        displayName,
+        config: configJson,
+        status: 'active',
+        lastError: null,
+      })
+    : await createInstance({
+        organizationId,
+        channel: 'whatsapp',
+        role: 'customer',
+        displayName,
+        config: configJson,
+        webhookSecret: null,
+      })
+
+  const jobs = getJobs()
+  if (jobs) {
+    const jobData: WhatsappSetupJobData = { instanceId: instance.id, organizationId }
+    void jobs.send(WHATSAPP_SETUP_JOB, jobData).catch((err) => {
+      console.error('[wa-signup] enqueue setup job failed:', (err as Error).message)
+    })
+  }
+
+  return {
+    instanceId: instance.id,
+    displayPhoneNumber: params.displayPhoneNumber ?? null,
+    coexistence: params.coexistence,
+  }
 }
 
 const app = new Hono<OrganizationEnv>()
@@ -185,45 +299,77 @@ const app = new Hono<OrganizationEnv>()
       }
     }
 
-    // Encrypt + persist. The plaintext token never lives in any persistent
-    // store; only the envelope ciphertext does.
-    const accessTokenEnvelope = buildEncryptedAccessTokenField(accessToken)
-    const config: WhatsappInstanceConfig = {
-      mode: 'self',
-      coexistence: data.mode === 'coexistence',
+    // Encrypt + persist via the shared self-instance writer.
+    const result = await persistSelfInstance(organizationId, {
+      accessToken,
       wabaId: data.wabaId,
       phoneNumberId: data.phoneNumberId,
-      displayPhoneNumber: data.displayPhoneNumber,
+      displayPhoneNumber: data.displayPhoneNumber ?? null,
       appId: oauthConfig.appId,
+      appSecret: oauthConfig.appSecret,
       apiVersion: oauthConfig.apiVersion,
-      accessTokenEnvelope,
-    }
-
-    const instance = await createInstance({
-      organizationId,
-      channel: 'whatsapp',
-      role: 'customer',
-      displayName: data.displayPhoneNumber ?? `WhatsApp ${data.phoneNumberId}`,
-      config: config as unknown as Record<string, unknown>,
-      webhookSecret: null,
+      coexistence: data.mode === 'coexistence',
     })
 
-    const jobs = getJobs()
-    const jobData: WhatsappSetupJobData = { instanceId: instance.id, organizationId }
-    if (jobs) {
-      void jobs.send(WHATSAPP_SETUP_JOB, jobData).catch((err) => {
-        console.error('[wa-signup] enqueue setup job failed:', (err as Error).message)
-      })
+    return c.json(result, 201)
+  })
+  .get('/callback', async (c) => {
+    const session = c.get('session')
+    const organizationId = c.get('organizationId')
+    const sessionId = session.session.id
+    const handoff = c.req.query('handoff') ?? ''
+    const platformSecret = process.env.PLATFORM_HMAC_SECRET ?? ''
+    if (!handoff || !platformSecret || !sessionId) {
+      return c.redirect('/channels?wa_error=platform_not_configured')
     }
 
-    return c.json(
-      {
-        instanceId: instance.id,
-        displayPhoneNumber: data.displayPhoneNumber ?? null,
-        coexistence: data.mode === 'coexistence',
-      },
-      201,
-    )
+    // The HS256 signature under PLATFORM_HMAC_SECRET proves the platform
+    // minted this handoff (per-tenant secret); `jwtVerify` enforces expiry.
+    // The `nonce` consumed below is what binds the handoff to a specific
+    // org + session — the signature alone can't, since one PLATFORM_HMAC_SECRET
+    // covers every org on the deployment.
+    let wa: z.infer<typeof handoffWaSchema>
+    let handoffNonce: string
+    try {
+      const key = new TextEncoder().encode(platformSecret)
+      const { payload } = await jwtVerify(handoff, key, { algorithms: ['HS256'] })
+      if (payload.kind !== 'whatsapp-signup') {
+        throw new Error('unexpected token kind')
+      }
+      handoffNonce = typeof payload.nonce === 'string' ? payload.nonce : ''
+      wa = handoffWaSchema.parse(payload.wa)
+    } catch (err) {
+      console.error('[wa-signup] handoff verification failed:', (err as Error).message)
+      return c.redirect('/channels?wa_error=invalid_handoff')
+    }
+
+    // Consume the nonce minted at `/start`. It is bound to (organizationId,
+    // sessionId), so this rejects a handoff that is replayed, applied to a
+    // different org, or carried by a different session than the one that
+    // started signup. Single-use — atomic DELETE…RETURNING.
+    const nonceOk = await consumeNonce({ nonce: handoffNonce, organizationId, sessionId })
+    if (!nonceOk) {
+      console.error('[wa-signup] handoff nonce rejected — replay, cross-org, or session mismatch')
+      return c.redirect('/channels?wa_error=invalid_handoff')
+    }
+
+    try {
+      await persistSelfInstance(organizationId, {
+        accessToken: wa.accessToken,
+        wabaId: wa.wabaId,
+        phoneNumberId: wa.phoneNumberId,
+        displayPhoneNumber: wa.displayPhoneNumber ?? null,
+        appId: wa.appId,
+        appSecret: wa.appSecret,
+        apiVersion: wa.apiVersion,
+        coexistence: wa.coexistence,
+      })
+    } catch (err) {
+      console.error('[wa-signup] callback persist failed:', (err as Error).message)
+      return c.redirect('/channels?wa_error=persist_failed')
+    }
+
+    return c.redirect('/channels')
   })
   .post(
     '/finish/:instanceId',

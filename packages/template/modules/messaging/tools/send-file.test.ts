@@ -213,25 +213,113 @@ describe('sendFileTool', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('url path: writes media message and outbound media carries url + inferred type', async () => {
-    const result = await sendFileTool.execute(
-      { url: 'https://example.com/menu.jpg', caption: 'Seminar package' },
-      makeCtx(),
-    )
+  it('accepts a bash-view drive path as driveFileId (no fabricated id needed)', async () => {
+    const result = await sendFileTool.execute({ driveFileId: '/drive/x.png' }, makeCtx())
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.content.messageId).toBe('msg-file-1')
     expect(messageStore).toHaveLength(1)
     expect(outboundCalls).toHaveLength(1)
-    const payload = outboundCalls[0]?.payload as { media: { url?: string; type?: string; caption?: string } }
-    expect(payload.media.url).toBe('https://example.com/menu.jpg')
-    expect(payload.media.type).toBe('image')
-    expect(payload.media.caption).toBe('Seminar package')
+  })
+
+  it('does NOT create a message row when the drive file cannot be resolved', async () => {
+    // Stub drive db to return zero rows — simulates wrong id / wrong path.
+    setFilesRuntime(
+      {
+        select: () => ({
+          from: () => ({ where: () => ({ limit: async () => [] }) }),
+        }),
+      },
+      null,
+      makeStorage(),
+      null,
+      null,
+    )
+    const result = await sendFileTool.execute({ driveFileId: 'bogus' }, makeCtx())
+    expect(result.ok).toBe(false)
+    expect(messageStore).toHaveLength(0)
+    expect(outboundCalls).toHaveLength(0)
+  })
+
+  it('url path: fetches bytes server-side and ships them as multipart data', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async (_input: unknown, init?: { headers?: Record<string, string> }) => {
+      // Sanity: Accept header excludes webp so CDNs serve jpeg/png.
+      expect(init?.headers?.Accept).toContain('image/jpeg')
+      expect(init?.headers?.Accept).not.toContain('webp')
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      })
+    }) as typeof fetch
+    try {
+      const result = await sendFileTool.execute(
+        { url: 'https://example.com/menu.jpg', caption: 'Seminar package' },
+        makeCtx(),
+      )
+      expect(result.ok).toBe(true)
+      if (result.ok) expect(result.content.messageId).toBe('msg-file-1')
+      expect(messageStore).toHaveLength(1)
+      expect(outboundCalls).toHaveLength(1)
+      const payload = outboundCalls[0]?.payload as {
+        media: { url?: string; type?: string; caption?: string; data?: unknown; mimeType?: string }
+      }
+      expect(payload.media.type).toBe('image')
+      expect(payload.media.caption).toBe('Seminar package')
+      // Multipart, NOT link — Meta gets our bytes so CDN content-negotiation
+      // can't downgrade the mime out from under us.
+      expect(payload.media.url).toBeUndefined()
+      expect(payload.media.data).toBeTruthy()
+      expect(payload.media.mimeType).toBe('image/jpeg')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('url path: transcodes webp to jpeg when CDN ignores Accept (Cloudflare Polish bypass)', async () => {
+    // Encode a real 1×1 webp so Bun.Image can decode it; round-trip through
+    // jpeg() to confirm the seam reaches Meta as image/jpeg.
+    const webpBytes = await new Bun.Image(
+      Buffer.from(
+        // 1×1 red PNG — Bun.Image auto-detects format, then we re-encode as webp.
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAUAAeImBZsAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    )
+      .webp()
+      .bytes()
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array(webpBytes), {
+        status: 200,
+        headers: { 'content-type': 'image/webp' },
+      })) as unknown as typeof fetch
+    try {
+      const result = await sendFileTool.execute({ url: 'https://example.com/menu.jpg' }, makeCtx())
+      expect(result.ok).toBe(true)
+      expect(messageStore).toHaveLength(1)
+      expect(outboundCalls).toHaveLength(1)
+      const payload = outboundCalls[0]?.payload as { media: { mimeType?: string; data?: unknown } }
+      expect(payload.media.mimeType).toBe('image/jpeg')
+      expect(payload.media.data).toBeTruthy()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 
   it('url path: explicit type overrides inferred', async () => {
-    const result = await sendFileTool.execute({ url: 'https://example.com/file', type: 'document' }, makeCtx())
-    expect(result.ok).toBe(true)
-    const payload = outboundCalls[0]?.payload as { media: { type?: string } }
-    expect(payload.media.type).toBe('document')
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      })) as unknown as typeof fetch
+    try {
+      const result = await sendFileTool.execute({ url: 'https://example.com/file', type: 'document' }, makeCtx())
+      expect(result.ok).toBe(true)
+      const payload = outboundCalls[0]?.payload as { media: { type?: string } }
+      expect(payload.media.type).toBe('document')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })

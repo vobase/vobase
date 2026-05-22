@@ -267,6 +267,7 @@ export function ConversationDetail() {
       </div>
 
       <MessageThread
+        key={activeConvId ?? 'none'}
         messages={messages}
         notes={notes}
         activity={activity}

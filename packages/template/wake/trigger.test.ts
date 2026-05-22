@@ -226,7 +226,7 @@ describe('renderStaffNote (assignee branch)', () => {
       },
     )
     expect(text).toContain('You are NOT the conversation assignee')
-    expect(text).toContain('reply_contact / send_card / send_file')
+    expect(text).toContain('reply_contact')
     // Body is still inlined in the peer-wake branch.
     expect(text).toContain('> @Atlas please confirm the SLA for tier-2 incidents')
   })
@@ -346,7 +346,7 @@ describe('cue body truncation', () => {
       refs,
     )
     expect(text).toBe(
-      "Staff @-mentioned you in an internal note. Read /contacts/ct0marcus/ch0web/CONVERSATION.md for context. You are the conversation assignee. Staff notes are internal coaching — the customer-facing tools (reply_contact / send_card / send_file) are not available in this wake. Act on the note's request via memory updates, contact proposals, or a workspace write, then reply to the staff member with `consult_staff`. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See `## Staff note (this wake)` in AGENTS.md for the routing table.",
+      "Staff @-mentioned you in an internal note. Read /contacts/ct0marcus/ch0web/CONVERSATION.md for context. You are the conversation assignee. Decide what the note asks for. If it tells you to message the customer — or it answers a question you raised with staff on the customer's behalf — send that to the customer now with `reply_contact` (or `send_card`). If it is pure internal coaching, act on it via memory updates, contact proposals, or a workspace write. Either way, close the loop with the note author using `consult_staff`. See `## Staff note (this wake)` in AGENTS.md for the routing table.",
     )
   })
 

@@ -20,6 +20,7 @@ import type { ChannelAdapter, ChannelCapabilities } from '@vobase/core'
 import { createWhatsAppAdapter } from '@vobase/core'
 
 import { WhatsAppChannelConfigSchema } from './config'
+import { decryptInstanceAppSecret, type EncryptedAccessTokenBlob } from './instance-config'
 import { createManagedTransport } from './managed-transport'
 
 export const WHATSAPP_CHANNEL_NAME = 'whatsapp'
@@ -117,15 +118,20 @@ export async function createWhatsAppAdapterFromConfig(
     phoneNumberId: string
     accessToken: string
     appSecret: string
+    appSecretEnvelope: EncryptedAccessTokenBlob
     webhookVerifyToken: string
     appId: string
     apiVersion: string
   }>
 
+  // Prefer the envelope-encrypted appSecret (the form signup persists); fall
+  // back to a plaintext `appSecret` (dev/seeded rows) then env.
+  const appSecret = decryptInstanceAppSecret(partial) ?? pick(partial.appSecret, process.env.META_WA_APP_SECRET)
+
   const merged = WhatsAppChannelConfigSchema.parse({
     phoneNumberId: pick(partial.phoneNumberId, process.env.META_WA_PHONE_NUMBER_ID),
     accessToken: pick(partial.accessToken, process.env.META_WA_ACCESS_TOKEN, process.env.META_WA_TOKEN),
-    appSecret: pick(partial.appSecret, process.env.META_WA_APP_SECRET),
+    appSecret,
     webhookVerifyToken: pick(partial.webhookVerifyToken, process.env.META_WA_VERIFY_TOKEN),
     appId: partial.appId ?? process.env.META_WA_APP_ID,
     apiVersion: partial.apiVersion ?? process.env.META_WA_API_VERSION,

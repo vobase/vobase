@@ -32,6 +32,16 @@ export type WakeTrigger =
        * synthesized "Customer tapped X" for card-reply taps).
        */
       body?: string
+      /**
+       * Drive paths of inbound media the customer attached to THIS wake's
+       * triggering message. Inlined into the cue so the agent can call
+       * `send_file --driveFileId=<path>` (or `request_caption`) without first
+       * `cat`ing CONVERSATION.md to discover the path. Each entry's `path` is
+       * the canonical bash-view drive path; `mimeType` lets the agent pick
+       * the right tool. Empty / absent for text-only inbounds. Optional for
+       * back-compat with legacy queue rows.
+       */
+      attachments?: Array<{ path: string; mimeType: string; sizeBytes: number }>
     }
   | {
       trigger: 'approval_resumed'
@@ -171,6 +181,7 @@ export const WakeTriggerSchema = z.discriminatedUnion('trigger', [
     conversationId: z.string(),
     messageIds: z.array(z.string()),
     body: z.string().optional(),
+    attachments: z.array(z.object({ path: z.string(), mimeType: z.string(), sizeBytes: z.number() })).optional(),
   }),
   z.object({
     trigger: z.literal('approval_resumed'),

@@ -1,0 +1,303 @@
+/* Voltade onboarding-guide print CSS
+ * Tokens mirror /Users/yash/Documents/Voltade/voltade-latest-design-system
+ * (Mauve + Purple Radix scales, 8px spacing, Source Serif 4 + DM Sans + IBM Plex Mono)
+ * When the canonical design system updates, re-sync this file.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Mauve scale (warm neutrals) */
+  --v-mauve-1:  #FDFCFD;
+  --v-mauve-2:  #FAF9FB;
+  --v-mauve-3:  #F2EFF3;
+  --v-mauve-4:  #EAE7EC;
+  --v-mauve-5:  #E3DFE6;
+  --v-mauve-6:  #DBD8E0;
+  --v-mauve-7:  #D0CDD7;
+  --v-mauve-8:  #BCBAC7;
+  --v-mauve-9:  #8E8C99;
+  --v-mauve-10: #84828E;
+  --v-mauve-11: #65636D;
+  --v-mauve-12: #211F26;
+
+  /* Purple scale (brand accent) */
+  --v-purple-1:  #FDFDFE;
+  --v-purple-7:  #BBB4F0;
+  --v-purple-8:  #A199E8;
+  --v-purple-9:  #6E5DD9;
+  --v-purple-11: #4B3CB0;
+  --v-purple-12: #1A1645;
+
+  /* Typography */
+  --v-font-serif: 'Source Serif 4', Georgia, serif;
+  --v-font-sans:  'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --v-font-mono:  'IBM Plex Mono', 'SFMono-Regular', monospace;
+  /* Display mono: Departure Mono in the canonical DS — Plex with wider tracking is the print fallback */
+  --v-font-mono-display: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+
+  /* Spacing scale */
+  --v-space-xs:  4px;
+  --v-space-sm:  8px;
+  --v-space-md:  16px;
+  --v-space-lg:  24px;
+  --v-space-xl:  32px;
+  --v-space-2xl: 48px;
+  --v-space-3xl: 64px;
+}
+
+/* ─── Reset ─── */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--v-font-sans);
+  font-size: 11pt;
+  line-height: 1.55;
+  color: var(--v-mauve-12);
+  background: var(--v-mauve-1);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Page header (running on every page via @page) ─── */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--v-purple-9);
+  margin-bottom: 32px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.brand-text {
+  font-family: var(--v-font-serif);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--v-mauve-12);
+}
+
+.eyebrow {
+  font-family: var(--v-font-mono);
+  font-size: 10pt;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--v-mauve-11);
+}
+
+/* ─── Title block ─── */
+h1.doc-title {
+  font-family: var(--v-font-serif);
+  font-weight: 600;
+  font-size: 30pt;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--v-purple-9);
+  margin: 0 0 12px 0;
+}
+
+h1.doc-title.mauve {
+  color: var(--v-mauve-12);
+}
+
+/* The one italic accent word — author marks it with <em> in the title */
+h1.doc-title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--v-purple-9);
+}
+
+.lede {
+  font-family: var(--v-font-sans);
+  font-size: 12pt;
+  line-height: 1.55;
+  color: var(--v-mauve-12);
+  margin: 0 0 8px 0;
+  max-width: 640px;
+}
+
+.lede strong { font-weight: 600; }
+
+.quick-access {
+  font-family: var(--v-font-sans);
+  font-size: 11pt;
+  color: var(--v-mauve-12);
+  margin: 0 0 28px 0;
+}
+
+.quick-access a {
+  color: var(--v-purple-11);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.quick-access strong {
+  font-weight: 600;
+}
+
+/* ─── Hairline rules between major blocks ─── */
+.rule {
+  border: 0;
+  border-top: 1px solid var(--v-mauve-7);
+  margin: 24px 0;
+}
+
+/* ─── Section headings (mono caps, "spec-row" style) ─── */
+h2.section {
+  font-family: var(--v-font-mono);
+  font-size: 11pt;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--v-mauve-12);
+  margin: 28px 0 12px 0;
+}
+
+/* ─── Serif section heading (the "What the system does" level) ─── */
+h2.section-serif {
+  font-family: var(--v-font-serif);
+  font-size: 18pt;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--v-mauve-12);
+  margin: 28px 0 16px 0;
+}
+
+h3.subsection {
+  font-family: var(--v-font-mono);
+  font-size: 10pt;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--v-mauve-12);
+  margin: 20px 0 8px 0;
+}
+
+p {
+  margin: 0 0 12px 0;
+  max-width: 680px;
+}
+
+p strong { font-weight: 600; }
+
+/* ─── Inline kbd/code (for emails, /link commands, paths) ─── */
+code, .kbd {
+  font-family: var(--v-font-mono);
+  font-size: 0.92em;
+  background: var(--v-mauve-3);
+  border: 1px solid var(--v-mauve-6);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--v-mauve-12);
+  white-space: nowrap;
+}
+
+a {
+  color: var(--v-purple-11);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:hover { color: var(--v-purple-9); }
+
+/* ─── Ordered & unordered lists ─── */
+ol, ul {
+  margin: 0 0 16px 0;
+  padding-left: 22px;
+  max-width: 680px;
+}
+
+ol li, ul li {
+  margin: 6px 0;
+  line-height: 1.55;
+}
+
+ul li::marker { color: var(--v-purple-9); }
+
+/* Italic suggested-prompt list */
+ul.prompts li {
+  font-family: var(--v-font-serif);
+  font-style: italic;
+  font-size: 11.5pt;
+  color: var(--v-mauve-12);
+}
+
+/* ─── Pull-out cards (the "two things worth noticing" pattern) ─── */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 16px 0 28px 0;
+}
+
+.card {
+  border-top: 1px solid var(--v-purple-9);
+  padding: 12px 16px 14px 16px;
+  background: var(--v-mauve-2);
+}
+
+.card-title {
+  font-family: var(--v-font-mono);
+  font-size: 10pt;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--v-purple-11);
+  margin: 0 0 6px 0;
+}
+
+.card-body {
+  font-family: var(--v-font-sans);
+  font-size: 10.5pt;
+  line-height: 1.5;
+  color: var(--v-mauve-12);
+  margin: 0;
+}
+
+/* ─── Document footer (last block of last page) ─── */
+.doc-footer {
+  margin-top: 36px;
+  padding-top: 16px;
+  border-top: 1px solid var(--v-mauve-7);
+  font-family: var(--v-font-sans);
+  font-size: 10pt;
+  color: var(--v-mauve-11);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.doc-footer .brand-mark { width: 22px; height: 22px; }
+
+.doc-footer strong {
+  font-weight: 600;
+  color: var(--v-purple-11);
+}
+
+/* ─── Print rules ─── */
+@page {
+  size: A4;
+  margin: 18mm 18mm 22mm 18mm;
+}
+
+@media print {
+  body { background: white; }
+  a { color: var(--v-purple-11); }
+  /* Avoid orphan section headings */
+  h2.section, h3.subsection { break-after: avoid; page-break-after: avoid; }
+  .cards { break-inside: avoid; page-break-inside: avoid; }
+  .card { break-inside: avoid; page-break-inside: avoid; }
+}

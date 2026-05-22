@@ -3,7 +3,10 @@
  *
  * Triggered after `/signup/exchange` (or replayed manually via `/finish`).
  * Three upstream calls in order:
- *   1. Subscribe the configured Meta app to the WABA's webhooks.
+ *   1. Subscribe the Meta app to the WABA's webhooks. When the instance row
+ *      carries a `webhookVerifyToken`, a per-WABA `override_callback_uri` is
+ *      set so webhooks route to THIS tenant — required for WABAs onboarded
+ *      through the platform's shared Meta app.
  *   2. For Cloud-API mode (not coexistence): register the phone number with a
  *      6-digit PIN. Coexistence skips this — the number is already registered
  *      via the WhatsApp Business App.
@@ -17,11 +20,16 @@
 import { randomInt } from 'node:crypto'
 import {
   decryptInstanceAccessToken,
-  loadMetaOAuthConfigFromEnv,
   parseWhatsappInstanceConfig,
 } from '@modules/channels/adapters/whatsapp/instance-config'
-import { registerPhoneNumber, subscribeAppToWaba } from '@modules/channels/adapters/whatsapp/meta-oauth'
+import {
+  type MetaOAuthConfig,
+  registerPhoneNumber,
+  subscribeAppToWaba,
+} from '@modules/channels/adapters/whatsapp/meta-oauth'
 import { getInstance, updateInstance } from '@modules/channels/service/instances'
+
+import { readAppBaseUrl } from '~/runtime/app-url'
 
 export const WHATSAPP_SETUP_JOB = 'whatsapp:setup'
 
@@ -40,11 +48,32 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
   try {
     const cfg = parseWhatsappInstanceConfig(instance.config)
     const accessToken = decryptInstanceAccessToken(cfg)
-    const oauthConfig = loadMetaOAuthConfigFromEnv()
+
+    // Build the Meta API config from the instance row, not env: a
+    // platform-handoff instance runs against the platform's Meta app and the
+    // tenant carries no META_APP_* env vars. apiVersion is the only field the
+    // subscribe/register calls consult.
+    const oauthConfig: MetaOAuthConfig = {
+      appId: cfg.appId ?? '',
+      appSecret: cfg.appSecret ?? '',
+      apiVersion: cfg.apiVersion ?? 'v22.0',
+    }
+
+    // Route this WABA's webhooks to THIS tenant via a per-WABA override
+    // callback. Without it, a WABA onboarded through the platform's shared
+    // Meta app delivers webhooks to the platform's app-level URL. Skipped for
+    // legacy rows with no verify token (tenant owns the app — its app-level
+    // callback already points here).
+    const subscribeOptions = cfg.webhookVerifyToken
+      ? {
+          overrideCallbackUri: `${readAppBaseUrl()}/api/channels/webhook/whatsapp/${instance.id}`,
+          verifyToken: cfg.webhookVerifyToken,
+        }
+      : undefined
 
     // Subscribe + register are independent Meta calls — run in parallel to
     // halve the job's wall-clock time on Cloud-API setup.
-    const subscribe = subscribeAppToWaba(cfg.wabaId, accessToken, oauthConfig)
+    const subscribe = subscribeAppToWaba(cfg.wabaId, accessToken, oauthConfig, subscribeOptions)
     const register =
       cfg.coexistence !== true && cfg.phoneNumberId
         ? registerPhoneNumber(cfg.phoneNumberId, generateRegistrationPin(), accessToken, oauthConfig)

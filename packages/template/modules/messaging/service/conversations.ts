@@ -352,12 +352,20 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
             bytes: att.bytes,
             source: 'customer_inbound',
             uploadedBy: null,
-            basePath: `/contacts/${input.contactId}/${input.channelInstanceId}/attachments/`,
+            // Scope-relative basePath: contact-scope rows store paths like
+            // `/attachments/<file>` (not `/contacts/<id>/attachments/<file>`)
+            // so the contact-details drive view nests them under a real
+            // `attachments/` folder row rather than dumping the literal
+            // absolute path string at scope root.
+            basePath: '/attachments/',
           })
           ingestedFileIds.push(ingest.id)
           attachmentRefs.push({
             driveFileId: ingest.id,
-            path: ingest.path,
+            // Denormalize the bash-view path so the agent's wake cue and the
+            // staff-inbox renderer get a directly-usable path (the DB row
+            // stores the scope-relative `/attachments/<file>`).
+            path: `/contacts/${input.contactId}/drive${ingest.path}`,
             mimeType: att.mimeType,
             sizeBytes: att.sizeBytes,
             name: att.name,
@@ -865,6 +873,21 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     sendCard,
     sendImage,
   }
+}
+
+/**
+ * Resolve a conversation's `contactId` from its id. Used by cross-module
+ * callers (team staff-ping, automations dispatcher) that build deep links into
+ * the inbox — the conversation-detail route is keyed by contactId, not
+ * conversationId. Returns null when the conversation row doesn't exist.
+ */
+export async function getConversationContactId(db: unknown, conversationId: string): Promise<string | null> {
+  const rows = (await (db as DbHandle)
+    .select({ contactId: conversations.contactId })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1)) as Array<{ contactId: string }>
+  return rows[0]?.contactId ?? null
 }
 
 let _currentConversationsService: ConversationsService | null = null

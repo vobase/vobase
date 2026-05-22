@@ -17,7 +17,7 @@ import {
   StrikethroughPlugin,
   UnderlinePlugin,
 } from '@platejs/basic-nodes/react'
-import { MarkdownPlugin, remarkMdx } from '@platejs/markdown'
+import { MarkdownPlugin } from '@platejs/markdown'
 import { TableCellHeaderPlugin, TableCellPlugin, TablePlugin, TableRowPlugin } from '@platejs/table/react'
 import { Bold, Code, Heading1, Heading2, Heading3, Italic, Lock, Quote, Strikethrough, Underline } from 'lucide-react'
 import { createSlateEditor, type Value } from 'platejs'
@@ -109,7 +109,11 @@ const plugins = [
   TableRowPlugin.withComponent(TableRowElement),
   TableCellPlugin.withComponent(TableCellElement),
   TableCellHeaderPlugin.withComponent(TableCellHeaderElement),
-  MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm, remarkMdx] } }),
+  // Do NOT add `remarkMdx` to the remark pipeline: it parses `<id>` / `<file>`
+  // / `<number>` style tokens (common in drive docs — agent MEMORY.md, skill
+  // files, command examples) as JSX components and silently truncates the
+  // document at the first one. `remarkGfm` alone covers tables / strikethrough.
+  MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ]
 
 // Skill files (and any markdown with leading YAML frontmatter) get the

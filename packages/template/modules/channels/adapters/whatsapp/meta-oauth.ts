@@ -145,18 +145,44 @@ export async function verifyAccessTokenViaDebugToken(
   }
 }
 
+export interface SubscribeAppOptions {
+  /**
+   * Per-WABA webhook callback override. Routes this WABA's webhooks to the
+   * given URL independently of the Meta app's app-level callback. Required for
+   * a WABA onboarded through a shared (platform-owned) app, whose app-level
+   * callback points at the platform, not this tenant.
+   */
+  overrideCallbackUri?: string
+  /** Verify token Meta echoes in the GET hub-challenge to `overrideCallbackUri`. */
+  verifyToken?: string
+}
+
 export async function subscribeAppToWaba(
   wabaId: string,
   accessToken: string,
   config: MetaOAuthConfig,
+  options: SubscribeAppOptions = {},
   fetchImpl: typeof fetch = globalThis.fetch,
 ): Promise<void> {
   const baseUrl = config.baseUrl ?? 'https://graph.facebook.com'
   const apiVersion = config.apiVersion ?? DEFAULT_API_VERSION
   const url = `${baseUrl}/${apiVersion}/${encodeURIComponent(wabaId)}/subscribed_apps`
+
+  // Send the override in the POST body only when supplied; a bare subscribe
+  // (no body) keeps the app-level callback, which is correct when the tenant
+  // owns the Meta app.
+  const hasOverride = Boolean(options.overrideCallbackUri)
+  const body = hasOverride
+    ? JSON.stringify({ override_callback_uri: options.overrideCallbackUri, verify_token: options.verifyToken ?? '' })
+    : undefined
+
   const response = await fetchImpl(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(hasOverride ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body } : {}),
   })
   if (!response.ok) {
     const text = await response.text().catch(() => '')

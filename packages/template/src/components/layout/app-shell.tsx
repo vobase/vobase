@@ -218,12 +218,14 @@ function MobileShell({
   badgeFor: (to: string) => number | undefined
 }) {
   const [moreOpen, setMoreOpen] = useState(false)
+  const visiblePrimary = PRIMARY_NAV.slice(0, 5)
+  const overflowPrimary = PRIMARY_NAV.slice(5)
 
   return (
     <div className="flex h-[100dvh] flex-col bg-background text-foreground">
       <main className="flex-1 overflow-hidden">{children}</main>
       <nav aria-label="Main navigation" className="grid h-14 shrink-0 grid-cols-6 border-border border-t bg-sidebar">
-        {PRIMARY_NAV.map((item) => (
+        {visiblePrimary.map((item) => (
           <MobileBottomNavItem key={item.to} {...item} badgeCount={badgeFor(item.to)} />
         ))}
         <button
@@ -243,7 +245,7 @@ function MobileShell({
             <SheetTitle>More</SheetTitle>
           </SheetHeader>
           <nav aria-label="Workspace navigation" className="flex flex-col gap-1 px-1 pb-2">
-            {ADMIN_NAV.map((item) => (
+            {[...overflowPrimary, ...ADMIN_NAV].map((item) => (
               <MobileMoreNavRow key={item.to} {...item} onClick={() => setMoreOpen(false)} />
             ))}
           </nav>

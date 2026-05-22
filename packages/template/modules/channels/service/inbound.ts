@@ -18,6 +18,7 @@
 import type { ChannelInstance } from '@modules/channels/schema'
 import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { normalizeEmail, normalizePhoneE164 } from '@modules/contacts/service/identity-normalize'
+import { extensionFromMime } from '@modules/drive/lib/format'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
 import { extractEchoMetadata } from '@modules/messaging/service/echo-metadata'
 import { updateDeliveryStatus } from '@modules/messaging/service/messages'
@@ -127,14 +128,25 @@ export async function dispatchInbound(
     // seam. The channel adapter (e.g. WA) eagerly downloaded these via
     // `cachedDownloader` and dropped any oversized items already; the seam
     // is documented on `CreateInboundMessageInput.attachments`.
+    //
+    // WhatsApp omits `filename` for media-typed messages (only `document`
+    // carries one), so the synthesized fallback uses the wamid for traceability
+    // and appends a mime-derived extension when present. Without the extension
+    // the OS can't open the downloaded file and the drive view shows opaque
+    // base64-looking names.
     const attachments = event.media
       ?.filter((m) => m.data && (m.sizeBytes ?? m.data.length) > 0)
-      .map((m, idx) => ({
-        bytes: m.data,
-        name: m.filename ?? `${event.messageId}-${idx}`,
-        mimeType: m.mimeType,
-        sizeBytes: m.sizeBytes ?? m.data.length,
-      }))
+      .map((m, idx) => {
+        const stem = `${event.messageId}-${idx}`
+        const ext = extensionFromMime(m.mimeType)
+        const fallback = ext ? `${stem}.${ext}` : stem
+        return {
+          bytes: m.data,
+          name: m.filename ?? fallback,
+          mimeType: m.mimeType,
+          sizeBytes: m.sizeBytes ?? m.data.length,
+        }
+      })
 
     const threadKey = adapter.resolveThreadKey?.(event) ?? 'default'
 
@@ -175,6 +187,15 @@ export async function dispatchInbound(
 
     // Echoes never wake the agent — they are staff-authored, not customer-driven.
     if (!isEcho && result.isNew) {
+      // Empty → undefined so text-only inbound cues stay byte-identical to
+      // the pre-attachments shape (frozen-snapshot `systemHash` invariant).
+      const inboundAttachments = result.message.attachments?.length
+        ? result.message.attachments.map((a) => ({
+            path: a.path,
+            mimeType: a.mimeType,
+            sizeBytes: a.sizeBytes,
+          }))
+        : undefined
       // Trailing-edge debounce: singletonKey collisions reset the scheduler
       // timer so a burst coalesces into one wake (see `buildJobQueue` in
       // `runtime/bootstrap.ts`).
@@ -190,6 +211,7 @@ export async function dispatchInbound(
             conversationId: result.conversation.id,
             messageIds: [result.message.id],
             body: event.content,
+            attachments: inboundAttachments,
           },
         },
         {

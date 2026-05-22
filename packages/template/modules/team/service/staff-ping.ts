@@ -22,6 +22,7 @@ import {
   templateNameFor,
 } from '@modules/integrations/service/notification-template-payloads'
 import type { InternalNote } from '@modules/messaging/schema'
+import { getConversationContactId } from '@modules/messaging/service/conversations'
 import {
   type NotificationSuppressionReason,
   recordNotificationSent,
@@ -278,21 +279,21 @@ export function urlToSuffix(url: string): string {
 }
 
 /**
- * Build the `RedirectRefs` argument for `redirectPathFor` from a kind + ping params.
- * Used by the mention fan-out (where params are different) AND by `staffPing`.
+ * Build the `RedirectRefs` argument for `redirectPathFor` from a kind + ping refs.
+ *
+ * Conversation-scoped kinds deep-link into the inbox by CONTACT id (the
+ * `/inbox/$contactId` route) — callers resolve `contactId` from the
+ * conversation before invoking this (see `getConversationContactId`). A null
+ * `contactId` falls back to `/inbox`. `admin_alert` carries no conversation.
  */
-export function buildRedirectRefs(
-  kind: PingKind,
-  refs: { conversationId: string | null; referenceId: string; approvalId?: string; proposalId?: string },
-): RedirectRefs {
-  const convId = refs.conversationId ?? ''
+export function buildRedirectRefs(kind: PingKind, refs: { contactId: string | null }): RedirectRefs {
   switch (kind) {
     case 'mention':
-      return { kind: 'mention', conversationId: convId }
+      return { kind: 'mention', contactId: refs.contactId ?? '' }
     case 'approval':
-      return { kind: 'approval', conversationId: convId, approvalId: refs.approvalId ?? refs.referenceId }
+      return { kind: 'approval', contactId: refs.contactId ?? '' }
     case 'proposal':
-      return { kind: 'proposal', conversationId: convId, proposalId: refs.proposalId ?? refs.referenceId }
+      return { kind: 'proposal', contactId: refs.contactId ?? '' }
     case 'admin_alert':
       return { kind: 'admin_alert' }
   }
@@ -609,12 +610,10 @@ export function createMentionNotifyService(deps: MentionNotifyDeps): MentionNoti
     if (auth && profile.userId) {
       const userRow = await resolveUserEmail(deps.db, profile.userId)
       if (userRow) {
-        const refs = buildRedirectRefs(kind, {
-          conversationId: params.conversationId ?? null,
-          referenceId: params.referenceId ?? '',
-          approvalId: params.approvalId,
-          proposalId: params.proposalId,
-        })
+        // The inbox deep link is keyed by contactId — resolve it from the
+        // conversation before building the redirect refs.
+        const contactId = params.conversationId ? await getConversationContactId(deps.db, params.conversationId) : null
+        const refs = buildRedirectRefs(kind, { contactId })
         const redirectPath = redirectPathFor(refs)
         const mintResult = await mintMagicLink(auth, deps.db as ScopedDb, {
           userId: profile.userId,

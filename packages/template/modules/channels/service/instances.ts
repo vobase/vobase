@@ -44,7 +44,13 @@ export interface UpdateInstanceInput {
 export const RELEASED_STATUS = 'released' as const
 
 export interface ChannelInstancesService {
-  list(organizationId: string, channel?: string): Promise<ChannelInstance[]>
+  /**
+   * List instances for an org. Soft-deleted (`status='released'`) rows are
+   * hidden unless `opts.includeReleased` is set — callers that re-resolve a
+   * channel for reconnection need to see released rows so they can reactivate
+   * them instead of inserting a duplicate.
+   */
+  list(organizationId: string, channel?: string, opts?: { includeReleased?: boolean }): Promise<ChannelInstance[]>
   get(id: string): Promise<ChannelInstance | null>
   create(input: CreateInstanceInput): Promise<ChannelInstance>
   update(id: string, organizationId: string, patch: UpdateInstanceInput): Promise<ChannelInstance>
@@ -63,14 +69,17 @@ export interface ChannelInstancesService {
 export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelInstancesService {
   const { db } = deps
 
-  async function list(organizationId: string, channel?: string): Promise<ChannelInstance[]> {
-    // Hide soft-deleted rows. Released channels still exist (to preserve
-    // conversation FKs) but should not surface in the channels listing
-    // or the managed-claim idempotency probe.
-    const baseWhere = and(
-      eq(channelInstances.organizationId, organizationId),
-      ne(channelInstances.status, RELEASED_STATUS),
-    )
+  async function list(
+    organizationId: string,
+    channel?: string,
+    opts?: { includeReleased?: boolean },
+  ): Promise<ChannelInstance[]> {
+    // Hide soft-deleted rows by default. Released channels still exist (to
+    // preserve conversation FKs) but should not surface in the channels
+    // listing or the managed-claim idempotency probe. `includeReleased`
+    // opts back in for reconnection probes that need to reactivate them.
+    const orgWhere = eq(channelInstances.organizationId, organizationId)
+    const baseWhere = opts?.includeReleased ? orgWhere : and(orgWhere, ne(channelInstances.status, RELEASED_STATUS))
     const where = channel ? and(baseWhere, eq(channelInstances.channel, channel)) : baseWhere
     const rows = await db.select().from(channelInstances).where(where)
     return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -153,8 +162,12 @@ function current(): ChannelInstancesService {
   return _current
 }
 
-export function listInstances(organizationId: string, channel?: string): Promise<ChannelInstance[]> {
-  return current().list(organizationId, channel)
+export function listInstances(
+  organizationId: string,
+  channel?: string,
+  opts?: { includeReleased?: boolean },
+): Promise<ChannelInstance[]> {
+  return current().list(organizationId, channel, opts)
 }
 export function getInstance(id: string): Promise<ChannelInstance | null> {
   return current().get(id)

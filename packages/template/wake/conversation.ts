@@ -83,15 +83,6 @@ export interface ConversationWakeConfigInput {
 
 export type WakeConfig = Parameters<typeof import('@vobase/core').createHarness<WakeTrigger>>[0]
 
-/** Tools dropped from the registry on all staff_note wakes (default-deny). */
-// Staff-note default-deny set. `send_file` is intentionally NOT included:
-// a staff @-mention is a clear directive when the artefact (drive file id or
-// public URL) is already named, and the tool still goes through
-// `requiresApproval: true`. `reply_contact` / `send_card` stay banned because
-// their content is agent-authored and risks pushing a customer message that
-// staff only intended as coaching.
-const CUSTOMER_FACING_TOOL_NAMES = new Set(['reply_contact', 'send_card'])
-
 export async function conversationWakeConfig(input: ConversationWakeConfigInput): Promise<WakeConfig> {
   const { data, conv, agentId, agentDefinition, contributions, deps } = input
 
@@ -113,10 +104,9 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   })
 
   // Tool guidance section in AGENTS.md reflects the conversation-lane catalogue
-  // — same set the wake's harness will see (staff-note's `audience`
-  // filter is a runtime exception not surfaced here). Tools opt into the lane
-  // via their `lane` field; `'both'` enrols a tool into both lanes (e.g. add_note).
-  const laneToolsAll = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
+  // — the same set the wake's harness sees. Tools opt into the lane via their
+  // `lane` field; `'both'` enrols a tool into both lanes (e.g. add_note).
+  const laneTools = contributions.tools.filter((t) => t.lane === 'conversation' || t.lane === 'both')
 
   const trigger: WakeTrigger =
     input.triggerOverride ??
@@ -131,18 +121,6 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
   // every other conversation-lane trigger (staff_note, approval, scheduled,
   // manual) is staff-initiated.
   const audienceTier: 'staff' | 'contact' = trigger.trigger === 'inbound_message' ? 'contact' : 'staff'
-
-  // Default-deny on staff_note wakes: drop reply / send_card / send_file
-  // from the registry, regardless of assignee or note body. Staff
-  // notes are internal coaching — never an instruction to push a customer
-  // message. If staff want the agent to message the customer, they either
-  // type the reply themselves, or wait for the customer's next inbound which
-  // fires an `inbound_message` wake with the full tool set + the coaching
-  // already in INTERNAL-NOTES.md as context. Soft constraints (prompts, cue
-  // prose, self-anchor) cannot break dominant in-context patterns; the only
-  // reliable fix is removing the tool from the registry.
-  const isStaffNoteWake = trigger.trigger === 'staff_note'
-  const laneTools = isStaffNoteWake ? laneToolsAll.filter((t) => !CUSTOMER_FACING_TOOL_NAMES.has(t.name)) : laneToolsAll
 
   const wakeCtx: WakeContext = {
     organizationId: data.organizationId,

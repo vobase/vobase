@@ -25,6 +25,7 @@ import { createChannelsState, installChannelsState, type JobQueue } from '@modul
 import { createRateLimiter } from '@vobase/core'
 import { eq, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { SignJWT } from 'jose'
 
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import whatsappSignupRoutes from './whatsapp-signup'
@@ -450,4 +451,133 @@ describe('POST /signup/exchange — rate limit', () => {
     })
     expect(res.status).toBe(201)
   }, 60_000)
+})
+
+// ─── Platform-handoff callback (GET /signup/callback) ────────────────────────
+
+const PLATFORM_HMAC_SECRET = 'test-platform-hmac-secret-at-least-32-chars'
+
+const VALID_HANDOFF_WA = {
+  accessToken: 'EAA-handoff-token',
+  wabaId: TEST_WABA_ID,
+  phoneNumberId: TEST_PHONE_NUMBER_ID,
+  displayPhoneNumber: '+65 9123 4567',
+  appId: '1234567890',
+  appSecret: 'handoff-app-secret',
+  apiVersion: 'v22.0',
+  coexistence: true,
+} as const
+
+/** Sign a platform-handoff JWT exactly as `signWhatsAppHandoffJwt` does. */
+function signHandoff(
+  secret: string,
+  nonce: string,
+  wa: Record<string, unknown>,
+  opts: { kind?: string } = {},
+): Promise<string> {
+  return new SignJWT({ kind: opts.kind ?? 'whatsapp-signup', wa, nonce })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject('test-tenant')
+    .setAudience('http://localhost:3001')
+    .setIssuedAt()
+    .setExpirationTime('300s')
+    .sign(new TextEncoder().encode(secret))
+}
+
+function signupApp(sessionId: string): Hono {
+  return buildApp({ organizationId: TEST_ORG_ID, userId: TEST_USER_ID, sessionId })
+}
+
+// biome-ignore lint/suspicious/useAwait: async keeps the return type Promise<Response> (app.request is Response | Promise<Response>)
+async function getCallback(app: Hono, handoff: string): Promise<Response> {
+  return app.request(`/api/channels/whatsapp/signup/callback?handoff=${encodeURIComponent(handoff)}`, {
+    method: 'GET',
+  })
+}
+
+describe('GET /signup/callback — platform handoff', () => {
+  it('verifies the JWT + nonce, persists a self-mode channel, redirects to /channels', async () => {
+    if (!dbHandle) return
+    setEnv('PLATFORM_HMAC_SECRET', PLATFORM_HMAC_SECRET)
+    const app = signupApp(TEST_SESSION_ID_A)
+    const nonce = await startNonce(app)
+    const handoff = await signHandoff(PLATFORM_HMAC_SECRET, nonce, { ...VALID_HANDOFF_WA })
+    const res = await getCallback(app, handoff)
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe('/channels')
+
+    const rows = await dbHandle.db
+      .select()
+      .from(channelInstances)
+      .where(eq(channelInstances.organizationId, TEST_ORG_ID))
+    expect(rows).toHaveLength(1)
+    const cfg = rows[0]?.config as Record<string, unknown>
+    expect(cfg.mode).toBe('self')
+    expect(cfg.wabaId).toBe(TEST_WABA_ID)
+    // Both secrets are envelope-encrypted at rest — no plaintext in config.
+    expect(cfg.accessTokenEnvelope).toBeDefined()
+    expect(cfg.appSecretEnvelope).toBeDefined()
+    expect(cfg.appSecret).toBeUndefined()
+    const serialized = JSON.stringify(cfg)
+    expect(serialized).not.toContain('EAA-handoff-token')
+    expect(serialized).not.toContain('handoff-app-secret')
+  })
+
+  it('rejects a JWT signed with the wrong secret — redirects with wa_error, no row', async () => {
+    if (!dbHandle) return
+    setEnv('PLATFORM_HMAC_SECRET', PLATFORM_HMAC_SECRET)
+    const app = signupApp(TEST_SESSION_ID_A)
+    const nonce = await startNonce(app)
+    const handoff = await signHandoff('wrong-secret-wrong-secret-wrong-secret', nonce, { ...VALID_HANDOFF_WA })
+    const res = await getCallback(app, handoff)
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toContain('wa_error=invalid_handoff')
+    const rows = await dbHandle.db
+      .select()
+      .from(channelInstances)
+      .where(eq(channelInstances.organizationId, TEST_ORG_ID))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('rejects a replayed handoff — the nonce is single-use', async () => {
+    if (!dbHandle) return
+    setEnv('PLATFORM_HMAC_SECRET', PLATFORM_HMAC_SECRET)
+    const app = signupApp(TEST_SESSION_ID_A)
+    const nonce = await startNonce(app)
+    const handoff = await signHandoff(PLATFORM_HMAC_SECRET, nonce, { ...VALID_HANDOFF_WA })
+
+    const first = await getCallback(app, handoff)
+    expect(first.status).toBe(302)
+    expect(first.headers.get('location')).toBe('/channels')
+
+    const replay = await getCallback(app, handoff)
+    expect(replay.status).toBe(302)
+    expect(replay.headers.get('location')).toContain('wa_error=invalid_handoff')
+
+    const rows = await dbHandle.db
+      .select()
+      .from(channelInstances)
+      .where(eq(channelInstances.organizationId, TEST_ORG_ID))
+    expect(rows).toHaveLength(1)
+  })
+
+  it('rejects a handoff redeemed by a different session than the one that minted the nonce', async () => {
+    if (!dbHandle) return
+    setEnv('PLATFORM_HMAC_SECRET', PLATFORM_HMAC_SECRET)
+    // Nonce minted under session A...
+    const nonce = await startNonce(signupApp(TEST_SESSION_ID_A))
+    const handoff = await signHandoff(PLATFORM_HMAC_SECRET, nonce, { ...VALID_HANDOFF_WA })
+    // ...redeemed under session B → the (org, session)-bound nonce won't consume.
+    const res = await getCallback(signupApp(TEST_SESSION_ID_B), handoff)
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toContain('wa_error=invalid_handoff')
+    const rows = await dbHandle.db
+      .select()
+      .from(channelInstances)
+      .where(eq(channelInstances.organizationId, TEST_ORG_ID))
+    expect(rows).toHaveLength(0)
+  })
 })

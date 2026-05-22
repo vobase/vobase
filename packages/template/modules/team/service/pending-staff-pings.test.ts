@@ -12,6 +12,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 import { pendingStaffPings } from '@modules/team/schema'
+import { eq } from 'drizzle-orm'
 
 import { connectTestDb, resetAndSeedDb, type TestDbHandle } from '../../../tests/helpers/test-db'
 import {
@@ -127,6 +128,24 @@ describe('pending-staff-pings', () => {
       const correct = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
       expect(correct.status).toBe('claimed')
     })
+
+    it('allowCountAware:false suppresses the count-aware rung — a sole live ping is left unclaimed', async () => {
+      await recordPing({
+        conversationId: CONV_1,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_1,
+        originalNoteId: NOTE_1,
+        kind: 'mention',
+      })
+      // A plain text reply (no wamid) gates the count-aware rung off — the
+      // sole live ping is NOT claimed, so the caller opens an operator thread.
+      const gated = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A, allowCountAware: false })
+      expect(gated.status).toBe('none')
+      // The ping is still live — a button tap (allowCountAware:true) claims it.
+      const allowed = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A, allowCountAware: true })
+      expect(allowed.status).toBe('claimed')
+    })
   })
 
   describe('exact wamid match (reply gesture)', () => {
@@ -159,6 +178,39 @@ describe('pending-staff-pings', () => {
       const rest = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A })
       expect(rest.status).toBe('claimed')
       if (rest.status === 'claimed') expect(rest.ping.conversationId).toBe(CONV_1)
+    })
+
+    it('claims an exact-wamid ping even when it is older than the TTL', async () => {
+      // Older notification for CONV_1 — aged past the 30-minute TTL below.
+      await recordPing({
+        conversationId: CONV_1,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_1,
+        originalNoteId: NOTE_1,
+        kind: 'mention',
+        outboundWamid: 'wamid-old',
+      })
+      await db.db
+        .update(pendingStaffPings)
+        .set({ createdAt: new Date(Date.now() - PING_TTL_MS - 60_000) })
+        .where(eq(pendingStaffPings.outboundWamid, 'wamid-old'))
+      // A fresh notification for a different conversation. Without the
+      // exact-wamid rung, the count-aware rung would claim THIS one — landing
+      // the staff member's answer in the wrong (latest) conversation.
+      await recordPing({
+        conversationId: CONV_2,
+        staffUserId: STAFF_X,
+        organizationId: ORG_A,
+        askingAgentId: AGENT_2,
+        originalNoteId: NOTE_2,
+        kind: 'mention',
+        outboundWamid: 'wamid-new',
+      })
+      // Quote-reply to the OLD notification must route back to CONV_1.
+      const result = await claimPing({ staffUserId: STAFF_X, organizationId: ORG_A, outboundWamid: 'wamid-old' })
+      expect(result.status).toBe('claimed')
+      if (result.status === 'claimed') expect(result.ping.conversationId).toBe(CONV_1)
     })
 
     it('falls through to count-aware when the wamid does not match', async () => {

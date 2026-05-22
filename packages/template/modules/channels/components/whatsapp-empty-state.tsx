@@ -33,9 +33,6 @@ export function WhatsAppEmptyState({ onConnected, onAddWebChannel }: WhatsAppEmp
           </button>{' '}
           instead.
         </p>
-        <p className="mt-1 text-center text-muted-foreground text-xs">
-          Platform sandbox numbers appear here automatically for new tenants.
-        </p>
       </EmptyContent>
     </Empty>
   )

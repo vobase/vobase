@@ -17,6 +17,7 @@ const RESOURCE_KIND_LABELS: Record<string, string> = {
   'agents:learned_skill': 'Agent skill',
   'agents:schedule': 'Agent schedule',
   'contacts:contact': 'Contact',
+  'contacts:contact_memory': 'Contact memory',
   'drive:doc': 'Document',
   'drive:file': 'File',
   'messaging:label': 'Conversation label',
@@ -51,6 +52,11 @@ export function getHeadlineParts(proposal: ChangeProposalInboxItem): HeadlinePar
       // the visible label — "Sentinel's Memory" is enough since each agent has
       // exactly one memory store.
       return { kind: 'owned-resource', ownerToken: `agent:${resourceId}`, ownerLabel: 'Memory', resourceName: null }
+    case 'contacts:contact_memory':
+      // Same shape as agent memory — resource id is the contact id, one
+      // memory store per contact, so "Liam's Memory" reads better than the
+      // raw `ctt00liam0` token.
+      return { kind: 'owned-resource', ownerToken: `contact:${resourceId}`, ownerLabel: 'Memory', resourceName: null }
     case 'agents:learned_skill':
       // Skill slug stays useful (e.g. "escalate-vip-when-stuck"). Owning agent
       // isn't encoded in resource id, so use the proposer when it's an agent;
@@ -75,6 +81,26 @@ export function getHeadlineParts(proposal: ChangeProposalInboxItem): HeadlinePar
         resourceName: resourceId,
       }
   }
+}
+
+/** Filename shown in the diff header for a markdown_patch proposal. Resolves
+ *  to the actual on-disk name when we can name it (drive basename, MEMORY.md
+ *  for memory stores, `<slug>.md` for learned skills) and falls back to
+ *  `<field>.md` for unrecognised shapes. */
+export function diffFileName(
+  resource: { resourceModule: string; resourceType: string; resourceId: string },
+  field: string,
+): string {
+  const { resourceModule, resourceType, resourceId } = resource
+  if (resourceModule === 'drive') {
+    const basename = resourceId.split('/').filter(Boolean).pop()
+    if (basename) return basename
+  }
+  const key = `${resourceModule}:${resourceType}`
+  if (key === 'agents:agent_memory' || key === 'contacts:contact_memory') return 'MEMORY.md'
+  if (key === 'agents:agent' && field === 'workingMemory') return 'MEMORY.md'
+  if (key === 'agents:learned_skill') return `${resourceId}.md`
+  return `${field}.md`
 }
 
 /** Plain-English noun for a `(module, type)` pair, e.g. "Agent memory". Falls

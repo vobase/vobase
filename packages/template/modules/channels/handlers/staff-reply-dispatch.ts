@@ -11,15 +11,17 @@
  *      `pendingApprovals.decide` / `proposals.decideChangeProposal`. The decide
  *      path emits `approval_decided` / `proposal_decided` so the wake chain
  *      fires automatically — no separate addNote.
- *   A. ask-staff-answer — `claimPing` resolves the inbound to a single pending
- *      mention ping (exact `context.id` wamid match, or the staff member's sole
- *      live ping). Appends a staff-authored internal note carrying
- *      `mentions: ['agent:<askingAgentId>']`; the existing `addNote` post-commit
- *      fan-out enqueues a wake for the asking agent.
+ *   A. ask-staff-answer — a quote-reply (`context.id`) resolves to a pending
+ *      mention ping by exact wamid match. Appends a staff-authored internal
+ *      note carrying `mentions: ['agent:<askingAgentId>']`; the existing
+ *      `addNote` post-commit fan-out enqueues a wake for the asking agent.
+ *      A plain text reply never reaches this branch — it is not a quote, so it
+ *      claims no ping and falls through to the operator thread (Branch B).
  *   B. operator-thread — no single ping resolved: enqueue/append into the
- *      operator chat thread for the org's default operator agent (per-org
- *      default via `getOrgSetting('defaultOperatorAgentId')`, fallback to oldest
- *      enabled agent). When the claim was `ambiguous` (the staff member has ≥2
+ *      operator chat thread. A NEW thread's agent is resolved by priority:
+ *      the notification channel's `defaultAssignee` (set on /channels) → the
+ *      `getOrgSetting('defaultOperatorAgentId')` org default → the oldest
+ *      enabled agent. When the claim was `ambiguous` (the staff member has ≥2
  *      live pings and didn't quote one), a `system` message is appended telling
  *      the operator agent the reply could not be auto-routed.
  */
@@ -28,6 +30,7 @@ import { authUser } from '@auth/schema'
 import { agentDefinitions, operatorThreads } from '@modules/agents/schema'
 import { requireJobs } from '@modules/agents/service/state'
 import { threads as threadsApi } from '@modules/agents/service/threads'
+import { findNotificationChannel } from '@modules/channels/service/instances'
 import { internalNotes } from '@modules/messaging/schema'
 import { addNote } from '@modules/messaging/service/notes'
 import { getOrgSetting } from '@modules/settings/service/org-settings'
@@ -187,12 +190,15 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   if (!staff) return { ok: true, branch: 'unmatched_staff' }
 
   // ─── Branch A — ask-staff-answer ─────────────────────────────────────────
-  // Ladder: exact `context.id` wamid match → the staff member's sole live ping.
-  // (Buttons don't carry `context.id`; rely on the sole-live-ping rung.)
+  // A ping is claimed only by an exact `context.id` wamid match (a quote-reply)
+  // or a button tap. A plain text reply never claims a ping — `allowCountAware`
+  // is false for it, so it falls through to an operator thread (Branch B).
+  // Buttons carry no `context.id`, so they rely on the count-aware rung.
   const claim = await claimPing({
     staffUserId: staff.userId,
     organizationId,
     outboundWamid: msg.context?.id,
+    allowCountAware: Boolean(buttonMatch),
   })
 
   // ─── Branch 0 — decision-route ───────────────────────────────────────────
@@ -259,7 +265,35 @@ export async function dispatchStaffReply(input: StaffReplyInput): Promise<StaffR
   // A quote-reply (`context.id` present) that resolved no ping means the
   // quoted notification's ping expired or was already claimed.
   const staleQuote = claim.status === 'none' && Boolean(msg.context?.id)
-  let agentId: string | null = await getOrgSetting(organizationId, 'defaultOperatorAgentId')
+  // Resolve the operator-thread agent. Priority:
+  //   1. The notification channel's `defaultAssignee` (the agent an operator
+  //      picks on the /channels page) — when it names an agent that still
+  //      exists and is enabled in this org.
+  //   2. The org's `defaultOperatorAgentId` setting.
+  //   3. The oldest enabled agent.
+  let agentId: string | null = null
+  const notifChannel = await findNotificationChannel(organizationId)
+  const assigneeToken =
+    typeof notifChannel?.config?.defaultAssignee === 'string' ? notifChannel.config.defaultAssignee : null
+  const assigneeAgentId = assigneeToken?.startsWith('agent:') ? assigneeToken.slice('agent:'.length) : null
+  if (assigneeAgentId) {
+    // Validate the configured assignee still resolves to a live agent — a
+    // stale `defaultAssignee` (agent deleted/disabled) must fall through
+    // rather than create a thread whose wake can never run.
+    const [row] = await db
+      .select({ id: agentDefinitions.id })
+      .from(agentDefinitions)
+      .where(
+        and(
+          eq(agentDefinitions.id, assigneeAgentId),
+          eq(agentDefinitions.organizationId, organizationId),
+          eq(agentDefinitions.enabled, true),
+        ),
+      )
+      .limit(1)
+    agentId = row?.id ?? null
+  }
+  if (!agentId) agentId = await getOrgSetting(organizationId, 'defaultOperatorAgentId')
   if (!agentId) {
     const [first] = await db
       .select({ id: agentDefinitions.id })

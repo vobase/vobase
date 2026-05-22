@@ -26,6 +26,20 @@ export function useContactsList() {
   })
 }
 
+/** Single contact detail. Keyed under `['contacts', …]` so the realtime
+ *  `contacts`-table invalidation refreshes it when the agent edits memory. */
+export function useContact(id: string | null | undefined) {
+  return useQuery({
+    queryKey: contactsKeys.detail(id ?? 'none'),
+    queryFn: async (): Promise<Contact> => {
+      const r = await contactsClient[':id'].$get({ param: { id: id as string } })
+      if (!r.ok) throw new Error(`contact fetch failed: ${r.status}`)
+      return (await r.json()) as unknown as Contact
+    },
+    enabled: Boolean(id),
+  })
+}
+
 export interface ContactFormPayload {
   displayName?: string | null
   email?: string | null

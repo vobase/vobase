@@ -38,7 +38,14 @@ export interface WhatsappInstanceConfig {
   displayPhoneNumber?: string
   appId?: string
   apiVersion?: string
+  /**
+   * Plaintext Meta App Secret. Retained only for dev/seeded rows and the
+   * adapter's env fallback — production signup paths persist
+   * `appSecretEnvelope` instead and never write this field.
+   */
   appSecret?: string
+  /** Envelope-encrypted Meta App Secret — the at-rest form written by signup. */
+  appSecretEnvelope?: EncryptedAccessTokenBlob
   webhookVerifyToken?: string
   accessTokenEnvelope?: EncryptedAccessTokenBlob
 }
@@ -77,6 +84,19 @@ export function decryptInstanceAccessToken(config: WhatsappInstanceConfig): stri
     throw new Error('whatsapp/instance-config: missing or malformed accessTokenEnvelope')
   }
   return decryptSecretEnvelope(decodeAccessTokenEnvelope(config.accessTokenEnvelope))
+}
+
+/**
+ * Decrypt the envelope-encrypted Meta App Secret. Returns `null` when the row
+ * carries no `appSecretEnvelope` — dev/seeded rows that inline a plaintext
+ * `appSecret`, or rows predating envelope-encrypted appSecret — so callers can
+ * fall back to `config.appSecret` / env.
+ */
+export function decryptInstanceAppSecret(config: Pick<WhatsappInstanceConfig, 'appSecretEnvelope'>): string | null {
+  if (!config.appSecretEnvelope || config.appSecretEnvelope.marker !== ENCRYPTED_ACCESS_TOKEN_MARKER) {
+    return null
+  }
+  return decryptSecretEnvelope(decodeAccessTokenEnvelope(config.appSecretEnvelope))
 }
 
 const DEFAULT_API_VERSION = 'v22.0'
@@ -135,6 +155,10 @@ export function parseWhatsappInstanceConfig(raw: unknown): WhatsappInstanceConfi
     appId: typeof cfg.appId === 'string' ? cfg.appId : undefined,
     apiVersion: typeof cfg.apiVersion === 'string' ? cfg.apiVersion : undefined,
     appSecret: typeof cfg.appSecret === 'string' ? cfg.appSecret : undefined,
+    appSecretEnvelope:
+      cfg.appSecretEnvelope && typeof cfg.appSecretEnvelope === 'object'
+        ? (cfg.appSecretEnvelope as EncryptedAccessTokenBlob)
+        : undefined,
     webhookVerifyToken: typeof cfg.webhookVerifyToken === 'string' ? cfg.webhookVerifyToken : undefined,
     accessTokenEnvelope:
       cfg.accessTokenEnvelope && typeof cfg.accessTokenEnvelope === 'object'
