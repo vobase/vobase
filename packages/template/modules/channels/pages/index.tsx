@@ -53,9 +53,60 @@ import { ConnectWhatsAppSheet } from '../components/connect-whatsapp-sheet'
 import { WebChannelDetailsSheet } from '../components/web-channel-details-sheet'
 import { WhatsAppEmptyState } from '../components/whatsapp-empty-state'
 
+const platformUrl = import.meta.env.VITE_PLATFORM_URL
+const platformTenantSlug = import.meta.env.VITE_PLATFORM_TENANT_SLUG
+
 // Gates the "Platform sandbox" Add-channel item — without a configured
 // platform there's nothing to claim from, and the menu item would just 503.
-const PLATFORM_CONFIGURED = Boolean(import.meta.env.VITE_PLATFORM_URL)
+const PLATFORM_CONFIGURED = Boolean(platformUrl)
+
+// When the tenant is platform-wired, WhatsApp onboarding redirects to the
+// platform's Facebook signup entry point. The platform owns the Meta app —
+// only it holds the appId / configId / appSecret needed to drive FB.login and
+// exchange the returned code — so a platform-wired tenant cannot run the
+// in-tenant Embedded Signup (whatsapp-signup-button.tsx), which expects
+// META_APP_ID / META_APP_CONFIG_ID_* / META_APP_SECRET set locally. That
+// in-tenant flow stays as the fallback for non-platform deployments.
+const PLATFORM_WHATSAPP_SIGNUP_AVAILABLE = Boolean(platformUrl && platformTenantSlug)
+
+/**
+ * Full-page redirect to the platform's WhatsApp Embedded Signup page. The
+ * platform exchanges the Facebook code and 302s the browser to this tenant's
+ * `/api/channels/whatsapp/signup/callback` with a short-lived signed handoff
+ * token; that callback persists the channel and lands the user back on
+ * `/channels`. Mirrors `redirectToPlatformOAuth` in `src/shell/auth/login.tsx`:
+ * allow `http://localhost` for dev, require `https://` otherwise.
+ */
+async function redirectToPlatformWhatsAppSignup(): Promise<void> {
+  const isLocalhost = typeof platformUrl === 'string' && /^http:\/\/localhost(:\d+)?/.test(platformUrl)
+  const isHttps = typeof platformUrl === 'string' && platformUrl.startsWith('https://')
+  if (!isHttps && !isLocalhost) {
+    console.error('[channels] VITE_PLATFORM_URL must be https:// (or http://localhost for dev):', platformUrl)
+    return
+  }
+  // Mint a single-use nonce bound to this org + session. It rides through the
+  // platform and back inside the handoff JWT; the signup callback consumes it
+  // so a handoff can only be redeemed by the org/session that started it.
+  let nonce: string
+  try {
+    const res = await channelsClient.whatsapp.signup.start.$post()
+    if (!res.ok) throw new Error(`signup/start ${res.status}`)
+    nonce = ((await res.json()) as { nonce: string }).nonce
+  } catch (err) {
+    console.error('[channels] Failed to start WhatsApp signup:', err)
+    return
+  }
+  try {
+    // The platform builds the return callback URL from its own record of this
+    // tenant's instance URL, so only `tenant` + `nonce` travel on the wire.
+    const url = new URL('/api/oauth-proxy/whatsapp/signup', platformUrl)
+    url.searchParams.set('tenant', platformTenantSlug ?? '')
+    url.searchParams.set('nonce', nonce)
+    window.location.href = url.toString()
+  } catch (err) {
+    console.error('[channels] Failed to construct WhatsApp signup redirect URL:', err)
+  }
+}
 
 // ─── Web instance types + fetchers ──────────────────────────────────────────
 
@@ -362,6 +413,17 @@ export function ChannelsPage() {
     qc.invalidateQueries({ queryKey: ALL_INSTANCES_KEY })
   }
 
+  // WhatsApp onboarding: redirect to the platform's Facebook signup entry
+  // point when platform-wired; otherwise fall back to the in-tenant Embedded
+  // Signup sheet.
+  function handleConnectWhatsApp() {
+    if (PLATFORM_WHATSAPP_SIGNUP_AVAILABLE) {
+      void redirectToPlatformWhatsAppSignup()
+      return
+    }
+    setConnectWaOpen(true)
+  }
+
   // Synthetic "placeholder" rows for managed kinds the org hasn't claimed
   // yet. They render in the table with a "Connect" button so operators don't
   // have to discover the kind from a dropdown. Suppressed entirely when the
@@ -425,7 +487,7 @@ export function ChannelsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setConnectWaOpen(true)}>WhatsApp</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleConnectWhatsApp}>WhatsApp</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setCreateWebOpen(true)}>Web chat</DropdownMenuItem>
               {hasWhatsApp && wabaId && (
                 <>
