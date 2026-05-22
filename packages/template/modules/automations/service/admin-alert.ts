@@ -240,7 +240,7 @@ export async function dispatchAdminAlert(input: AdminAlertInput, opts: DispatchO
     for (const recipient of recipients) {
       let buttonUrlSuffix: string
       if (auth) {
-        const refs = buildRedirectRefs('admin_alert', { conversationId: null, referenceId: input.dedupKey })
+        const refs = buildRedirectRefs('admin_alert', { contactId: null })
         const redirectPath = redirectPathFor(refs)
         const mintResult = await mintMagicLink(auth, db, {
           userId: recipient.userId,

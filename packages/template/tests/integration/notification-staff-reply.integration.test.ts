@@ -21,7 +21,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { authUser } from '@auth/schema'
-import { operatorThreadMessages, operatorThreads } from '@modules/agents/schema'
+import { agentDefinitions, operatorThreadMessages, operatorThreads } from '@modules/agents/schema'
 import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
 import { __resetAgentsStateForTests, createAgentsState, installAgentsState } from '@modules/agents/service/state'
 import {
@@ -31,6 +31,11 @@ import {
 } from '@modules/agents/service/threads'
 import { dispatchStaffReply, type MetaInbound } from '@modules/channels/handlers/staff-reply-dispatch'
 import { channelInstances } from '@modules/channels/schema'
+import {
+  __resetChannelInstancesServiceForTests,
+  createChannelInstancesService,
+  installChannelInstancesService,
+} from '@modules/channels/service/instances'
 import { contacts } from '@modules/contacts/schema'
 import { conversations, internalNotes, messages } from '@modules/messaging/schema'
 import { __resetNotesServiceForTests, createNotesService, installNotesService } from '@modules/messaging/service/notes'
@@ -55,8 +60,14 @@ const STAFF_OPERATOR_USER = 'usr-staffreply-operator'
 const STAFF_OPERATOR_PHONE = '+6590000001'
 const STAFF_PING_USER = 'usr-staffreply-ping'
 const STAFF_PING_PHONE = '+6590000002'
+const STAFF_ASSIGNEE_USER = 'usr-staffreply-assignee'
+const STAFF_ASSIGNEE_PHONE = '+6590000003'
+const STAFF_STALE_USER = 'usr-staffreply-stale'
+const STAFF_STALE_PHONE = '+6590000004'
 const NOTIF_INSTANCE_ID = 'ci-staffreply-notif'
 const PING_CONVERSATION_ID = 'conv-staffreply-ping'
+/** A second enabled agent — the notification channel's `defaultAssignee` target. */
+const ASSIGNEE_AGENT_ID = 'agt-staffreply-howie'
 
 let handle: TestDbHandle
 let db: ScopedDb
@@ -94,6 +105,7 @@ beforeAll(async () => {
   installThreadsService(createThreadsService({ db }))
   installNotesService(createNotesService({ db }))
   installPendingStaffPingService(createPendingStaffPingService({ db }))
+  installChannelInstancesService(createChannelInstancesService({ db }))
 
   // Managed notification channel — the `whatsapp_notif` instance that forwards
   // staff replies to the dispatcher.
@@ -125,11 +137,35 @@ beforeAll(async () => {
       phoneNumber: STAFF_PING_PHONE,
       phoneNumberVerified: true,
     },
+    {
+      id: STAFF_ASSIGNEE_USER,
+      name: 'Adam Assignee',
+      email: 'adam.assignee@staffreply.test',
+      emailVerified: true,
+      phoneNumber: STAFF_ASSIGNEE_PHONE,
+      phoneNumberVerified: true,
+    },
+    {
+      id: STAFF_STALE_USER,
+      name: 'Stella Stale',
+      email: 'stella.stale@staffreply.test',
+      emailVerified: true,
+      phoneNumber: STAFF_STALE_PHONE,
+      phoneNumberVerified: true,
+    },
   ])
   await handle.db.insert(staffProfiles).values([
     { userId: STAFF_OPERATOR_USER, organizationId, displayName: 'Olivia Operator' },
     { userId: STAFF_PING_USER, organizationId, displayName: 'Patrick Pinged' },
+    { userId: STAFF_ASSIGNEE_USER, organizationId, displayName: 'Adam Assignee' },
+    { userId: STAFF_STALE_USER, organizationId, displayName: 'Stella Stale' },
   ])
+
+  // A second enabled agent so `defaultAssignee` routing can be distinguished
+  // from the oldest-enabled-agent fallback (which yields MeriGPT).
+  await handle.db
+    .insert(agentDefinitions)
+    .values({ id: ASSIGNEE_AGENT_ID, organizationId, name: 'Howie v2', enabled: true })
 
   // A conversation the pending ping points at — `internal_notes` has an FK to
   // `conversations.id`, so the ask-staff-answer note needs a real row.
@@ -151,6 +187,7 @@ afterAll(async () => {
   __resetThreadsServiceForTests()
   __resetNotesServiceForTests()
   __resetPendingStaffPingServiceForTests()
+  __resetChannelInstancesServiceForTests()
   if (handle) await handle.teardown()
 })
 
@@ -190,6 +227,56 @@ describe('dispatchStaffReply — forwarded staff replies on the managed notifica
     expect(customerMessages).toHaveLength(0)
   })
 
+  it('operator-thread branch: a new thread routes to the notification channel default assignee', async () => {
+    // Mirror an operator picking a "Default assignee" on the /channels page.
+    await handle.db
+      .update(channelInstances)
+      .set({
+        config: {
+          mode: 'managed',
+          kind: 'notification',
+          organizationId,
+          platformChannelId: 'plat-staffreply',
+          defaultAssignee: `agent:${ASSIGNEE_AGENT_ID}`,
+        },
+      })
+      .where(eq(channelInstances.id, NOTIF_INSTANCE_ID))
+
+    const result = await dispatchStaffReply({
+      db,
+      organizationId,
+      payload: makeInbound(STAFF_ASSIGNEE_PHONE, 'What is still open from last week?'),
+    })
+
+    expect(result.branch).toBe('operator_thread')
+    // Resolved via the channel `defaultAssignee`, not the oldest-agent fallback.
+    expect(result.agentId).toBe(ASSIGNEE_AGENT_ID)
+  })
+
+  it('operator-thread branch: a stale default assignee (missing agent) falls back to the oldest enabled agent', async () => {
+    await handle.db
+      .update(channelInstances)
+      .set({
+        config: {
+          mode: 'managed',
+          kind: 'notification',
+          organizationId,
+          platformChannelId: 'plat-staffreply',
+          defaultAssignee: 'agent:agt-does-not-exist',
+        },
+      })
+      .where(eq(channelInstances.id, NOTIF_INSTANCE_ID))
+
+    const result = await dispatchStaffReply({
+      db,
+      organizationId,
+      payload: makeInbound(STAFF_STALE_PHONE, 'Any updates for me?'),
+    })
+
+    expect(result.branch).toBe('operator_thread')
+    expect(result.agentId).toBe(MERIGPT_AGENT_ID)
+  })
+
   it('ask-staff-answer branch: a staff member with a live ping replies into an internal note mentioning the asking agent', async () => {
     // Seed a single live pending ping for this staff member.
     await handle.db.insert(pendingStaffPings).values({
@@ -223,7 +310,10 @@ describe('dispatchStaffReply — forwarded staff replies on the managed notifica
     expect(notes).toHaveLength(1)
     expect(notes[0]?.authorType).toBe('staff')
     expect(notes[0]?.authorId).toBe(STAFF_PING_USER)
-    expect(notes[0]?.body).toBe('Yes, refunds within 14 days — go ahead and tell the customer.')
+    // The dispatcher prepends an `@<author>` mention so the body-driven
+    // staff-note fan-out re-wakes the asking agent. With no original-note row
+    // seeded, `resolveNoteAuthorMention` falls back to the ping's asking agent.
+    expect(notes[0]?.body).toBe('@MeriGPT Yes, refunds within 14 days — go ahead and tell the customer.')
     expect(notes[0]?.mentions).toContain(`agent:${MERIGPT_AGENT_ID}`)
 
     // The ping was claimed (soft-deleted) — not left live.

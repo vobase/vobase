@@ -1,32 +1,16 @@
-import type { Contact } from '@modules/contacts/schema'
-import { useQuery } from '@tanstack/react-query'
-
-import { messagingClient } from '@/lib/api-client'
+import { useContact } from '@modules/contacts/hooks/use-contacts'
+import { Link } from '@tanstack/react-router'
+import { ArrowUpRight } from 'lucide-react'
 
 interface ProfilePanelProps {
-  conversationId: string
+  contactId: string
 }
 
-type ContactSlice = Pick<Contact, 'displayName' | 'phone' | 'email'>
-
-async function fetchConversationContact(id: string): Promise<{ contact?: ContactSlice }> {
-  const r = await messagingClient.conversations[':id'].$get({ param: { id } })
-  if (!r.ok) throw new Error('fetch failed')
-  return (await r.json()) as unknown as { contact?: ContactSlice }
-}
-
-export function ProfilePanel({ conversationId }: ProfilePanelProps) {
-  const { data } = useQuery({
-    queryKey: ['conversation', conversationId],
-    queryFn: () => fetchConversationContact(conversationId),
-    enabled: Boolean(conversationId),
-  })
-
-  const contact = data?.contact
+export function ProfilePanel({ contactId }: ProfilePanelProps) {
+  const { data: contact } = useContact(contactId)
 
   return (
     <div className="p-4">
-      <p className="mb-3 font-semibold text-[var(--color-fg-muted)] text-xs uppercase tracking-wider">Profile</p>
       <dl className="space-y-2">
         <div>
           <dt className="text-[var(--color-fg-muted)] text-xs">Name</dt>
@@ -41,6 +25,14 @@ export function ProfilePanel({ conversationId }: ProfilePanelProps) {
           <dd className="text-[var(--color-fg)] text-sm">{contact?.email ?? '—'}</dd>
         </div>
       </dl>
+      <Link
+        to="/contacts/$id"
+        params={{ id: contactId }}
+        className="mt-3 inline-flex items-center gap-1 text-primary text-xs hover:underline"
+      >
+        Open contact page
+        <ArrowUpRight className="size-3" />
+      </Link>
     </div>
   )
 }

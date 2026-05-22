@@ -5,16 +5,15 @@ import { PaneHeader } from '@/components/layout/pane-header'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-import { PendingApprovalsPanel } from './pending-approvals-panel'
+import { AttributesPanel } from './attributes-panel'
+import { ContactMemoryPanel } from './contact-memory-panel'
 import { ProfilePanel } from './profile-panel'
-import { RecentChangesPanel } from './recent-changes-panel'
-import { WorkingMemoryPanel } from './working-memory-panel'
 
-const SECTION_IDS = ['profile', 'working-memory', 'recent-changes', 'pending-approvals'] as const
+const SECTION_IDS = ['profile', 'attributes', 'memory'] as const
 type SectionId = (typeof SECTION_IDS)[number]
 
 interface ContextDrawerProps {
-  conversationId: string
+  contactId: string
 }
 
 function useCollapsedSections() {
@@ -31,7 +30,7 @@ function useCollapsedSections() {
   return { isCollapsed: (id: SectionId) => collapsed.has(id), toggle }
 }
 
-export function ContextDrawer({ conversationId }: ContextDrawerProps) {
+export function ContextDrawer({ contactId }: ContextDrawerProps) {
   const [, setCtx] = useQueryState('ctx')
   const { isCollapsed, toggle } = useCollapsedSections()
 
@@ -53,31 +52,18 @@ export function ContextDrawer({ conversationId }: ContextDrawerProps) {
           collapsed={isCollapsed('profile')}
           onToggle={() => toggle('profile')}
         >
-          <ProfilePanel conversationId={conversationId} />
+          <ProfilePanel contactId={contactId} />
         </DrawerSection>
         <DrawerSection
-          id="working-memory"
-          label="Working Memory"
-          collapsed={isCollapsed('working-memory')}
-          onToggle={() => toggle('working-memory')}
+          id="attributes"
+          label="Attributes"
+          collapsed={isCollapsed('attributes')}
+          onToggle={() => toggle('attributes')}
         >
-          <WorkingMemoryPanel conversationId={conversationId} />
+          <AttributesPanel contactId={contactId} />
         </DrawerSection>
-        <DrawerSection
-          id="recent-changes"
-          label="Recent Changes"
-          collapsed={isCollapsed('recent-changes')}
-          onToggle={() => toggle('recent-changes')}
-        >
-          <RecentChangesPanel conversationId={conversationId} />
-        </DrawerSection>
-        <DrawerSection
-          id="pending-approvals"
-          label="Pending Approvals"
-          collapsed={isCollapsed('pending-approvals')}
-          onToggle={() => toggle('pending-approvals')}
-        >
-          <PendingApprovalsPanel conversationId={conversationId} />
+        <DrawerSection id="memory" label="Memory" collapsed={isCollapsed('memory')} onToggle={() => toggle('memory')}>
+          <ContactMemoryPanel contactId={contactId} />
         </DrawerSection>
       </div>
     </div>

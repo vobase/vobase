@@ -20,16 +20,20 @@ describe('BODY_SCHEMAS exhaustiveness', () => {
 })
 
 describe('redirectPathFor', () => {
-  it('mention → /inbox/<conversationId>', () => {
-    expect(redirectPathFor({ kind: 'mention', conversationId: 'c1' })).toBe('/inbox/c1')
+  it('mention → /inbox/<contactId>', () => {
+    expect(redirectPathFor({ kind: 'mention', contactId: 'ct1' })).toBe('/inbox/ct1')
   })
 
-  it('approval → /inbox/<conversationId>/approvals/<approvalId>', () => {
-    expect(redirectPathFor({ kind: 'approval', conversationId: 'c1', approvalId: 'a1' })).toBe('/inbox/c1/approvals/a1')
+  it('approval → /inbox/<contactId>', () => {
+    expect(redirectPathFor({ kind: 'approval', contactId: 'ct1' })).toBe('/inbox/ct1')
   })
 
-  it('proposal → /inbox/<conversationId>/proposals/<proposalId>', () => {
-    expect(redirectPathFor({ kind: 'proposal', conversationId: 'c1', proposalId: 'p1' })).toBe('/inbox/c1/proposals/p1')
+  it('proposal → /inbox/<contactId>', () => {
+    expect(redirectPathFor({ kind: 'proposal', contactId: 'ct1' })).toBe('/inbox/ct1')
+  })
+
+  it('falls back to /inbox when contactId is empty', () => {
+    expect(redirectPathFor({ kind: 'mention', contactId: '' })).toBe('/inbox')
   })
 
   it('admin_alert → /automations', () => {

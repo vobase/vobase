@@ -17,7 +17,7 @@ import {
   ZapIcon,
 } from 'lucide-react'
 import type React from 'react'
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation'
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning'
@@ -69,6 +69,14 @@ type TimelineItem =
   | { kind: 'note'; at: Date; note: InternalNote }
   | { kind: 'activity'; at: Date; ev: ActivityEvent }
 
+/**
+ * How many timeline rows render on first paint. Long conversations otherwise
+ * build a very tall DOM, and the initial scroll-to-bottom has to travel that
+ * whole height — a visibly slow jump. Earlier rows stay one click away; they're
+ * already fetched, just not mounted.
+ */
+const INITIAL_VISIBLE_ITEMS = 30
+
 export function MessageThread({
   messages,
   notes = [],
@@ -89,11 +97,27 @@ export function MessageThread({
     ...activity.map((e) => ({ kind: 'activity' as const, at: new Date(e.ts), ev: e })),
   ].sort((a, b) => a.at.getTime() - b.at.getTime())
 
+  // Render only the most recent rows at first; reveal the rest on demand.
+  const [expanded, setExpanded] = useState(false)
+  const hiddenCount = expanded ? 0 : Math.max(0, items.length - INITIAL_VISIBLE_ITEMS)
+  const visibleItems = hiddenCount > 0 ? items.slice(hiddenCount) : items
+
   return (
-    <Conversation className="min-h-0 flex-1">
+    <Conversation className="min-h-0 flex-1" initial="instant">
       <ConversationContent className="gap-3 pb-12">
-        {items.map((item, idx) => {
-          const prev = idx > 0 ? items[idx - 1] : null
+        {hiddenCount > 0 && (
+          <div className="flex justify-center pb-1">
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="rounded-full border border-border bg-background px-3 py-1 text-muted-foreground text-xs hover:text-foreground"
+            >
+              Show {hiddenCount} earlier message{hiddenCount === 1 ? '' : 's'}
+            </button>
+          </div>
+        )}
+        {visibleItems.map((item, idx) => {
+          const prev = idx > 0 ? visibleItems[idx - 1] : null
           const showDivider = !prev || prev.at.toDateString() !== item.at.toDateString()
           const key =
             item.kind === 'message'

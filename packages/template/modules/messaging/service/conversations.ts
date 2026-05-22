@@ -875,6 +875,21 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
   }
 }
 
+/**
+ * Resolve a conversation's `contactId` from its id. Used by cross-module
+ * callers (team staff-ping, automations dispatcher) that build deep links into
+ * the inbox — the conversation-detail route is keyed by contactId, not
+ * conversationId. Returns null when the conversation row doesn't exist.
+ */
+export async function getConversationContactId(db: unknown, conversationId: string): Promise<string | null> {
+  const rows = (await (db as DbHandle)
+    .select({ contactId: conversations.contactId })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1)) as Array<{ contactId: string }>
+  return rows[0]?.contactId ?? null
+}
+
 let _currentConversationsService: ConversationsService | null = null
 
 export function installConversationsService(svc: ConversationsService): void {

@@ -21,6 +21,7 @@ import { shouldSuppress } from '@modules/automations/service/cooldown'
 import type { EventName, EventPayload } from '@modules/automations/service/registry'
 import { findNotificationChannel } from '@modules/channels/service/instances'
 import { redirectPathFor } from '@modules/integrations/service/notification-template-payloads'
+import { getConversationContactId } from '@modules/messaging/service/conversations'
 import { recordNotificationSent, recordNotificationSuppressed } from '@modules/messaging/service/notification-events'
 import { applyVerificationGating } from '@modules/team/service/mention-notify'
 import { find as findStaff } from '@modules/team/service/staff'
@@ -419,12 +420,12 @@ async function sendStaffPingNotification(args: StaffPingNotificationArgs): Promi
       // Email not found — fall back to bare conversation path (defensive).
       buttonUrlSuffix = eventPayload.conversationId ? `conversations/${eventPayload.conversationId}` : ''
     } else {
-      const refs = buildRedirectRefs(kind, {
-        conversationId: eventPayload.conversationId,
-        referenceId: kind === 'approval' ? (eventPayload.approvalId ?? '') : (eventPayload.proposalId ?? ''),
-        approvalId: eventPayload.approvalId,
-        proposalId: eventPayload.proposalId,
-      })
+      // The inbox deep link is keyed by contactId — resolve it from the
+      // conversation before building the redirect refs.
+      const contactId = eventPayload.conversationId
+        ? await getConversationContactId(deps.db, eventPayload.conversationId)
+        : null
+      const refs = buildRedirectRefs(kind, { contactId })
       try {
         const mintResult = await mintMagicLink(auth, deps.db, {
           userId: profile.userId,

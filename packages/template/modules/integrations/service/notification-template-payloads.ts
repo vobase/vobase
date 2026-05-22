@@ -14,7 +14,7 @@
  * | NAME    | `vobase_inbox_mention_v2`                                                                                          |
  * | BODY    | `New mention from _{{1}}_:\n\n*{{2}}*\n\nFrom the conversation inbox.`                                              |
  * | FOOTER  | `Reply to instruct the agent.`                                                                                     |
- * | BUTTONS | URL button — text: `Open chat`, url: `https://platform.vobase.dev/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/inbox/<conversationId>` (percent-encoded). |
+ * | BUTTONS | URL button — text: `Open chat`, url: `https://platform.vobase.dev/{{1}}`. Suffix {{1}} = `auth/magic?token=<token>&redirect=/inbox/<contactId>` (percent-encoded). |
  *
  * Body params: 1=agentName, 2=snippet.
  *
@@ -88,20 +88,26 @@ export const BODY_SCHEMAS = {
  * Per-kind redirect-path builder. Pure function of (kind, refs) — no Date.now,
  * no env reads — keeps the magic-link minting call site deterministic.
  */
+/**
+ * The conversation-detail route is `/inbox/$contactId` (keyed by CONTACT id —
+ * see `modules/messaging/pages/$contactId.tsx`). All three
+ * conversation-scoped kinds therefore deep-link to `/inbox/<contactId>`;
+ * pending approvals/proposals render inline in that thread. There is no nested
+ * `/inbox/<x>/approvals/<id>` or `/proposals/<id>` route. No query strings —
+ * `auth/magic-finish.ts` `SAFE_REDIRECT_RE` rejects `?`/`=`.
+ */
 export type RedirectRefs =
-  | { kind: 'mention'; conversationId: string }
-  | { kind: 'approval'; conversationId: string; approvalId: string }
-  | { kind: 'proposal'; conversationId: string; proposalId: string }
+  | { kind: 'mention'; contactId: string }
+  | { kind: 'approval'; contactId: string }
+  | { kind: 'proposal'; contactId: string }
   | { kind: 'admin_alert' }
 
 export function redirectPathFor(refs: RedirectRefs): string {
   switch (refs.kind) {
     case 'mention':
-      return `/inbox/${refs.conversationId}`
     case 'approval':
-      return `/inbox/${refs.conversationId}/approvals/${refs.approvalId}`
     case 'proposal':
-      return `/inbox/${refs.conversationId}/proposals/${refs.proposalId}`
+      return refs.contactId ? `/inbox/${refs.contactId}` : '/inbox'
     case 'admin_alert':
       return '/automations'
   }

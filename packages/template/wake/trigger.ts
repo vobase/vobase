@@ -157,7 +157,7 @@ function renderStaffNote(trigger: WakeTrigger, refs: RenderRefs): string {
   const ownership = youOwn
     ? `You are the conversation assignee.`
     : `You are NOT the conversation assignee — ${describeAssignee(refs.assignee)} owns this thread.`
-  return `${noteSection} ${ownership} Staff notes are internal coaching — the customer-facing tools (reply_contact / send_card / send_file) are not available in this wake. Act on the note's request via memory updates, contact proposals, or a workspace write, then reply to the staff member with \`consult_staff\`. If staff want the customer messaged, they will reply through the channel themselves or wait for the next customer inbound. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
+  return `${noteSection} ${ownership} Decide what the note asks for. If it tells you to message the customer — or it answers a question you raised with staff on the customer's behalf — send that to the customer now with \`reply_contact\` (or \`send_card\`). If it is pure internal coaching, act on it via memory updates, contact proposals, or a workspace write. Either way, close the loop with the note author using \`consult_staff\`. See \`## Staff note (this wake)\` in AGENTS.md for the routing table.`
 }
 
 function renderScheduledFollowup(trigger: WakeTrigger, _refs: RenderRefs): string {

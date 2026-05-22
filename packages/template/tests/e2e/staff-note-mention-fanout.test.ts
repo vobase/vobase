@@ -340,7 +340,7 @@ describe('staff-note mention fan-out', () => {
     ).toBe(true)
   })
 
-  it('(d) Sentinel-assigned conv with @MeriGPT → only MeriGPT wakes; conversation-lane builder yields reply + send_card', async () => {
+  it('(d) Sentinel-assigned conv with @MeriGPT → only MeriGPT wakes; staff-note builder keeps the full conversation-lane tool set', async () => {
     captured = []
 
     // Reassign Priya conv to Sentinel, fire the peer-wake into MeriGPT.
@@ -396,8 +396,14 @@ describe('staff-note mention fan-out', () => {
       })
 
       const toolNames = (config.tools as readonly AgentTool[]).map((t) => t.name)
+      // Staff-note wakes keep the full conversation-lane tool set, including
+      // the customer-facing `reply_contact` / `send_card`: when a staff note
+      // answers a question the agent raised on the customer's behalf, the
+      // agent must be able to relay that answer to the customer on this wake.
       expect(toolNames).toContain('reply_contact')
       expect(toolNames).toContain('send_card')
+      expect(toolNames).toContain('send_file')
+      expect(toolNames).toContain('consult_staff')
 
       // Trigger renderer recognises the mentionedAgentId variant.
       const cue = config.renderTrigger?.(config.trigger)
@@ -405,7 +411,7 @@ describe('staff-note mention fan-out', () => {
 
       // Sanity: the conversation-lane tool surface includes every
       // conversation-lane tool the messaging module contributes (filtered
-      // down by lane).
+      // down by lane) — staff-note wakes no longer subtract any.
       const conversationLaneNames = messagingTools
         .filter((t) => t.lane === 'conversation' || t.lane === 'both')
         .map((t) => t.name)

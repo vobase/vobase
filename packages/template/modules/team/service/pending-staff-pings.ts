@@ -12,7 +12,10 @@
  *   arrives, via a two-rung ladder (`claimPing`):
  *     1. Exact match — if the inbound carries a `context.id` (the quoted-message
  *        wamid, present only when staff use WhatsApp's native reply gesture),
- *        soft-delete the ping whose `outboundWamid` equals it.
+ *        soft-delete the ping whose `outboundWamid` equals it. This rung is
+ *        age-blind: a WAMID is an unambiguous key, so it routes even past the
+ *        30-minute TTL (otherwise a reply to an older notification falls
+ *        through to rung 2 and lands in the wrong conversation).
  *     2. Count-aware — otherwise, claim iff the staff member has exactly one
  *        live (claimed_at IS NULL) ping. Two or more is `ambiguous`; zero is
  *        `none`. Both fall through to operator-thread chat in the caller.
@@ -23,8 +26,10 @@
  *   `claimed_at IS NULL`.
  *
  * TTL semantics: a ping older than `PING_TTL_MS` (30 minutes) is treated as
- * stale and ignored — the staff member's reply becomes operator-thread chat
- * instead. Read-time TTL filter is the primary cleanup; `pruneOlderThan` now
+ * stale and ignored by the count-aware rung — there, staleness disambiguates a
+ * guess, so a reply with no exact-WAMID match becomes operator-thread chat
+ * instead. The exact-match rung (rung 1) ignores the TTL by design. Read-time
+ * TTL filter is the primary cleanup; `pruneOlderThan` now
  * deletes only rows with `claimed_at < cutoff` (old claimed rows), leaving
  * live unclaimed rows intact for the TTL filter to discard at read-time.
  * The nightly prune cron (seeded for US-013 wiring) calls this with
@@ -32,7 +37,7 @@
  */
 
 import { type PendingStaffPing, pendingStaffPings } from '@modules/team/schema'
-import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 
@@ -216,9 +221,15 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
   }
 
   /**
-   * Rung 1 — exact wamid match. No `claimed_at IS NULL` filter: a quote-reply's
-   * `context.id` unambiguously identifies the conversation, so repeat replies
-   * to the same notification still route back to it.
+   * Rung 1 — exact wamid match. No `claimed_at IS NULL` filter AND no TTL
+   * filter: a quote-reply's `context.id` unambiguously identifies the
+   * conversation (the `uq_pending_staff_pings_wamid` index makes it a real
+   * key), so the match must hold regardless of the ping's age — otherwise a
+   * reply to a notification older than `PING_TTL_MS` silently falls through to
+   * the count-aware rung and lands the answer in the wrong conversation. The
+   * 30-minute TTL is only meaningful for rung 2, where staleness disambiguates
+   * a guess; an exact WAMID is not a guess. Repeat replies to the same
+   * notification still route back to it for the same reason.
    */
   async function claimByWamid(input: ClaimPingInput, wamid: string): Promise<PendingStaffPing | null> {
     const target = db
@@ -229,7 +240,6 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
           eq(pendingStaffPings.staffUserId, input.staffUserId),
           eq(pendingStaffPings.organizationId, input.organizationId),
           eq(pendingStaffPings.outboundWamid, wamid),
-          gt(pendingStaffPings.createdAt, new Date(Date.now() - PING_TTL_MS)),
         ),
       )
       .orderBy(desc(pendingStaffPings.createdAt))
@@ -286,8 +296,8 @@ export function createPendingStaffPingService(deps: PingDeps): PendingStaffPingS
     if (input.outboundWamid) {
       const exact = await claimByWamid(input, input.outboundWamid)
       if (exact) return { status: 'claimed', ping: exact }
-      // wamid miss — staff replied to a stale/expired ping or to something
-      // that isn't a ping at all; fall through to the count-aware rung.
+      // wamid miss — the quoted message isn't a tracked ping (already pruned,
+      // or never a ping at all); fall through to the count-aware rung.
     }
     return claimSoleLivePing(input)
   }
