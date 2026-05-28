@@ -20,7 +20,11 @@ import type { ChannelAdapter, ChannelCapabilities } from '@vobase/core'
 import { createWhatsAppAdapter } from '@vobase/core'
 
 import { WhatsAppChannelConfigSchema } from './config'
-import { decryptInstanceAppSecret, type EncryptedAccessTokenBlob } from './instance-config'
+import {
+  decryptInstanceAppSecret,
+  type EncryptedAccessTokenBlob,
+  tryDecryptInstanceAccessToken,
+} from './instance-config'
 import { createManagedTransport } from './managed-transport'
 
 export const WHATSAPP_CHANNEL_NAME = 'whatsapp'
@@ -117,6 +121,7 @@ export async function createWhatsAppAdapterFromConfig(
   const partial = rawConfig as Partial<{
     phoneNumberId: string
     accessToken: string
+    accessTokenEnvelope: EncryptedAccessTokenBlob
     appSecret: string
     appSecretEnvelope: EncryptedAccessTokenBlob
     webhookVerifyToken: string
@@ -124,13 +129,18 @@ export async function createWhatsAppAdapterFromConfig(
     apiVersion: string
   }>
 
-  // Prefer the envelope-encrypted appSecret (the form signup persists); fall
-  // back to a plaintext `appSecret` (dev/seeded rows) then env.
+  // Prefer the envelope-encrypted secrets (the form signup persists); fall
+  // back to plaintext fields (dev/seeded rows) then env. Platform-handoff
+  // tenants carry neither plaintext nor META_WA_* env, so without the envelope
+  // path the Zod parse below would reject accessToken/appSecret as empty.
+  const accessToken =
+    tryDecryptInstanceAccessToken(partial) ??
+    pick(partial.accessToken, process.env.META_WA_ACCESS_TOKEN, process.env.META_WA_TOKEN)
   const appSecret = decryptInstanceAppSecret(partial) ?? pick(partial.appSecret, process.env.META_WA_APP_SECRET)
 
   const merged = WhatsAppChannelConfigSchema.parse({
     phoneNumberId: pick(partial.phoneNumberId, process.env.META_WA_PHONE_NUMBER_ID),
-    accessToken: pick(partial.accessToken, process.env.META_WA_ACCESS_TOKEN, process.env.META_WA_TOKEN),
+    accessToken,
     appSecret,
     webhookVerifyToken: pick(partial.webhookVerifyToken, process.env.META_WA_VERIFY_TOKEN),
     appId: partial.appId ?? process.env.META_WA_APP_ID,
