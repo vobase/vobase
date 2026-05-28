@@ -87,6 +87,25 @@ export function decryptInstanceAccessToken(config: WhatsappInstanceConfig): stri
 }
 
 /**
+ * Decrypt the envelope-encrypted Meta Access Token. Returns `null` when the
+ * row carries no `accessTokenEnvelope` — dev/seeded rows that inline a
+ * plaintext `accessToken` — so the adapter factory can speculatively decrypt
+ * then fall back to `config.accessToken` / env.
+ *
+ * Pair of `decryptInstanceAccessToken` (throwing) for setup-time callers
+ * that know the envelope must be present, and this null-returning variant
+ * for speculative reads.
+ */
+export function tryDecryptInstanceAccessToken(
+  config: Pick<WhatsappInstanceConfig, 'accessTokenEnvelope'>,
+): string | null {
+  if (!config.accessTokenEnvelope || config.accessTokenEnvelope.marker !== ENCRYPTED_ACCESS_TOKEN_MARKER) {
+    return null
+  }
+  return decryptSecretEnvelope(decodeAccessTokenEnvelope(config.accessTokenEnvelope))
+}
+
+/**
  * Decrypt the envelope-encrypted Meta App Secret. Returns `null` when the row
  * carries no `appSecretEnvelope` — dev/seeded rows that inline a plaintext
  * `appSecret`, or rows predating envelope-encrypted appSecret — so callers can

@@ -721,10 +721,24 @@ export async function createHarness<TTrigger = unknown>(
       const lastIdx = msgs.length - 1
       const last = msgs[lastIdx]
       if (!last || last.role !== 'user') return msgs
-      const userText = typeof last.content === 'string' ? last.content : ''
-      const withSideLoad: AgentMessage = {
-        ...last,
-        content: `${tracker.sideLoadCache}\n\n${userText}`,
+      const prefix = tracker.sideLoadCache
+      // pi-ai stores user content as an array of parts ([{ type: 'text', text },
+      // …] — see `normalizePromptInput`); a bare string only ever occurs for a
+      // custom message type. Prepend the side-load to the first text part so
+      // the actual user message survives. The previous code handled only the
+      // string case and substituted `''` for array content — silently dropping
+      // every real user message, so the agent answered an earlier turn.
+      let withSideLoad: AgentMessage
+      if (typeof last.content === 'string') {
+        withSideLoad = { ...last, content: `${prefix}\n\n${last.content}` }
+      } else {
+        const parts = last.content
+        const firstText = parts.findIndex((p) => p.type === 'text')
+        const merged =
+          firstText === -1
+            ? [{ type: 'text' as const, text: prefix }, ...parts]
+            : parts.map((p, i) => (i === firstText && p.type === 'text' ? { ...p, text: `${prefix}\n\n${p.text}` } : p))
+        withSideLoad = { ...last, content: merged }
       }
       const out = msgs.slice(0, lastIdx)
       out.push(withSideLoad)

@@ -16,6 +16,7 @@
  */
 
 import type { ChannelInstance } from '@modules/channels/schema'
+import { RELEASED_STATUS } from '@modules/channels/service/instances'
 import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { normalizeEmail, normalizePhoneE164 } from '@modules/contacts/service/identity-normalize'
 import { extensionFromMime } from '@modules/drive/lib/format'
@@ -88,6 +89,18 @@ export async function dispatchInbound(
   instance: ChannelInstance,
   opts?: { defaultAssignee?: string | null },
 ): Promise<InboundDispatchResult[]> {
+  // Defense-in-depth: handlers (webhook.ts, adapters/web) already reject
+  // released instances at ingress, but the row stays in the DB to preserve
+  // conversation FKs, so any caller that resolves a row without checking
+  // status would otherwise persist new inbound onto a disconnected channel.
+  if (instance.status === RELEASED_STATUS) {
+    console.warn('[channels/inbound] ignoring events for released instance', {
+      instanceId: instance.id,
+      channel: instance.channel,
+      eventCount: events.length,
+    })
+    return []
+  }
   const results: InboundDispatchResult[] = []
   const jobs = requireJobs()
 
@@ -152,6 +165,13 @@ export async function dispatchInbound(
 
     // Safe projection — never pass raw adapter metadata (may contain PII/provider fields).
     const metadata = extractEchoMetadata(event.metadata)
+
+    // Contact-sync events (WA `account_update` field) ride the message_received
+    // channel so they reach the contact upsert above. Stop here: the empty
+    // content + `messageType: 'unsupported'` would otherwise land as a junk
+    // row in the conversation. The displayName captured by upsertByExternalKey
+    // is the actionable payload for now (add/edit). 'remove' is out of scope.
+    if (metadata.contactUpdate === true) continue
 
     // Echo events (smb_message_echoes) arrive with metadata.echo=true — they are
     // messages staff sent via the WhatsApp Business App, not customer inbound.

@@ -1,5 +1,5 @@
 import { verifyHmacWebhook } from '@auth/middleware'
-import { getInstance as getChannelInstance } from '@modules/channels/service/instances'
+import { getInstance as getChannelInstance, RELEASED_STATUS } from '@modules/channels/service/instances'
 import { requireJobs } from '@modules/channels/service/state'
 import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { createInboundMessage } from '@modules/messaging/service/conversations'
@@ -42,6 +42,14 @@ interface InboundInput {
 }
 
 async function dispatchInbound(c: Context, input: InboundInput): Promise<Response> {
+  // Released channels stay in the DB to preserve conversation FKs but must
+  // not accept new inbound — otherwise widgets pointed at a disconnected
+  // channel keep persisting messages and waking agents.
+  const instance = await getChannelInstance(input.channelInstanceId)
+  if (!instance || instance.status === RELEASED_STATUS) {
+    return c.json({ error: 'channel_released' }, 410)
+  }
+
   const echoMeta = extractEchoMetadata(input.metadata ?? undefined)
   const isEcho = echoMeta.echo === true
 

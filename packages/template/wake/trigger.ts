@@ -173,12 +173,16 @@ function renderManual(trigger: WakeTrigger, _refs: RenderRefs): string {
 function renderOperatorThread(trigger: WakeTrigger, _refs: RenderRefs): string {
   if (trigger.trigger !== 'operator_thread') return ''
   const body = trigger.threadMessage.trim()
-  if (!body) {
-    // Empty body shouldn't happen in practice (operator-thread handler always
-    // reads the latest user message), but guard so the cue still parses.
-    return 'A staff member posted in your operator thread, but the latest message is empty. Acknowledge politely and end the turn.'
-  }
-  return `A staff member posted in your operator thread:\n\n${quoteBody(body)}\n\nRespond or act on this now. If the message implies a write to a workspace file, use bash (or the matching CLI verb) — do not reply "logged for review" without actually performing the write.`
+  // The user turn is kept to the BARE staff message. It is persisted to
+  // `agent_messages` and replayed as conversation history on every later
+  // wake, so it must read as a plain chat line. Wrapping each turn in
+  // "respond now" / "reply to exactly this" imperatives made the agent see N
+  // competing instructions in the replayed history and answer an older turn
+  // (the off-by-one bug). All per-wake framing now lives in the operator
+  // brief side-load, which is attached to the current turn only — see
+  // `renderStandaloneBrief` in `wake/standalone.ts`.
+  if (!body) return '(The staff member sent an empty message.)'
+  return truncateForCue(body)
 }
 
 function renderHeartbeat(trigger: WakeTrigger, _refs: RenderRefs): string {

@@ -1,5 +1,27 @@
 # @vobase/core
 
+## 0.43.2
+
+### Patch Changes
+
+- [`7759605`](https://github.com/vobase/vobase/commit/775960541b25cb460a2fcac6def588cb9aa04caa) Thanks [@mdluo](https://github.com/mdluo)! - Parse the canonical WhatsApp coexistence echo wire shape (`field: 'smb_message_echoes'` + `message_echoes[]`).
+
+  `parseWhatsAppEchoes` only handled the legacy form where echoes appeared inline in `messages[]` with `from === phone_number_id`. Meta's Phase 1 coexistence delivery puts staff-sent (Business App) messages in a separate `smb_message_echoes` change carrying a `message_echoes[]` array — each entry has `from` = the business's own phone and `to` = the customer's WA id. The parser dropped these on the floor, so the downstream echo wiring (role=`'staff'`, no service-window seed, no agent wake, `coexistence_echo` learning signal) never fired for real coexistence numbers.
+
+  The parser now accepts both shapes. For the coexistence shape it re-keys `from`→`to` before parsing so the contact upsert lands on the customer, not the business itself. The legacy `messages[]` fallback stays for proxied/managed transports that still surface echoes that way.
+
+  Type surface: `WhatsAppWebhookPayload['entry'][].changes[].field` gains `'smb_message_echoes'`, `value` gains optional `message_echoes?: WhatsAppInboundMessage[]`, and `WhatsAppInboundMessage` gains optional `to?: string` (set only on echo entries). All additions are backwards-compatible.
+
+## 0.43.1
+
+### Patch Changes
+
+- [`4cf453c`](https://github.com/vobase/vobase/commit/4cf453c83adc1bd161b9a85acd111d3860e6426e) Thanks [@mdluo](https://github.com/mdluo)! - Fix `transformContext` dropping the user message when prepending the side-load.
+
+  pi-ai's `normalizePromptInput` always stores user-message content as an array of parts (`[{ type: 'text', text }]`), never a bare string. `transformContext` only handled the string case and substituted `''` for array content — so the side-load _replaced_ the user's message instead of prefixing it. Agents received the side-load with no actual message and answered the most recent earlier turn (the operator-thread "off-by-one" where each reply addressed the previous message).
+
+  `transformContext` now handles array content by prepending the side-load to the first text part, preserving the real message.
+
 ## 0.43.0
 
 ### Minor Changes

@@ -201,6 +201,11 @@ function messagePrincipal(
       const match = directory.staff.find((s) => s.name === name)
       if (match) return match
     }
+    // WABA coexistence echoes (`metadata.echoSource === 'business_app'`) are
+    // staff messages sent from Meta's WhatsApp Business App. Meta only tells
+    // us the business phone, not which staffer typed it — so we cannot resolve
+    // a principal. Return null rather than falsely attributing to staff[0].
+    if (msg.metadata?.echoSource === 'business_app') return null
     return directory.staff[0] ?? null
   }
   if (msg.role === 'customer' && contactId) return directory.resolve(`contact:${contactId}`)
