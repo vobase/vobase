@@ -11,15 +11,24 @@
  */
 
 import { dispatchInbound } from '@modules/channels/service/inbound'
-import { getInstance } from '@modules/channels/service/instances'
+import { getInstance, RELEASED_STATUS } from '@modules/channels/service/instances'
 import { get as registryGet } from '@modules/channels/service/registry'
 import { Hono } from 'hono'
 
+/**
+ * Released instances stay in the DB to preserve conversation FKs, but the
+ * webhook ingress must behave as if they never existed — otherwise upstream
+ * providers that haven't been unsubscribed yet keep delivering events that
+ * land as live inbound. We return 404 (not 410) to match the not-found shape
+ * already documented for this router; providers back off on 4xx either way.
+ */
 const app = new Hono()
   .get('/:channel/:instanceId', async (c) => {
     const { channel, instanceId } = c.req.param()
     const instance = await getInstance(instanceId)
-    if (!instance || instance.channel !== channel) return c.json({ error: 'not_found' }, 404)
+    if (!instance || instance.channel !== channel || instance.status === RELEASED_STATUS) {
+      return c.json({ error: 'not_found' }, 404)
+    }
     const adapter = await registryGet(channel, instance.config, instance.id)
     if (!adapter?.handleWebhookChallenge) return c.json({ error: 'unsupported' }, 400)
     const res = adapter.handleWebhookChallenge(c.req.raw)
@@ -28,7 +37,9 @@ const app = new Hono()
   .post('/:channel/:instanceId', async (c) => {
     const { channel, instanceId } = c.req.param()
     const instance = await getInstance(instanceId)
-    if (!instance || instance.channel !== channel) return c.json({ error: 'not_found' }, 404)
+    if (!instance || instance.channel !== channel || instance.status === RELEASED_STATUS) {
+      return c.json({ error: 'not_found' }, 404)
+    }
 
     const adapter = await registryGet(channel, instance.config, instance.id)
     if (!adapter) return c.json({ error: 'no_adapter' }, 400)
