@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { usePrincipalDirectory } from '@/components/principal'
+import { useCurrentUserId } from '@/hooks/use-current-user'
 import { messagingClient } from '@/lib/api-client'
+import { hasStaffPrefix } from '../lib/staff-prefix'
 import type { Message } from '../schema'
 
 /**
@@ -26,6 +29,15 @@ export const STAFF_REPLY_MUTATION_KEY = 'staff-reply'
 
 export function useStaffReply(conversationId: string) {
   const qc = useQueryClient()
+  const directory = usePrincipalDirectory()
+  const currentUserId = useCurrentUserId()
+  // Mirror server-side `prefixWithStaffName`: the renderer parses the
+  // `[<displayName>] ` prefix to identify the author. Without it the
+  // optimistic row falls back to `directory.staff[0]` for one frame,
+  // showing the wrong teammate until the server-returned row replaces it.
+  const currentStaffName = currentUserId
+    ? (directory.staff.find((s) => s.id === currentUserId)?.name?.trim() ?? null)
+    : null
   return useMutation({
     mutationKey: [STAFF_REPLY_MUTATION_KEY, conversationId],
     mutationFn: async (body: string) => {
@@ -45,6 +57,8 @@ export function useStaffReply(conversationId: string) {
         queryKey: ['messages', conversationId],
       })
 
+      const optimisticBody = currentStaffName && !hasStaffPrefix(body) ? `[${currentStaffName}] ${body}` : body
+
       const optimistic: Message = {
         id: `optimistic-${Date.now()}`,
         conversationId,
@@ -54,7 +68,7 @@ export function useStaffReply(conversationId: string) {
         organizationId: '',
         role: 'staff',
         kind: 'text',
-        content: { text: body },
+        content: { text: optimisticBody },
         parentMessageId: null,
         channelExternalId: null,
         status: 'sending',
