@@ -200,6 +200,39 @@ describe('smb_message_echoes dispatch path', () => {
     expect(payload?.agentId).toBe('test-bot-1')
   })
 
+  it('contactUpdate event (account_update sync) does NOT persist a message row', async () => {
+    sentJobs.length = 0
+    const contactUpdateMsgId = `contact-update-${Date.now()}`
+    const uniquePhone = `whatsapp:+6570003${Date.now() % 10000}`
+
+    await dispatchInbound(
+      [
+        makeMessageEvent({
+          messageId: contactUpdateMsgId,
+          from: uniquePhone,
+          content: '',
+          messageType: 'unsupported',
+          profileName: 'Synced From Business App',
+          metadata: { contactUpdate: true },
+        }),
+      ],
+      INSTANCE,
+      { defaultAssignee: null },
+    )
+
+    const dbHandle = db.db as unknown as {
+      select: () => { from: (t: unknown) => { where: (c: unknown) => { limit: (n: number) => Promise<unknown[]> } } }
+    }
+    const rows = await dbHandle
+      .select()
+      .from(messages)
+      .where(eq(messages.channelExternalId, contactUpdateMsgId))
+      .limit(1)
+
+    expect(rows).toHaveLength(0)
+    expect(sentJobs.filter((j) => j.name === 'agents:wake')).toHaveLength(0)
+  })
+
   it('echo event does NOT enqueue coexistence_echo triage when conversation is unassigned', async () => {
     sentJobs.length = 0
     const echoMsgId = `echo-notriage-${Date.now()}`

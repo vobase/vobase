@@ -34,15 +34,28 @@ export interface WhatsAppWebhookPayload {
         metadata: { display_phone_number: string; phone_number_id: string }
         contacts?: Array<{ profile: { name: string }; wa_id: string }>
         messages?: WhatsAppInboundMessage[]
+        /**
+         * Coexistence Phase 1: messages sent from the WhatsApp Business App
+         * arrive in a dedicated `smb_message_echoes` change. Same per-entry
+         * shape as `messages[]` but each entry carries an extra `to` field
+         * (the customer's WA id) since `from` is the business's own phone.
+         */
+        message_echoes?: WhatsAppInboundMessage[]
         statuses?: WhatsAppInboundStatus[]
       }
-      field: 'messages' | 'account_update' | 'message_template_status_update'
+      field: 'messages' | 'account_update' | 'message_template_status_update' | 'smb_message_echoes'
     }>
   }>
 }
 
 export interface WhatsAppInboundMessage {
   from: string
+  /**
+   * Present only on entries inside `message_echoes[]` (coexistence
+   * `smb_message_echoes` field): the customer's WA id. `from` on echoes is
+   * the business's own phone, so routing back to the contact must use `to`.
+   */
+  to?: string
   id: string
   timestamp: string
   type: string
@@ -541,12 +554,21 @@ export function parseWhatsAppStatuses(payload: WhatsAppWebhookPayload): ChannelE
 }
 
 /**
- * Parse echo messages (outbound messages sent via the WhatsApp Business App)
- * from a webhook payload.
+ * Parse echo messages (messages sent from the WhatsApp Business App in
+ * coexistence mode) from a webhook payload.
  *
- * Echoes appear as inbound messages where `msg.from` matches the business's
- * own `phone_number_id` (i.e. the message was sent by staff, not received from
- * a contact). Each echo is returned as a `MessageReceivedEvent` with:
+ * Two wire shapes are accepted:
+ *
+ *   1. **Coexistence canonical** (Phase 1, 2025+): `field: 'smb_message_echoes'`
+ *      with `message_echoes[]`. Each entry has `from` = business phone and
+ *      `to` = customer WA id. Routing keys off `to` so the contact upsert
+ *      lands on the customer, not the business itself.
+ *
+ *   2. **Legacy/managed fallback**: an entry inside the regular `messages[]`
+ *      array whose `from` matches the business's own `phone_number_id`. Some
+ *      proxied transports still surface echoes this way.
+ *
+ * Each echo is returned as a `MessageReceivedEvent` with:
  *   - `metadata.echo: true`
  *   - `metadata.echoSource: 'business_app'`
  *   - `metadata.direction: 'outbound'`
@@ -560,33 +582,48 @@ export async function parseWhatsAppEchoes(
 
   const events: ChannelEvent[] = []
 
+  async function pushEcho(msg: WhatsAppInboundMessage): Promise<void> {
+    const parsed = await parseInboundMessage(msg, new Map(), new Map(), downloadMedia)
+    if (!parsed) return
+
+    if (parsed.type === 'message_received') {
+      events.push({
+        ...parsed,
+        metadata: {
+          ...parsed.metadata,
+          echo: true,
+          echoSource: 'business_app',
+          direction: 'outbound',
+        },
+      })
+    } else {
+      events.push(parsed)
+    }
+  }
+
   for (const entry of payload.entry) {
     for (const change of entry.changes) {
       const value = change.value
-      if (!value.messages?.length) continue
 
-      const phoneNumberId = value.metadata.phone_number_id
-
-      for (const msg of value.messages) {
-        // Echo: the message was sent by the business itself
-        if (msg.from !== phoneNumberId) continue
-
-        const parsed = await parseInboundMessage(msg, new Map(), new Map(), downloadMedia)
-        if (!parsed) continue
-
-        if (parsed.type === 'message_received') {
-          events.push({
-            ...parsed,
-            metadata: {
-              ...parsed.metadata,
-              echo: true,
-              echoSource: 'business_app',
-              direction: 'outbound',
-            },
-          })
-        } else {
-          events.push(parsed)
+      // Shape 1: canonical coexistence shape. `from` is the business phone;
+      // re-key to `msg.to` so downstream routing identifies the customer.
+      if (change.field === 'smb_message_echoes' && value.message_echoes?.length) {
+        for (const msg of value.message_echoes) {
+          if (!msg.to) continue
+          await pushEcho({ ...msg, from: msg.to })
         }
+        continue
+      }
+
+      // Shape 2: legacy/managed — echo inlined in `messages[]` keyed by
+      // `from === phone_number_id`. The `from` here is already the business
+      // identifier; parseInboundMessage will pass it through. Real coexistence
+      // payloads should never hit this branch, but it stays for back-compat.
+      if (!value.messages?.length) continue
+      const phoneNumberId = value.metadata.phone_number_id
+      for (const msg of value.messages) {
+        if (msg.from !== phoneNumberId) continue
+        await pushEcho(msg)
       }
     }
   }

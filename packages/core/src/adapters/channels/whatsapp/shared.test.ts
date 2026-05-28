@@ -409,6 +409,81 @@ describe('parseWhatsAppEchoes', () => {
     const events = await parseWhatsAppEchoes(payload, null)
     expect(events).toHaveLength(0)
   })
+
+  // Canonical Phase 1 coexistence wire shape:
+  //   { field: 'smb_message_echoes', value: { message_echoes: [{ from: business, to: customer, ... }] } }
+  // The parser must route `from` to the customer's `to` so the downstream
+  // contact upsert lands on the customer record, not the business itself.
+  it('parses coexistence smb_message_echoes with message_echoes[] and routes from→to', async () => {
+    const payload: WhatsAppWebhookPayload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: 'entry_1',
+          changes: [
+            {
+              field: 'smb_message_echoes',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { display_phone_number: '+6512345678', phone_number_id: 'pn_biz' },
+                message_echoes: [
+                  {
+                    from: '6512345678',
+                    to: '14155551234',
+                    id: 'wamid.coexistence_echo_1',
+                    timestamp: '1700000000',
+                    type: 'text',
+                    text: { body: 'Reply from Business App' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    const events = await parseWhatsAppEchoes(payload, null)
+    expect(events).toHaveLength(1)
+    const event = events[0] as MessageReceivedEvent
+    expect(event.type).toBe('message_received')
+    expect(event.from).toBe('14155551234')
+    expect(event.metadata?.echo).toBe(true)
+    expect(event.metadata?.echoSource).toBe('business_app')
+    expect(event.metadata?.direction).toBe('outbound')
+  })
+
+  it('skips coexistence echo entries with no `to` field', async () => {
+    const payload: WhatsAppWebhookPayload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: 'entry_1',
+          changes: [
+            {
+              field: 'smb_message_echoes',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { display_phone_number: '+6512345678', phone_number_id: 'pn_biz' },
+                message_echoes: [
+                  {
+                    from: '6512345678',
+                    id: 'wamid.no_to',
+                    timestamp: '1700000000',
+                    type: 'text',
+                    text: { body: 'Malformed' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    const events = await parseWhatsAppEchoes(payload, null)
+    expect(events).toHaveLength(0)
+  })
 })
 
 // ─── parseWhatsAppContactUpdates ─────────────────────────────────────

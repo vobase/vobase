@@ -153,6 +153,13 @@ export async function dispatchInbound(
     // Safe projection — never pass raw adapter metadata (may contain PII/provider fields).
     const metadata = extractEchoMetadata(event.metadata)
 
+    // Contact-sync events (WA `account_update` field) ride the message_received
+    // channel so they reach the contact upsert above. Stop here: the empty
+    // content + `messageType: 'unsupported'` would otherwise land as a junk
+    // row in the conversation. The displayName captured by upsertByExternalKey
+    // is the actionable payload for now (add/edit). 'remove' is out of scope.
+    if (metadata.contactUpdate === true) continue
+
     // Echo events (smb_message_echoes) arrive with metadata.echo=true — they are
     // messages staff sent via the WhatsApp Business App, not customer inbound.
     const isEcho = metadata.echo === true
