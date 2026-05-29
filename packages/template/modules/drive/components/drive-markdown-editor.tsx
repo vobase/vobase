@@ -1,9 +1,10 @@
 /**
- * DriveMarkdownEditor — Platejs-backed markdown editor with debounced autosave.
+ * DriveMarkdownEditor — Platejs-backed markdown editor with manual save.
  * Reads initial markdown from the drive file endpoint, deserialises into the
- * Plate value tree, and on every change re-serialises + persists via
- * `useWriteFile`. The heavy Plate runtime lives behind this component so the
- * preview pane can fall back to a plain `<pre>` for non-markdown files.
+ * Plate value tree, and persists via `useWriteFile` when the user clicks Save.
+ * Dirty detection compares against the editor's own round-tripped baseline
+ * (set on mount and after each save) so an untouched file is never marked
+ * dirty, even when deserialize → serialize is not byte-identical.
  */
 
 import {
@@ -19,7 +20,19 @@ import {
 } from '@platejs/basic-nodes/react'
 import { MarkdownPlugin } from '@platejs/markdown'
 import { TableCellHeaderPlugin, TableCellPlugin, TablePlugin, TableRowPlugin } from '@platejs/table/react'
-import { Bold, Code, Heading1, Heading2, Heading3, Italic, Lock, Quote, Strikethrough, Underline } from 'lucide-react'
+import {
+  Bold,
+  Code,
+  Heading1,
+  Heading2,
+  Heading3,
+  Italic,
+  Lock,
+  Quote,
+  Save,
+  Strikethrough,
+  Underline,
+} from 'lucide-react'
 import { createSlateEditor, type Value } from 'platejs'
 import {
   Plate,
@@ -33,14 +46,12 @@ import {
   usePlateEditor,
 } from 'platejs/react'
 import { PlateStatic } from 'platejs/static'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import remarkGfm from 'remark-gfm'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { type DriveScopeArg, useWriteFile } from '../hooks/use-drive'
-
-const AUTOSAVE_DEBOUNCE_MS = 600
 
 const BoldLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="strong" />
 const ItalicLeaf = (props: PlateLeafProps) => <PlateLeaf {...props} as="em" />
@@ -227,7 +238,17 @@ function BlockButton({ blockType, icon, label }: { blockType: string; icon: Reac
   )
 }
 
-function Toolbar({ statusLabel }: { statusLabel: string }) {
+function Toolbar({
+  statusLabel,
+  onSave,
+  saving,
+  dirty,
+}: {
+  statusLabel: string
+  onSave: () => void
+  saving: boolean
+  dirty: boolean
+}) {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-border border-b px-2 py-1">
       <MarkButton markKey="bold" label="Bold" icon={<Bold className="size-3.5" />} />
@@ -240,7 +261,13 @@ function Toolbar({ statusLabel }: { statusLabel: string }) {
       <BlockButton blockType="h2" label="Heading 2" icon={<Heading2 className="size-3.5" />} />
       <BlockButton blockType="h3" label="Heading 3" icon={<Heading3 className="size-3.5" />} />
       <BlockButton blockType="blockquote" label="Quote" icon={<Quote className="size-3.5" />} />
-      <span className="ml-auto pr-1 text-[11px] text-muted-foreground">{statusLabel}</span>
+      <div className="ml-auto flex items-center gap-2 pr-1">
+        <span className="text-[11px] text-muted-foreground">{statusLabel}</span>
+        <Button size="sm" onClick={onSave} disabled={saving || !dirty}>
+          <Save className="mr-1.5 size-3.5" />
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
     </div>
   )
 }
@@ -253,9 +280,6 @@ export interface DriveMarkdownEditorProps {
 
 export function DriveMarkdownEditor({ scope, path, initialMarkdown }: DriveMarkdownEditorProps) {
   const write = useWriteFile(scope)
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const lastSerialized = useRef(initialMarkdown)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const frontmatter = useMemo(() => splitFrontmatter(initialMarkdown), [initialMarkdown])
   const initialBody = frontmatter?.body ?? initialMarkdown
@@ -281,68 +305,98 @@ export function DriveMarkdownEditor({ scope, path, initialMarkdown }: DriveMarkd
     })
   }, [frontmatter])
 
+  // Baseline is the editor's own round-tripped form. Comparing against the
+  // raw `initialMarkdown` would mark every freshly-opened file dirty because
+  // deserialize → serialize is not byte-identical (whitespace, table
+  // normalisation, trailing newlines).
+  const [baseline, setBaseline] = useState<string>(
+    () => frontmatterRaw + editor.getApi(MarkdownPlugin).markdown.serialize(),
+  )
   useEffect(() => {
-    // Seed lastSerialized with the editor's own round-tripped form so the
-    // initial onChange (fired during mount after deserialize) doesn't look
-    // like a user edit and autosave an untouched file. Frontmatter is
-    // re-prepended verbatim so the seed matches what `onChange` will emit.
-    lastSerialized.current = frontmatterRaw + editor.getApi(MarkdownPlugin).markdown.serialize()
-    return () => {
-      if (timer.current) clearTimeout(timer.current)
-    }
+    setBaseline(frontmatterRaw + editor.getApi(MarkdownPlugin).markdown.serialize())
   }, [editor, frontmatterRaw])
-
-  const savedLabel = useMemo(() => {
-    switch (status) {
-      case 'saving':
-        return 'Saving…'
-      case 'saved':
-        return 'Saved'
-      case 'error':
-        return 'Save failed'
-      default:
-        return ''
-    }
-  }, [status])
 
   return (
     <div className="flex h-full flex-col">
-      <Plate
-        editor={editor}
-        onChange={() => {
-          const bodyMd = editor.getApi(MarkdownPlugin).markdown.serialize()
-          const md = frontmatterRaw + bodyMd
-          if (md === lastSerialized.current) return
-          if (timer.current) clearTimeout(timer.current)
-          setStatus('saving')
-          timer.current = setTimeout(async () => {
-            try {
-              await write.mutateAsync({ path, content: md })
-              lastSerialized.current = md
-              setStatus('saved')
-            } catch {
-              setStatus('error')
-            }
-          }, AUTOSAVE_DEBOUNCE_MS)
-        }}
-      >
-        <Toolbar statusLabel={savedLabel} />
-        <div className="flex-1 overflow-auto">
-          {frontmatterStatic && (
-            <div className="border-border border-b bg-muted/40 px-4 py-3">
-              <div className="mb-1 flex items-center gap-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-                <Lock className="size-3" />
-                <span>Frontmatter — read-only</span>
-              </div>
-              <PlateStatic editor={frontmatterStatic} />
-            </div>
-          )}
-          <PlateContent
-            className="min-h-full px-4 py-3 text-sm leading-relaxed outline-none"
-            placeholder="Start writing…"
-          />
-        </div>
+      <Plate editor={editor}>
+        <EditorBody
+          baseline={baseline}
+          frontmatterRaw={frontmatterRaw}
+          frontmatterStatic={frontmatterStatic}
+          onSave={async (md) => {
+            await write.mutateAsync({ path, content: md })
+            setBaseline(md)
+          }}
+          saving={write.isPending}
+          saveError={write.isError}
+          saveSuccess={write.isSuccess}
+        />
       </Plate>
     </div>
+  )
+}
+
+function EditorBody({
+  baseline,
+  frontmatterRaw,
+  frontmatterStatic,
+  onSave,
+  saving,
+  saveError,
+  saveSuccess,
+}: {
+  baseline: string
+  frontmatterRaw: string
+  frontmatterStatic: ReturnType<typeof createSlateEditor> | null
+  onSave: (md: string) => Promise<void>
+  saving: boolean
+  saveError: boolean
+  saveSuccess: boolean
+}) {
+  const editor = useEditorRef()
+  const dirty = useEditorSelector(
+    (ed) => {
+      try {
+        const current = frontmatterRaw + ed.getApi(MarkdownPlugin).markdown.serialize()
+        return current !== baseline
+      } catch {
+        return false
+      }
+    },
+    [baseline, frontmatterRaw],
+  )
+
+  const handleSave = () => {
+    const md = frontmatterRaw + editor.getApi(MarkdownPlugin).markdown.serialize()
+    void onSave(md)
+  }
+
+  const status = useMemo(() => {
+    if (saving) return 'Saving…'
+    if (saveError) return 'Save failed'
+    if (saveSuccess && !dirty) return 'Saved'
+    if (dirty) return 'Unsaved changes'
+    return ''
+  }, [saving, saveError, saveSuccess, dirty])
+
+  return (
+    <>
+      <Toolbar statusLabel={status} onSave={handleSave} saving={saving} dirty={dirty} />
+      <div className="flex-1 overflow-auto">
+        {frontmatterStatic && (
+          <div className="border-border border-b bg-muted/40 px-4 py-3">
+            <div className="mb-1 flex items-center gap-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+              <Lock className="size-3" />
+              <span>Frontmatter — read-only</span>
+            </div>
+            <PlateStatic editor={frontmatterStatic} />
+          </div>
+        )}
+        <PlateContent
+          className="min-h-full px-4 py-3 text-sm leading-relaxed outline-none"
+          placeholder="Start writing…"
+        />
+      </div>
+    </>
   )
 }

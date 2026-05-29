@@ -51,7 +51,7 @@ import {
   usePlateEditor,
 } from 'platejs/react'
 import { PlateStatic } from 'platejs/static'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import remarkGfm from 'remark-gfm'
 
 import { Button } from '@/components/ui/button'
@@ -294,6 +294,17 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
     [agentId],
   )
 
+  // Baseline is the editor's own round-tripped form. Comparing against the
+  // raw `initialInstructions` prop falsely marks an untouched page dirty
+  // because deserialize → serialize is not byte-identical (whitespace, table
+  // normalisation, trailing newlines).
+  const [baseline, setBaseline] = useState<string>(() =>
+    editor.getApi(MarkdownPlugin).markdown.serialize({ value: editor.children as Value }),
+  )
+  useEffect(() => {
+    setBaseline(editor.getApi(MarkdownPlugin).markdown.serialize({ value: editor.children as Value }))
+  }, [editor])
+
   // Drive cache invalidator — `/AGENTS.md` is a virtual file backed by
   // `agent_definitions.instructions`; saving through `useUpdateAgent` must
   // also refresh the drive's per-file cache so the DriveBrowser preview
@@ -310,9 +321,12 @@ export function AgentsMdEditor({ agentId, agentName, initialInstructions }: Agen
           preamble={preamble}
           variantId={variantId}
           onVariantChange={setVariantId}
-          initialInstructions={initialInstructions}
+          baseline={baseline}
           update={update}
-          onSaved={invalidateDriveFile}
+          onSaved={(md) => {
+            setBaseline(md)
+            invalidateDriveFile()
+          }}
         />
       </Plate>
     </div>
@@ -329,36 +343,33 @@ function EditorBody({
   preamble,
   variantId,
   onVariantChange,
-  initialInstructions,
+  baseline,
   update,
   onSaved,
 }: {
   preamble: string
   variantId: string
   onVariantChange: (id: string) => void
-  initialInstructions: string
+  baseline: string
   update: ReturnType<typeof useUpdateAgent>
-  onSaved: () => void
+  onSaved: (md: string) => void
 }) {
   const editor = useEditorRef()
   const dirty = useEditorSelector(
     (ed) => {
       try {
-        const current = ed
-          .getApi(MarkdownPlugin)
-          .markdown.serialize({ value: ed.children as Value })
-          .trim()
-        return current !== (initialInstructions ?? '').trim()
+        const current = ed.getApi(MarkdownPlugin).markdown.serialize({ value: ed.children as Value })
+        return current !== baseline
       } catch {
         return false
       }
     },
-    [initialInstructions],
+    [baseline],
   )
 
   const handleSave = () => {
     const md = editor.getApi(MarkdownPlugin).markdown.serialize({ value: editor.children as Value })
-    update.mutate({ instructions: md }, { onSuccess: onSaved })
+    update.mutate({ instructions: md }, { onSuccess: () => onSaved(md) })
   }
 
   const status = useMemo(() => {
