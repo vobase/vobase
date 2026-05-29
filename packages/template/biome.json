@@ -6,6 +6,7 @@
       "**",
       "!**/drizzle",
       "!**/.omc",
+      "!**/.claude",
       "!**/db/current.sql",
       "!public",
       "!src/components/ui",
