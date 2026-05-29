@@ -183,6 +183,13 @@ export function StaffDetailPage() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </InfoRow>
+                  <InfoRow label="Email">
+                    {staff.email ? (
+                      <span className="font-mono text-sm">{staff.email}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </InfoRow>
                 </InfoCard>
               </InfoSection>
 

@@ -9,7 +9,7 @@ import { mintPhoneOtp, PhoneOtpMintError } from '@auth/phone-otp'
 import { authUser } from '@auth/schema'
 import { staffProfiles } from '@modules/team/schema'
 import { conflict, logger } from '@vobase/core'
-import { asc, eq, getTableColumns } from 'drizzle-orm'
+import { asc, eq, getTableColumns, sql } from 'drizzle-orm'
 
 import type { AuthHandle, RealtimeService } from '~/runtime'
 import { safeNotify } from '~/runtime'
@@ -88,13 +88,22 @@ export function createStaffService(deps: StaffDeps): StaffService {
   const notify = (userId: string, action: string) =>
     safeNotify(realtime, { table: 'staff_profiles', id: userId, action })
 
-  // `phoneNumber` lives on the better-auth `user` table (phone-number plugin),
-  // not `staff_profiles` — every read joins it back in so callers keep seeing
-  // a single `StaffProfile` shape.
+  // `phoneNumber` and `email` live on the better-auth `user` table (phone-number
+  // plugin + core), not `staff_profiles` — every read joins them back in so
+  // callers keep seeing a single `StaffProfile` shape. `teams` is aggregated
+  // from the better-auth team tables via a correlated subquery (no
+  // row-multiplying join), sorted so the rendered profile frontmatter stays
+  // byte-stable across wakes.
   const staffSelection = {
     ...getTableColumns(staffProfiles),
     phoneNumber: authUser.phoneNumber,
     phoneNumberVerified: authUser.phoneNumberVerified,
+    email: authUser.email,
+    teams: sql<
+      string[]
+    >`COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM auth.team_member tm JOIN auth.team t ON t.id = tm.team_id WHERE tm.user_id = ${staffProfiles.userId}), ARRAY[]::text[])`.as(
+      'teams',
+    ),
   }
 
   /**
@@ -317,10 +326,10 @@ export function createStaffService(deps: StaffDeps): StaffService {
       .set({ attributes: merged })
       .where(eq(staffProfiles.userId, userId))
       .returning()) as unknown[]
-    const row = rows[0]
-    if (!row) throw new Error(`staff-profile not found: ${userId}`)
+    if (!rows[0]) throw new Error(`staff-profile not found: ${userId}`)
     notify(userId, 'attributes_updated')
-    return row as StaffProfile
+    // Re-read so the result carries the joined `phoneNumber` + `teams`.
+    return get(userId)
   }
 
   async function touchLastSeen(userId: string): Promise<void> {
@@ -486,4 +495,25 @@ export function readProfile(userId: string): Promise<string> {
 }
 export function writeProfile(userId: string, value: string): Promise<void> {
   return current().writeProfile(userId, value)
+}
+
+/**
+ * Resolve a staff reference — a bare userId, a `user:<id>` token, or a display
+ * name — to its `StaffProfile`. Throws a deterministic roster-listing error
+ * when the ref is unresolvable, so CLI callers surface a fixable message
+ * instead of a silent miss. Shared by `conv set-owner`, `routing set`, etc.
+ */
+export async function resolveStaffRef(organizationId: string, ref: string): Promise<StaffProfile> {
+  const bare = ref.startsWith('user:') ? ref.slice('user:'.length) : ref
+  const staff = await list(organizationId)
+  const hit =
+    staff.find((s) => s.userId === bare) ?? staff.find((s) => s.displayName?.toLowerCase() === bare.toLowerCase())
+  if (hit) return hit
+  const roster =
+    staff.length === 0
+      ? '(no staff on this organization)'
+      : staff.map((s) => `  user:${s.userId} — ${s.displayName ?? '(unnamed)'}`).join('\n')
+  throw new Error(
+    `unknown staff: ${bare}. Valid staff:\n${roster}\nUse a userId or displayName from \`vobase team list\`.`,
+  )
 }

@@ -19,6 +19,7 @@ import descriptionHandlers from './descriptions'
 import heartbeatHandlers from './heartbeat'
 import invitationHandlers from './invitations'
 import mentionHandlers from './mentions'
+import routingRulesHandlers from './routing-rules'
 
 /** Accept `+E164` only (digits, leading `+`, 8-16 chars total). Empty/null clears. */
 const phoneNumberSchema = z.string().regex(E164_RE, 'phoneNumber must be E.164 with leading +')
@@ -73,6 +74,7 @@ const app = new Hono<OrganizationEnv>()
   .route('/', heartbeatHandlers)
   .route('/', invitationHandlers)
   .route('/', mentionHandlers)
+  .route('/', routingRulesHandlers)
   .get('/staff', async (c) => {
     const rows = await listStaff(c.get('organizationId'))
     return c.json(rows)

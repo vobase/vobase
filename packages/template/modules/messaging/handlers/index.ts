@@ -19,6 +19,7 @@ import notes from './notes'
 import reassign from './reassign'
 import reply from './reply'
 import resolve from './resolve'
+import setOwner from './set-owner'
 import snooze from './snooze'
 import typing from './typing'
 
@@ -112,6 +113,7 @@ const app = new Hono<OrganizationEnv>()
   .route('/approvals', approvals)
   .route('/conversations', notes)
   .route('/conversations', reassign)
+  .route('/conversations', setOwner)
   .route('/conversations', reply)
   .route('/conversations', snooze)
   .route('/conversations', resolve)

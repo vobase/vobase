@@ -24,6 +24,7 @@
 import { get as getContact } from '@modules/contacts/service/contacts'
 import type { InternalNote, Message } from '@modules/messaging/schema'
 import type { MessagingIndexReader, MessagingReader } from '@modules/messaging/service/types'
+import { staff as teamStaff } from '@modules/team/service'
 import {
   type AgentTool,
   defineIndexContributor,
@@ -170,6 +171,7 @@ export const messagingAgentsMdContributors: readonly IndexContributor[] = [
   }),
 ]
 
+import { get as getConversation } from './service/conversations'
 import { type DriveFileProjection, getDriveFilesByIds as readDriveFilesByIds } from './service/drive-attachments'
 import { list as listMessages } from './service/messages'
 import { listNotes as listInternalNotes } from './service/notes'
@@ -416,16 +418,25 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
   // this contributor can flow through `collectAgentContributions` without
   // polluting standalone wakes.
   if (!ctx.contactId) return []
-  const [msgs, notes, contact, driveFilesById] = await Promise.all([
+  const [msgs, notes, contact, driveFilesById, conv] = await Promise.all([
     listMessages(ctx.conversationId, { limit: 200 }),
     listInternalNotes(ctx.conversationId).catch(() => [] as InternalNote[]),
     getContact(ctx.contactId).catch(() => null),
     getAttachmentSnapshot(ctx.organizationId, ctx.conversationId),
+    getConversation(ctx.conversationId).catch(() => null),
   ])
   const transcript = renderConversation(msgs, notes, driveFilesById)
   const contactBlock = contact
     ? `# Contact\n\nName: ${contact.displayName ?? '(unknown)'}\nPhone: ${contact.phone ?? ''}\nEmail: ${contact.email ?? ''}\nSegments: ${(contact.segments ?? []).join(', ') || '(none)'}\nMemory:\n${contact.memory || '(empty)'}\n`
     : '# Contact\n\n(no profile)\n'
+  // Owner block — when the conversation has a staff owner, name them and make
+  // them the agent's default `consult_staff` target for this wake.
+  let ownerBlock = ''
+  if (conv?.ownerUserId) {
+    const owner = await teamStaff.find(conv.ownerUserId).catch(() => null)
+    const ownerName = owner?.displayName ?? conv.ownerUserId
+    ownerBlock = `# Owner\n\nThis conversation is owned by ${ownerName} (user:${conv.ownerUserId}) — the staff member in charge.\nWhen you need staff help, address them by default with \`consult_staff\`, unless a skill or staff note directs you to someone else.\n`
+  }
   const instruction = [
     '# Task',
     '',
@@ -454,6 +465,7 @@ export const conversationSideLoad: SideLoadContributor = async (ctx) => {
     { kind: 'custom' as const, priority: 100, render: () => instruction },
     ...(hasUnaddressedStaffNote ? [{ kind: 'custom' as const, priority: 95, render: () => staffBanner }] : []),
     { kind: 'custom' as const, priority: 90, render: () => transcript },
+    ...(ownerBlock ? [{ kind: 'custom' as const, priority: 85, render: () => ownerBlock }] : []),
     { kind: 'custom' as const, priority: 80, render: () => contactBlock },
   ]
 }

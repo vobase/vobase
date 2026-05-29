@@ -167,6 +167,7 @@ export const TIMELINE_ACTIVITY_TYPES = [
   'conversation.snoozed',
   'conversation.unsnoozed',
   'conversation.snooze_expired',
+  'conversation.owner_changed',
   // Change-proposal lifecycle events. Emitted by `modules/changes/service/proposals.ts`
   // when the affected proposal is conversation-scoped (i.e. `conversationId` set
   // — the workspace-sync observer threads this through from the wake context).
@@ -204,6 +205,17 @@ export interface ConversationsService {
   reopen(conversationId: string, by: string, trigger?: ReopenTrigger): Promise<Conversation>
   reset(conversationId: string, by: string): Promise<Conversation>
   reassign(conversationId: string, assignee: string, by: string, reason?: string): Promise<Conversation>
+  /**
+   * Set (or clear, with `null`) the conversation's owner — the staff member in
+   * charge. Independent of `assignee`; does NOT silence the agent. `by` is the
+   * `agent:<id>` / `user:<id>` actor for the journal entry.
+   */
+  setOwner(conversationId: string, ownerUserId: string | null, by: string): Promise<Conversation>
+  /**
+   * For each `userId`, the most recent `ownerAssignedAt` across the org's
+   * conversations (null when never assigned). Backs round-robin least-recently-assigned.
+   */
+  lastOwnerAssignedAt(organizationId: string, userIds: string[]): Promise<Map<string, Date | null>>
   list(organizationId: string, opts?: ListOpts): Promise<Conversation[]>
   listMessagingByContact(
     organizationId: string,
@@ -736,6 +748,67 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     })
   }
 
+  async function setOwner(conversationId: string, ownerUserId: string | null, by: string): Promise<Conversation> {
+    const current = await get(conversationId)
+    // No-op guard — re-setting the current owner (a retried request, a staff
+    // member re-picking the same person) must not write a junk journal row or
+    // fire a spurious realtime invalidation.
+    if (current.ownerUserId === ownerUserId) return current
+    return db.transaction(async (tx) => {
+      const rows = (await tx
+        .update(conversations)
+        .set({
+          ownerUserId,
+          // Stamp the assignment time on set; clear it when the owner is removed.
+          ownerAssignedAt: ownerUserId ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(conversations.id, conversationId))
+        .returning()) as Conversation[]
+      const row = rows[0]
+      if (!row) throw new Error(`messaging/conversations.setOwner: not found: ${conversationId}`)
+
+      await writeConversationEvent(tx, {
+        conversationId,
+        organizationId: row.organizationId,
+        type: 'conversation.owner_changed',
+        payload: { from: current.ownerUserId ?? null, to: ownerUserId, by },
+      })
+      // No `emit(...)` here — an owner change is not a hand-off of the
+      // responder seat and must never wake the agent (that stays gated on
+      // `assignee`). The journal row is enough for the inbox timeline.
+      return row
+    })
+  }
+
+  async function lastOwnerAssignedAt(organizationId: string, userIds: string[]): Promise<Map<string, Date | null>> {
+    const result = new Map<string, Date | null>()
+    for (const id of userIds) result.set(id, null)
+    if (userIds.length === 0) return result
+
+    // No SQL GROUP BY — the minimal DbHandle select chain doesn't expose it.
+    // Owner-assigned conversations are few per rep; fold the MAX in JS.
+    const rows = (await db
+      .select({
+        ownerUserId: conversations.ownerUserId,
+        ownerAssignedAt: conversations.ownerAssignedAt,
+      })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.organizationId, organizationId),
+          inArray(conversations.ownerUserId, userIds),
+          isNotNull(conversations.ownerAssignedAt),
+        ),
+      )) as unknown as Array<{ ownerUserId: string | null; ownerAssignedAt: Date | null }>
+    for (const r of rows) {
+      if (!r.ownerUserId || !r.ownerAssignedAt) continue
+      const prev = result.get(r.ownerUserId)
+      if (!prev || r.ownerAssignedAt > prev) result.set(r.ownerUserId, r.ownerAssignedAt)
+    }
+    return result
+  }
+
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function sendText(_input: unknown): Promise<unknown> {
     throw new Error('not-implemented: messaging/conversations.sendText — use messages.appendTextMessage')
@@ -866,6 +939,8 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     reopen,
     reset,
     reassign,
+    setOwner,
+    lastOwnerAssignedAt,
     listActivity,
     list,
     listMessagingByContact,
@@ -965,6 +1040,17 @@ export async function reassign(
   reason?: string,
 ): Promise<Conversation> {
   return currentConversations().reassign(conversationId, assignee, by, reason)
+}
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function setOwner(conversationId: string, ownerUserId: string | null, by: string): Promise<Conversation> {
+  return currentConversations().setOwner(conversationId, ownerUserId, by)
+}
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function lastOwnerAssignedAt(
+  organizationId: string,
+  userIds: string[],
+): Promise<Map<string, Date | null>> {
+  return currentConversations().lastOwnerAssignedAt(organizationId, userIds)
 }
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function listActivity(conversationId: string): Promise<ActivityEvent[]> {

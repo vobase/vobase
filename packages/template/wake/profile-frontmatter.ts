@@ -52,6 +52,7 @@ export function renderStaffFrontmatter(p: StaffProfile): string {
   if (p.expertise.length > 0) fields.expertise = [...p.expertise]
   if (p.sectors.length > 0) fields.sectors = [...p.sectors]
   if (p.languages.length > 0) fields.languages = [...p.languages]
+  if ((p.teams ?? []).length > 0) fields.teams = [...p.teams]
   const attributes = sortedAttributeMap(p.attributes)
   if (attributes) fields.attributes = attributes
   return emitFrontmatter(fields)

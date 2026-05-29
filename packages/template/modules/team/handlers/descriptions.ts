@@ -24,6 +24,13 @@ import { z } from 'zod'
 
 const upsertBody = z.object({
   description: z.string().max(4000),
+  /**
+   * @deprecated Routing no longer reads `team_descriptions.lead_user_id` — the
+   * lead is derived from `staff_profiles.attributes` (`corporate_team` /
+   * `private_team` / `team_lead`). The column is kept (nullable) for backwards
+   * compatibility with older CLI clients; no current UI path sends it.
+   */
+  leadUserId: z.string().min(1).max(64).nullable().optional(),
 })
 
 const app = new Hono<OrganizationEnv>()
@@ -50,6 +57,7 @@ const app = new Hono<OrganizationEnv>()
         teamId: c.req.param('teamId'),
         organizationId: c.get('organizationId'),
         description: data.description,
+        ...(data.leadUserId !== undefined ? { leadUserId: data.leadUserId } : {}),
       })
       return c.json(row)
     },

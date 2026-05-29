@@ -68,6 +68,18 @@ export interface StaffProfile {
    * `false` or `null` = unverified — mention fan-out routes to email fallback.
    */
   phoneNumberVerified: boolean | null
+  /**
+   * Email address from the better-auth `user` table. NOT a `staff_profiles`
+   * column — joined in by the staff service on read. Read-only at the UI layer
+   * today (editing flows live in better-auth's account settings).
+   */
+  email: string | null
+  /**
+   * better-auth team names this staff member belongs to. NOT a `staff_profiles`
+   * column — aggregated from `auth.team_member` ⋈ `auth.team` by the staff
+   * service on read (sorted, may be empty).
+   */
+  teams: string[]
   createdAt: Date
   updatedAt: Date
 }
@@ -76,6 +88,34 @@ export interface TeamDescription {
   teamId: string
   organizationId: string
   description: string
+  /** Staff member who leads this team — the routing catch-all target. Null = none. */
+  leadUserId: string | null
+  updatedAt: Date
+}
+
+export type RoutingRuleKind = 'exclusive' | 'pool_keyword' | 'pool_member'
+
+/**
+ * One lead-routing rule. Three kinds, discriminated by `kind`:
+ *   - `exclusive`    — `keyword` → `repUserId` (a named account assigned to one rep).
+ *   - `pool_keyword` — `keyword` → `pool` (a sector that round-robins across a pool).
+ *   - `pool_member`  — `pool` → `repUserId` (membership of a round-robin pool).
+ * All corporate routing config lives here in one queryable place; the routing
+ * service (`service/lead-routing.ts`) reads it on every `route_lead` call.
+ */
+export interface RoutingRule {
+  id: string
+  organizationId: string
+  kind: RoutingRuleKind
+  /** Lowercase match token — set for `exclusive` + `pool_keyword`, null for `pool_member`. */
+  keyword: string | null
+  /** Pool name — set for `pool_keyword` + `pool_member`, null for `exclusive`. */
+  pool: string | null
+  /** Target rep (`staff_profiles.userId`) — set for `exclusive` + `pool_member`, null for `pool_keyword`. */
+  repUserId: string | null
+  /** Higher wins on an otherwise-equal match. Reserved; matching currently prefers the longest keyword. */
+  priority: number
+  createdAt: Date
   updatedAt: Date
 }
 
@@ -136,12 +176,45 @@ export const teamDescriptions = teamPgSchema.table(
     teamId: text('team_id').primaryKey(),
     organizationId: text('organization_id').notNull(),
     description: text('description').notNull().default(''),
+    leadUserId: text('lead_user_id'),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
   (t) => [index('idx_team_descriptions_org').on(t.organizationId)],
+)
+
+/**
+ * Lead-routing rules — corporate keyword → rep / pool config. Sole table for
+ * routing; `staff_profiles.sectors[]` stays free for HR semantics. See the
+ * `RoutingRule` interface above for the `kind` discriminator.
+ */
+export const routingRules = teamPgSchema.table(
+  'routing_rules',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    kind: text('kind').notNull(),
+    keyword: text('keyword'),
+    pool: text('pool'),
+    // No DB default — `check:trust-defaults` bans literal `.default(...)` on
+    // columns named like trust inputs. The routing service always supplies it
+    // (`upsertRule` coerces an absent value to 0).
+    repUserId: text('rep_user_id'),
+    priority: integer('priority').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index('idx_routing_rules_org').on(t.organizationId),
+    index('idx_routing_rules_pool').on(t.organizationId, t.pool),
+    uniqueIndex('uq_routing_rules_keyword').on(t.organizationId, t.keyword).where(sql`keyword IS NOT NULL`),
+    check('routing_rules_kind_check', sql`kind IN ('exclusive','pool_keyword','pool_member')`),
+  ],
 )
 
 export const staffAttributeDefinitions = teamPgSchema.table(
@@ -234,18 +307,30 @@ export const pendingStaffPings = teamPgSchema.table(
 )
 
 // Compile-time drift guards
-// `phoneNumber` and `phoneNumberVerified` are omitted: both are joined in from
-// the better-auth `user` table by the staff service, not `staff_profiles` columns.
+// `phoneNumber`, `phoneNumberVerified`, and `email` are omitted: all are joined
+// in from the better-auth `user` table by the staff service, not
+// `staff_profiles` columns.
 type _StaffProfileAssert =
   InferSelectModel<typeof staffProfiles> extends Omit<
     StaffProfile,
-    'sectors' | 'expertise' | 'languages' | 'attributes' | 'availability' | 'phoneNumber' | 'phoneNumberVerified'
+    | 'sectors'
+    | 'expertise'
+    | 'languages'
+    | 'attributes'
+    | 'availability'
+    | 'phoneNumber'
+    | 'phoneNumberVerified'
+    | 'email'
+    | 'teams'
   >
     ? true
     : never
 type _TeamDescriptionAssert = InferSelectModel<typeof teamDescriptions> extends TeamDescription ? true : never
 const _teamDescOk: _TeamDescriptionAssert = true
 void _teamDescOk
+type _RoutingRuleAssert = InferSelectModel<typeof routingRules> extends Omit<RoutingRule, 'kind'> ? true : never
+const _routingRuleOk: _RoutingRuleAssert = true
+void _routingRuleOk
 type _StaffAttrDefAssert =
   InferSelectModel<typeof staffAttributeDefinitions> extends Omit<StaffAttributeDefinition, 'type' | 'options'>
     ? true

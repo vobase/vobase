@@ -120,6 +120,8 @@ function makeProfile(userId: string, phone: string | null): StaffProfile {
     lastSeenAt: null,
     phoneNumber: phone,
     phoneNumberVerified: null,
+    email: null,
+    teams: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   }

@@ -154,6 +154,8 @@ function makeProfile(): StaffProfile {
     lastSeenAt: null,
     phoneNumber: STAFF_PHONE,
     phoneNumberVerified: null,
+    email: null,
+    teams: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   }

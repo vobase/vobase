@@ -5,6 +5,7 @@ import { useConversationTyping } from '@modules/messaging/hooks/use-conversation
 import { useLifecycle } from '@modules/messaging/hooks/use-lifecycle'
 import { useNotes } from '@modules/messaging/hooks/use-notes'
 import { useReassign } from '@modules/messaging/hooks/use-reassign'
+import { useSetOwner } from '@modules/messaging/hooks/use-set-owner'
 import { useDismissMention, useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -19,11 +20,12 @@ import { useKeyboardNav } from '@/hooks/use-keyboard-nav'
 import { useIsMobile } from '@/hooks/use-viewport'
 import { contactsClient, messagingClient } from '@/lib/api-client'
 import type { Conversation, Message } from '../schema'
-import { AssigneeBadge } from './assignee-badge'
 import type { ChannelTab } from './channel-tab-bar'
 import { ChannelTabBar } from './channel-tab-bar'
 import { Composer } from './composer'
 import { MessageThread } from './message-thread'
+import { OwnerBadge } from './owner-badge'
+import { ResponderBadge } from './responder-badge'
 import { SnoozeMenu } from './snooze-menu'
 
 const FALLBACK_STAFF_ID = 'staff'
@@ -159,6 +161,7 @@ export function ConversationDetail() {
   })
 
   const reassign = useReassign(activeConvId ?? '')
+  const setOwner = useSetOwner(activeConvId ?? '')
   const queryClient = useQueryClient()
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['conversations'] })
@@ -203,67 +206,79 @@ export function ConversationDetail() {
         )}
       </div>
 
-      {/* Row 2: action bar */}
-      <div className="flex items-center gap-2 border-b bg-muted/20 px-4 py-1.5">
-        <AssigneeBadge
-          assignee={activeConv?.assignee ?? null}
-          disabled={!activeConvId || reassign.isPending}
+      {/* Row 2: action bar — wraps on narrow viewports so no action is pushed off-screen */}
+      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-1.5">
+        <OwnerBadge
+          ownerUserId={activeConv?.ownerUserId ?? null}
+          disabled={!activeConvId || setOwner.isPending}
           onSelect={(val) => {
+            if (activeConvId) setOwner.mutate(val)
+          }}
+        />
+        <ResponderBadge
+          assignee={activeConv?.assignee ?? null}
+          currentUserId={currentUserId}
+          disabled={!activeConvId || reassign.isPending}
+          onReassign={(val) => {
             if (activeConvId) reassign.mutate(val)
           }}
         />
-        <div className="flex-1" />
-        {activeConv?.status === 'active' && activeConvId && (
-          <>
-            <SnoozeMenu conversationId={activeConvId} by={actingStaffId} onSnoozed={invalidate} />
+        <div className="ml-auto flex items-center gap-2">
+          {activeConv?.status === 'active' && activeConvId && (
+            <>
+              <SnoozeMenu conversationId={activeConvId} by={actingStaffId} onSnoozed={invalidate} />
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label="Resolve"
+                onClick={() => resolveMut.mutate()}
+                disabled={resolveMut.isPending}
+                data-testid="conversation-resolve"
+              >
+                <CheckIcon className="size-4" />
+                <span className="sr-only sm:not-sr-only">Resolve</span>
+              </Button>
+            </>
+          )}
+          {activeConv?.status === 'resolved' && (
             <Button
               size="sm"
-              variant="ghost"
-              onClick={() => resolveMut.mutate()}
-              disabled={resolveMut.isPending}
-              data-testid="conversation-resolve"
+              variant="outline"
+              aria-label="Reopen"
+              onClick={() => reopenMut.mutate()}
+              disabled={reopenMut.isPending}
+              data-testid="conversation-reopen"
             >
-              <CheckIcon className="size-4" />
-              Resolve
+              <RotateCcwIcon className="size-4" />
+              <span className="sr-only sm:not-sr-only">Reopen</span>
             </Button>
-          </>
-        )}
-        {activeConv?.status === 'resolved' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => reopenMut.mutate()}
-            disabled={reopenMut.isPending}
-            data-testid="conversation-reopen"
-          >
-            <RotateCcwIcon className="size-4" />
-            Reopen
-          </Button>
-        )}
-        {activeConv?.status === 'failed' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => resetMut.mutate()}
-            disabled={resetMut.isPending}
-            data-testid="conversation-reset"
-          >
-            <RefreshCcwIcon className="size-4" />
-            Retry
-          </Button>
-        )}
-        {activeConvId && (
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label={ctx === 'open' ? 'Hide context' : 'Show context'}
-            aria-pressed={ctx === 'open'}
-            onClick={() => void setCtx(ctx === 'open' ? null : 'open')}
-            data-testid="conversation-context-toggle"
-          >
-            <PanelRightOpenIcon className="size-4" />
-          </Button>
-        )}
+          )}
+          {activeConv?.status === 'failed' && (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="Retry"
+              onClick={() => resetMut.mutate()}
+              disabled={resetMut.isPending}
+              data-testid="conversation-reset"
+            >
+              <RefreshCcwIcon className="size-4" />
+              <span className="sr-only sm:not-sr-only">Retry</span>
+            </Button>
+          )}
+          {activeConvId && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={ctx === 'open' ? 'Hide context' : 'Show context'}
+              aria-pressed={ctx === 'open'}
+              onClick={() => void setCtx(ctx === 'open' ? null : 'open')}
+              data-testid="conversation-context-toggle"
+            >
+              <PanelRightOpenIcon className="size-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <MessageThread

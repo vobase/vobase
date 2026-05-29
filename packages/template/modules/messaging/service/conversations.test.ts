@@ -11,7 +11,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { MERIGPT_AGENT_ID } from '@modules/agents/seed'
-import { CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
+import { ALICE_USER_ID, BOB_USER_ID, CUSTOMER_CHANNEL_INSTANCE_ID, SEEDED_CONTACT_ID } from '@modules/contacts/seed'
 import { conversations as convTable } from '@modules/messaging/schema'
 import {
   ConversationFailedError,
@@ -19,12 +19,14 @@ import {
   createInboundMessage,
   get,
   installConversationsService,
+  lastOwnerAssignedAt,
   list,
   reopen,
   reset,
   resolve,
   resumeOrCreate,
   SnoozeNotAllowedError,
+  setOwner,
   snooze,
   unsnooze,
   wakeSnoozed,
@@ -138,6 +140,33 @@ describe('resolve / reopen / reset transitions', () => {
     const reopened = await reopen(conversation.id, 'alice', 'staff_reopen')
     expect(reopened.status).toBe('active')
     expect(reopened.resolvedAt).toBeNull()
+  })
+})
+
+describe('setOwner / lastOwnerAssignedAt', () => {
+  it('sets and clears the owner without touching assignee', async () => {
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    const beforeAssignee = conversation.assignee
+
+    const owned = await setOwner(conversation.id, ALICE_USER_ID, 'test')
+    expect(owned.ownerUserId).toBe(ALICE_USER_ID)
+    expect(owned.ownerAssignedAt).not.toBeNull()
+    // The owner is orthogonal to the responder — assignee must be untouched.
+    expect(owned.assignee).toBe(beforeAssignee)
+
+    const cleared = await setOwner(conversation.id, null, 'test')
+    expect(cleared.ownerUserId).toBeNull()
+    expect(cleared.ownerAssignedAt).toBeNull()
+    expect(cleared.assignee).toBe(beforeAssignee)
+  })
+
+  it('lastOwnerAssignedAt reports a date for owned reps, null for never-owned', async () => {
+    const { conversation } = await resumeOrCreate(organizationId, SEEDED_CONTACT_ID, CUSTOMER_CHANNEL_INSTANCE_ID)
+    await setOwner(conversation.id, ALICE_USER_ID, 'test')
+
+    const map = await lastOwnerAssignedAt(organizationId, [ALICE_USER_ID, BOB_USER_ID])
+    expect(map.get(ALICE_USER_ID)).toBeInstanceOf(Date)
+    expect(map.get(BOB_USER_ID)).toBeNull()
   })
 })
 

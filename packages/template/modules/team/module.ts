@@ -10,6 +10,7 @@ import { createStaffAttrDefService, installStaffAttrDefService } from './service
 import { STAFF_RESOURCE, staffChangeMaterializer } from './service/changes'
 import { staffCrossAgentMemoryOverlay } from './service/drive-overlay'
 import { createInvitationsService, installInvitationsService } from './service/invitations'
+import { createLeadRoutingService, installLeadRoutingService } from './service/lead-routing'
 import { createVerificationGating, installVerificationGating } from './service/mention-notify'
 import { createMentionsService, installMentionsService } from './service/mentions'
 import { createPendingStaffPingService, installPendingStaffPingService } from './service/pending-staff-pings'
@@ -25,6 +26,8 @@ import { installTeamOrgEnumerator } from './service/staff-link-sync-orgs'
 import { STAFF_MEMORY_RESOURCE, staffMemoryChangeMaterializer } from './service/staff-memory-changes'
 import { createMentionNotifyService, installMentionNotifyService, type SendTemplateFn } from './service/staff-ping'
 import { createTeamDescriptionService, installTeamDescriptionService } from './service/team-descriptions'
+import { routingVerbs } from './verbs/routing'
+import { teamSetAttributeVerb } from './verbs/staff-attribute'
 import { teamGetVerb } from './verbs/team-get'
 import { teamListVerb } from './verbs/team-list'
 import * as web from './web'
@@ -42,6 +45,7 @@ const team: ModuleDef = {
     installInvitationsService(createInvitationsService({ db: ctx.db, realtime: ctx.realtime }))
     installTeamAdminGate({ db: ctx.db })
     installTeamDescriptionService(createTeamDescriptionService({ db: ctx.db }))
+    installLeadRoutingService(createLeadRoutingService({ db: ctx.db }))
     installMentionsService(createMentionsService({ db: ctx.db }))
     // Build the platform-call closure once: env reads happen at boot (not on
     // every send), and tests inject their own `sendTemplate` stub instead of
@@ -108,7 +112,7 @@ const team: ModuleDef = {
         'per-staff-member fact (specialties, working hours, preferred tone). resourceId is `${agentId}:${staffId}`.',
       materialize: staffMemoryChangeMaterializer,
     })
-    ctx.cli.registerAll([teamListVerb, teamGetVerb])
+    ctx.cli.registerAll([teamListVerb, teamGetVerb, teamSetAttributeVerb, ...routingVerbs])
   },
 }
 

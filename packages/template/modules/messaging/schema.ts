@@ -22,6 +22,10 @@ export interface Conversation {
   channelInstanceId: string
   status: ConversationStatus
   assignee: string
+  /** Staff member in charge of this conversation. Distinct from `assignee` (the responder); null until routed/assigned. */
+  ownerUserId: string | null
+  /** When `ownerUserId` was last set; null when there is no owner. Drives round-robin least-recently-assigned. */
+  ownerAssignedAt: Date | null
   threadKey: string
   emailSubject: string | null
   snoozedUntil: Date | null
@@ -125,6 +129,15 @@ export const conversations = messagingPgSchema.table(
     status: text('status').notNull(),
     assignee: text('assignee').notNull(),
     /**
+     * Staff member in charge of this conversation — the "owner" / staff-in-charge.
+     * Orthogonal to `assignee`: `assignee` is the responder (which agent or human
+     * replies), `ownerUserId` is who owns the lead/ticket. Setting an owner does
+     * NOT silence the agent. Null until routed or manually assigned.
+     */
+    ownerUserId: text('owner_user_id'),
+    /** When `ownerUserId` was last set (null when cleared). Round-robin reads MAX of this per rep. */
+    ownerAssignedAt: timestamp('owner_assigned_at', { withTimezone: true }),
+    /**
      * Thread-scoping key. Chat channels (web/whatsapp/telegram/sms) pass
      * `'default'` — one conversation per (organization, contact, channel). Email
      * populates from the RFC 5322 References/In-Reply-To root so each email
@@ -151,6 +164,7 @@ export const conversations = messagingPgSchema.table(
   (t) => [
     index('idx_conv_organization_status').on(t.organizationId, t.status),
     index('idx_conv_contact').on(t.contactId),
+    index('idx_conv_owner').on(t.organizationId, t.ownerUserId, t.ownerAssignedAt),
     uniqueIndex('idx_conv_one_per_pair').on(t.organizationId, t.contactId, t.channelInstanceId, t.threadKey),
     index('idx_conv_snoozed').on(t.organizationId, t.snoozedUntil).where(sql`${t.snoozedUntil} IS NOT NULL`),
     check('conversations_status_check', sql`status IN ('active','resolving','awaiting_approval','resolved','failed')`),

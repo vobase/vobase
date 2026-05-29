@@ -52,6 +52,8 @@ function makeProfile(overrides: Partial<StaffProfile> = {}): StaffProfile {
     lastSeenAt: null,
     phoneNumber: overrides.phoneNumber ?? null,
     phoneNumberVerified: overrides.phoneNumberVerified ?? null,
+    email: overrides.email ?? null,
+    teams: overrides.teams ?? [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

@@ -30,6 +30,7 @@ import { createSessionsService, installSessionsService } from './service/session
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
 import { installStaffReplyTriageScheduler, type StaffReplyTriageScheduler } from './service/staff-reply'
 import { convReassignVerb } from './verbs/conv-reassign'
+import { convSetOwnerVerb } from './verbs/conv-set-owner'
 import * as web from './web'
 
 export type { ApprovalScheduler, ConversationScheduler }
@@ -105,7 +106,7 @@ const messaging: ModuleDef = {
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
     installSessionsService(createSessionsService({ db: ctx.db }))
     installReactionsService(createReactionsService({ db: ctx.db }))
-    ctx.cli.registerAll([...messagingVerbs, convReassignVerb])
+    ctx.cli.registerAll([...messagingVerbs, convReassignVerb, convSetOwnerVerb])
   },
 }
 

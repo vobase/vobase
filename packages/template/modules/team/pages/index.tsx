@@ -12,7 +12,7 @@ import {
   useReactTable,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { Send, Settings2, Users2 } from 'lucide-react'
+import { RouteIcon, Send, Settings2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { DataTable } from '@/components/data-table/data-table'
@@ -29,7 +29,6 @@ import { PendingInvitationsCard } from '../components/pending-invitations-card'
 import { canInviteMembers, useActiveMember } from '../hooks/use-active-member'
 import { useAttributeDefinitions } from '../hooks/use-attributes'
 import { useStaffList } from '../hooks/use-staff'
-import { useTeamsByUser } from '../hooks/use-teams'
 import type { AttributeValue, Availability, StaffAttributeDefinition, StaffProfile } from '../schema'
 
 const AVAILABILITY_TONE: Record<Availability, string> = {
@@ -88,7 +87,6 @@ export function StaffListPage() {
   const { data: staff = [], isLoading, error } = useStaffList()
   const { data: attrDefs = [] } = useAttributeDefinitions()
   const { data: activeMember } = useActiveMember()
-  const { data: teamsByUser } = useTeamsByUser()
   const [inviteOpen, setInviteOpen] = useState(false)
   const canInvite = canInviteMembers(activeMember?.role)
 
@@ -124,16 +122,6 @@ export function StaffListPage() {
       .map((v) => ({ label: v, value: v }))
   }, [staff])
 
-  const teamOptions = useMemo(() => {
-    const s = new Set<string>()
-    if (teamsByUser) {
-      for (const teams of Object.values(teamsByUser)) for (const t of teams) s.add(t.name)
-    }
-    return Array.from(s)
-      .sort()
-      .map((v) => ({ label: v, value: v }))
-  }, [teamsByUser])
-
   const columns = useMemo<ColumnDef<StaffProfile>[]>(() => {
     const dynamicCols = attrDefs
       .slice()
@@ -160,17 +148,17 @@ export function StaffListPage() {
         enableHiding: false,
       },
       {
-        id: 'teams',
-        accessorFn: (row) => (teamsByUser?.[row.userId] ?? []).map((t) => t.name),
-        header: ({ column }) => <DataTableColumnHeader column={column} label="Teams" />,
+        id: 'email',
+        accessorKey: 'email',
+        header: ({ column }) => <DataTableColumnHeader column={column} label="Email" />,
         cell: ({ row }) => {
-          const teams = teamsByUser?.[row.original.userId] ?? []
-          return tagsCell(teams.map((t) => t.name))
+          const email = row.original.email
+          if (!email) return <span className="text-muted-foreground">—</span>
+          return <span className="text-muted-foreground text-sm">{email}</span>
         },
-        filterFn: (row, id, value) => tagFilter(value, row.getValue<string[]>(id)),
-        meta: { label: 'Teams', variant: 'multiSelect', options: teamOptions },
-        enableColumnFilter: teamOptions.length > 0,
-        enableSorting: false,
+        meta: { label: 'Email', variant: 'text', placeholder: 'Search email…' },
+        enableColumnFilter: true,
+        enableSorting: true,
       },
       {
         id: 'userId',
@@ -292,7 +280,7 @@ export function StaffListPage() {
     ]
 
     return [...staticCols, ...dynamicCols, ...tailCols]
-  }, [attrDefs, sectorOptions, expertiseOptions, languageOptions, teamOptions, teamsByUser])
+  }, [attrDefs, sectorOptions, expertiseOptions, languageOptions])
 
   const table = useReactTable({
     data: staff,
@@ -317,15 +305,15 @@ export function StaffListPage() {
         actions={
           <>
             <Button asChild size="sm" variant="outline">
-              <Link to="/team/teams">
-                <Users2 />
-                Teams
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
               <Link to="/team/attributes">
                 <Settings2 />
                 Attributes
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/team/routing">
+                <RouteIcon />
+                Routing
               </Link>
             </Button>
             {canInvite && (

@@ -30,6 +30,7 @@ import { Route as shellAuthPendingRouteImport } from './shell/auth/pending'
 import { Route as shellAuthLoginRouteImport } from './shell/auth/login'
 import { Route as shellAuthCliGrantRouteImport } from './shell/auth/cli-grant'
 import { Route as TeamTeamsRouteImport } from './../modules/team/pages/teams'
+import { Route as TeamRoutingRouteImport } from './../modules/team/pages/routing'
 import { Route as TeamAttributesRouteImport } from './../modules/team/pages/attributes'
 import { Route as TeamUserIdRouteImport } from './../modules/team/pages/$userId'
 import { Route as ApprovalsRouteImport } from './../modules/messaging/pages/approvals'
@@ -148,6 +149,11 @@ const TeamTeamsRoute = TeamTeamsRouteImport.update({
   path: '/team/teams',
   getParentRoute: () => shellAppLayoutRoute,
 } as any)
+const TeamRoutingRoute = TeamRoutingRouteImport.update({
+  id: '/team/routing',
+  path: '/team/routing',
+  getParentRoute: () => shellAppLayoutRoute,
+} as any)
 const TeamAttributesRoute = TeamAttributesRouteImport.update({
   id: '/team/attributes',
   path: '/team/attributes',
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/inbox/approvals': typeof ApprovalsRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
+  '/team/routing': typeof TeamRoutingRoute
   '/team/teams': typeof TeamTeamsRoute
   '/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/auth/login': typeof shellAuthLoginRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/inbox/approvals': typeof ApprovalsRoute
   '/team/$userId': typeof TeamUserIdRoute
   '/team/attributes': typeof TeamAttributesRoute
+  '/team/routing': typeof TeamRoutingRoute
   '/team/teams': typeof TeamTeamsRoute
   '/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/auth/login': typeof shellAuthLoginRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/_app/inbox/approvals': typeof ApprovalsRoute
   '/_app/team/$userId': typeof TeamUserIdRoute
   '/_app/team/attributes': typeof TeamAttributesRoute
+  '/_app/team/routing': typeof TeamRoutingRoute
   '/_app/team/teams': typeof TeamTeamsRoute
   '/_auth/auth/cli-grant': typeof shellAuthCliGrantRoute
   '/_auth/auth/login': typeof shellAuthLoginRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/inbox/approvals'
     | '/team/$userId'
     | '/team/attributes'
+    | '/team/routing'
     | '/team/teams'
     | '/auth/cli-grant'
     | '/auth/login'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/inbox/approvals'
     | '/team/$userId'
     | '/team/attributes'
+    | '/team/routing'
     | '/team/teams'
     | '/auth/cli-grant'
     | '/auth/login'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/_app/inbox/approvals'
     | '/_app/team/$userId'
     | '/_app/team/attributes'
+    | '/_app/team/routing'
     | '/_app/team/teams'
     | '/_auth/auth/cli-grant'
     | '/_auth/auth/login'
@@ -526,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamTeamsRouteImport
       parentRoute: typeof shellAppLayoutRoute
     }
+    '/_app/team/routing': {
+      id: '/_app/team/routing'
+      path: '/team/routing'
+      fullPath: '/team/routing'
+      preLoaderRoute: typeof TeamRoutingRouteImport
+      parentRoute: typeof shellAppLayoutRoute
+    }
     '/_app/team/attributes': {
       id: '/_app/team/attributes'
       path: '/team/attributes'
@@ -616,6 +635,7 @@ interface shellAppLayoutRouteChildren {
   ContactsAttributesRoute: typeof ContactsAttributesRoute
   TeamUserIdRoute: typeof TeamUserIdRoute
   TeamAttributesRoute: typeof TeamAttributesRoute
+  TeamRoutingRoute: typeof TeamRoutingRoute
   TeamTeamsRoute: typeof TeamTeamsRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   ContactsIndexRoute: typeof ContactsIndexRoute
@@ -638,6 +658,7 @@ const shellAppLayoutRouteChildren: shellAppLayoutRouteChildren = {
   ContactsAttributesRoute: ContactsAttributesRoute,
   TeamUserIdRoute: TeamUserIdRoute,
   TeamAttributesRoute: TeamAttributesRoute,
+  TeamRoutingRoute: TeamRoutingRoute,
   TeamTeamsRoute: TeamTeamsRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   ContactsIndexRoute: ContactsIndexRoute,

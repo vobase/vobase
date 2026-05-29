@@ -27,6 +27,7 @@ import { defineIndexContributor } from '@vobase/core'
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
 import { renderStaffFrontmatter } from '~/wake/profile-frontmatter'
+import { routeLeadTool } from './tools/route-lead'
 
 export type { StaffProfileLookup }
 
@@ -41,8 +42,9 @@ export const teamAgentsMdContributors: readonly IndexContributor[] = [
       return [
         '## Staff',
         '',
-        '- `/staff/<id>/PROFILE.md` — staff identity (read-only).',
+        '- `/staff/<id>/PROFILE.md` — staff identity (read-only). The `teams` frontmatter field lists the better-auth teams the staff member belongs to (e.g. `Corporate`, `Private`).',
         '- `/staff/<id>/MEMORY.md` — per-(agent, staff) notes you maintain. Direct-writable.',
+        '- `vobase team list` shows every staff member with their `teams=` membership — run it before `consult_staff` so you address the right colleague.',
       ].join('\n')
     },
   }),
@@ -114,6 +116,7 @@ export const teamMaterializerFactory: WakeMaterializerFactory = (ctx) => {
 }
 
 export const teamAgent = {
+  tools: [routeLeadTool],
   agentsMd: [...teamAgentsMdContributors],
   materializers: [teamMaterializerFactory],
 }

@@ -148,6 +148,8 @@ function makeProfile(orgId: string, userId: string, phone: string): StaffProfile
     lastSeenAt: null,
     phoneNumber: phone,
     phoneNumberVerified: null,
+    email: null,
+    teams: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   }

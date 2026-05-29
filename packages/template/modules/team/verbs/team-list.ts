@@ -15,11 +15,13 @@ function formatRow(s: {
   expertise: string[]
   languages: string[]
   availability: string
+  teams: string[]
 }): string {
   const name = s.displayName ?? '(unnamed)'
   const title = s.title ? ` · ${s.title}` : ''
+  const teams = s.teams.length > 0 ? ` · teams=${s.teams.join(',')}` : ''
   const expertise = s.expertise.length > 0 ? ` · skills=${s.expertise.join(',')}` : ''
-  return `  user:${s.userId}  ${name}${title} · availability=${s.availability}${expertise}`
+  return `  user:${s.userId}  ${name}${title} · availability=${s.availability}${teams}${expertise}`
 }
 
 export const teamListVerb = defineCliVerb({
@@ -43,6 +45,7 @@ export const teamListVerb = defineCliVerb({
           displayName: s.displayName,
           title: s.title,
           availability: s.availability,
+          teams: s.teams,
           expertise: s.expertise,
           languages: s.languages,
         })),

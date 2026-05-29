@@ -11,10 +11,18 @@ import { eq } from 'drizzle-orm'
 
 import type { TeamDescription } from '../schema'
 
+export interface UpsertTeamDescriptionInput {
+  teamId: string
+  organizationId: string
+  description: string
+  /** Team lead — omit to leave unchanged, pass `null` to clear. */
+  leadUserId?: string | null
+}
+
 export interface TeamDescriptionService {
   list(organizationId: string): Promise<TeamDescription[]>
   get(teamId: string): Promise<TeamDescription | null>
-  upsert(input: { teamId: string; organizationId: string; description: string }): Promise<TeamDescription>
+  upsert(input: UpsertTeamDescriptionInput): Promise<TeamDescription>
   remove(teamId: string): Promise<void>
 }
 
@@ -42,17 +50,18 @@ export function createTeamDescriptionService(deps: Deps): TeamDescriptionService
     return (rows[0] as TeamDescription | undefined) ?? null
   }
 
-  async function upsert(input: {
-    teamId: string
-    organizationId: string
-    description: string
-  }): Promise<TeamDescription> {
+  async function upsert(input: UpsertTeamDescriptionInput): Promise<TeamDescription> {
+    const set: Record<string, unknown> = {
+      description: input.description,
+      organizationId: input.organizationId,
+    }
+    if (input.leadUserId !== undefined) set.leadUserId = input.leadUserId
     const rows = (await db
       .insert(teamDescriptions)
       .values(input)
       .onConflictDoUpdate({
         target: teamDescriptions.teamId,
-        set: { description: input.description, organizationId: input.organizationId },
+        set,
       })
       .returning()) as unknown[]
     const row = rows[0]
@@ -88,11 +97,7 @@ export function listDescriptions(organizationId: string): Promise<TeamDescriptio
 export function getDescription(teamId: string): Promise<TeamDescription | null> {
   return currentSvc().get(teamId)
 }
-export function upsertDescription(input: {
-  teamId: string
-  organizationId: string
-  description: string
-}): Promise<TeamDescription> {
+export function upsertDescription(input: UpsertTeamDescriptionInput): Promise<TeamDescription> {
   return currentSvc().upsert(input)
 }
 export function removeDescription(teamId: string): Promise<void> {
