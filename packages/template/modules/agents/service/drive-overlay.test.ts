@@ -60,6 +60,8 @@ beforeEach(() => {
       if (agentId === AGENT_A) return [makeSkill('read', AGENT_A, '# Read skill'), makeSkill('extra', null, '# Extra')]
       return []
     },
+    upsertLearnedSkill: mock(() => Promise.reject(new Error('upsertLearnedSkill: not stubbed in this test'))),
+    removeLearnedSkill: mock(() => Promise.reject(new Error('removeLearnedSkill: not stubbed in this test'))),
   })
 })
 
@@ -93,7 +95,11 @@ describe('agentSkillsOverlay.list', () => {
       list: mock(() => Promise.resolve([])),
       getConversationWorkingMemory: mock(() => Promise.resolve(null)),
     })
-    installAgentSkillsService({ listSkillsForAgent: async () => [] })
+    installAgentSkillsService({
+      listSkillsForAgent: async () => [],
+      upsertLearnedSkill: mock(() => Promise.reject(new Error('upsertLearnedSkill: not stubbed'))),
+      removeLearnedSkill: mock(() => Promise.reject(new Error('removeLearnedSkill: not stubbed'))),
+    })
 
     const rows = await agentSkillsOverlay.list({
       scope: agentScope(AGENT_B),
@@ -222,6 +228,8 @@ describe('agentSkillsOverlay.read', () => {
     const skillTs = new Date('2026-03-10T08:00:00Z')
     installAgentSkillsService({
       listSkillsForAgent: async () => [makeSkill('extra', AGENT_A, '# Extra', skillTs)],
+      upsertLearnedSkill: mock(() => Promise.reject(new Error('upsertLearnedSkill: not stubbed'))),
+      removeLearnedSkill: mock(() => Promise.reject(new Error('removeLearnedSkill: not stubbed'))),
     })
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
@@ -241,7 +249,11 @@ describe('agentSkillsOverlay.read', () => {
       list: mock(() => Promise.resolve([])),
       getConversationWorkingMemory: mock(() => Promise.resolve(null)),
     })
-    installAgentSkillsService({ listSkillsForAgent: async () => [] })
+    installAgentSkillsService({
+      listSkillsForAgent: async () => [],
+      upsertLearnedSkill: mock(() => Promise.reject(new Error('upsertLearnedSkill: not stubbed'))),
+      removeLearnedSkill: mock(() => Promise.reject(new Error('removeLearnedSkill: not stubbed'))),
+    })
     const result = await agentSkillsOverlay.read({
       scope: agentScope(AGENT_A),
       path: '/skills/write/SKILL.md',

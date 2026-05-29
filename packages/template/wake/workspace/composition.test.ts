@@ -28,7 +28,11 @@ import type { WakeContext } from '../context'
 import { chainRoHints } from './index'
 
 setCliRegistry(new CliVerbRegistry())
-installAgentSkillsService({ listSkillsForAgent: async () => [] })
+installAgentSkillsService({
+  listSkillsForAgent: async () => [],
+  upsertLearnedSkill: () => Promise.reject(new Error('upsertLearnedSkill: not stubbed in this test')),
+  removeLearnedSkill: () => Promise.reject(new Error('removeLearnedSkill: not stubbed in this test')),
+})
 
 const AGENT_ID = 'agent-comp-1'
 const CONTACT_ID = 'contact-comp-1'

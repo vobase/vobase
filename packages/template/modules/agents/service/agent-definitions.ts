@@ -47,6 +47,7 @@ export interface UpdateAgentInput {
   instructions?: string
   workingMemory?: string
   enabled?: boolean
+  skillAllowlist?: string[] | null
 }
 
 export function resolveAllowedTools(def: Pick<AgentDefinition, 'skillAllowlist'>): string[] {
@@ -123,6 +124,7 @@ export function createAgentDefinitionsService(deps: AgentDefinitionsServiceDeps)
     if (patch.instructions !== undefined) set.instructions = patch.instructions
     if (patch.workingMemory !== undefined) set.workingMemory = patch.workingMemory
     if (patch.enabled !== undefined) set.enabled = patch.enabled
+    if (patch.skillAllowlist !== undefined) set.skillAllowlist = patch.skillAllowlist
     if (Object.keys(set).length === 0) return getById(id)
     const rows = (await db
       .update(agentDefinitions)

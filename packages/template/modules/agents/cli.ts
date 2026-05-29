@@ -16,7 +16,10 @@ import { debugLlmIoVerb } from './verbs/debug-llm-io'
 import { debugTimelineVerb } from './verbs/debug-timeline'
 import { debugWakeSyncVerb } from './verbs/debug-wake-sync'
 import { debugWakesVerb } from './verbs/debug-wakes'
+import { agentsRemoveSkillVerb } from './verbs/remove-skill'
+import { agentsSetAllowlistVerb } from './verbs/set-allowlist'
 import { agentsSetInstructionsVerb } from './verbs/set-instructions'
+import { agentsSetSkillVerb } from './verbs/set-skill'
 import { agentsSetWorkingMemoryVerb } from './verbs/set-working-memory'
 
 const PROMPT_TAIL_BYTES = 8 * 1024
@@ -145,6 +148,9 @@ export const agentsVerbs = [
   agentsInspectVerb,
   agentsSetInstructionsVerb,
   agentsSetWorkingMemoryVerb,
+  agentsSetAllowlistVerb,
+  agentsSetSkillVerb,
+  agentsRemoveSkillVerb,
   debugWakesVerb,
   debugTimelineVerb,
   debugLlmIoVerb,

@@ -171,6 +171,31 @@ interface DrizzleHandle {
   }
 }
 
+export interface UpsertLearnedSkillInput {
+  organizationId: string
+  agentId: string
+  /** Slug-cased name, unique per `(organizationId, agentId)`. */
+  name: string
+  /** SKILL.md body. */
+  body: string
+  /** When omitted on update, the existing description is preserved; defaults to '' on insert. */
+  description?: string
+  /** When omitted on update, existing tags are preserved; defaults to [] on insert. */
+  tags?: string[]
+}
+
+export interface UpsertLearnedSkillRow {
+  id: string
+  organizationId: string
+  agentId: string | null
+  name: string
+  description: string
+  body: string
+  tags: string[]
+  version: number
+  updatedAt: Date
+}
+
 export interface AgentSkillsService {
   /**
    * Skills bound to one agent — both rows with `agent_id = <agentId>` AND
@@ -178,6 +203,21 @@ export interface AgentSkillsService {
    * approvals where the originating conversation had no agent_start event).
    */
   listSkillsForAgent(input: { organizationId: string; agentId: string }): Promise<LearnedSkillRow[]>
+  /**
+   * Upsert a learned-skill row keyed on the `uq_learned_skills_name`
+   * unique index `(organizationId, agentId, name)`. Increments `version`
+   * by one on update; leaves `parentProposalId` / `threatScanReport`
+   * untouched (this is the scripted-apply path, not a proposal).
+   */
+  upsertLearnedSkill(input: UpsertLearnedSkillInput): Promise<UpsertLearnedSkillRow>
+  /**
+   * Delete the learned-skill row keyed on `(organizationId, agentId, name)`.
+   * Returns the number of rows removed (0 when the skill never existed for
+   * this agent, 1 on a clean delete). Used by `agents remove-skill` to
+   * actually disappear obsolete skills from the agent's `/skills/` mount —
+   * the allowlist trim alone leaves learned-row backed skills visible.
+   */
+  removeLearnedSkill(input: { organizationId: string; agentId: string; name: string }): Promise<{ deleted: number }>
 }
 
 export function createAgentSkillsService(deps: { db: unknown }): AgentSkillsService {
@@ -205,6 +245,84 @@ export function createAgentSkillsService(deps: { db: unknown }): AgentSkillsServ
         .orderBy(desc(learnedSkills.updatedAt))) as unknown as LearnedSkillRow[]
       return rows
     },
+    async upsertLearnedSkill(input) {
+      const insertValues: Record<string, unknown> = {
+        id: nanoid(10),
+        organizationId: input.organizationId,
+        agentId: input.agentId,
+        name: input.name,
+        description: input.description ?? '',
+        body: input.body,
+        tags: input.tags ?? [],
+        version: 1,
+      }
+      const setOnUpdate: Record<string, unknown> = {
+        body: input.body,
+        version: sql`COALESCE(${learnedSkills.version}, 0) + 1`,
+        updatedAt: new Date(),
+      }
+      if (input.description !== undefined) setOnUpdate.description = input.description
+      if (input.tags !== undefined) setOnUpdate.tags = input.tags
+
+      const handle = deps.db as {
+        insert: (t: unknown) => {
+          values: (v: Record<string, unknown>) => {
+            onConflictDoUpdate: (cfg: { target: unknown; set: Record<string, unknown> }) => {
+              returning: () => Promise<Array<Record<string, unknown>>>
+            }
+          }
+        }
+      }
+      const rows = (await handle
+        .insert(learnedSkills)
+        .values(insertValues)
+        .onConflictDoUpdate({
+          target: [learnedSkills.organizationId, learnedSkills.agentId, learnedSkills.name],
+          set: setOnUpdate,
+        })
+        .returning()) as unknown as Array<{
+        id: string
+        organizationId: string
+        agentId: string | null
+        name: string
+        description: string
+        body: string
+        tags: string[] | null
+        version: number | null
+        updatedAt: Date
+      }>
+      const row = rows[0]
+      if (!row) throw new Error(`agents/upsertLearnedSkill: insert returned no rows for ${input.name}`)
+      return {
+        id: row.id,
+        organizationId: row.organizationId,
+        agentId: row.agentId,
+        name: row.name,
+        description: row.description,
+        body: row.body,
+        tags: row.tags ?? [],
+        version: row.version ?? 1,
+        updatedAt: row.updatedAt,
+      }
+    },
+    async removeLearnedSkill({ organizationId, agentId, name }) {
+      const handle = deps.db as {
+        delete: (t: unknown) => {
+          where: (clause: unknown) => { returning: () => Promise<Array<{ id: string }>> }
+        }
+      }
+      const rows = await handle
+        .delete(learnedSkills)
+        .where(
+          and(
+            eq(learnedSkills.organizationId, organizationId),
+            eq(learnedSkills.agentId, agentId),
+            eq(learnedSkills.name, name),
+          ),
+        )
+        .returning()
+      return { deleted: rows.length }
+    },
   }
 }
 
@@ -223,4 +341,16 @@ function current(): AgentSkillsService {
 
 export function listSkillsForAgent(input: { organizationId: string; agentId: string }): Promise<LearnedSkillRow[]> {
   return current().listSkillsForAgent(input)
+}
+
+export function upsertLearnedSkill(input: UpsertLearnedSkillInput): Promise<UpsertLearnedSkillRow> {
+  return current().upsertLearnedSkill(input)
+}
+
+export function removeLearnedSkill(input: {
+  organizationId: string
+  agentId: string
+  name: string
+}): Promise<{ deleted: number }> {
+  return current().removeLearnedSkill(input)
 }
