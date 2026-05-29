@@ -14,6 +14,7 @@ import { z } from 'zod'
 import * as agentDefs from './service/agent-definitions'
 import { debugLlmIoVerb } from './verbs/debug-llm-io'
 import { debugTimelineVerb } from './verbs/debug-timeline'
+import { debugWakeSyncVerb } from './verbs/debug-wake-sync'
 import { debugWakesVerb } from './verbs/debug-wakes'
 import { agentsSetInstructionsVerb } from './verbs/set-instructions'
 import { agentsSetWorkingMemoryVerb } from './verbs/set-working-memory'
@@ -147,4 +148,5 @@ export const agentsVerbs = [
   debugWakesVerb,
   debugTimelineVerb,
   debugLlmIoVerb,
+  debugWakeSyncVerb,
 ] as const

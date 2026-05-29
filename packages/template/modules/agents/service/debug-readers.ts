@@ -1,6 +1,9 @@
 /**
  * Read-only debug surface over `harness.{conversation_events,messages,threads}`.
- * Backs the admin-tier `agents debug {wakes,timeline,llm-io}` CLI verbs.
+ * Backs the admin-tier `agents debug {wakes,timeline,llm-io}` CLI verbs, plus
+ * `waitForWake` — a blocking poll-the-journal waiter (built on the same reads)
+ * behind the `agents debug wake-sync` verb. Every query here is a SELECT; the
+ * only side effect is sleeping between polls.
  */
 
 import { conversationEvents } from '@vobase/core'
@@ -58,6 +61,52 @@ export interface TimelineEvent {
   payload: unknown
   costUsd: number | null
   latencyMs: number | null
+}
+
+export interface WaitForWakeInput {
+  organizationId: string
+  conversationId: string
+  /**
+   * Watermark — only wakes whose `agent_start.ts >= since` are considered the
+   * target. Callers capture this immediately *before* the triggering action
+   * (inbound message, reassign) so a wake left over from an earlier turn isn't
+   * mistaken for the one under test.
+   */
+  since: Date
+  /** Total wall-clock budget in ms before giving up with `status: 'timeout'`. */
+  timeoutMs: number
+  /** Poll cadence in ms; defaults to 1500. */
+  pollMs?: number
+}
+
+export interface WakeToolCall {
+  toolName: string
+  /** Truncated JSON of the dispatched arguments (`tool_calls` jsonb, falling back to `payload`). */
+  argsPreview: string | null
+}
+
+export interface WaitForWakeResult {
+  /**
+   * `'settled'` — an `agent_end` was observed for the target wake.
+   * `'timeout'` — the wake started but didn't end inside the budget.
+   * `'no_wake'` — no `agent_start` appeared after the watermark (the trigger
+   *   never produced a wake — e.g. the conversation isn't assigned to an agent,
+   *   or the message was deduplicated).
+   */
+  status: 'settled' | 'timeout' | 'no_wake'
+  wakeId: string | null
+  trigger: string | null
+  /** `agent_end.payload.reason` verbatim — `complete` / `blocked` (paused on approval) / `aborted` / `error`; null until ended. */
+  endReason: string | null
+  turns: number
+  toolCalls: number
+  costUsd: number
+  startedAt: Date | null
+  endedAt: Date | null
+  /** Per-tool-call detail from `tool_dispatch_started` events, in dispatch order. Surfaces the `reply`/`add_note` arguments the customer/staff would see. */
+  toolCallDetail: WakeToolCall[]
+  /** Wall-clock the wait actually consumed (ms). */
+  waitedMs: number
 }
 
 export interface ListLlmIoInput {
@@ -126,6 +175,15 @@ export interface DebugReadersService {
   listWakes(input: ListWakesInput): Promise<WakeSummary[]>
   listTimeline(input: ListTimelineInput): Promise<TimelineEvent[]>
   listLlmIo(input: ListLlmIoInput): Promise<LlmIoRow[]>
+  /**
+   * Block until the first wake started at-or-after `since` (for the given
+   * conversation) reaches a terminal `agent_end`, polling every `pollMs`.
+   * Backs the `agents debug wake-sync` test verb — collapses the
+   * send-then-poll-then-cross-check loop into one awaited call. Returns the
+   * wake summary + per-tool-call detail so callers see what the agent did
+   * without a second round-trip.
+   */
+  waitForWake(input: WaitForWakeInput): Promise<WaitForWakeResult>
 }
 
 // ─── Factory ─────────────────────────────────────────────────────────────────
@@ -326,7 +384,121 @@ export function createDebugReadersService(deps: { db: ScopedDb }): DebugReadersS
     return rows
   }
 
-  return { listWakes, listTimeline, listLlmIo }
+  async function waitForWake(input: WaitForWakeInput): Promise<WaitForWakeResult> {
+    const pollMs = Math.min(Math.max(input.pollMs ?? 1500, 250), 10_000)
+    const startWall = Date.now()
+    const deadline = startWall + Math.max(input.timeoutMs, 0)
+    const sinceIso = input.since.toISOString()
+
+    // One probe per tick: find the target wake (earliest agent_start after the
+    // watermark), then aggregate it; settle as soon as an agent_end appears.
+    for (;;) {
+      const startRows = (await db.execute(sql`
+        SELECT wake_id AS "wakeId"
+        FROM harness.conversation_events
+        WHERE conversation_id = ${input.conversationId}
+          AND organization_id = ${input.organizationId}
+          AND type = 'agent_start'
+          AND wake_id IS NOT NULL
+          AND ts >= ${sinceIso}
+        ORDER BY ts ASC
+        LIMIT 1
+      `)) as unknown as Array<{ wakeId: string | null }>
+      const wakeId = startRows[0]?.wakeId ?? null
+
+      if (wakeId) {
+        const aggRows = (await db.execute(sql`
+          SELECT
+            bool_or(type = 'agent_end') AS "ended",
+            MAX(CASE WHEN type = 'agent_start' THEN payload ->> 'trigger' END) AS "trigger",
+            MAX(CASE WHEN type = 'agent_end' THEN payload ->> 'reason' END) AS "endReason",
+            MIN(ts) AS "startedAt",
+            MAX(CASE WHEN type = 'agent_end' THEN ts END) AS "endedAt",
+            COALESCE(MAX(turn_index), 0) + 1 AS "turns",
+            COUNT(*) FILTER (WHERE type = 'tool_dispatch_started') AS "toolCalls",
+            COALESCE(SUM(cost_usd), 0) AS "costUsd"
+          FROM harness.conversation_events
+          WHERE wake_id = ${wakeId}
+            AND organization_id = ${input.organizationId}
+        `)) as unknown as Array<{
+          ended: boolean | null
+          trigger: string | null
+          endReason: string | null
+          startedAt: Date | string | null
+          endedAt: Date | string | null
+          turns: number | string
+          toolCalls: number | string
+          costUsd: number | string
+        }>
+        const agg = aggRows[0]
+        if (agg?.ended) {
+          return {
+            status: 'settled',
+            wakeId,
+            trigger: agg.trigger,
+            endReason: agg.endReason,
+            turns: Number(agg.turns),
+            toolCalls: Number(agg.toolCalls),
+            costUsd: Number(agg.costUsd),
+            startedAt: toDate(agg.startedAt),
+            endedAt: toDate(agg.endedAt),
+            toolCallDetail: await readWakeToolCalls(wakeId, input.organizationId),
+            waitedMs: Date.now() - startWall,
+          }
+        }
+      }
+
+      if (Date.now() >= deadline) {
+        return {
+          status: wakeId ? 'timeout' : 'no_wake',
+          wakeId,
+          trigger: null,
+          endReason: null,
+          turns: 0,
+          toolCalls: 0,
+          costUsd: 0,
+          startedAt: null,
+          endedAt: null,
+          toolCallDetail: [],
+          waitedMs: Date.now() - startWall,
+        }
+      }
+      await Bun.sleep(pollMs)
+    }
+  }
+
+  async function readWakeToolCalls(wakeId: string, organizationId: string): Promise<WakeToolCall[]> {
+    const rows = (await db
+      .select({
+        toolName: conversationEvents.toolName,
+        toolCalls: conversationEvents.toolCalls,
+        payload: conversationEvents.payload,
+      })
+      .from(conversationEvents)
+      .where(
+        and(
+          eq(conversationEvents.wakeId, wakeId),
+          eq(conversationEvents.organizationId, organizationId),
+          eq(conversationEvents.type, 'tool_dispatch_started'),
+        ),
+      )
+      .orderBy(conversationEvents.ts)) as unknown as Array<{
+      toolName: string | null
+      toolCalls: unknown
+      payload: unknown
+    }>
+    return rows.map((r) => ({
+      toolName: r.toolName ?? '(unknown)',
+      argsPreview: previewJsonb(r.toolCalls ?? r.payload, 200),
+    }))
+  }
+
+  return { listWakes, listTimeline, listLlmIo, waitForWake }
+}
+
+function toDate(v: Date | string | null): Date | null {
+  if (v === null || v === undefined) return null
+  return v instanceof Date ? v : new Date(v)
 }
 
 // Operates on the verbatim payload (not a projected `LlmIoRow`) so `--tool`
@@ -434,4 +606,8 @@ export function listTimeline(input: ListTimelineInput): Promise<TimelineEvent[]>
 
 export function listLlmIo(input: ListLlmIoInput): Promise<LlmIoRow[]> {
   return current().listLlmIo(input)
+}
+
+export function waitForWake(input: WaitForWakeInput): Promise<WaitForWakeResult> {
+  return current().waitForWake(input)
 }
