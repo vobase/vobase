@@ -83,7 +83,16 @@ describe('waitForWake status state machine', () => {
       turnIndex: 0,
       ts: new Date(t0.getTime() + 10),
       toolName: 'reply',
-      toolCalls: { text: 'hello there' },
+    })
+    // Args live on tool_execution_start.payload.args — mirror the real harness shape.
+    await seed({
+      conversationId,
+      wakeId,
+      type: 'tool_execution_start',
+      turnIndex: 0,
+      ts: new Date(t0.getTime() + 12),
+      toolName: 'reply',
+      payload: { args: { text: 'hello there' } },
     })
     await seed({
       conversationId,

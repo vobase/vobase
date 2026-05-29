@@ -26,6 +26,12 @@
  *  - `endReason: 'blocked'` means the wake paused on an approval (card / file /
  *    book_slot) — it ended without a customer-visible reply. Inspect the
  *    pending proposal rather than waiting for text.
+ *  - Blocking holds one HTTP-RPC request open for the whole wake. A platform
+ *    edge/proxy may cut connections held longer than its own request timeout
+ *    (~30s on some hosts), so a slow wake can abort the CLI call even though the
+ *    wake completes server-side — read the outcome with
+ *    `agents debug wakes --conversationId=<id>`. Keep `--timeout` under the edge
+ *    cap for a synchronous result.
  */
 
 import { dispatchInbound } from '@modules/channels/service/inbound'

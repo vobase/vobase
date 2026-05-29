@@ -103,7 +103,7 @@ export interface WaitForWakeResult {
   costUsd: number
   startedAt: Date | null
   endedAt: Date | null
-  /** Per-tool-call detail from `tool_dispatch_started` events, in dispatch order. Surfaces the `reply`/`add_note` arguments the customer/staff would see. */
+  /** Per-tool-call detail from `tool_execution_start` events, in execution order. Surfaces the `reply`/`add_note` arguments the customer/staff would see. */
   toolCallDetail: WakeToolCall[]
   /** Wall-clock the wait actually consumed (ms). */
   waitedMs: number
@@ -468,10 +468,12 @@ export function createDebugReadersService(deps: { db: ScopedDb }): DebugReadersS
   }
 
   async function readWakeToolCalls(wakeId: string, organizationId: string): Promise<WakeToolCall[]> {
+    // Arguments live on `tool_execution_start.payload.args` (e.g. bash →
+    // `args.command`, reply_contact → `args.text`). `tool_dispatch_started`
+    // carries only the tool name, so reading it would surface null args.
     const rows = (await db
       .select({
         toolName: conversationEvents.toolName,
-        toolCalls: conversationEvents.toolCalls,
         payload: conversationEvents.payload,
       })
       .from(conversationEvents)
@@ -479,17 +481,16 @@ export function createDebugReadersService(deps: { db: ScopedDb }): DebugReadersS
         and(
           eq(conversationEvents.wakeId, wakeId),
           eq(conversationEvents.organizationId, organizationId),
-          eq(conversationEvents.type, 'tool_dispatch_started'),
+          eq(conversationEvents.type, 'tool_execution_start'),
         ),
       )
       .orderBy(conversationEvents.ts)) as unknown as Array<{
       toolName: string | null
-      toolCalls: unknown
       payload: unknown
     }>
     return rows.map((r) => ({
       toolName: r.toolName ?? '(unknown)',
-      argsPreview: previewJsonb(r.toolCalls ?? r.payload, 200),
+      argsPreview: previewJsonb((r.payload as { args?: unknown } | null)?.args ?? null, 200),
     }))
   }
 
