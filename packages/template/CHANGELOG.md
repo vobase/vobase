@@ -1,5 +1,26 @@
 # @vobase/template
 
+## 3.17.3
+
+### Patch Changes
+
+- [`65b7747`](https://github.com/vobase/vobase/commit/65b774789bfc3b030b0cf6af2afddbfc0e2fff5d) Thanks [@mdluo](https://github.com/mdluo)! - fix(channels): drop inbound events targeting released channel instances
+
+  Released rows stay in the DB to preserve `fk_conv_channel_instance`, but every webhook ingress was happily resolving them and persisting new inbound. When a tenant disconnects a WhatsApp channel, Meta keeps delivering webhooks until subscribe_apps is cleaned up — those events were landing on the released row as if it were still active.
+
+  - `handlers/webhook.ts` (generic provider webhook — WABA lands here): return 404 on both GET (challenge) and POST when `status === 'released'`.
+  - `adapters/web/handlers/inbound.ts`: look up the instance up-front and reject with 410 `channel_released` so widgets can't push to a disconnected channel.
+  - `service/inbound.ts::dispatchInbound`: belt-and-suspenders — warn-log and return `[]` if the resolved instance is released, so any future ingress path that forgets the handler check still can't leak.
+
+  The managed-channel router already gated on `status === 'active'`.
+
+- [`3f3c15a`](https://github.com/vobase/vobase/commit/3f3c15a60653efea974306da1a9698896d80bd25) Thanks [@mdluo](https://github.com/mdluo)! - fix(messaging): stop attributing WABA echoes and optimistic replies to staff[0]
+
+  The renderer parses `[<displayName>] ` body prefixes to identify staff authors. Two cases fell through to the `directory.staff[0]` fallback and showed the first teammate by mistake:
+
+  - WhatsApp Business App echoes arrive with `metadata.echoSource === 'business_app'` and no body prefix (Meta only reports the business phone, never the individual sender). `messagePrincipal` now returns `null` for these rows so they render as a generic staff bubble instead of mis-attributing.
+  - The reply composer's optimistic row inserted the raw, unprefixed body, hitting the same fallback for one frame before the server response replaced it. `useStaffReply` now pre-prefixes the optimistic body with the current staff's display name (mirroring server-side `prefixWithStaffName`), eliminating the flicker.
+
 ## 3.17.2
 
 ### Patch Changes
