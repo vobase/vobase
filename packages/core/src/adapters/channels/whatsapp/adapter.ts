@@ -208,7 +208,12 @@ export function createWhatsAppAdapter(
     const mediaFetchList: Array<{ msgId: string; mediaId: string; mediaType: string }> = []
     for (const entry of payload.entry) {
       for (const change of entry.changes) {
-        for (const msg of change.value.messages ?? []) {
+        // Coexistence: media the business sends from the WhatsApp Business App
+        // arrives in `message_echoes[]` (field: smb_message_echoes), a sibling of
+        // `messages[]`. Pre-fetch echo media too so parseWhatsAppEchoes — which is
+        // handed this same download cache — can attach the bytes. Without this,
+        // app-sent images persist with no attachment and render as unavailable.
+        for (const msg of [...(change.value.messages ?? []), ...(change.value.message_echoes ?? [])]) {
           for (const mtype of ['image', 'document', 'audio', 'video', 'sticker'] as const) {
             const mediaId = msg[mtype]?.id
             if (mediaId) {

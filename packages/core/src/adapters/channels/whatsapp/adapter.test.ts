@@ -343,6 +343,63 @@ describe('WhatsApp Adapter', () => {
       expect((events[0] as MessageReceivedEvent).messageType).toBe('video')
     })
 
+    it('pre-fetches and attaches media for coexistence smb_message_echoes (app-sent image)', async () => {
+      const adapter = createWhatsAppAdapter(TEST_CONFIG)
+      // Direct-mode two-step download: metadata { url, mime_type } then binary.
+      mockFetchSequence([
+        {
+          body: {
+            url: 'https://media.example.com/echo-img.jpg',
+            mime_type: 'image/jpeg',
+          },
+        },
+        { body: {} },
+      ])
+      // Coexistence canonical shape: field 'smb_message_echoes' + message_echoes[].
+      // `from` is the business phone, `to` is the customer; parseWhatsAppEchoes
+      // re-keys from→to so routing lands on the customer.
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            id: 'entry_1',
+            changes: [
+              {
+                field: 'smb_message_echoes',
+                value: {
+                  messaging_product: 'whatsapp',
+                  metadata: { display_phone_number: '+6512345678', phone_number_id: 'pn_biz' },
+                  message_echoes: [
+                    {
+                      from: '6512345678',
+                      to: '14155551234',
+                      id: 'wamid.echo_media_1',
+                      timestamp: '1700000000',
+                      type: 'image',
+                      image: { id: 'echo_media_123', mime_type: 'image/jpeg', caption: 'App-sent photo' },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      }
+      const req = makeSignedWebhookRequest(payload)
+      const events = (await adapter.parseWebhook?.(req)) ?? []
+      expect(events).toHaveLength(1)
+      const echo = events[0] as MessageReceivedEvent
+      expect(echo.metadata?.echo).toBe(true)
+      expect(echo.metadata?.echoSource).toBe('business_app')
+      expect(echo.from).toBe('14155551234')
+      expect(echo.messageType).toBe('image')
+      // Regression: the pre-fetch loop must scan message_echoes[] so the echo
+      // media id is downloaded and attached. Before the fix `media` is undefined.
+      expect(echo.media).toBeDefined()
+      expect(echo.media?.[0]?.data.length).toBeGreaterThan(0)
+      expect(echo.media?.[0]?.mimeType).toBe('image/jpeg')
+    })
+
     it('parses location message', async () => {
       const adapter = createWhatsAppAdapter(TEST_CONFIG)
       const payload = makeMessagePayload({
