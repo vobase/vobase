@@ -1,5 +1,13 @@
 # @vobase/core
 
+## 0.43.3
+
+### Patch Changes
+
+- [#109](https://github.com/vobase/vobase/pull/109) [`13017bb`](https://github.com/vobase/vobase/commit/13017bb4920e84280f55061037eb399b97570954) Thanks [@yuann3](https://github.com/yuann3)! - fix(whatsapp): pre-fetch media for coexistence `smb_message_echoes` so app-sent media attaches
+
+  The webhook media pre-fetch only scanned `change.value.messages`, never `change.value.message_echoes`, so media the business sends from the WhatsApp Business App (coexistence) was never downloaded — `parseWhatsAppEchoes` got a cache miss and the echo event carried no `media[]`, rendering as an unavailable attachment. The pre-fetch now also scans `message_echoes[]`, so app-sent images/videos/documents/voice notes attach like inbound media.
+
 ## 0.43.2
 
 ### Patch Changes
