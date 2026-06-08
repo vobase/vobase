@@ -159,4 +159,32 @@ describe('contactChangeMaterializer — field_set', () => {
     expect(lastUpdate.values?.marketingOptOut).toBe(false)
     expect(lastUpdate.values?.marketingOptOutAt).toBeNull()
   })
+
+  it('segments accepts a single string and wraps it as one-element array', async () => {
+    const { tx, lastUpdate } = makeStubTx(makeContact({ segments: [] }))
+    await contactChangeMaterializer(
+      makeProposal({ kind: 'field_set', fields: { segments: { from: null, to: 'VIP' } } }),
+      tx,
+    )
+    expect(lastUpdate.values?.segments).toEqual(['VIP'])
+  })
+
+  it('segments accepts an array and writes it verbatim', async () => {
+    const { tx, lastUpdate } = makeStubTx(makeContact({ segments: ['old'] }))
+    await contactChangeMaterializer(
+      makeProposal({ kind: 'field_set', fields: { segments: { from: ['old'], to: ['VIP', 'wholesale'] } } }),
+      tx,
+    )
+    expect(lastUpdate.values?.segments).toEqual(['VIP', 'wholesale'])
+  })
+
+  it('segments throws on non-string/non-array (no more silent no-op)', async () => {
+    const { tx } = makeStubTx(makeContact({ segments: ['existing'] }))
+    await expect(
+      contactChangeMaterializer(
+        makeProposal({ kind: 'field_set', fields: { segments: { from: null, to: 42 as unknown as string } } }),
+        tx,
+      ),
+    ).rejects.toThrow(/'segments' must be a string, array of strings, or null/)
+  })
 })

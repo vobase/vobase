@@ -108,7 +108,22 @@ function applyFieldSet(before: Contact, payload: Extract<ChangePayload, { kind: 
       continue
     }
     if (key === 'segments') {
-      next.segments = Array.isArray(change.to) ? (change.to as string[]) : []
+      // Accept either an array (`["VIP", "wholesale"]`) or a single string
+      // (`"VIP"`) — the verb's `--to` schema is a string so the agent's
+      // natural call shape is the latter. Silently wiping to `[]` on a string
+      // input (the old behavior) gave the agent a false success signal.
+      if (Array.isArray(change.to)) {
+        next.segments = change.to as string[]
+      } else if (typeof change.to === 'string') {
+        next.segments = [change.to]
+      } else if (change.to === null) {
+        next.segments = []
+      } else {
+        throw validation(
+          { key, type: typeof change.to },
+          `contacts/changes: field_set 'segments' must be a string, array of strings, or null`,
+        )
+      }
       continue
     }
     // Remaining scalars: displayName / email / phone — strings or null.
