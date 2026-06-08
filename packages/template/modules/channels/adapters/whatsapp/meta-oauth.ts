@@ -48,7 +48,9 @@ export class MetaOAuthError extends Error {
       | 'wabaId_mismatch'
       | 'app_id_mismatch'
       | 'subscribe_failed'
-      | 'register_failed',
+      | 'register_failed'
+      | 'smb_app_data_failed'
+      | 'media_download_failed',
     message: string,
     public readonly code: number | string,
   ) {
@@ -209,4 +211,85 @@ export async function registerPhoneNumber(
     const text = await response.text().catch(() => '')
     throw new MetaOAuthError('register_failed', text || `HTTP ${response.status}`, response.status)
   }
+}
+
+/**
+ * Initiate an SMB App Data synchronisation for a coexistence number — the
+ * explicit trigger that makes Meta start streaming the business's chat history
+ * (`sync_type: 'history'`) or contacts (`sync_type: 'smb_app_state_sync'`) to
+ * the webhook. Must be called within 24h of onboarding and only once per sync
+ * type. The returned `request_id` only confirms the request was accepted, not
+ * that the business shared anything (a decline surfaces later as a `history`
+ * webhook carrying error code 2593109).
+ */
+export async function syncSmbAppData(
+  phoneNumberId: string,
+  syncType: 'history' | 'smb_app_state_sync',
+  accessToken: string,
+  config: MetaOAuthConfig,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<{ requestId: string }> {
+  const baseUrl = config.baseUrl ?? 'https://graph.facebook.com'
+  const apiVersion = config.apiVersion ?? DEFAULT_API_VERSION
+  const url = `${baseUrl}/${apiVersion}/${encodeURIComponent(phoneNumberId)}/smb_app_data`
+
+  const response = await fetchImpl(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ messaging_product: 'whatsapp', sync_type: syncType }),
+  })
+
+  const json = (await response.json()) as { request_id?: string; error?: { message?: string; code?: number } }
+  if (!response.ok || !json.request_id) {
+    throw new MetaOAuthError(
+      'smb_app_data_failed',
+      json.error?.message ?? `HTTP ${response.status}`,
+      json.error?.code ?? response.status,
+    )
+  }
+  return { requestId: json.request_id }
+}
+
+/**
+ * Download a WhatsApp media asset by id: resolve the id to a short-lived CDN url
+ * via the Graph API, then fetch the bytes (the lookaside url also requires the
+ * Bearer token). Mirrors the core adapter's inbound media-download flow; used to
+ * fetch coexistence history media assets by their `id` (the captured webhook url
+ * is short-lived, so we always re-resolve from the stable media id).
+ */
+export async function fetchWhatsAppMedia(
+  mediaId: string,
+  accessToken: string,
+  config: MetaOAuthConfig,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<{ bytes: Buffer; mimeType: string }> {
+  const baseUrl = config.baseUrl ?? 'https://graph.facebook.com'
+  const apiVersion = config.apiVersion ?? DEFAULT_API_VERSION
+
+  const metaResponse = await fetchImpl(`${baseUrl}/${apiVersion}/${encodeURIComponent(mediaId)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  const meta = (await metaResponse.json()) as {
+    url?: string
+    mime_type?: string
+    error?: { message?: string; code?: number }
+  }
+  if (!metaResponse.ok || !meta.url) {
+    throw new MetaOAuthError(
+      'media_download_failed',
+      meta.error?.message ?? `HTTP ${metaResponse.status}`,
+      meta.error?.code ?? metaResponse.status,
+    )
+  }
+
+  const binaryResponse = await fetchImpl(meta.url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!binaryResponse.ok) {
+    throw new MetaOAuthError('media_download_failed', `CDN HTTP ${binaryResponse.status}`, binaryResponse.status)
+  }
+  const bytes = Buffer.from(await binaryResponse.arrayBuffer())
+  return { bytes, mimeType: meta.mime_type ?? 'application/octet-stream' }
 }

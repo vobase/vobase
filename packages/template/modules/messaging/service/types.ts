@@ -151,6 +151,72 @@ export interface CreateInboundMessageResult {
   isNew: boolean
 }
 
+/** One imported historical message destined for the backfill writer. */
+export interface BackfillHistoryMessage {
+  /** WhatsApp message id — the idempotency key. */
+  wamid: string
+  content: string
+  contentType: InboundContentType
+  /** `customer` (inbound) or `staff` (business-sent, outbound). */
+  role: MessageRole
+  /** Original device timestamp — written verbatim as the message `createdAt`. */
+  occurredAt: Date
+  metadata?: MessageMetadata
+}
+
+export interface BackfillHistoryInput {
+  organizationId: string
+  channelInstanceId: string
+  contactId: string
+  threadKey?: string
+  messages: BackfillHistoryMessage[]
+}
+
+export interface BackfillHistoryResult {
+  conversationId: string
+  inserted: number
+  /** Count of messages skipped as already-present (idempotent replay). */
+  skipped: number
+}
+
+export interface ResolveImportedHistoryInput {
+  organizationId: string
+  channelInstanceId: string
+  /**
+   * Keep a pure-history thread `active` (instead of resolving it) when its most
+   * recent message is an inbound customer message within this window — those are
+   * genuinely-open tickets staff should triage at onboarding. Default 7 days.
+   */
+  keepActiveWindowMs?: number
+  /** Injectable clock for the recency window; defaults to now. */
+  now?: Date
+}
+
+export interface ResolveImportedHistoryResult {
+  /** Pure-history conversations examined on this instance. */
+  scanned: number
+  /** Conversations transitioned to `resolved` (reason `history_import`). */
+  resolved: number
+  /** Conversations left `active` by the recent-inbound exception. */
+  keptActive: number
+}
+
+export interface AttachHistoricalMediaInput {
+  organizationId: string
+  /** WhatsApp message id of the placeholder message to enrich. */
+  wamid: string
+  bytes: Buffer
+  mimeType: string
+  filename: string
+}
+
+export interface AttachHistoricalMediaResult {
+  /** false when the placeholder message does not exist yet — the caller should retry. */
+  found: boolean
+  /** false when found but already had an attachment (idempotent). */
+  updated: boolean
+}
+
 export interface AddNoteInput {
   conversationId: string
   organizationId: string

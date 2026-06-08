@@ -18,6 +18,7 @@
  */
 
 import { randomInt } from 'node:crypto'
+import { triggerCoexistenceSyncs } from '@modules/channels/adapters/whatsapp/coexistence-sync'
 import {
   decryptInstanceAccessToken,
   parseWhatsappInstanceConfig,
@@ -44,6 +45,12 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
   if (instance.organizationId !== data.organizationId) {
     throw new Error(`whatsapp:setup: org mismatch for instance ${data.instanceId}`)
   }
+
+  // Hoisted out of the try so a successful smb_app_data sync's once-only guard
+  // is persisted even when finalization (marking the instance active) fails —
+  // otherwise a /finish retry would re-fire the already-succeeded sync and Meta
+  // would error on the duplicate call.
+  let coexistenceConfigPatch: Record<string, unknown> | undefined
 
   try {
     const cfg = parseWhatsappInstanceConfig(instance.config)
@@ -80,16 +87,36 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
         : Promise.resolve()
     await Promise.all([subscribe, register])
 
+    // Coexistence only: now that the WABA is subscribed (its webhooks route to
+    // this tenant via the override callback), fire the one-time history +
+    // contacts SMB App Data syncs and persist the once-only guard timestamps.
+    // Sync failures are non-fatal — logged and left re-fireable, never failing
+    // setup, since the channel itself is connected.
+    if (cfg.coexistence) {
+      const outcome = await triggerCoexistenceSyncs(cfg, accessToken)
+      if (outcome.failures.length > 0) {
+        console.warn('[whatsapp:setup] coexistence SMB App Data sync had failures', {
+          instanceId: instance.id,
+          failures: outcome.failures,
+        })
+      }
+      coexistenceConfigPatch = { ...instance.config, coexistenceHistory: outcome.coexistenceHistory }
+    }
+
     await updateInstance(instance.id, instance.organizationId, {
       setupStage: 'active',
       status: 'active',
       lastError: null,
+      ...(coexistenceConfigPatch ? { config: coexistenceConfigPatch } : {}),
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await updateInstance(instance.id, instance.organizationId, {
       setupStage: 'failed',
       lastError: message.slice(0, 500),
+      // Preserve any once-only guard timestamps collected before the failure so
+      // a retry doesn't re-fire an already-succeeded smb_app_data sync.
+      ...(coexistenceConfigPatch ? { config: coexistenceConfigPatch } : {}),
     })
     // Don't rethrow — failure is surfaced via `lastError`. Letting the queue
     // retry would just re-hit Meta and re-fail until the operator intervenes.

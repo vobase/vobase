@@ -131,6 +131,9 @@ function makeConversationsServiceStub(): ConversationsService {
       calls.push({ method: 'createInboundMessage', data: input })
       return { conversation: fakeConversation, message: fakeMessage, isNew: mockIsNew }
     },
+    backfillHistoricalMessages: notImplemented as ConversationsService['backfillHistoricalMessages'],
+    resolveImportedHistory: notImplemented as ConversationsService['resolveImportedHistory'],
+    attachHistoricalMedia: notImplemented as ConversationsService['attachHistoricalMedia'],
     create: notImplemented as ConversationsService['create'],
     resumeOrCreate: notImplemented as ConversationsService['resumeOrCreate'],
     get: notImplemented as ConversationsService['get'],

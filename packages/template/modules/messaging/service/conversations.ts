@@ -21,7 +21,17 @@ import type { Tx } from '~/runtime'
 import { type Conversation, conversations, type Message, messages } from '../schema'
 import { transitionConversation } from '../state'
 import { computeTab } from './bucketing'
-import type { CreateConversationInput, CreateInboundMessageInput, CreateInboundMessageResult } from './types'
+import type {
+  AttachHistoricalMediaInput,
+  AttachHistoricalMediaResult,
+  BackfillHistoryInput,
+  BackfillHistoryResult,
+  CreateConversationInput,
+  CreateInboundMessageInput,
+  CreateInboundMessageResult,
+  ResolveImportedHistoryInput,
+  ResolveImportedHistoryResult,
+} from './types'
 
 /** Minimal pg-boss-shaped binding — enough for snooze/unsnooze without pulling pg-boss types. */
 export interface ConversationScheduler {
@@ -86,6 +96,19 @@ type LateralSelectChain = {
   }
 }
 type DbWithLateral = { select: (fields: unknown) => LateralSelectChain }
+
+/** Escape hatch for a grouped `innerJoin` aggregate — not representable via DbHandle. */
+type GroupedJoinSelectChain = {
+  from: (t: unknown) => {
+    innerJoin: (
+      table: unknown,
+      on: unknown,
+    ) => {
+      where: (c: unknown) => { groupBy: (col: unknown) => Promise<unknown[]> }
+    }
+  }
+}
+type DbWithGroupedJoin = { select: (fields: unknown) => GroupedJoinSelectChain }
 
 /**
  * Detect a Postgres unique-violation (SQLSTATE 23505) on the
@@ -160,6 +183,16 @@ export interface ActivityEvent {
   payload: Record<string, unknown>
 }
 
+/**
+ * Coexistence history-import audit events — emitted ONCE PER affected
+ * conversation (not per message) by `backfillHistoricalMessages` /
+ * `resolveImportedHistory`, so the bulk import still honors the "every
+ * conversation-scoped mutation appends conversation_events" doctrine at
+ * O(threads) instead of O(messages).
+ */
+export const HISTORY_IMPORTED_EVENT = 'conversation.history_imported'
+export const HISTORY_RESOLVED_EVENT = 'conversation.history_resolved'
+
 export const TIMELINE_ACTIVITY_TYPES = [
   'conversation.reassigned',
   'conversation.resolved',
@@ -167,6 +200,9 @@ export const TIMELINE_ACTIVITY_TYPES = [
   'conversation.snoozed',
   'conversation.unsnoozed',
   'conversation.snooze_expired',
+  // Coexistence history-import lifecycle (modules/channels history drain).
+  HISTORY_IMPORTED_EVENT,
+  HISTORY_RESOLVED_EVENT,
   'conversation.owner_changed',
   // Change-proposal lifecycle events. Emitted by `modules/changes/service/proposals.ts`
   // when the affected proposal is conversation-scoped (i.e. `conversationId` set
@@ -205,6 +241,9 @@ export interface ConversationsService {
   reopen(conversationId: string, by: string, trigger?: ReopenTrigger): Promise<Conversation>
   reset(conversationId: string, by: string): Promise<Conversation>
   reassign(conversationId: string, assignee: string, by: string, reason?: string): Promise<Conversation>
+  backfillHistoricalMessages(input: BackfillHistoryInput): Promise<BackfillHistoryResult>
+  resolveImportedHistory(input: ResolveImportedHistoryInput): Promise<ResolveImportedHistoryResult>
+  attachHistoricalMedia(input: AttachHistoricalMediaInput): Promise<AttachHistoricalMediaResult>
   /**
    * Set (or clear, with `null`) the conversation's owner — the staff member in
    * charge. Independent of `assignee`; does NOT silence the agent. `by` is the
@@ -809,6 +848,327 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     return result
   }
 
+  /**
+   * Backfill imported WhatsApp coexistence history into the contact's
+   * conversation. Resume-or-create as ACTIVE + unassigned so the imported
+   * thread surfaces directly in the inbox (a later live inbound just appends).
+   * Messages are written with their original `createdAt`, idempotent on the
+   * WhatsApp message id, and DELIBERATELY suppress the live inbound
+   * side-effects — no 24h window, no agent wake, no automations, no staff-note
+   * fan-out, no per-message realtime notify.
+   */
+  async function backfillHistoricalMessages(input: BackfillHistoryInput): Promise<BackfillHistoryResult> {
+    const threadKey = input.threadKey ?? 'default'
+
+    const insertedConv = (await db
+      .insert(conversations)
+      .values({
+        organizationId: input.organizationId,
+        contactId: input.contactId,
+        channelInstanceId: input.channelInstanceId,
+        status: 'active',
+        assignee: 'unassigned',
+        threadKey,
+      })
+      .onConflictDoNothing()
+      .returning()) as Conversation[]
+    let conversation = insertedConv[0]
+    // `history_imported` is written once, only when THIS call creates the
+    // conversation — a pre-existing live thread that merely gets history
+    // appended is not an "imported" conversation.
+    const created = Boolean(conversation)
+    if (!conversation) {
+      const rows = (await db
+        .select()
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.organizationId, input.organizationId),
+            eq(conversations.contactId, input.contactId),
+            eq(conversations.channelInstanceId, input.channelInstanceId),
+            eq(conversations.threadKey, threadKey),
+          ),
+        )
+        .limit(1)) as Conversation[]
+      conversation = rows[0]
+      if (!conversation) {
+        throw new Error('messaging/conversations.backfillHistoricalMessages: no conversation after upsert')
+      }
+    }
+
+    if (input.messages.length === 0) {
+      if (created) {
+        await writeConversationEvent(db, {
+          conversationId: conversation.id,
+          organizationId: input.organizationId,
+          type: HISTORY_IMPORTED_EVENT,
+          payload: { source: 'whatsapp_coexistence', inserted: 0 },
+        })
+      }
+      return { conversationId: conversation.id, inserted: 0, skipped: 0 }
+    }
+
+    // A 180-day history burst can carry thousands of messages per thread, so the
+    // dedup lookup and the insert are batched to stay well under Postgres's
+    // ~65k bind-parameter ceiling and to bound peak memory.
+    const DEDUP_BATCH = 1000
+    const INSERT_BATCH = 500
+
+    // Idempotency on the WhatsApp message id (org-scoped), mirroring inbound.
+    const wamids = input.messages.map((m) => m.wamid)
+    const seen = new Set<string | null>()
+    for (let i = 0; i < wamids.length; i += DEDUP_BATCH) {
+      const batch = wamids.slice(i, i + DEDUP_BATCH)
+      const existingRows = (await db
+        .select({ channelExternalId: messages.channelExternalId })
+        .from(messages)
+        .where(and(eq(messages.organizationId, input.organizationId), inArray(messages.channelExternalId, batch)))
+        .limit(batch.length)) as Array<{ channelExternalId: string | null }>
+      for (const r of existingRows) seen.add(r.channelExternalId)
+    }
+    const toInsert = input.messages.filter((m) => !seen.has(m.wamid))
+
+    if (toInsert.length === 0) {
+      return { conversationId: conversation.id, inserted: 0, skipped: input.messages.length }
+    }
+
+    const conversationId = conversation.id
+
+    // Bump lastMessageAt to the latest historical time without regressing a
+    // newer value a live message may already have set.
+    let maxOccurredAt = toInsert[0].occurredAt
+    for (const m of toInsert) {
+      if (m.occurredAt > maxOccurredAt) maxOccurredAt = m.occurredAt
+    }
+    const nextLastMessageAt =
+      conversation.lastMessageAt && conversation.lastMessageAt > maxOccurredAt
+        ? conversation.lastMessageAt
+        : maxOccurredAt
+
+    // Insert all messages + bump the conversation atomically, so a mid-burst
+    // failure can't leave a half-written backfill (a retry stays safe via the
+    // wamid idempotency above).
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < toInsert.length; i += INSERT_BATCH) {
+        const batch = toInsert.slice(i, i + INSERT_BATCH)
+        await tx.insert(messages).values(
+          batch.map((m) => ({
+            conversationId,
+            organizationId: input.organizationId,
+            role: m.role,
+            kind: m.contentType === 'image' ? 'image' : 'text',
+            content: { text: m.content },
+            channelExternalId: m.wamid,
+            createdAt: m.occurredAt,
+            metadata: { ...(m.metadata ?? {}), historical: true },
+          })),
+        )
+      }
+      await tx
+        .update(conversations)
+        .set({ lastMessageAt: nextLastMessageAt, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId))
+      // One audit event per imported conversation, in the same tx as its
+      // messages (O(threads), not O(messages)).
+      if (created) {
+        await writeConversationEvent(tx, {
+          conversationId,
+          organizationId: input.organizationId,
+          type: HISTORY_IMPORTED_EVENT,
+          payload: { source: 'whatsapp_coexistence', inserted: toInsert.length },
+        })
+      }
+    })
+
+    return {
+      conversationId,
+      inserted: toInsert.length,
+      skipped: input.messages.length - toInsert.length,
+    }
+  }
+
+  /**
+   * Bulk-resolve conversations backfilled from coexistence history sync so a
+   * 6-month import doesn't flood the live inbox with dead threads. Only touches
+   * "pure history" conversations on the instance — every message historical and
+   * the thread still `active` (threads with no messages are never scanned, via
+   * the inner join) — so it never resolves a live conversation. A thread whose
+   * most recent message is an inbound customer message within `keepActiveWindowMs`
+   * is left `active` (a genuinely-open ticket worth triaging at onboarding);
+   * everything else → `resolved` (reason `history_import`, `resolvedAt` = the
+   * thread's last historical message time).
+   *
+   * Non-destructive + idempotent: a resolved thread auto-reopens to `active` on
+   * the next live inbound (see `_createInboundMessage`), and the write re-checks
+   * `status = 'active'` + still-pure-history, so re-runs skip already-resolved
+   * rows and a concurrent live inbound can't be buried.
+   *
+   * AUDIT NOTE: this is the one conversation mutation that does NOT append a
+   * per-thread `conversation_events` row — a deliberate exception for a bulk
+   * onboarding op where N can be thousands and per-row timeline events would be
+   * pure noise. The action stays auditable in aggregate via
+   * `status = 'resolved' AND resolvedReason = 'history_import'`.
+   */
+  async function resolveImportedHistory(input: ResolveImportedHistoryInput): Promise<ResolveImportedHistoryResult> {
+    const windowMs = input.keepActiveWindowMs ?? 7 * 24 * 60 * 60 * 1000
+    const cutoff = new Date((input.now ?? new Date()).getTime() - windowMs)
+
+    // One grouped pass over the instance's still-active threads: per conversation
+    // the latest message time, the latest *customer* message time, and whether
+    // every message is historical. `lastAt === lastCustomerAt` ⇒ the most recent
+    // message is the customer's. `coalesce(..., false)` makes a message with no
+    // `historical` flag count as live, so a half-live thread is never "pure".
+    const rows = (await (db as unknown as DbWithGroupedJoin)
+      .select({
+        conversationId: messages.conversationId,
+        lastAt: sql<string>`max(${messages.createdAt})`,
+        lastCustomerAt: sql<string | null>`max(${messages.createdAt}) filter (where ${messages.role} = 'customer')`,
+        allHistorical: sql<boolean>`bool_and(coalesce((${messages.metadata} ->> 'historical') = 'true', false))`,
+      })
+      .from(messages)
+      .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+      .where(
+        and(
+          eq(conversations.organizationId, input.organizationId),
+          eq(conversations.channelInstanceId, input.channelInstanceId),
+          eq(conversations.status, 'active'),
+        ),
+      )
+      .groupBy(messages.conversationId)) as Array<{
+      conversationId: string
+      lastAt: string
+      lastCustomerAt: string | null
+      allHistorical: boolean
+    }>
+
+    const pureHistory = rows.filter((r) => r.allHistorical)
+    const toResolve: string[] = []
+    let keptActive = 0
+    for (const r of pureHistory) {
+      // Compare via epoch ms (not raw timestamp strings) so driver/format quirks
+      // can't break the tie check. On an exact tie (a customer + staff message at
+      // the same second — reachable with second-granularity backfill timestamps)
+      // the thread is kept active: there is still an unanswered customer message
+      // at the tip.
+      const lastIsCustomer =
+        r.lastCustomerAt !== null && new Date(r.lastCustomerAt).getTime() === new Date(r.lastAt).getTime()
+      const recent = new Date(r.lastAt).getTime() >= cutoff.getTime()
+      if (lastIsCustomer && recent) keptActive += 1
+      else toResolve.push(r.conversationId)
+    }
+
+    if (toResolve.length === 0) return { scanned: pureHistory.length, resolved: 0, keptActive }
+
+    // Validate the edge through the FSM once (uniform active → resolved), then
+    // apply set-based, but in id-batches so a large import (thousands of dead
+    // threads) never blows Postgres's bind-parameter ceiling on the `inArray`.
+    // Each batch's WHERE re-asserts `status='active'` and still-pure history at
+    // write time, so a live inbound that raced the SELECT excludes the thread
+    // here rather than burying the new message in a resolved conversation —
+    // batching doesn't weaken that guard, and resolution stays idempotent +
+    // retryable. resolvedAt reuses the stored last-message time (coalesced for
+    // safety) so the timeline reads naturally; `returning` gives the true count.
+    const RESOLVE_BATCH = 1000
+    const resolvedStatus = transitionConversation('active', 'resolved')
+    let resolved = 0
+    for (let i = 0; i < toResolve.length; i += RESOLVE_BATCH) {
+      const ids = toResolve.slice(i, i + RESOLVE_BATCH)
+      await db.transaction(async (tx) => {
+        const updated = (await tx
+          .update(conversations)
+          .set({
+            status: resolvedStatus,
+            resolvedReason: 'history_import',
+            resolvedAt: sql`coalesce(${conversations.lastMessageAt}, now())`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              inArray(conversations.id, ids),
+              eq(conversations.status, 'active'),
+              sql`not exists (select 1 from ${messages} where ${messages.conversationId} = ${conversations.id} and coalesce((${messages.metadata} ->> 'historical') = 'true', false) = false)`,
+            ),
+          )
+          .returning()) as Conversation[]
+        if (updated.length > 0) {
+          // One audit event per resolved conversation, in the same tx as the
+          // status change. A re-run resolves nothing (the WHERE excludes
+          // already-resolved rows), so these events never duplicate.
+          await tx.insert(conversationEvents).values(
+            updated.map((c) => ({
+              conversationId: c.id,
+              organizationId: input.organizationId,
+              wakeId: null,
+              turnIndex: 0,
+              type: HISTORY_RESOLVED_EVENT,
+              payload: { reason: 'history_import' },
+            })),
+          )
+        }
+        resolved += updated.length
+      })
+    }
+
+    return { scanned: pureHistory.length, resolved, keptActive }
+  }
+
+  /**
+   * Enrich an imported-history `media_placeholder` message with its downloaded
+   * media. Reuses the live-inbound attachment path: `drive.ingestUpload` then a
+   * `MessageAttachmentRef` on the message, so the existing renderer shows it.
+   * Matched by the WhatsApp message id; returns `found:false` when the
+   * placeholder isn't created yet so the caller can retry (the asset webhook can
+   * arrive before its history chunk is drained).
+   */
+  async function attachHistoricalMedia(input: AttachHistoricalMediaInput): Promise<AttachHistoricalMediaResult> {
+    const rows = (await db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.organizationId, input.organizationId), eq(messages.channelExternalId, input.wamid)))
+      .limit(1)) as Message[]
+    const msg = rows[0]
+    if (!msg) return { found: false, updated: false }
+    if ((msg.attachments ?? []).length > 0) return { found: true, updated: false }
+
+    const convRows = (await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, msg.conversationId))
+      .limit(1)) as Conversation[]
+    const conv = convRows[0]
+    if (!conv) return { found: true, updated: false }
+
+    const drive = filesServiceFor(input.organizationId)
+    const ingest = await drive.ingestUpload({
+      organizationId: input.organizationId,
+      scope: { scope: 'contact', contactId: conv.contactId },
+      originalName: input.filename,
+      mimeType: input.mimeType,
+      sizeBytes: input.bytes.length,
+      bytes: input.bytes,
+      source: 'customer_inbound',
+      uploadedBy: null,
+      basePath: '/attachments/',
+    })
+    const attachment: MessageAttachmentRef = {
+      driveFileId: ingest.id,
+      // Denormalize the bash-view path so the agent's wake cue and the
+      // staff-inbox renderer get a directly-usable path (the DB row stores the
+      // scope-relative `/attachments/<file>`).
+      path: `/contacts/${conv.contactId}/drive${ingest.path}`,
+      mimeType: input.mimeType,
+      sizeBytes: input.bytes.length,
+      name: input.filename,
+      caption: null,
+      extractionKind: ingest.extractionKind,
+    }
+    await db
+      .update(messages)
+      .set({ kind: input.mimeType.startsWith('image/') ? 'image' : 'text', attachments: [attachment] })
+      .where(eq(messages.id, msg.id))
+    return { found: true, updated: true }
+  }
+
   // biome-ignore lint/suspicious/useAwait: contract requires async signature
   async function sendText(_input: unknown): Promise<unknown> {
     throw new Error('not-implemented: messaging/conversations.sendText — use messages.appendTextMessage')
@@ -939,6 +1299,9 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     reopen,
     reset,
     reassign,
+    backfillHistoricalMessages,
+    resolveImportedHistory,
+    attachHistoricalMedia,
     setOwner,
     lastOwnerAssignedAt,
     listActivity,
@@ -1040,6 +1403,20 @@ export async function reassign(
   reason?: string,
 ): Promise<Conversation> {
   return currentConversations().reassign(conversationId, assignee, by, reason)
+}
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function backfillHistoricalMessages(input: BackfillHistoryInput): Promise<BackfillHistoryResult> {
+  return currentConversations().backfillHistoricalMessages(input)
+}
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function resolveImportedHistory(
+  input: ResolveImportedHistoryInput,
+): Promise<ResolveImportedHistoryResult> {
+  return currentConversations().resolveImportedHistory(input)
+}
+// biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
+export async function attachHistoricalMedia(input: AttachHistoricalMediaInput): Promise<AttachHistoricalMediaResult> {
+  return currentConversations().attachHistoricalMedia(input)
 }
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function setOwner(conversationId: string, ownerUserId: string | null, by: string): Promise<Conversation> {

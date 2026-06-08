@@ -15,7 +15,7 @@
 
 import { nanoidPrimaryKey } from '@vobase/core/schema'
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, check, index, integer, jsonb, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 import { channelsPgSchema } from '~/runtime'
 
@@ -111,6 +111,49 @@ export const channelInstances = channelsPgSchema.table(
     check('channel_instances_role_check', sql`role IN ('customer','staff')`),
   ],
 )
+
+/**
+ * Coexistence chat-history sync staging. The `field:"history"` webhook can
+ * carry thousands of messages per chunk, so the ingress captures each
+ * `history[]` element here durably (UNIQUE on (instance, phase, chunk_order)
+ * for redelivery idempotency) and acks fast; a drain job parses + backfills
+ * asynchronously. Single-writer: `service/history-staging.ts`.
+ */
+export const whatsappHistoryChunks = channelsPgSchema.table(
+  'whatsapp_history_chunks',
+  {
+    id: nanoidPrimaryKey(),
+    organizationId: text('organization_id').notNull(),
+    channelInstanceId: text('channel_instance_id').notNull(),
+    phase: integer('phase').notNull(),
+    chunkOrder: integer('chunk_order').notNull(),
+    progress: integer('progress').notNull().default(0),
+    phoneNumberId: text('phone_number_id').notNull().default(''),
+    declined: boolean('declined').notNull().default(false),
+    /** Verbatim single-element `history` webhook body, for async parse + audit. */
+    payload: jsonb('payload').notNull().$type<Record<string, unknown>>(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_wa_history_chunk').on(t.channelInstanceId, t.phase, t.chunkOrder),
+    index('idx_wa_history_chunk_unprocessed').on(t.channelInstanceId, t.processedAt),
+  ],
+)
+
+export interface WhatsappHistoryChunk {
+  id: string
+  organizationId: string
+  channelInstanceId: string
+  phase: number
+  chunkOrder: number
+  progress: number
+  phoneNumberId: string
+  declined: boolean
+  payload: Record<string, unknown>
+  processedAt: Date | null
+  createdAt: Date
+}
 
 /**
  * Per-conversation 24-hour service window tracking for WhatsApp (and future)

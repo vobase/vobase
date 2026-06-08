@@ -15,9 +15,20 @@ import {
   WHATSAPP_NOTIF_CAPABILITIES,
   WHATSAPP_NOTIF_CHANNEL_NAME,
 } from './adapters/whatsapp/factory'
+import {
+  runWhatsappHistoryDrainJob,
+  WHATSAPP_HISTORY_DRAIN_JOB,
+  type WhatsappHistoryDrainJobData,
+} from './adapters/whatsapp/jobs/history-drain'
+import {
+  runWhatsappHistoryMediaJob,
+  WHATSAPP_HISTORY_MEDIA_JOB,
+  type WhatsappHistoryMediaJobData,
+} from './adapters/whatsapp/jobs/history-media'
 import { runWhatsappSetupJob, WHATSAPP_SETUP_JOB, type WhatsappSetupJobData } from './adapters/whatsapp/jobs/setup'
 import { channelsAgent } from './agent'
 import handlers from './handlers'
+import { createHistoryStagingService, installHistoryStagingService } from './service/history-staging'
 import { createChannelInstancesService, installChannelInstancesService } from './service/instances'
 import { createOutboundService, installOutboundService } from './service/outbound'
 import { register as registerAdapter } from './service/registry'
@@ -34,6 +45,14 @@ const channels: ModuleDef = {
       name: WHATSAPP_SETUP_JOB,
       handler: (data: unknown) => runWhatsappSetupJob(data as WhatsappSetupJobData),
     },
+    {
+      name: WHATSAPP_HISTORY_DRAIN_JOB,
+      handler: (data: unknown) => runWhatsappHistoryDrainJob(data as WhatsappHistoryDrainJobData),
+    },
+    {
+      name: WHATSAPP_HISTORY_MEDIA_JOB,
+      handler: (data: unknown) => runWhatsappHistoryMediaJob(data as WhatsappHistoryMediaJobData),
+    },
   ],
   init(ctx) {
     installChannelsState(
@@ -46,6 +65,7 @@ const channels: ModuleDef = {
       }),
     )
     installChannelInstancesService(createChannelInstancesService({ db: ctx.db }))
+    installHistoryStagingService(createHistoryStagingService({ db: ctx.db }))
     installWebInstancesService(createWebInstancesService({ db: ctx.db }))
     installSignupNoncesService(createSignupNoncesService({ db: ctx.db }))
     installOutboundService(createOutboundService())

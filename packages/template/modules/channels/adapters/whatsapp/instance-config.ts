@@ -48,6 +48,21 @@ export interface WhatsappInstanceConfig {
   appSecretEnvelope?: EncryptedAccessTokenBlob
   webhookVerifyToken?: string
   accessTokenEnvelope?: EncryptedAccessTokenBlob
+  /**
+   * Coexistence chat-history / contacts sync guard. ISO timestamps recording
+   * when each one-time SMB App Data sync was requested, so the post-onboarding
+   * trigger never double-fires the once-only Meta API. See `coexistence-sync.ts`.
+   */
+  coexistenceHistory?: {
+    historyRequestedAt?: string
+    contactsRequestedAt?: string
+    /** Chat-history import progress, written by the history drain for the UI. */
+    status?: 'importing' | 'imported' | 'declined'
+    /** Meta-reported import progress 0–100. */
+    progress?: number
+    /** Set once `resolveImportedHistory` has bulk-resolved the backfilled threads (drain-written guard). */
+    historyResolved?: boolean
+  }
 }
 
 export function encodeAccessTokenEnvelope(envelope: SecretEnvelope): EncryptedAccessTokenBlob {
@@ -182,6 +197,10 @@ export function parseWhatsappInstanceConfig(raw: unknown): WhatsappInstanceConfi
     accessTokenEnvelope:
       cfg.accessTokenEnvelope && typeof cfg.accessTokenEnvelope === 'object'
         ? (cfg.accessTokenEnvelope as EncryptedAccessTokenBlob)
+        : undefined,
+    coexistenceHistory:
+      cfg.coexistenceHistory && typeof cfg.coexistenceHistory === 'object'
+        ? (cfg.coexistenceHistory as WhatsappInstanceConfig['coexistenceHistory'])
         : undefined,
   }
 }

@@ -7,6 +7,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   ClockIcon,
+  HistoryIcon,
   InfoIcon,
   PencilLineIcon,
   RotateCcwIcon,
@@ -173,6 +174,19 @@ function extractStaffNameFromBody(msg: DisplayMessage): string | null {
   return extractStaffPrefix(text)
 }
 
+/**
+ * Display label for messages sent from the WhatsApp Business App — both
+ * imported history and live coexistence echoes. Meta gives us only the business
+ * phone, never which staffer typed it, so we surface the account itself instead
+ * of mis-attributing to a real teammate (`directory.staff[0]`). Driven by the
+ * durable `metadata.echoSource === 'business_app'` marker the import writes.
+ */
+export const WHATSAPP_BUSINESS_APP_STAFF_LABEL = '[WhatsApp Business App] Staff'
+
+function isBusinessAppEcho(msg: DisplayMessage): boolean {
+  return msg.role === 'staff' && msg.metadata?.echoSource === 'business_app'
+}
+
 function messagePrincipal(
   msg: DisplayMessage,
   directory: PrincipalDirectory,
@@ -201,11 +215,12 @@ function messagePrincipal(
       const match = directory.staff.find((s) => s.name === name)
       if (match) return match
     }
-    // WABA coexistence echoes (`metadata.echoSource === 'business_app'`) are
-    // staff messages sent from Meta's WhatsApp Business App. Meta only tells
-    // us the business phone, not which staffer typed it — so we cannot resolve
-    // a principal. Return null rather than falsely attributing to staff[0].
-    if (msg.metadata?.echoSource === 'business_app') return null
+    // WABA coexistence echoes + imported history are staff messages sent from
+    // Meta's WhatsApp Business App. Meta only tells us the business phone, not
+    // which staffer typed it — so we cannot resolve a principal. Return null
+    // (MessageRow then renders WHATSAPP_BUSINESS_APP_STAFF_LABEL) rather
+    // than falsely attributing to staff[0].
+    if (isBusinessAppEcho(msg)) return null
     return directory.staff[0] ?? null
   }
   if (msg.role === 'customer' && contactId) return directory.resolve(`contact:${contactId}`)
@@ -229,7 +244,9 @@ function MessageRow({ msg, messagesById, directory, currentUserId, assignee, con
       ? (msg.content as { failureReason?: unknown }).failureReason
       : undefined
 
-  const authorLabel = principal ? (
+  const authorLabel = isBusinessAppEcho(msg) ? (
+    <span className="font-medium text-foreground/80">{WHATSAPP_BUSINESS_APP_STAFF_LABEL}</span>
+  ) : principal ? (
     <PrincipalNode id={principal.token} variant="simple" className="text-foreground/80" />
   ) : null
 
@@ -461,6 +478,18 @@ function ActivityRow({ ev, directory }: { ev: ActivityEvent; directory: Principa
       return (
         <ActivityLine icon={<CheckCircle2Icon className="size-3.5 text-emerald-600" />}>
           {typeof p.reason === 'string' && p.reason ? `Resolved — ${p.reason}` : 'Resolved'}
+        </ActivityLine>
+      )
+    case 'conversation.history_imported':
+      return (
+        <ActivityLine icon={<HistoryIcon className="size-3.5 text-muted-foreground" />}>
+          Imported from WhatsApp history
+        </ActivityLine>
+      )
+    case 'conversation.history_resolved':
+      return (
+        <ActivityLine icon={<CheckCircle2Icon className="size-3.5 text-emerald-600" />}>
+          Closed automatically — imported history
         </ActivityLine>
       )
     case 'conversation.reopened':

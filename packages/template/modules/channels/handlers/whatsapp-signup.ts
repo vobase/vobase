@@ -32,7 +32,10 @@
  *
  *   POST /finish/:instanceId
  *     Re-enqueues the `whatsapp:setup` job. Idempotent — used by the admin UI
- *     to retry after `setupStage='failed'`.
+ *     to retry after `setupStage='failed'`. Optional body `{ resync: ["history"
+ *     | "smb_app_state_sync"] }` clears the matching once-only coexistence sync
+ *     guard first, so the re-run re-requests an SMB App Data sync that Meta
+ *     accepted but never delivered (e.g. history approved on-phone post-request).
  *
  * Security guardrails:
  *   - Nonce consume is atomic DELETE…RETURNING; replay never returns true twice.
@@ -45,10 +48,12 @@
 import { randomUUID } from 'node:crypto'
 import { type OrganizationEnv, requireOrganization } from '@auth/middleware'
 import { zValidator } from '@hono/zod-validator'
+import { clearCoexistenceSyncGuards } from '@modules/channels/adapters/whatsapp/coexistence-sync'
 import {
   buildEncryptedAccessTokenField,
   loadMetaOAuthConfigFromEnv,
   loadSignupConfigIdsFromEnv,
+  parseWhatsappInstanceConfig,
   type WhatsappInstanceConfig,
 } from '@modules/channels/adapters/whatsapp/instance-config'
 import { WHATSAPP_SETUP_JOB, type WhatsappSetupJobData } from '@modules/channels/adapters/whatsapp/jobs/setup'
@@ -89,6 +94,11 @@ const handoffWaSchema = z.object({
   appSecret: z.string().min(1),
   apiVersion: z.string().min(1).max(16),
   coexistence: z.boolean(),
+})
+
+/** Optional body for `POST /finish/:instanceId` — clears once-only coexistence sync guards so the re-enqueued setup job re-fires them. */
+const finishBody = z.object({
+  resync: z.array(z.enum(['history', 'smb_app_state_sync'])).optional(),
 })
 
 const invalidBody = (
@@ -397,9 +407,30 @@ const app = new Hono<OrganizationEnv>()
       if (!jobs) {
         return c.json({ error: 'jobs_unavailable' }, 503)
       }
+
+      // Coexistence re-sync hatch. Each SMB App Data sync is once-only-guarded by
+      // a `coexistenceHistory.{history,contacts}RequestedAt` timestamp, so the
+      // setup job never re-fires a sync whose request already succeeded. But Meta
+      // can accept the request and still deliver nothing — e.g. the business
+      // approves the on-phone "sync older chats" prompt only AFTER the first
+      // `history` request, so the burst is never sent and the guard permanently
+      // blocks a retry. An admin POSTs `{ resync: ["history"] }` to clear that
+      // guard (and the stale surfaced status) so the re-enqueued setup job
+      // re-requests the burst. Body is optional — a bare retry stays legacy.
+      const body = (await c.req.json().catch(() => ({}))) as unknown
+      const parsed = finishBody.safeParse(body)
+      const resync = parsed.success ? (parsed.data.resync ?? []) : []
+      if (resync.length > 0) {
+        const cfg = parseWhatsappInstanceConfig(instance.config)
+        const coexistenceHistory = clearCoexistenceSyncGuards(cfg.coexistenceHistory, resync)
+        await updateInstance(instanceId, organizationId, {
+          config: { ...(instance.config as Record<string, unknown>), coexistenceHistory },
+        })
+      }
+
       const jobData: WhatsappSetupJobData = { instanceId, organizationId }
       await jobs.send(WHATSAPP_SETUP_JOB, jobData)
-      return c.json({ enqueued: true })
+      return c.json({ enqueued: true, ...(resync.length > 0 ? { resynced: resync } : {}) })
     },
   )
 

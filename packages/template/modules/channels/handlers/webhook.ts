@@ -10,6 +10,8 @@
  * stay inside the adapter; this router is dumb routing + error shaping.
  */
 
+import { interceptContactsSync } from '@modules/channels/handlers/contacts-sync'
+import { interceptHistoryWebhook } from '@modules/channels/handlers/history-intercept'
 import { dispatchInbound } from '@modules/channels/service/inbound'
 import { getInstance, RELEASED_STATUS } from '@modules/channels/service/instances'
 import { get as registryGet } from '@modules/channels/service/registry'
@@ -47,6 +49,18 @@ const app = new Hono()
     if (adapter.verifyWebhook) {
       const ok = await adapter.verifyWebhook(c.req.raw)
       if (!ok) return c.json({ error: 'unauthorized' }, 401)
+    }
+
+    // Coexistence history webhooks: stage chunks + kick the drain, then ack —
+    // kept off the live adapter path so the chunked history (and the media-asset
+    // follow-up) never parses as live inbound. See history-intercept.ts.
+    if (await interceptHistoryWebhook(instance, c.req.raw)) {
+      return c.json({ received: true, history: true })
+    }
+
+    // Coexistence contacts (address book) sync: upsert names onto contacts.
+    if (await interceptContactsSync(instance, c.req.raw)) {
+      return c.json({ received: true, contactsSync: true })
     }
 
     if (!adapter.parseWebhook) return c.json({ error: 'unsupported' }, 400)
