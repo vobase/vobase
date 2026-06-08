@@ -36,7 +36,7 @@ import {
   REQUEST_CAPTION_MAX_BYTES,
 } from '../constants'
 import { deriveDriveName } from '../lib/drive-name'
-import { embedTexts, encodeVector } from '../lib/embeddings'
+import { embedTexts, encodeVector, isBifrostMode } from '../lib/embeddings'
 import { hybridScore } from '../lib/search'
 import type { DriveFile } from '../schema'
 import { TEXT_WRITE_LIFECYCLE } from '../state'
@@ -1045,7 +1045,10 @@ export function createFilesService(deps: FilesServiceDeps): FilesService {
 
   /** Wraps `embedTexts` for query embedding; returns null if the embedder is unavailable. */
   async function embedQueryIfPossible(query: string): Promise<number[] | null> {
-    if (!process.env.OPENAI_API_KEY) return null
+    // Mirror embedTexts' provider gate: Bifrost (prod) has no OPENAI_API_KEY but
+    // can still embed. Without this, semantic search is dead in production and
+    // only literal keyword matches survive.
+    if (!isBifrostMode() && !process.env.OPENAI_API_KEY) return null
     try {
       const { embeddings } = await embedTexts([query])
       return embeddings[0] ?? null

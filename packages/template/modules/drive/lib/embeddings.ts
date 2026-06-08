@@ -2,8 +2,18 @@
  * Text-embedding helper.
  *
  * Wraps `@ai-sdk/openai`'s `embedMany` against the model named in
- * `EMBEDDING_MODEL`. Reads `OPENAI_API_KEY` directly so the helper is usable
- * outside an active wake (the drive job doesn't run inside the harness).
+ * `EMBEDDING_MODEL`. Provider selection mirrors `wake/llm.ts`:
+ *
+ * - **Bifrost** (production) — `BIFROST_API_KEY` + `BIFROST_URL` set. Embeds
+ *   through the gateway's OpenAI-compatible `/embeddings` endpoint, using the
+ *   `openai/{model}` provider-prefixed id Bifrost routes on. Prod has no
+ *   `OPENAI_API_KEY`, so without this the drive job records
+ *   `processingError='embedding_unavailable: OPENAI_API_KEY is not set'`.
+ * - **Direct** (local dev) — no Bifrost vars; talks to OpenAI with
+ *   `OPENAI_API_KEY` and the bare model id.
+ *
+ * Reads env directly so the helper is usable outside an active wake (the drive
+ * job doesn't run inside the harness).
  *
  * Internal retry on 429 / 503: 3 attempts with exponential backoff (200ms /
  * 800ms / 3.2s, plus ±25% jitter). After retries are exhausted, throws an
@@ -26,6 +36,20 @@ interface EmbeddingProvider {
 let cachedProvider: EmbeddingProvider | null = null
 let cachedModel: ((id: string) => unknown) | null = null
 
+/** True when the gateway vars are set — embeddings then route through Bifrost. */
+export function isBifrostMode(): boolean {
+  return Boolean(process.env.BIFROST_API_KEY && process.env.BIFROST_URL)
+}
+
+/**
+ * The model id to pass the SDK. Bifrost dispatches on the `{provider}/{model}`
+ * prefix (same convention as `wake/llm.ts`); the direct OpenAI endpoint wants
+ * the bare id.
+ */
+export function embeddingModelId(): string {
+  return isBifrostMode() ? `openai/${EMBEDDING_MODEL}` : EMBEDDING_MODEL
+}
+
 async function loadProvider(): Promise<EmbeddingProvider> {
   if (cachedProvider) return cachedProvider
   // biome-ignore lint/plugin/no-dynamic-import: heavy AI SDK; loaded lazily so it stays out of the frontend bundle and only runs when an extraction job actually embeds.
@@ -41,8 +65,21 @@ async function loadModel(): Promise<(id: string) => unknown> {
   // biome-ignore lint/plugin/no-dynamic-import: heavy OpenAI SDK; loaded lazily so it stays out of the frontend bundle.
   const mod = (await import('@ai-sdk/openai')) as unknown as {
     openai: { textEmbeddingModel: (id: string) => unknown }
+    createOpenAI: (opts: { baseURL?: string; apiKey?: string }) => {
+      textEmbeddingModel: (id: string) => unknown
+    }
   }
-  cachedModel = (id: string) => mod.openai.textEmbeddingModel(id)
+  if (isBifrostMode()) {
+    // Point the OpenAI-compatible SDK at the Bifrost gateway. Bifrost uses the
+    // gateway key for every underlying provider, exactly like `wake/llm.ts`.
+    const provider = mod.createOpenAI({
+      baseURL: process.env.BIFROST_URL,
+      apiKey: process.env.BIFROST_API_KEY,
+    })
+    cachedModel = (id: string) => provider.textEmbeddingModel(id)
+  } else {
+    cachedModel = (id: string) => mod.openai.textEmbeddingModel(id)
+  }
   return cachedModel
 }
 
@@ -76,7 +113,7 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
     try {
       const provider = await loadProvider()
       const modelFactory = await loadModel()
-      const model = modelFactory(EMBEDDING_MODEL)
+      const model = modelFactory(embeddingModelId())
       const { embeddings } = await provider.embedMany({ model, values: texts })
       if (embeddings.length !== texts.length) {
         throw new Error(`embedding count mismatch: got ${embeddings.length}, expected ${texts.length}`)
@@ -107,7 +144,7 @@ async function embedBatch(texts: string[]): Promise<number[][]> {
  */
 export async function embedTexts(texts: string[]): Promise<EmbedTextsResult> {
   if (texts.length === 0) return { embeddings: [], tokensUsed: 0 }
-  if (!process.env.OPENAI_API_KEY) {
+  if (!isBifrostMode() && !process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not set')
   }
 
