@@ -25,6 +25,7 @@ import { filesServiceFor } from '@modules/drive/service/files'
 import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { find as findStaff } from '@modules/team/service/staff'
 
+import { isAutoTriageEnabled } from '~/wake/learning/auto-triage'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import { hasStaffPrefix } from '../lib/staff-prefix'
 import type { Message } from '../schema'
@@ -133,7 +134,8 @@ export async function sendStaffReply(input: SendStaffReplyInput): Promise<{ mess
   throwIfFailed(result, 'staff_reply')
 
   // Post-commit learning signal — fire-and-forget, non-fatal.
-  if (_triageScheduler) {
+  // Auto-triage kill-switch (opt-out): skip automatic staff-takeover triage when disabled.
+  if (_triageScheduler && isAutoTriageEnabled()) {
     const assigneeAgentId = conv.assignee.startsWith('agent:') ? conv.assignee.slice('agent:'.length) : null
     if (assigneeAgentId) {
       const scheduler = _triageScheduler

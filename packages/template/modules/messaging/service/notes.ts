@@ -21,6 +21,7 @@
 import { internalNotes } from '@modules/messaging/schema'
 import { asc, eq } from 'drizzle-orm'
 
+import { isAutoTriageEnabled } from '~/wake/learning/auto-triage'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import type { InternalNote } from '../schema'
 import { resolveAgentMentionsInBody } from './agent-mentions'
@@ -205,7 +206,8 @@ async function runStaffNoteFanOut(opts: {
   if (mentionedAgentIds.length === 0) {
     // No @-mention → emit coaching_note signal for the learning loop.
     // The assignee agent is the relevant agent; if unassigned, skip.
-    if (triageScheduler && assigneeAgentId) {
+    // Auto-triage kill-switch (opt-out): skip automatic coaching-note triage when disabled.
+    if (triageScheduler && assigneeAgentId && isAutoTriageEnabled()) {
       try {
         await triageScheduler.publish(LEARNING_TRIAGE_JOB, {
           organizationId: note.organizationId,

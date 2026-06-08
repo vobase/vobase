@@ -29,6 +29,7 @@ import { notifyConversation } from '@modules/messaging/service/staff-ops'
 import type { ChannelEvent, MessageReceivedEvent, ReactionEvent, StatusUpdateEvent } from '@vobase/core'
 
 import { AGENTS_WAKE_JOB, buildInboundWakeSingletonKey } from '~/wake/inbound'
+import { isAutoTriageEnabled } from '~/wake/learning/auto-triage'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import { get as registryGet } from './registry'
 import { getJobs, requireJobs } from './state'
@@ -242,7 +243,8 @@ export async function dispatchInbound(
     }
 
     // Post-commit learning signal for echoes — fire-and-forget, non-fatal.
-    if (isEcho) {
+    // Auto-triage kill-switch (opt-out): skip automatic echo triage when disabled.
+    if (isEcho && isAutoTriageEnabled()) {
       const assignee = result.conversation.assignee
       const assigneeAgentId = assignee?.startsWith('agent:') ? assignee.slice('agent:'.length) : null
       if (assigneeAgentId) {

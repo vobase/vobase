@@ -13,6 +13,8 @@
 
 import type { ScopedScheduler } from '@vobase/core'
 
+import { isAutoTriageEnabled } from './learning/auto-triage'
+
 /** Mirrors `LEARNING_TRIAGE_JOB` from `wake/learning/triage-job.ts`. */
 const LEARNING_TRIAGE_JOB = 'learning:triage'
 
@@ -36,6 +38,8 @@ const SELF_REFLECTION_BODY =
   'Skip when the wake was a routine no-op (greeting, FAQ already covered).'
 
 export async function enqueueSelfReflection(ctx: SelfReflectionCtx, event: { wakeId: string }): Promise<void> {
+  // Auto-triage kill-switch (opt-out): skip automatic self-reflection when disabled.
+  if (!isAutoTriageEnabled()) return
   try {
     await ctx.jobs.send(LEARNING_TRIAGE_JOB, {
       organizationId: ctx.organizationId,

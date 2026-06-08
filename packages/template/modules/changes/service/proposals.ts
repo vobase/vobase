@@ -14,6 +14,7 @@ import { nanoid } from 'nanoid'
 
 import type { RealtimeService, Tx } from '~/runtime'
 import type { AgentEvent } from '~/wake/events'
+import { isAutoTriageEnabled } from '~/wake/learning/auto-triage'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import {
   type ChangedByKind,
@@ -348,6 +349,8 @@ export function createChangeProposalsService(deps: ChangeProposalsServiceDeps): 
     const rawProposedBy = proposal.proposedById ?? ''
     const agentId = rawProposedBy.startsWith('agent:') ? rawProposedBy.slice('agent:'.length) : rawProposedBy
     if (!agentId) return
+    // Auto-triage kill-switch (opt-out): skip automatic rejection triage when disabled.
+    if (!isAutoTriageEnabled()) return
     // For rejections the lesson lives in the staff's decidedNote (why the
     // proposal was wrong), not the agent's rationale (why it argued for it).
     // Send both so triage can write a useful anti-lesson; lead with the

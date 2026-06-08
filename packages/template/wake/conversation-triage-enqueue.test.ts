@@ -6,7 +6,7 @@
  * signature change fails typecheck here before reaching CI.
  */
 
-import { describe, expect, it, mock } from 'bun:test'
+import { afterEach, describe, expect, it, mock } from 'bun:test'
 import type { ScopedScheduler } from '@vobase/core'
 
 import { enqueueSelfReflection, type SelfReflectionCtx } from './self-reflection'
@@ -73,5 +73,28 @@ describe('enqueueSelfReflection', () => {
     await enqueueSelfReflection(makeCtx(scheduler), { wakeId: 'specific_wake_123' })
     const payload = calls[0][1] as { signal: { wakeId: string } }
     expect(payload.signal.wakeId).toBe('specific_wake_123')
+  })
+})
+
+describe('enqueueSelfReflection auto-triage kill-switch', () => {
+  const ORIGINAL = process.env.LEARN_AUTO_TRIAGE
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.LEARN_AUTO_TRIAGE
+    else process.env.LEARN_AUTO_TRIAGE = ORIGINAL
+  })
+
+  it('enqueues by default (auto-triage on)', async () => {
+    delete process.env.LEARN_AUTO_TRIAGE
+    const { scheduler, calls } = makeMockJobs()
+    await enqueueSelfReflection(makeCtx(scheduler), { wakeId: WAKE_ID })
+    expect(calls).toHaveLength(1)
+  })
+
+  it('does not enqueue when LEARN_AUTO_TRIAGE is explicitly disabled', async () => {
+    process.env.LEARN_AUTO_TRIAGE = '0'
+    const { scheduler, calls } = makeMockJobs()
+    await enqueueSelfReflection(makeCtx(scheduler), { wakeId: WAKE_ID })
+    expect(calls).toHaveLength(0)
   })
 })

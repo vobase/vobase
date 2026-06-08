@@ -9,6 +9,7 @@ import type { Context } from 'hono'
 
 import { type ChannelInboundEvent, ChannelInboundEventSchema } from '~/runtime/channel-events'
 import { AGENTS_WAKE_JOB, buildInboundWakeSingletonKey } from '~/wake/inbound'
+import { isAutoTriageEnabled } from '~/wake/learning/auto-triage'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
 import { WEB_DEBOUNCE_WINDOW_MS } from '../adapter'
 import { BrowserInboundBodySchema, getSessionFromRequest, type SessionLike } from '../service/inbound-auth'
@@ -109,7 +110,8 @@ async function dispatchInbound(c: Context, input: InboundInput): Promise<Respons
 
   // Echo: fire-and-forget `coexistence_echo` triage when the conversation is
   // currently assigned to an agent. Mirrors `modules/channels/service/inbound.ts`.
-  if (isEcho) {
+  // Auto-triage kill-switch (opt-out): skip automatic echo triage when disabled.
+  if (isEcho && isAutoTriageEnabled()) {
     const assignee = result.conversation.assignee
     const assigneeAgentId = assignee?.startsWith('agent:') ? assignee.slice('agent:'.length) : null
     if (assigneeAgentId) {
