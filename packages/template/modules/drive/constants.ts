@@ -31,9 +31,6 @@ export const REQUEST_CAPTION_MAX_BYTES = 10 * 1024 * 1024
 /** Per-org daily OCR page cap. The job rejects work past this with `org_daily_budget_exceeded`. */
 export const OCR_PAGE_CAP_PER_DAY_PER_ORG = 200
 
-/** Per-org daily embedding token cap. */
-export const EMBED_TOKEN_CAP_PER_DAY_PER_ORG = 5_000_000
-
 /**
  * PDF per-page readability gate. A page whose pdfium-extracted text falls
  * below either threshold is considered "image-only or watermark-only" and

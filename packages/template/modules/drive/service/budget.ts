@@ -10,7 +10,7 @@
 import { sql } from 'drizzle-orm'
 
 import type { LlmTask } from '~/runtime'
-import { EMBED_TOKEN_CAP_PER_DAY_PER_ORG, OCR_PAGE_CAP_PER_DAY_PER_ORG } from '../constants'
+import { OCR_PAGE_CAP_PER_DAY_PER_ORG } from '../constants'
 
 type BudgetDb = {
   execute: <T>(q: unknown) => Promise<T[]>
@@ -50,7 +50,7 @@ export async function getTodayUsage(db: unknown, organizationId: string): Promis
 
 export type BudgetCheckResult =
   | { ok: true }
-  | { ok: false; reason: 'org_daily_budget_exceeded'; capExceeded: 'ocr_pages' | 'embed_tokens' }
+  | { ok: false; reason: 'org_daily_budget_exceeded'; capExceeded: 'ocr_pages' }
 
 export async function checkBudget(
   db: unknown,
@@ -59,12 +59,13 @@ export async function checkBudget(
 ): Promise<BudgetCheckResult> {
   const usage = await getTodayUsage(db, organizationId)
   const projectedOcr = projected.ocrPages ?? 0
-  const projectedEmbed = projected.embedTokens ?? 0
   if (usage.ocrPages + projectedOcr > OCR_PAGE_CAP_PER_DAY_PER_ORG) {
     return { ok: false, reason: 'org_daily_budget_exceeded', capExceeded: 'ocr_pages' }
   }
-  if (usage.embedTokens + projectedEmbed > EMBED_TOKEN_CAP_PER_DAY_PER_ORG) {
-    return { ok: false, reason: 'org_daily_budget_exceeded', capExceeded: 'embed_tokens' }
-  }
+  // Embed-token cap intentionally NOT enforced: embedding is comparatively
+  // cheap, and a per-day token gate stalls a legitimate one-shot knowledge-base
+  // backfill (which embeds an org's whole document set in a burst). The OCR page
+  // cap — the expensive lever — is retained. `embedTokens` usage is still rolled
+  // up by getTodayUsage for observability.
   return { ok: true }
 }

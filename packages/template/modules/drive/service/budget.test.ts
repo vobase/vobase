@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'bun:test'
 
-import { EMBED_TOKEN_CAP_PER_DAY_PER_ORG, OCR_PAGE_CAP_PER_DAY_PER_ORG } from '../constants'
+import { OCR_PAGE_CAP_PER_DAY_PER_ORG } from '../constants'
 import { checkBudget, getTodayUsage } from './budget'
 
 interface FakeUsageRow {
@@ -50,14 +50,11 @@ describe('drive/service/budget', () => {
     }
   })
 
-  it('checkBudget rejects when projected embed tokens would exceed cap', async () => {
-    const db = makeBudgetDb([
-      { llm_task: 'drive.embed', call_count: 1, tokens_in: EMBED_TOKEN_CAP_PER_DAY_PER_ORG, tokens_out: 0 },
-    ])
-    const result = await checkBudget(db, 'org_test_0', { embedTokens: 1 })
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.capExceeded).toBe('embed_tokens')
-    }
+  it('checkBudget does NOT enforce an embed-token cap (gate removed)', async () => {
+    // Even with embed usage far over any prior threshold, the gate passes —
+    // the embed cap is intentionally not enforced. See budget.ts for why.
+    const db = makeBudgetDb([{ llm_task: 'drive.embed', call_count: 1, tokens_in: 50_000_000, tokens_out: 0 }])
+    const result = await checkBudget(db, 'org_test_0', { embedTokens: 1_000_000 })
+    expect(result.ok).toBe(true)
   })
 })
