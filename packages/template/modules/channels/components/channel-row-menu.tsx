@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Code2, ExternalLink, MoreVertical, Pencil, QrCode, Trash2, UserCog } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -123,6 +124,23 @@ function WhatsAppRowMenu({ row, listQueryKey, onEdit }: ChannelRowMenuProps) {
     onSuccess: () => {
       setDeleteOpen(false)
       qc.invalidateQueries({ queryKey: listQueryKey })
+    },
+    // Without this the failure is invisible: the mutationFn throws on a non-ok
+    // response (`delete failed: <status>`), the dialog stays open, and the user
+    // sees nothing happen. A 403 is the common case — the generic
+    // `DELETE /instances/:id` is admin-gated (`createRequireRole(['owner','admin'])`)
+    // so a member-role user can connect a channel but not disconnect it.
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('403')) {
+        toast.error('You need an owner or admin role to disconnect this channel. Ask an org admin.')
+      } else {
+        toast.error(
+          isManaged
+            ? 'Could not release this channel. Please try again.'
+            : 'Could not disconnect this channel. Please try again.',
+        )
+      }
     },
   })
 
