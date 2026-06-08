@@ -119,33 +119,44 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
     return rows[0]?.contacts ?? null
   }
 
-  async function upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact> {
-    const existing = await findContactByExternalKey(input)
-    if (existing) return existing
-
-    // Cross-channel merge — same person reachable on multiple channels
-    // collapses to one contact when they share phone or email. Phone wins
-    // over email (more reliable identity for a contact-driven channel).
-    let contactId: string | null = null
+  // Cross-channel merge — same person reachable on multiple channels collapses
+  // to one contact when they share phone or email. Phone wins over email (more
+  // reliable identity for a contact-driven channel). Used both before the
+  // insert and to follow the winner after a concurrent-insert conflict.
+  async function resolveContactIdByIdentity(input: UpsertByExternalKeyInput): Promise<string | null> {
     if (input.phone) {
       const rows = (await db
         .select({ id: contacts.id })
         .from(contacts)
         .where(and(eq(contacts.organizationId, input.organizationId), eq(contacts.phone, input.phone)))
         .limit(1)) as Array<{ id: string }>
-      contactId = rows[0]?.id ?? null
+      if (rows[0]) return rows[0].id
     }
-    if (!contactId && input.email) {
+    if (input.email) {
       const rows = (await db
         .select({ id: contacts.id })
         .from(contacts)
         .where(and(eq(contacts.organizationId, input.organizationId), eq(contacts.email, input.email)))
         .limit(1)) as Array<{ id: string }>
-      contactId = rows[0]?.id ?? null
+      if (rows[0]) return rows[0].id
     }
+    return null
+  }
+
+  async function upsertByExternalKey(input: UpsertByExternalKeyInput): Promise<Contact> {
+    const existing = await findContactByExternalKey(input)
+    if (existing) return existing
+
+    let contactId = await resolveContactIdByIdentity(input)
 
     let inserted = false
     if (!contactId) {
+      // `onConflictDoNothing` makes the identity insert idempotent under the
+      // `uq_contacts_tenant_phone` / `uq_contacts_tenant_email` unique indexes:
+      // a concurrent upsert for the same person (e.g. a retried/redelivered
+      // WhatsApp `smb_app_state_sync` burst running while the first delivery is
+      // still in flight) races our SELECT-then-INSERT, and without this the
+      // loser throws a duplicate-key error instead of resolving the winner.
       const rows = (await db
         .insert(contacts)
         .values({
@@ -154,10 +165,16 @@ export function createContactsService(deps: ContactsDeps): ContactsService {
           email: input.email ?? null,
           displayName: input.displayName ?? null,
         })
+        .onConflictDoNothing()
         .returning({ id: contacts.id })) as Array<{ id: string }>
       contactId = rows[0]?.id ?? null
-      if (!contactId) throw new Error('contacts/upsertByExternalKey: insert returned no rows')
-      inserted = true
+      if (contactId) {
+        inserted = true
+      } else {
+        // We lost the race — re-resolve to follow the contact the winner created.
+        contactId = await resolveContactIdByIdentity(input)
+        if (!contactId) throw new Error('contacts/upsertByExternalKey: insert conflicted but no identity row resolved')
+      }
     }
 
     // Idempotent key insert. If a concurrent inbound for the same
