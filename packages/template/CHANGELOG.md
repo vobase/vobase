@@ -1,5 +1,58 @@
 # @vobase/template
 
+## 3.19.0
+
+### Minor Changes
+
+- [`b965a08`](https://github.com/vobase/vobase/commit/b965a083d4466a815f8be5a770b51d6dc689208b) Thanks [@mdluo](https://github.com/mdluo)! - # Contact attributes in PROFILE, learning controls, history toast, and two fixes
+
+  A batch of generic helpdesk improvements.
+
+  - **Contact attribute schema in PROFILE.md** — the contact PROFILE now renders the tenant's attribute-definition schema (key, label, type, options, example), so the agent proposes `attributes.*` edits against attributes that actually exist instead of guessing keys.
+  - **`LEARN_AUTO_TRIAGE` kill-switch** — an opt-out env switch that disables the automatic learning-triage producers (self-reflection, coaching notes, staff takeover, proposal rejection, coexistence echoes) without a code change. Defaults on; the triage job and candidate side-load stay wired so manual triggers still work.
+  - **Manual "learn from this thread" trigger** — staff can send a conversation through the learning loop on demand from the conversation detail view or a `conv learn` CLI verb, via a new `'manual'` learning-signal kind that bypasses the kill-switch and debounce window.
+  - **Live WhatsApp history-import toast** — a top-right toast tracks coexistence chat-history import progress, backed by a `/history-sync` projection over `whatsapp_history_chunks`.
+  - **Fix: `field_set 'segments'` accepts a single string** — previously a string value silently wiped segments to `[]` while reporting success; now a string is wrapped to a one-element array, an array is written verbatim, null clears, and anything else throws.
+  - **Fix: channel disconnect/release errors surface** — the disconnect mutation now toasts an actionable message (role hint on a 403, generic retry otherwise) instead of failing silently with the confirm dialog stuck open.
+
+- [`fa1c371`](https://github.com/vobase/vobase/commit/fa1c371e4e4d82413100b11911239c0a7cebb4d2) Thanks [@mdluo](https://github.com/mdluo)! - # WhatsApp coexistence chat-history import
+
+  When a business connects via WhatsApp coexistence, Meta can deliver up to 180 days of prior on-phone conversation history. The inbox now imports that history as resolved conversations, so the agent and staff have full customer context from day one instead of an empty inbox.
+
+  New schema (a DB push/migrate is required when upgrading a scaffold):
+
+  | Table                              | Purpose                                                                                                                                                                        |
+  | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | `channels.whatsapp_history_chunks` | Durable single-writer staging for each `field:"history"` webhook chunk, UNIQUE on `(channel_instance, phase, chunk_order)` so redelivery is idempotent; drained asynchronously |
+
+  What ships with it:
+
+  - **Sync request** — `meta-oauth.syncSmbAppData` requests history + contacts sync after onboarding (wired from the signup finish and the setup job). `POST /finish/:instanceId` accepts `{ resync: ["history"] }` to re-request when Meta accepts the request but never delivers the burst.
+  - **Staging + drain** — the `field:"history"` webhook is intercepted and each chunk staged in `whatsapp_history_chunks`; `jobs/history-drain.ts` drains in bounded passes, `parse-history.ts` turns each chunk into messages (with a digits-only business-vs-customer direction check), and `conversations.backfillHistoricalMessages` writes them in batches inside one transaction per thread.
+  - **Media + naming** — `jobs/history-media.ts` downloads and attaches history media; the contacts-sync webhook names imported contacts instead of leaving them phone-only.
+  - **Resolution** — `conversations.resolveImportedHistory` closes pure-history threads in bounded id-batches once a thread's chunks are fully drained. Business-App-sent history messages are labelled distinctly and attributed to Staff in the thread.
+  - **Auditability** — backfill emits one `conversation.history_imported` event per imported conversation and resolve emits one `conversation.history_resolved`, both idempotent on re-drain and rendered as single timeline activity rows.
+
+  Also: contacts with no display name (e.g. a phone-only history-backfill contact) now render as their email/phone in the principal directory rather than the opaque id.
+
+### Patch Changes
+
+- [`9e7040f`](https://github.com/vobase/vobase/commit/9e7040f14103e933b0ea67dfc1da9481df818c90) Thanks [@mdluo](https://github.com/mdluo)! - # Drive embeddings via Bifrost, no embed-token cap, and a race-safe contact upsert
+
+  Three production-hardening fixes for the drive knowledge base and contact sync.
+
+  ## Drive embeddings route through the Bifrost gateway
+
+  The drive embedding helper read `OPENAI_API_KEY` and called OpenAI directly, unlike `wake/llm.ts` which routes through Bifrost when `BIFROST_API_KEY` + `BIFROST_URL` are set. In a Bifrost-only production (no `OPENAI_API_KEY`) every extraction job failed with `embedding_unavailable: OPENAI_API_KEY is not set`, so `drive.chunks` stayed empty and hybrid `drive search` returned nothing. Embeddings now go through `createOpenAI({ baseURL, apiKey })` pointed at the gateway with the `openai/`-prefixed model id when the Bifrost vars are present, falling back to the direct OpenAI endpoint for local dev. The same provider gate is applied to query-time embedding, so semantic search works in production too — not just ingestion.
+
+  ## The per-org daily embed-token cap is no longer enforced
+
+  A per-day embed-token gate stalled a legitimate one-shot knowledge-base backfill, which embeds an org's whole document set in a single burst. Embedding is comparatively cheap, so the cap cost more in blocked backfills than it saved. The gate is removed from `checkBudget` (the OCR page cap — the expensive lever — is retained), and `embedTokens` usage is still rolled up by `getTodayUsage` for observability.
+
+  ## Contact upsert is idempotent under concurrent same-identity inserts
+
+  Two upserts for the same person (e.g. a retried/redelivered WhatsApp `smb_app_state_sync` burst running while the first delivery is still in flight) both saw an empty `contacts` table, both INSERTed, and the loser threw a `uq_contacts_tenant_phone` duplicate-key error. The identity insert now uses `onConflictDoNothing` and re-resolves the winner when it loses the race, so every concurrent caller returns the same contact id and none throw.
+
 ## 3.18.1
 
 ### Patch Changes
