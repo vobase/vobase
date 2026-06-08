@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import type { AgentDefinition } from '@modules/agents/schema'
-import type { Contact } from '@modules/contacts/schema'
+import type { Contact, ContactAttributeDefinition } from '@modules/contacts/schema'
+import {
+  __resetAttrDefServiceForTests,
+  type AttrDefService,
+  installAttrDefService,
+} from '@modules/contacts/service/attribute-definitions'
 import {
   __resetContactsServiceForTests,
   type ContactsService,
@@ -10,6 +15,44 @@ import type { MaterializerCtx, WorkspaceMaterializer } from '@vobase/core'
 
 import type { WakeContext } from '~/wake/context'
 import { contactsMaterializerFactory } from './agent'
+
+function makeAttrDefsStub(defs: ContactAttributeDefinition[]): AttrDefService {
+  return {
+    // biome-ignore lint/suspicious/useAwait: contract requires async signature
+    async list() {
+      return defs
+    },
+  } as unknown as AttrDefService
+}
+
+const SAMPLE_ATTR_DEFS: ContactAttributeDefinition[] = [
+  {
+    id: 'd_vip',
+    organizationId: 'org_test',
+    key: 'vip',
+    label: 'VIP',
+    type: 'boolean',
+    options: [],
+    showInTable: true,
+    sensitivity: 'medium',
+    sortOrder: 50,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  },
+  {
+    id: 'd_occasion',
+    organizationId: 'org_test',
+    key: 'occasion',
+    label: 'Occasion',
+    type: 'enum',
+    options: ['birthday', 'wedding', 'corporate'],
+    showInTable: true,
+    sensitivity: 'low',
+    sortOrder: 20,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+  },
+]
 
 const MAT_CTX: MaterializerCtx = {
   organizationId: 'org_test',
@@ -29,7 +72,12 @@ function makeContactsStub(memoryByContact: Record<string, string>): ContactsServ
         displayName: `Contact ${id}`,
         phone: null,
         email: null,
+        profile: '',
         memory: memoryByContact[id] ?? '',
+        attributes: {},
+        segments: [],
+        marketingOptOut: false,
+        marketingOptOutAt: null,
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
       } as unknown as Contact
@@ -126,5 +174,55 @@ describe('contact materializer header', () => {
     const a = await runMaterializer(m1)
     const b = await runMaterializer(m2)
     expect(a).toBe(b)
+  })
+})
+
+describe('contact PROFILE.md structured-fields section', () => {
+  beforeAll(() => {
+    installContactsService(makeContactsStub({}))
+    installAttrDefService(makeAttrDefsStub(SAMPLE_ATTR_DEFS))
+  })
+
+  afterAll(() => {
+    __resetContactsServiceForTests()
+    __resetAttrDefServiceForTests()
+  })
+
+  it('lists each attribute key with type hint and example command', async () => {
+    const ctx = makeWakeCtx()
+    const mats = contactsMaterializerFactory(ctx)
+    const profileMat = mats.find((m) => m.path === `/contacts/${ctx.contactId}/PROFILE.md`)
+    expect(profileMat).toBeDefined()
+    if (!profileMat) return
+    const out = await runMaterializer(profileMat)
+    expect(out).toContain('## Structured fields')
+    expect(out).toContain('`attributes.vip` (boolean) — VIP')
+    expect(out).toContain('`attributes.occasion` (enum: birthday | wedding | corporate) — Occasion')
+    expect(out).toContain('vobase contacts propose-change')
+    expect(out).toContain('--field attributes.')
+  })
+
+  it('orders by sortOrder ascending (occasion=20 before vip=50)', async () => {
+    const ctx = makeWakeCtx()
+    const mats = contactsMaterializerFactory(ctx)
+    const profileMat = mats.find((m) => m.path === `/contacts/${ctx.contactId}/PROFILE.md`)
+    if (!profileMat) throw new Error('no profile materializer')
+    const out = await runMaterializer(profileMat)
+    const occasionPos = out.indexOf('attributes.occasion')
+    const vipPos = out.indexOf('attributes.vip')
+    expect(occasionPos).toBeGreaterThan(-1)
+    expect(vipPos).toBeGreaterThan(-1)
+    expect(occasionPos).toBeLessThan(vipPos)
+  })
+
+  it('omits schema section when org has no attribute definitions', async () => {
+    installAttrDefService(makeAttrDefsStub([]))
+    const ctx = makeWakeCtx()
+    const mats = contactsMaterializerFactory(ctx)
+    const profileMat = mats.find((m) => m.path === `/contacts/${ctx.contactId}/PROFILE.md`)
+    if (!profileMat) throw new Error('no profile materializer')
+    const out = await runMaterializer(profileMat)
+    expect(out).not.toContain('## Structured fields')
+    installAttrDefService(makeAttrDefsStub(SAMPLE_ATTR_DEFS))
   })
 })

@@ -14,12 +14,13 @@
  * place.
  */
 
-import type { Contact } from '@modules/contacts/schema'
+import type { Contact, ContactAttributeDefinition } from '@modules/contacts/schema'
 import { type AgentTool, defineIndexContributor, type IndexContributor } from '@vobase/core'
 
 import type { WakeMaterializerFactory } from '~/wake/context'
 import { DEFAULT_MEMORY_SOFT_CAP_CHARS, renderMemoryWithBudget, stripBudgetHeader } from '~/wake/memory-budget'
 import { renderContactFrontmatter } from '~/wake/profile-frontmatter'
+import { listDefs as listAttrDefs } from './service/attribute-definitions'
 import { get as getContact, readMemory as readContactMemory } from './service/contacts'
 import type { ContactsIndexReader, ContactsReader } from './service/types'
 import { proposeOutreachTool } from './tools/propose-outreach'
@@ -44,9 +45,73 @@ export async function renderContactProfile(port: ContactsReader, contactId: stri
     const c = await port.get(contactId)
     const identity = c.displayName ?? c.phone ?? c.email ?? c.id
     const frontmatter = renderContactFrontmatter(c)
-    return `${frontmatter}# ${identity} (${c.id})\n`
+    const schema = await renderAttributeSchemaSection(c)
+    return `${frontmatter}# ${identity} (${c.id})\n${schema}`
   } catch {
     return contactProfileFallback(contactId)
+  }
+}
+
+/**
+ * Append a "## Structured fields" block listing the org's contact attribute
+ * definitions so the agent knows which keys it can write to and the expected
+ * shape of each value. Without this the agent has no way to discover that
+ * `attributes.vip` (boolean) exists — it falls back to dumping facts into
+ * MEMORY.md as free-form prose, which never reaches the contacts table UI.
+ */
+async function renderAttributeSchemaSection(c: Contact): Promise<string> {
+  let defs: ContactAttributeDefinition[]
+  try {
+    defs = await listAttrDefs(c.organizationId)
+  } catch {
+    return ''
+  }
+  if (defs.length === 0) return ''
+  defs.sort((a, b) => a.sortOrder - b.sortOrder || a.key.localeCompare(b.key))
+
+  const lines: string[] = [
+    '',
+    '## Structured fields',
+    '',
+    'Set any field below via `vobase contacts propose-change`. Use the structured field over a MEMORY.md note whenever the fact fits one of these keys — the values surface in the contacts table.',
+    '',
+  ]
+  for (const d of defs) {
+    const typeHint = d.type === 'enum' && d.options.length > 0 ? `enum: ${d.options.join(' | ')}` : d.type
+    const current = c.attributes?.[d.key]
+    const currentHint = current === undefined || current === null ? '_unset_' : JSON.stringify(current)
+    lines.push(`- \`attributes.${d.key}\` (${typeHint}) — ${d.label}. Currently: ${currentHint}`)
+  }
+  lines.push('')
+  const firstDef = defs[0]
+  if (!firstDef) return lines.join('\n')
+  const exampleKey = firstDef.key
+  const exampleValue = exampleValueFor(firstDef)
+  lines.push('Example:')
+  lines.push('')
+  lines.push(
+    `\`\`\`\nvobase contacts propose-change --id ${c.id} --field attributes.${exampleKey} --to ${exampleValue} --rationale "Staff requested"\n\`\`\``,
+  )
+  lines.push('')
+  lines.push(
+    'Pass `--to` as JSON: booleans `true`/`false`, numbers bare (`1500`), strings quoted (`"birthday"`), null to clear.',
+  )
+  lines.push('')
+  return lines.join('\n')
+}
+
+function exampleValueFor(def: ContactAttributeDefinition): string {
+  switch (def.type) {
+    case 'boolean':
+      return 'true'
+    case 'number':
+      return '1500'
+    case 'date':
+      return '"2026-12-31"'
+    case 'enum':
+      return def.options.length > 0 ? `"${def.options[0]}"` : '"value"'
+    default:
+      return '"value"'
   }
 }
 
