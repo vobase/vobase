@@ -2,6 +2,7 @@ import { HistorySyncToaster } from '@modules/channels/components/history-sync-to
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 import { AppShell } from '@/components/layout/app-shell'
+import { PhoneVerifyNudge } from '@/components/phone-verify-nudge'
 import { useRealtimeInvalidation } from '@/hooks/use-realtime-invalidation'
 import { authClient } from '@/lib/auth-client'
 
@@ -46,6 +47,7 @@ function AppLayout() {
   useRealtimeInvalidation()
   return (
     <AppShell>
+      <PhoneVerifyNudge />
       <Outlet />
       <HistorySyncToaster />
     </AppShell>
