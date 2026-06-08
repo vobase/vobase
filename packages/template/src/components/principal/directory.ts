@@ -102,7 +102,11 @@ export function usePrincipalDirectory(): PrincipalDirectory {
       kind: 'contact',
       id: c.id,
       token: `contact:${c.id}`,
-      name: c.displayName?.trim() || humanize(c.id),
+      // Nameless contacts (e.g. WhatsApp history backfill) have no displayName —
+      // fall back to email/phone rather than the opaque nanoid, which reads as a
+      // confusing random string. Order matches `deriveContactName` so thread
+      // labels agree with the inbox list + conversation header.
+      name: c.displayName?.trim() || c.email?.trim() || c.phone?.trim() || humanize(c.id),
       contact: { email: c.email, phone: c.phone },
     }))
 
