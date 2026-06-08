@@ -1,3 +1,4 @@
+import { HistorySyncToaster } from '@modules/channels/components/history-sync-toaster'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 
 import { AppShell } from '@/components/layout/app-shell'
@@ -46,6 +47,7 @@ function AppLayout() {
   return (
     <AppShell>
       <Outlet />
+      <HistorySyncToaster />
     </AppShell>
   )
 }

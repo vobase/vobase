@@ -74,6 +74,22 @@ const app = new Hono<OrganizationEnv>()
     const rows = await listInstances(c.get('organizationId'), channel)
     return c.json(rows)
   })
+  // Minimal projection for the live "importing chat history" toast — no config
+  // secrets, cheap to poll. Returns only WhatsApp instances that have a
+  // coexistence history-import status recorded by the drain.
+  .get('/history-sync', async (c) => {
+    const rows = await listInstances(c.get('organizationId'), 'whatsapp')
+    const syncs = rows.flatMap((r) => {
+      const ch = (
+        r.config as {
+          coexistenceHistory?: { status?: 'importing' | 'imported' | 'declined'; progress?: number }
+        } | null
+      )?.coexistenceHistory
+      if (!ch?.status) return []
+      return [{ instanceId: r.id, displayName: r.displayName, status: ch.status, progress: ch.progress ?? 0 }]
+    })
+    return c.json({ syncs })
+  })
   .get('/:id', async (c) => {
     const id = c.req.param('id')
     const row = await getInstance(id)
