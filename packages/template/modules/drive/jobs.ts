@@ -109,18 +109,13 @@ async function markFailed(
 }
 
 /**
- * Project the upcoming paid call cost. Size-based: file content scaled at
- * 1 token per 4 chars (the standard chat-tokenizer ratio), bounded by the
- * `MAX_CHUNKS_PER_FILE * 512` ceiling. Over-projecting kills small uploads
- * (~5 per day exhaust the cap); under-projecting lets a single huge file
- * blow past the cap. Charge OCR only when the mime requires multimodal.
+ * Project the upcoming paid call cost. Only OCR is gated (the expensive lever);
+ * charge one OCR page when the mime requires multimodal extraction.
  */
-function projectBudget(row: DriveFile, isForceCaption: boolean): { ocrPages: number; embedTokens: number } {
+function projectBudget(row: DriveFile, isForceCaption: boolean): { ocrPages: number } {
   const mime = row.mimeType ?? ''
   const willOcr = isForceCaption || mime.startsWith('image/') || mime === 'application/pdf'
-  const sizeBased = Math.ceil((row.sizeBytes ?? 0) / 4)
-  const cap = MAX_CHUNKS_PER_FILE * 512
-  return { ocrPages: willOcr ? 1 : 0, embedTokens: Math.min(sizeBased, cap) }
+  return { ocrPages: willOcr ? 1 : 0 }
 }
 
 const today = (): string => new Date().toISOString().slice(0, 10)

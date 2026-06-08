@@ -15,8 +15,8 @@
 import { agentDefinitions, learningCandidates } from '@modules/agents/schema'
 import { insertCandidate } from '@modules/agents/service/learning-candidates'
 import { contacts } from '@modules/contacts/schema'
-import { conversations, type MessageKind, messages } from '@modules/messaging/schema'
-import { summarizeMessageContent } from '@modules/messaging/service/summarize-content'
+import { conversations, messages } from '@modules/messaging/schema'
+import { renderMessageLine } from '@modules/messaging/service/summarize-content'
 import { llmCall as coreLlmCall, type JobDef } from '@vobase/core'
 import { and, desc, eq, max } from 'drizzle-orm'
 
@@ -185,11 +185,7 @@ async function handleTriageJob(raw: unknown): Promise<void> {
       .where(eq(messages.conversationId, conversationId))
       .orderBy(desc(messages.createdAt))
       .limit(20)
-    journalContext = messageRows
-      .reverse()
-      .map((r) => `[${r.role}/${r.kind}] ${summarizeMessageContent(r.kind as MessageKind, r.content)}`.trimEnd())
-      .join('\n')
-      .slice(0, 4000)
+    journalContext = messageRows.reverse().map(renderMessageLine).join('\n').slice(0, 4000)
   }
 
   const agentRow = agentRows[0]

@@ -133,6 +133,47 @@ function isUniqueViolationOnExternalId(err: unknown): boolean {
   return false
 }
 
+/**
+ * Ingest one customer attachment into the contact's drive scope and build the
+ * `MessageAttachmentRef` the renderer reads. Shared by the live-inbound path
+ * (`_createInboundMessage`) and the imported-history media enrichment
+ * (`attachHistoricalMedia`) so both denormalize the bash-view path identically.
+ */
+async function ingestContactAttachment(
+  organizationId: string,
+  contactId: string,
+  asset: { name: string; mimeType: string; sizeBytes: number; bytes: Buffer },
+): Promise<MessageAttachmentRef> {
+  const drive = filesServiceFor(organizationId)
+  const ingest = await drive.ingestUpload({
+    organizationId,
+    scope: { scope: 'contact', contactId },
+    originalName: asset.name,
+    mimeType: asset.mimeType,
+    sizeBytes: asset.sizeBytes,
+    bytes: asset.bytes,
+    source: 'customer_inbound',
+    uploadedBy: null,
+    // Scope-relative basePath: contact-scope rows store paths like
+    // `/attachments/<file>` (not `/contacts/<id>/attachments/<file>`) so the
+    // contact-details drive view nests them under a real `attachments/` folder
+    // row rather than dumping the literal absolute path string at scope root.
+    basePath: '/attachments/',
+  })
+  return {
+    driveFileId: ingest.id,
+    // Denormalize the bash-view path so the agent's wake cue and the staff-inbox
+    // renderer get a directly-usable path (the DB row stores the scope-relative
+    // `/attachments/<file>`).
+    path: `/contacts/${contactId}/drive${ingest.path}`,
+    mimeType: asset.mimeType,
+    sizeBytes: asset.sizeBytes,
+    name: asset.name,
+    caption: null,
+    extractionKind: ingest.extractionKind,
+  }
+}
+
 // ─── shared patch constants ────────────────────────────────────────────────
 const CLEAR_SNOOZE = {
   snoozedUntil: null,
@@ -391,38 +432,11 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     const attachmentRefs: MessageAttachmentRef[] = []
     const ingestedFileIds: string[] = []
     if (input.attachments && input.attachments.length > 0) {
-      const drive = filesServiceFor(input.organizationId)
       for (const att of input.attachments) {
         try {
-          const ingest = await drive.ingestUpload({
-            organizationId: input.organizationId,
-            scope: { scope: 'contact', contactId: input.contactId },
-            originalName: att.name,
-            mimeType: att.mimeType,
-            sizeBytes: att.sizeBytes,
-            bytes: att.bytes,
-            source: 'customer_inbound',
-            uploadedBy: null,
-            // Scope-relative basePath: contact-scope rows store paths like
-            // `/attachments/<file>` (not `/contacts/<id>/attachments/<file>`)
-            // so the contact-details drive view nests them under a real
-            // `attachments/` folder row rather than dumping the literal
-            // absolute path string at scope root.
-            basePath: '/attachments/',
-          })
-          ingestedFileIds.push(ingest.id)
-          attachmentRefs.push({
-            driveFileId: ingest.id,
-            // Denormalize the bash-view path so the agent's wake cue and the
-            // staff-inbox renderer get a directly-usable path (the DB row
-            // stores the scope-relative `/attachments/<file>`).
-            path: `/contacts/${input.contactId}/drive${ingest.path}`,
-            mimeType: att.mimeType,
-            sizeBytes: att.sizeBytes,
-            name: att.name,
-            caption: null,
-            extractionKind: ingest.extractionKind,
-          })
+          const ref = await ingestContactAttachment(input.organizationId, input.contactId, att)
+          ingestedFileIds.push(ref.driveFileId)
+          attachmentRefs.push(ref)
         } catch (err) {
           console.warn('[messaging:inbound] attachment ingest failed; omitting from message', {
             externalMessageId: input.externalMessageId,
@@ -1138,30 +1152,12 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     const conv = convRows[0]
     if (!conv) return { found: true, updated: false }
 
-    const drive = filesServiceFor(input.organizationId)
-    const ingest = await drive.ingestUpload({
-      organizationId: input.organizationId,
-      scope: { scope: 'contact', contactId: conv.contactId },
-      originalName: input.filename,
+    const attachment = await ingestContactAttachment(input.organizationId, conv.contactId, {
+      name: input.filename,
       mimeType: input.mimeType,
       sizeBytes: input.bytes.length,
       bytes: input.bytes,
-      source: 'customer_inbound',
-      uploadedBy: null,
-      basePath: '/attachments/',
     })
-    const attachment: MessageAttachmentRef = {
-      driveFileId: ingest.id,
-      // Denormalize the bash-view path so the agent's wake cue and the
-      // staff-inbox renderer get a directly-usable path (the DB row stores the
-      // scope-relative `/attachments/<file>`).
-      path: `/contacts/${conv.contactId}/drive${ingest.path}`,
-      mimeType: input.mimeType,
-      sizeBytes: input.bytes.length,
-      name: input.filename,
-      caption: null,
-      extractionKind: ingest.extractionKind,
-    }
     await db
       .update(messages)
       .set({ kind: input.mimeType.startsWith('image/') ? 'image' : 'text', attachments: [attachment] })

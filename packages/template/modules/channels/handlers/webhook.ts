@@ -51,15 +51,26 @@ const app = new Hono()
       if (!ok) return c.json({ error: 'unauthorized' }, 401)
     }
 
+    // Parse the JSON body once and share it with both coexistence intercepts —
+    // each used to re-clone + re-parse the same (potentially multi-MB) payload.
+    // A non-JSON body is never a coexistence webhook, so fall through to the
+    // adapter on a parse failure.
+    let parsedBody: unknown = null
+    try {
+      parsedBody = await c.req.raw.clone().json()
+    } catch {
+      parsedBody = null
+    }
+
     // Coexistence history webhooks: stage chunks + kick the drain, then ack —
     // kept off the live adapter path so the chunked history (and the media-asset
     // follow-up) never parses as live inbound. See history-intercept.ts.
-    if (await interceptHistoryWebhook(instance, c.req.raw)) {
+    if (parsedBody !== null && (await interceptHistoryWebhook(instance, parsedBody))) {
       return c.json({ received: true, history: true })
     }
 
     // Coexistence contacts (address book) sync: upsert names onto contacts.
-    if (await interceptContactsSync(instance, c.req.raw)) {
+    if (parsedBody !== null && (await interceptContactsSync(instance, parsedBody))) {
       return c.json({ received: true, contactsSync: true })
     }
 

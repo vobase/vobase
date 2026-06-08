@@ -42,15 +42,10 @@ interface RawBody {
  * @returns `true` when the webhook was a coexistence history webhook (and has
  * been staged / swallowed); `false` to let the normal adapter path run.
  */
-export async function interceptHistoryWebhook(instance: ChannelInstance, request: Request): Promise<boolean> {
+export async function interceptHistoryWebhook(instance: ChannelInstance, bodyRaw: unknown): Promise<boolean> {
   if (instance.channel !== 'whatsapp' && instance.channel !== 'whatsapp_notif') return false
 
-  let body: RawBody
-  try {
-    body = (await request.clone().json()) as RawBody
-  } catch {
-    return false
-  }
+  const body = bodyRaw as RawBody
   if (body.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) return false
 
   const rows: StageHistoryChunkInput[] = []
@@ -97,41 +92,36 @@ export async function interceptHistoryWebhook(instance: ChannelInstance, request
   // never reaches the live inbound path — but stages nothing.
   if (!sawHistoryField) return false
 
+  const jobs = getJobs()
+  const enqueue = (name: string, data: unknown, label: string): void => {
+    if (!jobs) return
+    void jobs.send(name, data).catch((err) => {
+      console.error(`[wa-history] ${label} enqueue failed:`, (err as Error).message)
+    })
+  }
+
   if (rows.length > 0) {
     await stageHistoryChunks(rows)
-    const jobs = getJobs()
-    if (jobs) {
-      const jobData: WhatsappHistoryDrainJobData = {
-        instanceId: instance.id,
-        organizationId: instance.organizationId,
-      }
-      void jobs.send(WHATSAPP_HISTORY_DRAIN_JOB, jobData).catch((err) => {
-        console.error('[wa-history] drain enqueue failed:', (err as Error).message)
-      })
+    const jobData: WhatsappHistoryDrainJobData = {
+      instanceId: instance.id,
+      organizationId: instance.organizationId,
     }
+    enqueue(WHATSAPP_HISTORY_DRAIN_JOB, jobData, 'drain')
   }
 
   // ≤14-day media-asset follow-ups ride `messages[]` under `field:history` —
   // enqueue a download+attach job per image (it retries until its placeholder
   // message has been created by the drain).
-  const mediaAssets = parseHistoryMediaAssets(body)
-  if (mediaAssets.length > 0) {
-    const jobs = getJobs()
-    if (jobs) {
-      for (const asset of mediaAssets) {
-        const mediaJob: WhatsappHistoryMediaJobData = {
-          instanceId: instance.id,
-          organizationId: instance.organizationId,
-          wamid: asset.wamid,
-          mediaId: asset.mediaId,
-          mimeType: asset.mimeType,
-          filename: asset.filename,
-        }
-        void jobs.send(WHATSAPP_HISTORY_MEDIA_JOB, mediaJob).catch((err) => {
-          console.error('[wa-history] media job enqueue failed:', (err as Error).message)
-        })
-      }
+  for (const asset of parseHistoryMediaAssets(body)) {
+    const mediaJob: WhatsappHistoryMediaJobData = {
+      instanceId: instance.id,
+      organizationId: instance.organizationId,
+      wamid: asset.wamid,
+      mediaId: asset.mediaId,
+      mimeType: asset.mimeType,
+      filename: asset.filename,
     }
+    enqueue(WHATSAPP_HISTORY_MEDIA_JOB, mediaJob, 'media job')
   }
 
   return true

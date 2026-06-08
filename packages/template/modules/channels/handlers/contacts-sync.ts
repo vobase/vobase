@@ -15,15 +15,9 @@ import type { ChannelInstance } from '@modules/channels/schema'
 import { update as updateContact, upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { normalizePhoneE164 } from '@modules/contacts/service/identity-normalize'
 
-export async function interceptContactsSync(instance: ChannelInstance, request: Request): Promise<boolean> {
+export async function interceptContactsSync(instance: ChannelInstance, body: unknown): Promise<boolean> {
   if (instance.channel !== 'whatsapp' && instance.channel !== 'whatsapp_notif') return false
 
-  let body: unknown
-  try {
-    body = await request.clone().json()
-  } catch {
-    return false
-  }
   const root = body as { object?: string; entry?: Array<{ changes?: Array<{ field?: string }> }> }
   if (root?.object !== 'whatsapp_business_account' || !Array.isArray(root.entry)) return false
   const sawField = root.entry.some((e) => (e.changes ?? []).some((c) => c.field === 'smb_app_state_sync'))

@@ -55,7 +55,7 @@ export type BudgetCheckResult =
 export async function checkBudget(
   db: unknown,
   organizationId: string,
-  projected: { ocrPages?: number; embedTokens?: number },
+  projected: { ocrPages?: number },
 ): Promise<BudgetCheckResult> {
   const usage = await getTodayUsage(db, organizationId)
   const projectedOcr = projected.ocrPages ?? 0

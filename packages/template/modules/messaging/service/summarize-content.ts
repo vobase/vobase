@@ -24,3 +24,12 @@ export function summarizeMessageContent(kind: MessageKind, content: unknown): st
   if (kind === 'card_reply') return `[card reply: ${c.buttonLabel ?? c.buttonValue ?? ''}]`
   return `[${kind}]`
 }
+
+/**
+ * Render one journal/window line as `[role/kind] <summary>`, the canonical shape
+ * the learning triage LLM reads. Shared by the automatic triage journal and the
+ * manual learning window producer so their formats never drift apart.
+ */
+export function renderMessageLine(row: { role: string; kind: string; content: unknown }): string {
+  return `[${row.role}/${row.kind}] ${summarizeMessageContent(row.kind as MessageKind, row.content)}`.trimEnd()
+}

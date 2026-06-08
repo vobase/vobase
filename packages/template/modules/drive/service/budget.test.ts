@@ -34,7 +34,7 @@ describe('drive/service/budget', () => {
 
   it('checkBudget passes when projected usage stays under both caps', async () => {
     const db = makeBudgetDb([])
-    const result = await checkBudget(db, 'org_test_0', { ocrPages: 1, embedTokens: 1000 })
+    const result = await checkBudget(db, 'org_test_0', { ocrPages: 1 })
     expect(result.ok).toBe(true)
   })
 
@@ -54,7 +54,7 @@ describe('drive/service/budget', () => {
     // Even with embed usage far over any prior threshold, the gate passes —
     // the embed cap is intentionally not enforced. See budget.ts for why.
     const db = makeBudgetDb([{ llm_task: 'drive.embed', call_count: 1, tokens_in: 50_000_000, tokens_out: 0 }])
-    const result = await checkBudget(db, 'org_test_0', { embedTokens: 1_000_000 })
+    const result = await checkBudget(db, 'org_test_0', {})
     expect(result.ok).toBe(true)
   })
 })

@@ -19,13 +19,13 @@
  */
 
 import { channelInstances } from '@modules/channels/schema'
-import { conversations, type MessageKind, messages } from '@modules/messaging/schema'
+import { conversations, messages } from '@modules/messaging/schema'
 import { desc, eq } from 'drizzle-orm'
 
 import type { ScopedDb } from '~/runtime'
 import { loadThresholds } from '~/wake/learning/thresholds'
 import { LEARNING_TRIAGE_JOB, type LearningTriageJobPayload } from '~/wake/learning/triage-job'
-import { summarizeMessageContent } from './summarize-content'
+import { renderMessageLine } from './summarize-content'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -141,10 +141,7 @@ export function createManualLearningService(deps: {
     let windowCount = 0
     for (let start = 0; start < ordered.length; start += windowSize) {
       const window = ordered.slice(start, start + windowSize)
-      const body = window
-        .map((m) => `[${m.role}/${m.kind}] ${summarizeMessageContent(m.kind as MessageKind, m.content)}`.trimEnd())
-        .join('\n')
-        .trim()
+      const body = window.map(renderMessageLine).join('\n').trim()
       if (!body) continue
       const windowRef = `manual:w${windowCount}:${window[0]?.id ?? start}`
       await triageScheduler.publish(LEARNING_TRIAGE_JOB, {
