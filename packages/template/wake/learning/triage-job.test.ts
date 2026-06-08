@@ -116,6 +116,89 @@ describe('learning:triage job handler', () => {
     expect(rows[0]?.status).toBe('pending')
   }, 30_000)
 
+  describe('manual signal', () => {
+    it('substantive window body inserts a candidate with signal_kind=manual and the window ref', async () => {
+      const body =
+        'Customer asked about delivery windows for premium orders; agent confirmed next-day before the noon cutoff.'
+      await handleTriageJobForTest({
+        organizationId,
+        agentId: MERIGPT_AGENT_ID,
+        conversationId: CONV_A,
+        signal: { kind: 'manual', windowRef: 'manual:w0:msg-1', body },
+      })
+      const rows = await dbh.db.execute(sql`SELECT signal_kind, signal_ref, status FROM agents.learning_candidates`)
+      expect(rows.length).toBe(1)
+      expect(rows[0]?.signal_kind).toBe('manual')
+      expect(rows[0]?.signal_ref).toBe('manual:w0:msg-1')
+      expect(rows[0]?.status).toBe('pending')
+    }, 30_000)
+
+    it('bypasses the (conv, kind) debounce — a second window within the window still inserts', async () => {
+      // Seed a manual candidate 1 minute ago — well within the 5-min debounce
+      // window that would normally drop a same-(conv, kind) follow-up.
+      await dbh.db.execute(
+        sql`INSERT INTO agents.learning_candidates
+          (id, organization_id, agent_id, conversation_id, signal_kind, signal_ref,
+           triage_confidence, summary, context, status, created_at, updated_at)
+          VALUES
+          ('seed-manual-01', ${organizationId}, ${MERIGPT_AGENT_ID}, ${CONV_A}, 'manual', 'manual:w0:seed',
+           0.5, 'Seed manual candidate', 'Seed context', 'pending',
+           now() - interval '1 minute', now() - interval '1 minute')`,
+      )
+      const body = 'A second window of substantive conversation worth learning from, comfortably over the threshold.'
+      await handleTriageJobForTest({
+        organizationId,
+        agentId: MERIGPT_AGENT_ID,
+        conversationId: CONV_A,
+        signal: { kind: 'manual', windowRef: 'manual:w1:msg-9', body },
+      })
+      // Both rows present — manual bypasses the debounce so chunked windows
+      // never collapse into a single candidate.
+      expect(await countCandidates()).toBe(2)
+    }, 30_000)
+
+    it('triages signal.body directly — a trivial window inserts nothing', async () => {
+      // Stub triage keys off the (stripped) body length; a short body must not
+      // produce a candidate, proving manual reads body rather than the DB.
+      await handleTriageJobForTest({
+        organizationId,
+        agentId: MERIGPT_AGENT_ID,
+        conversationId: CONV_A,
+        signal: { kind: 'manual', windowRef: 'manual:w0:msg-1', body: 'ok thanks' },
+      })
+      expect(await countCandidates()).toBe(0)
+    }, 30_000)
+  })
+
+  describe('signal_kind CHECK constraint', () => {
+    async function rawInsert(kind: string): Promise<void> {
+      await dbh.db.execute(
+        sql`INSERT INTO agents.learning_candidates
+          (id, organization_id, agent_id, conversation_id, signal_kind, signal_ref,
+           triage_confidence, summary, context, status)
+          VALUES
+          ('chk-' || ${kind}, ${organizationId}, ${MERIGPT_AGENT_ID}, ${CONV_A}, ${kind}, 'ref-1',
+           0.5, 'sum', 'ctx', 'pending')`,
+      )
+    }
+
+    it("accepts 'manual'", async () => {
+      await rawInsert('manual')
+      expect(await countCandidates()).toBe(1)
+    })
+
+    it('rejects an unknown signal kind', async () => {
+      let threw = false
+      try {
+        await rawInsert('bogus_kind')
+      } catch {
+        threw = true
+      }
+      expect(threw).toBe(true)
+      expect(await countCandidates()).toBe(0)
+    })
+  })
+
   describe('debounce', () => {
     it('within debounce window → second call adds no new row', async () => {
       // Seed an existing candidate 1 minute ago

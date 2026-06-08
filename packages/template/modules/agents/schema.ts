@@ -63,6 +63,7 @@ export type LearningSignalKind =
   | 'coaching_note'
   | 'rejection'
   | 'self_reflection'
+  | 'manual'
 
 export interface LearningCandidate {
   id: string
@@ -287,7 +288,7 @@ export const learningCandidates = agentsPgSchema.table(
     agentId: text('agent_id').notNull(),
     conversationId: text('conversation_id').notNull(),
     signalKind: text('signal_kind', {
-      enum: ['staff_takeover', 'coexistence_echo', 'coaching_note', 'rejection', 'self_reflection'],
+      enum: ['staff_takeover', 'coexistence_echo', 'coaching_note', 'rejection', 'self_reflection', 'manual'],
     }).notNull(),
     signalRef: text('signal_ref').notNull(),
     triageConfidence: doublePrecision('triage_confidence').notNull(),
@@ -313,7 +314,7 @@ export const learningCandidates = agentsPgSchema.table(
     check('learning_candidates_status_check', sql`status IN ('pending','consumed','dismissed','expired')`),
     check(
       'learning_candidates_signal_kind_check',
-      sql`signal_kind IN ('staff_takeover','coexistence_echo','coaching_note','rejection','self_reflection')`,
+      sql`signal_kind IN ('staff_takeover','coexistence_echo','coaching_note','rejection','self_reflection','manual')`,
     ),
   ],
 )

@@ -11,6 +11,7 @@ import {
   installConversationsService,
 } from './service/conversations'
 import { setDriveAttachmentsDb } from './service/drive-attachments'
+import { createManualLearningService, installManualLearningService } from './service/manual-learning'
 import { createMessagesService, installMessagesService } from './service/messages'
 import {
   buildStaffNoteSingletonKey,
@@ -29,6 +30,7 @@ import { createReactionsService, installReactionsService } from './service/react
 import { createSessionsService, installSessionsService } from './service/sessions'
 import { createStaffOpsService, installStaffOpsService } from './service/staff-ops'
 import { installStaffReplyTriageScheduler, type StaffReplyTriageScheduler } from './service/staff-reply'
+import { convLearnVerb } from './verbs/conv-learn'
 import { convReassignVerb } from './verbs/conv-reassign'
 import { convSetOwnerVerb } from './verbs/conv-set-owner'
 import * as web from './web'
@@ -103,10 +105,18 @@ const messaging: ModuleDef = {
       }),
     )
     installStaffReplyTriageScheduler(triageScheduler)
+    // Manual "learn from this thread" producer — reuses the same triage
+    // scheduler, but is enqueued directly (never gated by the kill-switch).
+    installManualLearningService(
+      createManualLearningService({
+        db: ctx.db as unknown as Parameters<typeof createManualLearningService>[0]['db'],
+        triageScheduler,
+      }),
+    )
     installStaffOpsService(createStaffOpsService({ db: ctx.db }))
     installSessionsService(createSessionsService({ db: ctx.db }))
     installReactionsService(createReactionsService({ db: ctx.db }))
-    ctx.cli.registerAll([...messagingVerbs, convReassignVerb, convSetOwnerVerb])
+    ctx.cli.registerAll([...messagingVerbs, convReassignVerb, convSetOwnerVerb, convLearnVerb])
   },
 }
 

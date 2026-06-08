@@ -21,6 +21,7 @@ export type LearningSignalKind =
   | 'coaching_note'
   | 'rejection'
   | 'self_reflection'
+  | 'manual'
 
 export interface LearningSignalContext {
   kind: LearningSignalKind
@@ -75,6 +76,7 @@ export function buildTriagePrompt(
     'Signal interpretation by `signalKind`:',
     '- `self_reflection`: the signal is the journal activity itself. `signalBody` is a generic prompt; base your decision on `journalContext` and what changed during the wake.',
     '- `staff_takeover` / `coexistence_echo` / `coaching_note` / `rejection`: `signalBody` is the signal (a staff utterance, coaching note, or rejection reason); `journalContext` is supporting context for what surrounded it.',
+    '- `manual`: staff asked to learn from a slice of this conversation. `signalBody` is a window of the thread (several messages). Extract any durable lesson, fact, or correction worth remembering; if the window is routine small-talk with nothing to learn, return worth_attention:false.',
     '',
     'Return JSON only matching exactly: {"worth_attention": bool, "scope_hint": string|null, "summary": string (≤200 chars), "context": string (≤800 chars), "confidence": number (0..1)}.',
     '`confidence` is how sure you are of `worth_attention` regardless of which way it goes — a confident "no" is also high confidence.',

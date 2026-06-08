@@ -31,6 +31,10 @@ export interface LearningThresholds {
   candidateExpiryDays: number
   /** Maximum candidates surfaced per side-load slice. */
   candidateSideLoadCap: number
+  /** Messages per window for a manual "learn from this thread" pass. */
+  manualWindowSize: number
+  /** Cost guard: the most-recent N windows a manual pass will process. */
+  manualMaxWindows: number
 }
 
 /** Build a fresh `LearningThresholds` object by reading `process.env` at call time. */
@@ -43,6 +47,8 @@ export function loadThresholds(): LearningThresholds {
     triageDebounceMs: envNumber('LEARN_DEBOUNCE_MS', 300_000),
     candidateExpiryDays: envNumber('LEARN_CANDIDATE_EXPIRY_DAYS', 7),
     candidateSideLoadCap: envNumber('LEARN_SIDELOAD_CAP', 5),
+    manualWindowSize: envNumber('LEARN_MANUAL_WINDOW', 20),
+    manualMaxWindows: envNumber('LEARN_MANUAL_MAX_WINDOWS', 20),
   }
 }
 

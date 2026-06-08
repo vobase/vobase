@@ -15,6 +15,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 
 import approvals from './approvals'
+import learn from './learn'
 import notes from './notes'
 import reassign from './reassign'
 import reply from './reply'
@@ -112,6 +113,7 @@ const app = new Hono<OrganizationEnv>()
   })
   .route('/approvals', approvals)
   .route('/conversations', notes)
+  .route('/conversations', learn)
   .route('/conversations', reassign)
   .route('/conversations', setOwner)
   .route('/conversations', reply)

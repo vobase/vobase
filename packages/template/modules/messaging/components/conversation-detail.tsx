@@ -2,6 +2,7 @@ import type { Contact } from '@modules/contacts/schema'
 import { deriveContactName } from '@modules/messaging/components/contact'
 import { useActivity } from '@modules/messaging/hooks/use-activity'
 import { useConversationTyping } from '@modules/messaging/hooks/use-conversation-typing'
+import { useLearnFromThread } from '@modules/messaging/hooks/use-learn-from-thread'
 import { useLifecycle } from '@modules/messaging/hooks/use-lifecycle'
 import { useNotes } from '@modules/messaging/hooks/use-notes'
 import { useReassign } from '@modules/messaging/hooks/use-reassign'
@@ -9,7 +10,14 @@ import { useSetOwner } from '@modules/messaging/hooks/use-set-owner'
 import { useDismissMention, useUnreadMentions } from '@modules/team/hooks/use-unread-mentions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { CheckIcon, ChevronLeft, PanelRightOpenIcon, RefreshCcwIcon, RotateCcwIcon } from 'lucide-react'
+import {
+  CheckIcon,
+  ChevronLeft,
+  GraduationCapIcon,
+  PanelRightOpenIcon,
+  RefreshCcwIcon,
+  RotateCcwIcon,
+} from 'lucide-react'
 import { useQueryState } from 'nuqs'
 import { useEffect, useMemo } from 'react'
 
@@ -167,6 +175,7 @@ export function ConversationDetail() {
     queryClient.invalidateQueries({ queryKey: ['conversations'] })
     if (activeConvId) queryClient.invalidateQueries({ queryKey: ['conversation', activeConvId] })
   }
+  const learnFromThread = useLearnFromThread(activeConvId ?? '')
   const resolveMut = useLifecycle(activeConvId ?? '', 'resolve', actingStaffId)
   const reopenMut = useLifecycle(activeConvId ?? '', 'reopen', actingStaffId)
   const resetMut = useLifecycle(activeConvId ?? '', 'reset', actingStaffId)
@@ -264,6 +273,19 @@ export function ConversationDetail() {
             >
               <RefreshCcwIcon className="size-4" />
               <span className="sr-only sm:not-sr-only">Retry</span>
+            </Button>
+          )}
+          {activeConvId && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => learnFromThread.mutate()}
+              disabled={learnFromThread.isPending}
+              title="Run a learning pass over this conversation so the agent can extract durable lessons"
+              data-testid="conversation-learn"
+            >
+              <GraduationCapIcon className="size-4" />
+              {learnFromThread.isPending ? 'Learning…' : 'Learn'}
             </Button>
           )}
           {activeConvId && (
