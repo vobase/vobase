@@ -129,9 +129,16 @@ export function parseWhatsAppHistory(payload: unknown): ParsedHistoryChunk[] {
             // 131051) carry no content — drop them so they never create empty
             // inbox conversations.
             if (type === 'errors') continue
+            // The wamid is the idempotency key for backfill and the match key for
+            // the media-asset follow-up. A message with no id can't be deduped
+            // (so it would duplicate on webhook redelivery) and, stored as an
+            // empty-string `channelExternalId`, would collide with every other
+            // id-less message under the partial unique index — silently dropping
+            // all but the first. Skip it rather than corrupt the import.
+            if (!msg.id) continue
             messages.push({
               customerPhone,
-              wamid: msg.id ?? '',
+              wamid: msg.id,
               timestampMs: Number.parseInt(msg.timestamp ?? '0', 10) * 1000,
               direction: isSameNumber(msg.from, businessPhone) ? 'outbound' : 'inbound',
               messageType: type,

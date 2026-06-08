@@ -417,9 +417,25 @@ const app = new Hono<OrganizationEnv>()
       // blocks a retry. An admin POSTs `{ resync: ["history"] }` to clear that
       // guard (and the stale surfaced status) so the re-enqueued setup job
       // re-requests the burst. Body is optional — a bare retry stays legacy.
-      const body = (await c.req.json().catch(() => ({}))) as unknown
-      const parsed = finishBody.safeParse(body)
-      const resync = parsed.success ? (parsed.data.resync ?? []) : []
+      // Distinguish "no body" (a legacy bare retry — fine) from "a body was sent
+      // but is malformed" (client error — surface it, don't silently degrade to a
+      // bare retry that clears no guard while returning 200). An empty/absent
+      // body fails JSON parse → treated as the legacy bare retry.
+      let resync: Array<'history' | 'smb_app_state_sync'> = []
+      let hasBody = true
+      let body: unknown
+      try {
+        body = await c.req.json()
+      } catch {
+        hasBody = false
+      }
+      if (hasBody) {
+        const parsed = finishBody.safeParse(body)
+        if (!parsed.success) {
+          return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400)
+        }
+        resync = parsed.data.resync ?? []
+      }
       if (resync.length > 0) {
         const cfg = parseWhatsappInstanceConfig(instance.config)
         const coexistenceHistory = clearCoexistenceSyncGuards(cfg.coexistenceHistory, resync)

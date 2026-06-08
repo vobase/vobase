@@ -54,6 +54,21 @@ export interface ChannelInstancesService {
   get(id: string): Promise<ChannelInstance | null>
   create(input: CreateInstanceInput): Promise<ChannelInstance>
   update(id: string, organizationId: string, patch: UpdateInstanceInput): Promise<ChannelInstance>
+  /**
+   * Atomic read-modify-write of the JSONB `config` under a row lock. The
+   * reducer receives the freshly-locked config and returns the next config to
+   * persist. Use this (not `update({ config })`) whenever concurrent writers can
+   * touch disjoint config keys from stale snapshots — e.g. the WhatsApp setup
+   * job (sync guard timestamps) racing the history drain (import status/progress)
+   * racing the resolve step (`historyResolved`). `SELECT … FOR UPDATE`
+   * serializes them so each reducer sees the prior writer's committed state
+   * instead of clobbering it. Returns the updated row, or `null` if not found.
+   */
+  updateConfigAtomic(
+    id: string,
+    organizationId: string,
+    reduce: (config: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<ChannelInstance | null>
   /** Soft-delete: marks the row `status='released'`. Conversations stay attached. */
   remove(id: string, organizationId: string): Promise<void>
   /**
@@ -126,6 +141,29 @@ export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelIn
     return updated
   }
 
+  async function updateConfigAtomic(
+    id: string,
+    organizationId: string,
+    reduce: (config: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<ChannelInstance | null> {
+    return await db.transaction(async (tx) => {
+      const locked = await tx
+        .select()
+        .from(channelInstances)
+        .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
+        .for('update')
+      const row = locked[0]
+      if (!row) return null
+      const nextConfig = reduce((row.config ?? {}) as Record<string, unknown>)
+      const updated = await tx
+        .update(channelInstances)
+        .set({ config: nextConfig })
+        .where(eq(channelInstances.id, id))
+        .returning()
+      return updated[0] ?? null
+    })
+  }
+
   async function remove(id: string, organizationId: string): Promise<void> {
     // Soft-delete via status. A hard delete would violate
     // `fk_conv_channel_instance` (`ON DELETE RESTRICT`) whenever a
@@ -144,7 +182,7 @@ export function createChannelInstancesService(deps: { db: ScopedDb }): ChannelIn
       .where(and(eq(channelInstances.id, id), eq(channelInstances.organizationId, organizationId)))
   }
 
-  return { list, get, create, update, remove, hardRemove }
+  return { list, get, create, update, updateConfigAtomic, remove, hardRemove }
 }
 
 let _current: ChannelInstancesService | null = null
@@ -181,6 +219,13 @@ export function updateInstance(
   patch: UpdateInstanceInput,
 ): Promise<ChannelInstance> {
   return current().update(id, organizationId, patch)
+}
+export function updateInstanceConfigAtomic(
+  id: string,
+  organizationId: string,
+  reduce: (config: Record<string, unknown>) => Record<string, unknown>,
+): Promise<ChannelInstance | null> {
+  return current().updateConfigAtomic(id, organizationId, reduce)
 }
 export function removeInstance(id: string, organizationId: string): Promise<void> {
   return current().remove(id, organizationId)

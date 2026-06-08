@@ -10,7 +10,7 @@
 
 import { parseWhatsAppHistory } from '@modules/channels/adapters/whatsapp/parse-history'
 import { listUnprocessedHistoryChunks, markHistoryChunksProcessed } from '@modules/channels/service/history-staging'
-import { getInstance, updateInstance } from '@modules/channels/service/instances'
+import { getInstance, updateInstanceConfigAtomic } from '@modules/channels/service/instances'
 import { upsertByExternalKey } from '@modules/contacts/service/contacts'
 import { normalizePhoneE164 } from '@modules/contacts/service/identity-normalize'
 import { backfillHistoricalMessages, resolveImportedHistory } from '@modules/messaging/service/conversations'
@@ -34,6 +34,31 @@ function toContentType(messageType: string): BackfillHistoryMessage['contentType
     default:
       return 'unsupported'
   }
+}
+
+/**
+ * Compute the next `coexistenceHistory` import state from the freshly-locked
+ * previous state and this drain pass's observations. Monotonic by design:
+ * progress never regresses (max), and `declined`/`imported` are terminal latches
+ * — so a stale or out-of-order drain can't walk the import backwards. 'imported'
+ * (which unlocks the bulk resolve) requires both Meta progress=100 and no
+ * unprocessed chunks remaining.
+ */
+function nextCoexistenceHistory(
+  prev: Record<string, unknown>,
+  obs: { maxProgress: number; declinedSeen: boolean; noPending: boolean },
+): Record<string, unknown> {
+  const prevProgress = typeof prev.progress === 'number' ? prev.progress : 0
+  const progress = Math.max(obs.maxProgress, prevProgress)
+  const status =
+    obs.declinedSeen || prev.status === 'declined'
+      ? 'declined'
+      : prev.status === 'imported'
+        ? 'imported'
+        : progress >= 100 && obs.noPending
+          ? 'imported'
+          : 'importing'
+  return { ...prev, status, progress }
 }
 
 export async function runWhatsappHistoryDrainJob(data: WhatsappHistoryDrainJobData): Promise<void> {
@@ -127,21 +152,25 @@ export async function runWhatsappHistoryDrainJob(data: WhatsappHistoryDrainJobDa
     // progress=100 AND that no unprocessed chunks remain, so a chunk that failed
     // to backfill keeps the import 'importing' and defers the resolve until it
     // lands. Progress is max(this drain, persisted) so a late straggler chunk
-    // can't regress it, and a recorded 'declined' is never overwritten.
-    const cfg = instance.config as Record<string, unknown>
-    const prev = (cfg.coexistenceHistory as Record<string, unknown> | undefined) ?? {}
-    const prevProgress = typeof prev.progress === 'number' ? prev.progress : 0
-    const effectiveProgress = Math.max(maxProgress, prevProgress)
-    const stillPending = await listUnprocessedHistoryChunks(data.instanceId, 1)
-    const status =
-      declinedSeen || prev.status === 'declined'
-        ? 'declined'
-        : effectiveProgress >= 100 && stillPending.length === 0
-          ? 'imported'
-          : 'importing'
-    await updateInstance(instance.id, instance.organizationId, {
-      config: { ...cfg, coexistenceHistory: { ...prev, status, progress: effectiveProgress } },
-    }).catch((err) => {
+    // can't regress it, and a recorded 'declined'/'imported' is never overwritten.
+    //
+    // Done as an atomic read-modify-write under a row lock: concurrent drains
+    // (pg-boss runs them with batchSize concurrency, no singleton key) would
+    // otherwise each compute status from a stale config snapshot and clobber the
+    // other's write — regressing 'imported' back to 'importing' and deferring the
+    // resolve indefinitely. The reducer sees the prior writer's committed state.
+    const noPending = (await listUnprocessedHistoryChunks(data.instanceId, 1)).length === 0
+    await updateInstanceConfigAtomic(instance.id, instance.organizationId, (cfg) => ({
+      ...cfg,
+      coexistenceHistory: nextCoexistenceHistory(
+        (cfg.coexistenceHistory as Record<string, unknown> | undefined) ?? {},
+        {
+          maxProgress,
+          declinedSeen,
+          noPending,
+        },
+      ),
+    })).catch((err) => {
       console.warn('[whatsapp:history-drain] sync-status update failed:', (err as Error).message)
     })
   }
@@ -171,9 +200,15 @@ async function resolvePendingImportedHistory(instanceId: string, organizationId:
 
   try {
     const res = await resolveImportedHistory({ organizationId, channelInstanceId: instanceId })
-    await updateInstance(instanceId, organizationId, {
-      config: { ...cfg, coexistenceHistory: { ...hist, historyResolved: true } },
-    })
+    // Atomic merge so setting the resolve guard can't clobber a status/progress
+    // write from a concurrent drain pass (see `updateConfigAtomic`).
+    await updateInstanceConfigAtomic(instanceId, organizationId, (fresh) => ({
+      ...fresh,
+      coexistenceHistory: {
+        ...((fresh.coexistenceHistory as Record<string, unknown> | undefined) ?? {}),
+        historyResolved: true,
+      },
+    }))
     console.info('[whatsapp:history-drain] resolved imported history', { instanceId, ...res })
   } catch (err) {
     // Leave `historyResolved` unset so the next drain retries; surface loudly.

@@ -62,16 +62,25 @@ const app = new Hono()
       parsedBody = null
     }
 
-    // Coexistence history webhooks: stage chunks + kick the drain, then ack —
-    // kept off the live adapter path so the chunked history (and the media-asset
-    // follow-up) never parses as live inbound. See history-intercept.ts.
-    if (parsedBody !== null && (await interceptHistoryWebhook(instance, parsedBody))) {
-      return c.json({ received: true, history: true })
+    // Coexistence intercepts, run on the SAME parsed body before the live
+    // adapter path. Both run unconditionally (each guards its own `field`) so a
+    // single webhook carrying BOTH a `history` change and an `smb_app_state_sync`
+    // change — wire-legal, since one delivery can hold multiple `entry[].changes[]`
+    // — is fully handled instead of the second intercept being skipped. History
+    // staging + drain keeps the chunked history (and the media-asset follow-up)
+    // off the live inbound path; the contacts sync upserts names onto contacts.
+    let historyHandled = false
+    let contactsHandled = false
+    if (parsedBody !== null) {
+      historyHandled = await interceptHistoryWebhook(instance, parsedBody)
+      contactsHandled = await interceptContactsSync(instance, parsedBody)
     }
-
-    // Coexistence contacts (address book) sync: upsert names onto contacts.
-    if (parsedBody !== null && (await interceptContactsSync(instance, parsedBody))) {
-      return c.json({ received: true, contactsSync: true })
+    if (historyHandled || contactsHandled) {
+      return c.json({
+        received: true,
+        ...(historyHandled ? { history: true } : {}),
+        ...(contactsHandled ? { contactsSync: true } : {}),
+      })
     }
 
     if (!adapter.parseWebhook) return c.json({ error: 'unsupported' }, 400)

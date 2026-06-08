@@ -28,7 +28,7 @@ import {
   registerPhoneNumber,
   subscribeAppToWaba,
 } from '@modules/channels/adapters/whatsapp/meta-oauth'
-import { getInstance, updateInstance } from '@modules/channels/service/instances'
+import { getInstance, updateInstance, updateInstanceConfigAtomic } from '@modules/channels/service/instances'
 
 import { readAppBaseUrl } from '~/runtime/app-url'
 
@@ -45,12 +45,6 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
   if (instance.organizationId !== data.organizationId) {
     throw new Error(`whatsapp:setup: org mismatch for instance ${data.instanceId}`)
   }
-
-  // Hoisted out of the try so a successful smb_app_data sync's once-only guard
-  // is persisted even when finalization (marking the instance active) fails —
-  // otherwise a /finish retry would re-fire the already-succeeded sync and Meta
-  // would error on the duplicate call.
-  let coexistenceConfigPatch: Record<string, unknown> | undefined
 
   try {
     const cfg = parseWhatsappInstanceConfig(instance.config)
@@ -100,23 +94,39 @@ export async function runWhatsappSetupJob(data: WhatsappSetupJobData): Promise<v
           failures: outcome.failures,
         })
       }
-      coexistenceConfigPatch = { ...instance.config, coexistenceHistory: outcome.coexistenceHistory }
+      // Persist the once-only guard timestamps immediately via an atomic merge of
+      // just those keys — so they survive even if finalization below throws (a
+      // /finish retry then won't re-fire an already-succeeded sync) AND a
+      // concurrent history drain's status/progress write isn't clobbered by a
+      // stale full-config snapshot. `undefined` timestamps (a failed sync) are
+      // dropped by the merge, leaving that guard unset and re-fireable.
+      await updateInstanceConfigAtomic(instance.id, instance.organizationId, (fresh) => ({
+        ...fresh,
+        coexistenceHistory: {
+          ...((fresh.coexistenceHistory as Record<string, unknown> | undefined) ?? {}),
+          ...(outcome.coexistenceHistory.historyRequestedAt
+            ? { historyRequestedAt: outcome.coexistenceHistory.historyRequestedAt }
+            : {}),
+          ...(outcome.coexistenceHistory.contactsRequestedAt
+            ? { contactsRequestedAt: outcome.coexistenceHistory.contactsRequestedAt }
+            : {}),
+        },
+      }))
     }
 
     await updateInstance(instance.id, instance.organizationId, {
       setupStage: 'active',
       status: 'active',
       lastError: null,
-      ...(coexistenceConfigPatch ? { config: coexistenceConfigPatch } : {}),
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    // Guard timestamps were already persisted atomically above, so the failure
+    // path only needs to surface the error (setupStage/lastError are separate
+    // columns, never clobbering the config sub-object).
     await updateInstance(instance.id, instance.organizationId, {
       setupStage: 'failed',
       lastError: message.slice(0, 500),
-      // Preserve any once-only guard timestamps collected before the failure so
-      // a retry doesn't re-fire an already-succeeded smb_app_data sync.
-      ...(coexistenceConfigPatch ? { config: coexistenceConfigPatch } : {}),
     })
     // Don't rethrow — failure is surfaced via `lastError`. Letting the queue
     // retry would just re-hit Meta and re-fail until the operator intervenes.

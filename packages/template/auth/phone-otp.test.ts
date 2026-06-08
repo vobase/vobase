@@ -66,6 +66,7 @@ function installNotifChannelStub(): void {
     // biome-ignore lint/suspicious/noExplicitAny: stub
     update: async () => null as any,
     remove: async () => undefined,
+    updateConfigAtomic: async () => null,
     hardRemove: async () => undefined,
   })
 }

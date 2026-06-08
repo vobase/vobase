@@ -962,21 +962,38 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
     // Insert all messages + bump the conversation atomically, so a mid-burst
     // failure can't leave a half-written backfill (a retry stays safe via the
     // wamid idempotency above).
+    //
+    // `onConflictDoNothing` on the partial unique index `idx_msg_channel_ext`
+    // (org, channelExternalId) is load-bearing, not belt-and-suspenders: the
+    // dedup SELECT above sees only committed rows, but the drain runs with
+    // pg-boss `batchSize` concurrency and no singleton key, so two passes for
+    // the same instance can race — both clear the SELECT, both INSERT the same
+    // wamid. Without this the loser throws 23505, the whole batch tx rolls back,
+    // and the chunk is retried forever (the import can stall before
+    // `progress=100 && no pending`, so the bulk resolve never runs). DO NOTHING
+    // also collapses any intra-batch duplicate wamid. `inserted` is counted from
+    // the rows that actually landed, not the pre-conflict candidate set.
+    let insertedCount = 0
     await db.transaction(async (tx) => {
       for (let i = 0; i < toInsert.length; i += INSERT_BATCH) {
         const batch = toInsert.slice(i, i + INSERT_BATCH)
-        await tx.insert(messages).values(
-          batch.map((m) => ({
-            conversationId,
-            organizationId: input.organizationId,
-            role: m.role,
-            kind: m.contentType === 'image' ? 'image' : 'text',
-            content: { text: m.content },
-            channelExternalId: m.wamid,
-            createdAt: m.occurredAt,
-            metadata: { ...(m.metadata ?? {}), historical: true },
-          })),
-        )
+        const landed = (await tx
+          .insert(messages)
+          .values(
+            batch.map((m) => ({
+              conversationId,
+              organizationId: input.organizationId,
+              role: m.role,
+              kind: m.contentType === 'image' ? 'image' : 'text',
+              content: { text: m.content },
+              channelExternalId: m.wamid,
+              createdAt: m.occurredAt,
+              metadata: { ...(m.metadata ?? {}), historical: true },
+            })),
+          )
+          .onConflictDoNothing()
+          .returning()) as unknown[]
+        insertedCount += landed.length
       }
       await tx
         .update(conversations)
@@ -989,15 +1006,15 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
           conversationId,
           organizationId: input.organizationId,
           type: HISTORY_IMPORTED_EVENT,
-          payload: { source: 'whatsapp_coexistence', inserted: toInsert.length },
+          payload: { source: 'whatsapp_coexistence', inserted: insertedCount },
         })
       }
     })
 
     return {
       conversationId,
-      inserted: toInsert.length,
-      skipped: input.messages.length - toInsert.length,
+      inserted: insertedCount,
+      skipped: input.messages.length - insertedCount,
     }
   }
 
@@ -1017,11 +1034,12 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
    * `status = 'active'` + still-pure-history, so re-runs skip already-resolved
    * rows and a concurrent live inbound can't be buried.
    *
-   * AUDIT NOTE: this is the one conversation mutation that does NOT append a
-   * per-thread `conversation_events` row — a deliberate exception for a bulk
-   * onboarding op where N can be thousands and per-row timeline events would be
-   * pure noise. The action stays auditable in aggregate via
-   * `status = 'resolved' AND resolvedReason = 'history_import'`.
+   * AUDIT NOTE: each resolved thread gets exactly one `conversation_events` row
+   * (`HISTORY_RESOLVED_EVENT`), written in the same tx as its status change, so
+   * the bulk resolve stays auditable per-thread without the O(messages) flood the
+   * backfill itself deliberately avoids (one event per thread, not per message).
+   * A re-run resolves nothing (the WHERE excludes already-resolved rows), so the
+   * events never duplicate.
    */
   async function resolveImportedHistory(input: ResolveImportedHistoryInput): Promise<ResolveImportedHistoryResult> {
     const windowMs = input.keepActiveWindowMs ?? 7 * 24 * 60 * 60 * 1000
@@ -1130,15 +1148,24 @@ export function createConversationsService(deps: ConversationsServiceDeps): Conv
    * Enrich an imported-history `media_placeholder` message with its downloaded
    * media. Reuses the live-inbound attachment path: `drive.ingestUpload` then a
    * `MessageAttachmentRef` on the message, so the existing renderer shows it.
-   * Matched by the WhatsApp message id; returns `found:false` when the
-   * placeholder isn't created yet so the caller can retry (the asset webhook can
-   * arrive before its history chunk is drained).
+   * Matched by the WhatsApp message id AND the `historical` marker — a live
+   * coexistence echo can carry the same wamid, and matching it would attach the
+   * asset to (or short-circuit on) the wrong row, never enriching the real
+   * placeholder. Returns `found:false` when the placeholder isn't created yet so
+   * the caller can retry (the asset webhook can arrive before its history chunk
+   * is drained).
    */
   async function attachHistoricalMedia(input: AttachHistoricalMediaInput): Promise<AttachHistoricalMediaResult> {
     const rows = (await db
       .select()
       .from(messages)
-      .where(and(eq(messages.organizationId, input.organizationId), eq(messages.channelExternalId, input.wamid)))
+      .where(
+        and(
+          eq(messages.organizationId, input.organizationId),
+          eq(messages.channelExternalId, input.wamid),
+          sql`coalesce((${messages.metadata} ->> 'historical') = 'true', false)`,
+        ),
+      )
       .limit(1)) as Message[]
     const msg = rows[0]
     if (!msg) return { found: false, updated: false }
