@@ -86,6 +86,13 @@ interface ImageContent {
   url?: string
   type?: 'image' | 'document' | 'video' | 'audio'
   caption?: string
+  /**
+   * Inbound customer images (WhatsApp) store the photo on `attachments[]` and
+   * the caption here on `content.text`. Outbound `send_file` images never set
+   * this (they carry `caption` instead), so reading it only adds the inbound
+   * caption bubble.
+   */
+  text?: string
 }
 
 interface CardReplyContent {
@@ -395,7 +402,14 @@ export function MessageCard({
   if (message.kind === 'image') {
     const content = message.content as ImageContent
     const attachmentRef = message.attachments?.[0]
-    const src = content.url ?? (content.driveFileId ? driveFileRawUrl(content.driveFileId) : null)
+    // Outbound `send_file` images carry their source on `content`; inbound
+    // customer images carry the file on `attachments[]` (content holds only the
+    // caption on `content.text`). Resolve `src` from whichever is present so an
+    // inbound photo renders instead of a bare attachment placeholder.
+    const src =
+      content.url ??
+      (content.driveFileId ? driveFileRawUrl(content.driveFileId) : null) ??
+      (attachmentRef?.driveFileId ? driveFileRawUrl(attachmentRef.driveFileId) : null)
     if (!src) {
       return (
         <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
@@ -403,7 +417,7 @@ export function MessageCard({
         </div>
       )
     }
-    return (
+    const media = (
       <MediaAttachment
         src={src}
         kind={resolveImageKind(content, attachmentRef)}
@@ -411,6 +425,25 @@ export function MessageCard({
         fallbackLabel={attachmentRef?.name ?? content.caption ?? content.driveFileId ?? content.url ?? null}
         sizeBytes={attachmentRef?.sizeBytes ?? null}
       />
+    )
+    // Inbound customer images carry their WhatsApp caption on `content.text`;
+    // render it beneath the photo (WhatsApp order). Outbound `send_file` images
+    // have no `content.text`, so the bare media renders unchanged.
+    const captionText = (content.text ?? '').trim()
+    if (!captionText) return media
+    return (
+      <div className="flex flex-col gap-2">
+        {media}
+        <div
+          className={cn(
+            bubbleBase,
+            'max-w-[min(78%,560px)]',
+            message.role === 'customer' ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground',
+          )}
+        >
+          {captionText}
+        </div>
+      </div>
     )
   }
 
