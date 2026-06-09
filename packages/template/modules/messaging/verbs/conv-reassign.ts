@@ -36,11 +36,16 @@ Use the verb for explicit human-handoff requests, legal/compliance, or large ref
   input: z.object({
     to: AssigneeSchema,
     reason: z.string().optional(),
-    /** Required for HTTP-RPC; the in-process transport defaults to ctx.wake.conversationId. */
+    /** Honored only for out-of-wake HTTP-RPC; inside a wake, ctx.wake.conversationId is authoritative and this is ignored. */
     conversationId: z.string().optional(),
   }),
   body: async ({ input, ctx }) => {
-    const conversationId = input.conversationId ?? ctx.wake?.conversationId
+    // The wake's conversation is authoritative: an in-wake agent must not be able
+    // to redirect the handoff by passing --conversationId (prod incident: an agent
+    // passed the channel-instance id from a file path, so the ack guard checked the
+    // wrong, empty conversation and refused). --conversationId is only honored for
+    // out-of-wake HTTP-RPC callers, whose ctx.wake is undefined.
+    const conversationId = ctx.wake?.conversationId ?? input.conversationId
     if (!conversationId) {
       return {
         ok: false as const,

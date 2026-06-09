@@ -32,11 +32,14 @@ export const convSetOwnerVerb = defineCliVerb({
     'Set the staff member who owns this lead/ticket. This does NOT change who replies — the agent keeps handling the conversation. Once an owner is set, address them by default with `consult_staff` when you need staff help. Run `vobase team list` first for real userIds.',
   input: z.object({
     to: OwnerSchema,
-    /** Required for HTTP-RPC; the in-process transport defaults to ctx.wake.conversationId. */
+    /** Honored only for out-of-wake HTTP-RPC; inside a wake, ctx.wake.conversationId is authoritative and this is ignored. */
     conversationId: z.string().optional(),
   }),
   body: async ({ input, ctx }) => {
-    const conversationId = input.conversationId ?? ctx.wake?.conversationId
+    // Inside a wake the conversation is fixed by the harness; an in-wake agent must
+    // not be able to set the owner on a different conversation by passing a stray
+    // --conversationId. The flag is only honored out-of-wake (HTTP-RPC, ctx.wake undefined).
+    const conversationId = ctx.wake?.conversationId ?? input.conversationId
     if (!conversationId) {
       return {
         ok: false as const,

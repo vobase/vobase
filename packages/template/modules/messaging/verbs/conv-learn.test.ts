@@ -46,6 +46,16 @@ function installLearnStub(result: ManualLearningResult | ManualLearningError): v
   } as ManualLearningService)
 }
 
+// Records every conversationId triggerLearning is invoked with.
+function installLearnCapture(targets: string[]): void {
+  installManualLearningService({
+    triggerLearning: (args: { conversationId: string }) => {
+      targets.push(args.conversationId)
+      return Promise.resolve({ agentId: 'agt0test01', windowCount: 1, messageCount: 3 })
+    },
+  } as ManualLearningService)
+}
+
 afterEach(() => {
   __resetConversationsServiceForTests()
   __resetManualLearningServiceForTests()
@@ -90,5 +100,32 @@ describe('convLearnVerb', () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.errorCode).toBe('no_agent')
+  })
+
+  describe('wake conversation is authoritative', () => {
+    it('ignores a stray --conversationId inside a wake and learns on the wake conversation', async () => {
+      installConvStub('org-test') // any id resolves to org-test, so the org guard passes either way
+      const learnTargets: string[] = []
+      installLearnCapture(learnTargets)
+
+      const result = await convLearnVerb.body({ input: { conversationId: 'conv-elsewhere' }, ctx: makeCtx() })
+
+      expect(result.ok).toBe(true)
+      expect(learnTargets).toEqual(['conv-test'])
+    })
+
+    it('honors --conversationId for out-of-wake HTTP-RPC callers (no wake)', async () => {
+      installConvStub('org-test')
+      const learnTargets: string[] = []
+      installLearnCapture(learnTargets)
+
+      const result = await convLearnVerb.body({
+        input: { conversationId: 'http-conv-9' },
+        ctx: makeCtx({ wake: undefined }),
+      })
+
+      expect(result.ok).toBe(true)
+      expect(learnTargets).toEqual(['http-conv-9'])
+    })
   })
 })
