@@ -24,6 +24,8 @@ import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RelativeTimeCard } from '@/components/ui/relative-time-card'
+import { useSessionUser } from '@/hooks/use-session-user'
+import { useDialogs } from '@/providers/dialog-provider'
 import { InviteMemberDialog } from '../components/invite-member-dialog'
 import { PendingInvitationsCard } from '../components/pending-invitations-card'
 import { canInviteMembers, useActiveMember } from '../hooks/use-active-member'
@@ -87,6 +89,8 @@ export function StaffListPage() {
   const { data: staff = [], isLoading, error } = useStaffList()
   const { data: attrDefs = [] } = useAttributeDefinitions()
   const { data: activeMember } = useActiveMember()
+  const currentUserId = useSessionUser()?.id ?? null
+  const { openPhoneVerify } = useDialogs()
   const [inviteOpen, setInviteOpen] = useState(false)
   const canInvite = canInviteMembers(activeMember?.role)
 
@@ -214,10 +218,23 @@ export function StaffListPage() {
         cell: ({ row }) => {
           const phone = row.original.phoneNumber
           if (!phone) return <span className="font-mono text-muted-foreground text-xs">—</span>
+          const verified = row.original.phoneNumberVerified === true
+          const isSelf = row.original.userId === currentUserId
           return (
             <div className="flex items-center gap-2 leading-none">
               <span className="font-mono text-muted-foreground text-xs">{phone}</span>
-              <PhoneVerificationBadge verified={row.original.phoneNumberVerified === true} />
+              <PhoneVerificationBadge verified={verified} />
+              {!verified && isSelf && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  aria-label="Verify WhatsApp number"
+                  onClick={openPhoneVerify}
+                >
+                  Verify
+                </Button>
+              )}
             </div>
           )
         },
@@ -280,7 +297,7 @@ export function StaffListPage() {
     ]
 
     return [...staticCols, ...dynamicCols, ...tailCols]
-  }, [attrDefs, sectorOptions, expertiseOptions, languageOptions])
+  }, [attrDefs, sectorOptions, expertiseOptions, languageOptions, openPhoneVerify, currentUserId])
 
   const table = useReactTable({
     data: staff,

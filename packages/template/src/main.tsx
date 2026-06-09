@@ -5,6 +5,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 
 import { ThemeProvider } from './components/theme-provider'
+import { DialogProvider } from './providers/dialog-provider'
 import { SearchProvider } from './providers/search-provider'
 import { routeTree } from './routeTree.gen'
 import './styles/app.css'
@@ -31,7 +32,9 @@ if (root && !root.innerHTML) {
         <QueryClientProvider client={queryClient}>
           <NuqsAdapter>
             <SearchProvider>
-              <RouterProvider router={router} />
+              <DialogProvider>
+                <RouterProvider router={router} />
+              </DialogProvider>
             </SearchProvider>
           </NuqsAdapter>
         </QueryClientProvider>

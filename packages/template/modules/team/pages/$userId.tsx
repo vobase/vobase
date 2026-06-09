@@ -11,7 +11,8 @@ import { ErrorBanner, PageBody, PageHeader, PageLayout } from '@/components/layo
 import { PhoneVerificationBadge } from '@/components/phone-verification-badge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { authClient } from '@/lib/auth-client'
+import { useSessionUser } from '@/hooks/use-session-user'
+import { useDialogs } from '@/providers/dialog-provider'
 import { AttributeFormDialog, type AttributeFormValues } from '../components/attribute-form-dialog'
 import { StaffFormDialog, type StaffFormValues } from '../components/staff-form-dialog'
 import { canInviteMembers, useActiveMember } from '../hooks/use-active-member'
@@ -42,8 +43,9 @@ export function StaffDetailPage() {
 
   const sortedDefs = [...attrDefs].sort((a, b) => a.sortOrder - b.sortOrder)
 
-  const sessionRes = authClient.useSession() as unknown as { data?: { user?: { id?: string } | null } | null } | null
-  const isSelf = Boolean(sessionRes?.data?.user?.id) && sessionRes?.data?.user?.id === userId
+  const currentUserId = useSessionUser()?.id ?? null
+  const isSelf = currentUserId !== null && currentUserId === userId
+  const { openPhoneVerify } = useDialogs()
 
   const { data: orgMembers = [] } = useOrgMembers()
   const { data: activeMember } = useActiveMember()
@@ -178,6 +180,17 @@ export function StaffDetailPage() {
                       <div className="flex items-center gap-3 leading-none">
                         <span className="font-mono">{staff.phoneNumber}</span>
                         <PhoneVerificationBadge verified={staff.phoneNumberVerified === true} />
+                        {staff.phoneNumberVerified !== true && isSelf && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0"
+                            aria-label="Verify WhatsApp number"
+                            onClick={openPhoneVerify}
+                          >
+                            Verify
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <span className="text-muted-foreground">—</span>
