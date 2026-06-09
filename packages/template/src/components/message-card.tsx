@@ -413,7 +413,7 @@ export function MessageCard({
     if (!src) {
       return (
         <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
-          <span className="text-xs">📎 {content.caption ?? content.driveFileId ?? 'Attachment'}</span>
+          <span className="text-xs">📎 {content.caption ?? content.text ?? content.driveFileId ?? 'Attachment'}</span>
         </div>
       )
     }
