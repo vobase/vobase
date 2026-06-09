@@ -516,10 +516,12 @@ export async function getAttachmentsByMessageIds(
   messageIds: readonly string[],
 ): Promise<MessageAttachmentRef[]> {
   if (messageIds.length === 0) return []
+  // Project only the columns we need — this runs on the inbound wake hot path,
+  // so avoid pulling the large `content` / `metadata` jsonb of every row.
   const rows = await db
-    .select()
+    .select({ id: messages.id, attachments: messages.attachments })
     .from(messages)
     .where(and(eq(messages.organizationId, organizationId), inArray(messages.id, [...messageIds])))
-  const byId = new Map(rows.map((r) => [r.id, (r as Message).attachments ?? []]))
+  const byId = new Map(rows.map((r) => [r.id, (r.attachments ?? []) as MessageAttachmentRef[]]))
   return messageIds.flatMap((id) => byId.get(id) ?? [])
 }
