@@ -13,7 +13,7 @@ import {
   type AgentTool as PiAgentTool,
   type StreamFn,
 } from '@mariozechner/pi-agent-core'
-import type { AssistantMessage, Model } from '@mariozechner/pi-ai'
+import type { AssistantMessage, ImageContent, Model } from '@mariozechner/pi-ai'
 import { Type } from '@mariozechner/pi-ai'
 import type { Bash, InMemoryFs } from 'just-bash'
 import { nanoid } from 'nanoid'
@@ -244,6 +244,13 @@ export interface CreateHarnessOpts<TTrigger = unknown> {
   triggerKind?: HarnessWakeTriggerKind
   /** Render the trigger into the first user-turn message text. */
   renderTrigger: (trigger: TTrigger | undefined) => string
+  /**
+   * Resolve image content blocks for the first user turn from the trigger — the
+   * image twin of `renderTrigger`. When provided and it yields a non-empty
+   * array, the harness passes them to `agent.prompt(text, images)` so a
+   * vision-capable model sees the attachments. Optional; absent ⇒ text-only.
+   */
+  renderTriggerImages?: (trigger: TTrigger | undefined) => Promise<readonly ImageContent[]> | readonly ImageContent[]
   /** Caller-classified approval decision extracted from trigger (used by tool ctx). */
   approvalDecision?: { decision: 'approved' | 'rejected'; note?: string; decidedByUserId?: string }
 
@@ -1025,7 +1032,12 @@ export async function createHarness<TTrigger = unknown>(
     })
 
     try {
-      await agent.prompt(userText)
+      // Inbound trigger images ride only the first user turn (t === 0) — the turn
+      // that represents the original inbound message. Steer turns (t > 0) carry a
+      // different customer message, so the original photo must not re-attach.
+      const triggerImages =
+        t === 0 && opts.renderTriggerImages ? await opts.renderTriggerImages(opts.trigger) : undefined
+      await agent.prompt(userText, triggerImages && triggerImages.length > 0 ? [...triggerImages] : undefined)
       await agent.waitForIdle()
     } catch (err) {
       logger.error({ err }, 'agent.prompt failed')
