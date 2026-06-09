@@ -1035,6 +1035,8 @@ export async function createHarness<TTrigger = unknown>(
       // Inbound trigger images ride only the first user turn (t === 0) — the turn
       // that represents the original inbound message. Steer turns (t > 0) carry a
       // different customer message, so the original photo must not re-attach.
+      // (Steers drain as text only, so a steer message's own image is not
+      // delivered on its turn — an accepted limitation, not a dropped original.)
       const triggerImages =
         t === 0 && opts.renderTriggerImages ? await opts.renderTriggerImages(opts.trigger) : undefined
       await agent.prompt(userText, triggerImages && triggerImages.length > 0 ? [...triggerImages] : undefined)
