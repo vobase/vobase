@@ -58,28 +58,39 @@ export async function resolveTriggerImages(
 ): Promise<ImageContent[]> {
   if (!trigger || trigger.trigger !== 'inbound_message' || !ctx.storage) return []
 
-  const refs = await ctx.loadAttachments(trigger.messageIds)
-  const images = refs.filter((r) => r.mimeType.startsWith('image/'))
-  if (images.length === 0) return []
+  try {
+    const refs = await ctx.loadAttachments(trigger.messageIds)
+    const images = refs.filter((r) => r.mimeType.startsWith('image/'))
+    if (images.length === 0) return []
 
-  const budget = ctx.budget ?? IMAGE_BUDGET
-  const out: ImageContent[] = []
-  let totalBytes = 0
+    const budget = ctx.budget ?? IMAGE_BUDGET
+    const out: ImageContent[] = []
+    let totalBytes = 0
 
-  for (const ref of images) {
-    if (out.length >= budget.maxImages) break
-    if (ref.sizeBytes > budget.maxImageBytes) continue
-    if (totalBytes + ref.sizeBytes > budget.maxTotalBytes) continue
-    try {
-      const row = await ctx.drive.get(ref.driveFileId)
-      if (!row?.storageKey) continue
-      const bytes = await ctx.storage.bucket(DRIVE_STORAGE_BUCKET).download(row.storageKey)
-      out.push({ type: 'image', data: Buffer.from(bytes).toString('base64'), mimeType: ref.mimeType })
-      totalBytes += bytes.length
-    } catch (err) {
-      console.warn(`[wake] resolveTriggerImages: skipping unreadable image ${ref.driveFileId}`, err)
+    for (const ref of images) {
+      if (out.length >= budget.maxImages) break
+      if (ref.sizeBytes > budget.maxImageBytes) continue
+      if (totalBytes + ref.sizeBytes > budget.maxTotalBytes) continue
+      try {
+        const row = await ctx.drive.get(ref.driveFileId)
+        if (!row?.storageKey) continue
+        const bytes = await ctx.storage.bucket(DRIVE_STORAGE_BUCKET).download(row.storageKey)
+        // Empty stored object → empty base64; a vision provider would reject it
+        // and abort the wake. Skip it like any other unreadable attachment.
+        if (bytes.length === 0) continue
+        out.push({ type: 'image', data: Buffer.from(bytes).toString('base64'), mimeType: ref.mimeType })
+        totalBytes += bytes.length
+      } catch (err) {
+        console.warn(`[wake] resolveTriggerImages: skipping unreadable image ${ref.driveFileId}`, err)
+      }
     }
-  }
 
-  return out
+    return out
+  } catch (err) {
+    // The attachment lookup is a DB read; a transient failure must NOT abort the
+    // wake (the harness would set endReason='error' and drop the customer's
+    // reply). Degrade to text-only, honoring this resolver's never-fatal contract.
+    console.warn('[wake] resolveTriggerImages: attachment lookup failed; continuing text-only', err)
+    return []
+  }
 }

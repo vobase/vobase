@@ -61,6 +61,14 @@ describe('resolveTriggerImages — short circuits', () => {
     }
     expect(await resolveTriggerImages(inbound(['m1']), pdfCtx)).toEqual([])
   })
+
+  it('returns [] (no throw) when the attachment lookup itself rejects', async () => {
+    const failCtx: ResolveTriggerImagesCtx = {
+      ...ctx,
+      loadAttachments: () => Promise.reject(new Error('db down')),
+    }
+    expect(await resolveTriggerImages(inbound(['m1']), failCtx)).toEqual([])
+  })
 })
 
 describe('resolveTriggerImages — byte resolution + budget', () => {
@@ -95,6 +103,15 @@ describe('resolveTriggerImages — byte resolution + budget', () => {
       loadAttachments: async () => [imageRef({ driveFileId: 'a' })],
       drive: fakeDriveGet({ a: { storageKey: null } }),
       storage: fakeStorage({}),
+    }
+    expect(await resolveTriggerImages(inbound(['m1']), ctx)).toEqual([])
+  })
+
+  it('skips an image whose stored object is empty (zero bytes)', async () => {
+    const ctx: ResolveTriggerImagesCtx = {
+      loadAttachments: async () => [imageRef({ driveFileId: 'a' })],
+      drive: fakeDriveGet({ a: { storageKey: 'ka' } }),
+      storage: fakeStorage({ ka: new Uint8Array([]) }),
     }
     expect(await resolveTriggerImages(inbound(['m1']), ctx)).toEqual([])
   })
