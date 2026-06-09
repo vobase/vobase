@@ -63,7 +63,8 @@ function installStaffStub(roster: StaffProfile[] = [ALICE]): void {
   } as unknown as StaffService)
 }
 
-function installMessagesStub(hasRecent: boolean): void {
+function installMessagesStub(hasRecent: boolean | ((conversationId: string) => boolean)): void {
+  const resolve = typeof hasRecent === 'function' ? hasRecent : () => hasRecent
   installMessagesService({
     appendTextMessage: () => Promise.reject(new Error('not used')),
     appendCardMessage: () => Promise.reject(new Error('not used')),
@@ -72,7 +73,7 @@ function installMessagesStub(hasRecent: boolean): void {
     appendCardReplyMessage: () => Promise.reject(new Error('not used')),
     list: () => Promise.resolve([]),
     updateDeliveryStatus: () => Promise.resolve(),
-    hasRecentAgentReply: () => Promise.resolve(hasRecent),
+    hasRecentAgentReply: (conversationId: string) => Promise.resolve(resolve(conversationId)),
   } as MessagesService)
 }
 
@@ -188,6 +189,51 @@ describe('convReassignVerb', () => {
       if (result.ok) {
         expect(result.data.assignee).toBe('agent:agt-002')
       }
+    })
+  })
+
+  describe('wake conversation is authoritative', () => {
+    it('ignores a stray --conversationId inside a wake and acts on the wake conversation', async () => {
+      installStaffStub()
+      // The customer ack lives on the real (wake) conversation only. The agent
+      // wrongly passes the channel-instance id as --conversationId (prod incident);
+      // the guard + reassign must still target the wake's conversation.
+      installMessagesStub((conversationId) => conversationId === 'conv-test')
+      const reassignTargets: string[] = []
+      installConversationsService({
+        reassign: (convId: string, a: string) => {
+          reassignTargets.push(convId)
+          return Promise.resolve(makeConvRow(a) as never)
+        },
+      } as unknown as ConversationsService)
+
+      const result = await convReassignVerb.body({
+        input: { to: `user:${ALICE.userId}`, conversationId: 'chi-stray' },
+        ctx: makeAgentCtx(),
+      })
+
+      expect(result.ok).toBe(true)
+      expect(reassignTargets).toEqual(['conv-test'])
+    })
+
+    it('honors --conversationId for out-of-wake HTTP-RPC callers (no wake)', async () => {
+      installStaffStub()
+      installMessagesStub(false) // user principal bypasses the ack check
+      const reassignTargets: string[] = []
+      installConversationsService({
+        reassign: (convId: string, a: string) => {
+          reassignTargets.push(convId)
+          return Promise.resolve(makeConvRow(a) as never)
+        },
+      } as unknown as ConversationsService)
+
+      const result = await convReassignVerb.body({
+        input: { to: `user:${ALICE.userId}`, conversationId: 'http-conv-9' },
+        ctx: makeUserCtx({ wake: undefined }),
+      })
+
+      expect(result.ok).toBe(true)
+      expect(reassignTargets).toEqual(['http-conv-9'])
     })
   })
 })
