@@ -70,6 +70,27 @@ export function pruneOrphanToolResults(history: readonly AgentMessage[]): {
   return { cleaned, droppedCount }
 }
 
+/**
+ * Replace `ImageContent` parts in user-turn messages with a `[image]` text
+ * marker before persistence. Inbound customer images are injected into the LLM
+ * exactly on the wake that introduced them (via the harness `renderTriggerImages`
+ * seam); persisting the base64 bytes into `agent_messages` would replay them on
+ * every subsequent wake — ballooning token cost and churning the provider prefix
+ * cache. We keep the bytes out of history and leave a marker so the transcript
+ * still records that an image was sent.
+ *
+ * Pure + immutable: returns a new array and never mutates the input. Only
+ * `role: 'user'` array-content messages are touched; string-content user
+ * messages and every other role pass through unchanged.
+ */
+export function stripImageContent(messages: readonly AgentMessage[]): AgentMessage[] {
+  return messages.map((m) => {
+    if (m.role !== 'user' || !Array.isArray(m.content)) return m
+    const content = m.content.map((part) => (part.type === 'image' ? { type: 'text' as const, text: '[image]' } : part))
+    return { ...m, content }
+  })
+}
+
 export async function setupMessageHistory(input: SetupMessageHistoryInput): Promise<MessageHistory> {
   const { db, agentId, conversationId } = input
 
@@ -104,7 +125,9 @@ export async function setupMessageHistory(input: SetupMessageHistoryInput): Prom
       const newMessages = messages.slice(seqCursor)
       if (newMessages.length === 0) return
       const tid = threadId
-      const rows = newMessages.map((m, i) => ({
+      // Strip inbound-image bytes to a `[image]` marker before persisting so the
+      // base64 payload is never replayed on subsequent wakes (see stripImageContent).
+      const rows = stripImageContent(newMessages).map((m, i) => ({
         id: nanoid(10),
         threadId: tid,
         seq: seqCursor + i + 1,
