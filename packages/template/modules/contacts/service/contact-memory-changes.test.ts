@@ -104,6 +104,23 @@ describe('contactMemoryChangeMaterializer', () => {
     expect(stored).toBe(`${existingMemory}\n- follow up on refund`)
   })
 
+  it('markdown_patch append of an already-present line is an idempotent no-op', async () => {
+    const existingMemory = await readMemory(dbh, CONTACT_ID)
+    expect(existingMemory).toContain('- follow up on refund')
+
+    const proposal = makeProposal({
+      payload: { kind: 'markdown_patch', field: 'memory', mode: 'append', body: '- follow up on refund' },
+    })
+
+    const result = await dbh.db.transaction(async (tx) => contactMemoryChangeMaterializer(proposal, tx as never))
+
+    expect(result.before).toBe(existingMemory)
+    expect(result.after).toBe(existingMemory)
+
+    const stored = await readMemory(dbh, CONTACT_ID)
+    expect(stored).toBe(existingMemory)
+  })
+
   it('markdown_patch replace overwrites the blob exactly', async () => {
     const proposal = makeProposal({
       payload: { kind: 'markdown_patch', field: 'memory', mode: 'replace', body: '# Replaced\n\nClean slate.' },

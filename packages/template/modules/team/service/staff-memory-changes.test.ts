@@ -112,6 +112,27 @@ describe('staffMemoryChangeMaterializer', () => {
     expect(stored).toBe(`${existingMemory}\n- appended fact`)
   })
 
+  it('markdown_patch append of an already-present line is an idempotent no-op', async () => {
+    // Re-appends onto the fresh row created in the first test ('- new fact'),
+    // which is independent of the seeded (agent, staff) fixture.
+    const freshStaffId = 'usr0fresh01'
+    const existingMemory = await readMemory(dbh, AGENT_ID, freshStaffId)
+    expect(existingMemory).toBe('- new fact')
+
+    const proposal = makeProposal({
+      resourceId: `${AGENT_ID}:${freshStaffId}`,
+      payload: { kind: 'markdown_patch', field: 'memory', mode: 'append', body: '- new fact' },
+    })
+
+    const result = await dbh.db.transaction(async (tx) => staffMemoryChangeMaterializer(proposal, tx as never))
+
+    expect(result.before).toBe('- new fact')
+    expect(result.after).toBe('- new fact')
+
+    const stored = await readMemory(dbh, AGENT_ID, freshStaffId)
+    expect(stored).toBe('- new fact')
+  })
+
   it('markdown_patch replace overwrites the blob exactly', async () => {
     const proposal = makeProposal({
       resourceId: `${AGENT_ID}:${STAFF_ID}`,

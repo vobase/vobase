@@ -21,6 +21,7 @@ import {
   createChangeProposalsService,
   listMaterializerRegistrations,
   type Materializer,
+  mergeMarkdownPatch,
   registerChangeMaterializer,
 } from './proposals'
 
@@ -557,3 +558,39 @@ describe('listDecided', () => {
 function payload(): ChangePayload {
   return { kind: 'field_set', fields: { plan: { from: 'free', to: 'pro' } } }
 }
+
+// ─── mergeMarkdownPatch ──────────────────────────────────────────────────────
+
+describe('mergeMarkdownPatch', () => {
+  it('replace always overwrites', () => {
+    expect(mergeMarkdownPatch('- old', { mode: 'replace', body: '- new' })).toBe('- new')
+  })
+
+  it('append onto empty blob returns the body without a leading newline', () => {
+    expect(mergeMarkdownPatch('', { mode: 'append', body: '- first' })).toBe('- first')
+  })
+
+  it('append of a new line concatenates with newline', () => {
+    expect(mergeMarkdownPatch('- a', { mode: 'append', body: '- b' })).toBe('- a\n- b')
+  })
+
+  it('append of an already-present line returns the blob unchanged', () => {
+    const before = '- a\n- b'
+    expect(mergeMarkdownPatch(before, { mode: 'append', body: '- b' })).toBe(before)
+  })
+
+  it('matches lines trimmed — surrounding whitespace does not defeat the dedup', () => {
+    const before = '- keep the line'
+    expect(mergeMarkdownPatch(before, { mode: 'append', body: '  - keep the line  ' })).toBe(before)
+  })
+
+  it('multi-line append no-ops only when every line is already present', () => {
+    const before = '- a\n- b'
+    expect(mergeMarkdownPatch(before, { mode: 'append', body: '- a\n- b' })).toBe(before)
+    expect(mergeMarkdownPatch(before, { mode: 'append', body: '- a\n- c' })).toBe('- a\n- b\n- a\n- c')
+  })
+
+  it('whitespace-only append body still concatenates (no false dedup on empty line set)', () => {
+    expect(mergeMarkdownPatch('- a', { mode: 'append', body: '   ' })).toBe('- a\n   ')
+  })
+})

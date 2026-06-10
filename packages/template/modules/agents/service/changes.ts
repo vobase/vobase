@@ -8,6 +8,7 @@ import {
   assertMarkdownPatch,
   type MaterializeResult,
   type Materializer,
+  mergeMarkdownPatch,
   type TxLike,
 } from '@modules/changes/service/proposals'
 import { conversations } from '@modules/messaging/schema'
@@ -95,7 +96,8 @@ export const agentSkillMaterializer: Materializer = async (proposal, tx) => {
 
 /**
  * Patch `agent_definitions.workingMemory`. `resourceId` IS the agent id;
- * markdown_patch with `mode='append'` concatenates, `mode='replace'` overwrites.
+ * markdown_patch with `mode='append'` concatenates (duplicate-line appends
+ * no-op — see `mergeMarkdownPatch`), `mode='replace'` overwrites.
  */
 export const agentMemoryMaterializer: Materializer = async (proposal, tx) => {
   const agentId = proposal.resourceId
@@ -110,7 +112,7 @@ export const agentMemoryMaterializer: Materializer = async (proposal, tx) => {
     .limit(1)) as Array<{ workingMemory: string }>
   const before = rows[0]?.workingMemory ?? null
   if (before === null) throw conflict(`agent_memory: agent not found: ${agentId}`)
-  const after = patch.mode === 'append' && before ? `${before}\n${patch.body}` : patch.body
+  const after = mergeMarkdownPatch(before, patch)
   await tx.update(agentDefinitions).set({ workingMemory: after }).where(eq(agentDefinitions.id, agentId))
   return { resultId: agentId, before, after } satisfies MaterializeResult
 }
