@@ -13,8 +13,9 @@
 import { buildAuthLookup } from '@auth/lookup'
 import type { AgentDefinition } from '@modules/agents/schema'
 import { getCliRegistry } from '@modules/agents/service/cli-registry'
-import { filesServiceFor } from '@modules/drive/service/files'
+import { filesServiceFor, getDriveStorage } from '@modules/drive/service/files'
 import type { Conversation } from '@modules/messaging/schema'
+import { getAttachmentsByMessageIds } from '@modules/messaging/service/messages'
 import type { AgentContributions, WakeRuntime } from '@vobase/core'
 import {
   conversationEvents,
@@ -49,6 +50,7 @@ import { resolvePlatformHint } from './platform-hints'
 import { buildFrozenPrompt } from './prompt'
 import { resolveSessionContext } from './session-context'
 import { resolveTriggerSpec } from './trigger'
+import { resolveTriggerImages } from './trigger-images'
 import { renderUnreadActivity, snapshotUnreadActivity } from './unread-activity'
 import { buildDefaultReadOnlyConfig, createWorkspace } from './workspace'
 
@@ -246,6 +248,14 @@ export async function conversationWakeConfig(input: ConversationWakeConfigInput)
         : 'Manual wake.'
       return unreadAppendix ? `${cue}\n\n---\n\n${unreadAppendix}` : cue
     },
+    // Inbound customer images: resolve the triggering message's image/* attachments
+    // to vision content blocks so a vision-capable model actually sees the photo.
+    renderTriggerImages: (t: WakeTrigger | undefined) =>
+      resolveTriggerImages(t, {
+        loadAttachments: (ids) => getAttachmentsByMessageIds(deps.db, data.organizationId, ids),
+        drive,
+        storage: getDriveStorage(),
+      }),
 
     workspace: { bash: workspace.bash, innerFs: workspace.innerFs },
     runtime: { fs: workspace.innerFs, tracker: dirtyTracker } satisfies WakeRuntime,

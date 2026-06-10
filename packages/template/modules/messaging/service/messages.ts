@@ -10,10 +10,12 @@
  * check:shape rule 1 alongside the rest of `modules/messaging/service/**`.
  */
 
+import type { MessageAttachmentRef } from '@modules/drive/service/types'
 import { messages } from '@modules/messaging/schema'
 import { journalAppend as append, journalGetLatestTurnIndex as getLatestTurnIndex } from '@vobase/core'
 import { and, asc, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 
+import type { ScopedDb } from '~/runtime'
 import type { OutboundToolName } from '~/runtime/channel-events'
 import type { Message } from '../schema'
 import { advanceMessageStatus, type MessageStatus } from '../state'
@@ -499,4 +501,27 @@ export async function updateDeliveryStatus(input: UpdateDeliveryStatusInput): Pr
 // biome-ignore lint/suspicious/useAwait: port-shim signature must match async contract
 export async function hasRecentAgentReply(conversationId: string, withinSeconds: number): Promise<boolean> {
   return currentMessages().hasRecentAgentReply(conversationId, withinSeconds)
+}
+
+/**
+ * Tenant-scoped, read-only lookup of drive-backed attachment refs for the given
+ * message ids, flattened in the caller's id order. Used by the wake's
+ * inbound-image resolver to find a message's image attachments without routing
+ * through the journaled write path. Takes an explicit `db` so it stays usable
+ * from the per-wake scoped handle.
+ */
+export async function getAttachmentsByMessageIds(
+  db: ScopedDb,
+  organizationId: string,
+  messageIds: readonly string[],
+): Promise<MessageAttachmentRef[]> {
+  if (messageIds.length === 0) return []
+  // Project only the columns we need — this runs on the inbound wake hot path,
+  // so avoid pulling the large `content` / `metadata` jsonb of every row.
+  const rows = await db
+    .select({ id: messages.id, attachments: messages.attachments })
+    .from(messages)
+    .where(and(eq(messages.organizationId, organizationId), inArray(messages.id, [...messageIds])))
+  const byId = new Map(rows.map((r) => [r.id, (r.attachments ?? []) as MessageAttachmentRef[]]))
+  return messageIds.flatMap((id) => byId.get(id) ?? [])
 }

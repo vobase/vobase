@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'bun:test'
 import type { AgentMessage, StreamFn } from '@mariozechner/pi-agent-core'
-import type { AssistantMessage, AssistantMessageEvent, Model } from '@mariozechner/pi-ai'
+import type { AssistantMessage, AssistantMessageEvent, ImageContent, Model } from '@mariozechner/pi-ai'
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai'
 import { Bash, InMemoryFs } from 'just-bash'
 
@@ -251,5 +251,44 @@ describe('createHarness (pi-agent-core path)', () => {
     expect(serialized).toContain('CURRENT-USER-MESSAGE')
     // ...with the side-load prepended, not substituted for it.
     expect(serialized).toContain('SIDE-LOAD-MARKER')
+  })
+
+  it('attaches renderTriggerImages only on the first user turn (t === 0), not on steer turns', async () => {
+    // Regression lock for the inbound-image gating: the trigger image must ride
+    // the first user turn exactly once and never re-attach onto a steer turn
+    // (that would replay the photo's bytes and churn the provider prefix cache).
+    const steerQueue = createSteerQueue()
+    steerQueue.push('steer!')
+    const workspace = makeWorkspace()
+    let imageCalls = 0
+    // Snapshot the *current* user message (last in the list) at call time —
+    // context.messages is a live reference that pi mutates across turns, so it
+    // must be serialized in the moment, not read post-hoc.
+    const turnUserContent: string[] = []
+    const baseStream = stubStreamFn([simpleReplyScript('one'), simpleReplyScript('two')])
+    const streamFn: StreamFn = (model, context, options) => {
+      turnUserContent.push(JSON.stringify(context.messages.at(-1)?.content))
+      return baseStream(model, context, options)
+    }
+
+    const res = await createHarness({
+      ...COMMON,
+      workspace,
+      runtime: makeRuntime(workspace),
+      streamFn,
+      maxTurns: 2,
+      steerQueue,
+      renderTriggerImages: (): ImageContent[] => {
+        imageCalls += 1
+        return [{ type: 'image', data: 'YmFzZTY0', mimeType: 'image/png' }]
+      },
+    })
+
+    // Two turns ran (the steer drained), but the resolver fired exactly once and
+    // the image content block rode only the first user turn (t === 0).
+    expect(res.harness.capturedPrompts.length).toBe(2)
+    expect(imageCalls).toBe(1)
+    expect(turnUserContent[0]).toContain('"type":"image"')
+    expect(turnUserContent[1] ?? '').not.toContain('"type":"image"')
   })
 })

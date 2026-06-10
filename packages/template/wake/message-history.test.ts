@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { AgentMessage } from '@mariozechner/pi-agent-core'
 
-import { pruneOrphanToolResults } from './message-history'
+import { pruneOrphanToolResults, stripImageContent } from './message-history'
 
 function userMsg(text: string): AgentMessage {
   return { role: 'user', content: text, timestamp: 0 } as AgentMessage
@@ -146,5 +146,41 @@ describe('pruneOrphanToolResults', () => {
     const { cleaned, droppedCount } = pruneOrphanToolResults(history)
     expect(droppedCount).toBe(0)
     expect(cleaned).toEqual(history)
+  })
+})
+
+function userMsgWithImages(text: string, imageCount: number): AgentMessage {
+  return {
+    role: 'user',
+    content: [
+      { type: 'text', text },
+      ...Array.from({ length: imageCount }, (_, i) => ({ type: 'image', data: `b64-${i}`, mimeType: 'image/jpeg' })),
+    ],
+    timestamp: 0,
+  } as unknown as AgentMessage
+}
+
+describe('stripImageContent', () => {
+  it('replaces image parts in a user turn with a text marker, preserving the text part', () => {
+    const stripped = stripImageContent([userMsgWithImages('here is a reference photo:', 2)])
+    const content = stripped[0].content as Array<{ type: string; text?: string }>
+    expect(content.filter((p) => p.type === 'image')).toHaveLength(0)
+    expect(content.filter((p) => p.type === 'text' && p.text === '[image]')).toHaveLength(2)
+    expect(content.some((p) => p.type === 'text' && p.text === 'here is a reference photo:')).toBe(true)
+  })
+
+  it('leaves string-content user messages, assistant messages and image-free user turns unchanged', () => {
+    const history: AgentMessage[] = [
+      userMsg('plain string'),
+      assistantText('hi'),
+      { role: 'user', content: [{ type: 'text', text: 'only text part' }], timestamp: 0 } as unknown as AgentMessage,
+    ]
+    expect(stripImageContent(history)).toEqual(history)
+  })
+
+  it('does not mutate the input messages', () => {
+    const input = userMsgWithImages('hi', 1)
+    stripImageContent([input])
+    expect((input.content as Array<{ type: string }>).filter((p) => p.type === 'image')).toHaveLength(1)
   })
 })
