@@ -92,7 +92,7 @@ const STATIC_INSTRUCTIONS = `
 
 The bash you run executes in a browser-style WebContainer. **\`python\`, \`node\`, \`jq\`, \`yq\`, \`perl\`, and \`ruby\` are not installed and will exit 127 with no side effect** — using them silently leaves files unchanged. Available: \`bash\`, \`cat\`, \`grep\`, \`sed\`, \`awk\`, \`head\`, \`tail\`, \`ls\`, \`find\`, \`mkdir\`, \`mv\`, \`cp\`, \`rm\`, \`wc\`, \`echo\`, \`printf\`, here-docs (\`cat <<'EOF' > path\`).
 
-\`PROFILE.md\` files (contact + staff) are read-only at the workspace level: bash-edits will be rejected. Customer-asked profile updates go through the \`vobase contacts propose-change\` verb (see your AGENTS.md \`## Contact context\` section). \`MEMORY.md\` files are direct-writable for prose memory notes — append with \`echo "- ..." >> /…/MEMORY.md\`.
+\`PROFILE.md\` files (contact + staff) are read-only at the workspace level: bash-edits will be rejected. Customer-asked profile updates go through the \`vobase contacts propose-change\` verb (see your AGENTS.md \`## Contact context\` section). \`MEMORY.md\` files are direct-writable for prose memory notes — append NEW facts with \`echo "- ..." >> /…/MEMORY.md\`; when a lesson is corrected or goes stale, revise or remove the old line (\`sed -i\`, heredoc rewrite, or \`remember\` with \`mode: "replace"\`) instead of appending a contradicting one.
 `.trimStart()
 
 /**

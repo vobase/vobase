@@ -60,7 +60,11 @@ export const rememberTool = defineAgentTool({
   lane: 'both',
   prompt: [
     'Use to commit lasting facts: agent rules ("always do X"), per-customer facts (preferences, history), per-staff facts (tone, expertise).',
-    'Pick `scope` from the AGENTS.md "Memory & sensitivity" table.',
+    'Pick `scope` from the AGENTS.md "## Memory scopes" table.',
+    "**Check the scope's existing memory before committing** (your own memory is inlined as `## Active lessons`; contact/staff memory lives at `/contacts/<id>/MEMORY.md` / `/staff/<staffId>/MEMORY.md`):",
+    '  - New lesson, nothing on the topic yet → `mode: "append"` (the default).',
+    '  - The lesson **corrects, contradicts, or supersedes** an existing line → `mode: "replace"` with the FULL revised memory: every line you keep, minus the superseded line, plus the correction. Appending a contradicting lesson leaves both in memory — future wakes cannot tell which one wins.',
+    '  - The lesson is already there → skip the call; verbatim-duplicate appends are dropped as no-ops.',
     '**`resourceId` is required for every scope except `agents.agent_memory`** (which defaults to your own agent id):',
     '  - `contacts.contact_memory` → resourceId = the contact id you can read from `/contacts/<id>/MEMORY.md` or `messaging.conversations.contact_id`.',
     '  - `team.staff_memory` → resourceId = `<your-agent-id>:<staffId>` (single colon). The staff id is the `usr...` id you see in `/staff/<id>/MEMORY.md`.',
