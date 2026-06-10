@@ -9,7 +9,12 @@
  * change_history row.
  */
 
-import { assertMarkdownPatch, type MaterializeResult, type Materializer } from '@modules/changes/service/proposals'
+import {
+  assertMarkdownPatch,
+  type MaterializeResult,
+  type Materializer,
+  mergeMarkdownPatch,
+} from '@modules/changes/service/proposals'
 import { conflict } from '@vobase/core'
 import { eq } from 'drizzle-orm'
 
@@ -36,7 +41,7 @@ export const contactMemoryChangeMaterializer: Materializer = async (proposal, tx
   if (!rows[0]) throw conflict(`contacts/contact_memory: contact not found: ${proposal.resourceId}`)
 
   const before = rows[0].memory ?? ''
-  const after = patch.mode === 'append' && before ? `${before}\n${patch.body}` : patch.body
+  const after = mergeMarkdownPatch(before, patch)
 
   await tx.update(contactsTable).set({ memory: after }).where(eq(contactsTable.id, proposal.resourceId))
 

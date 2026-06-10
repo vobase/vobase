@@ -9,7 +9,12 @@
  */
 
 import { agentStaffMemory } from '@modules/agents/schema'
-import { assertMarkdownPatch, type MaterializeResult, type Materializer } from '@modules/changes/service/proposals'
+import {
+  assertMarkdownPatch,
+  type MaterializeResult,
+  type Materializer,
+  mergeMarkdownPatch,
+} from '@modules/changes/service/proposals'
 import { validation } from '@vobase/core'
 import { and, eq } from 'drizzle-orm'
 
@@ -49,7 +54,7 @@ export const staffMemoryChangeMaterializer: Materializer = async (proposal, tx) 
     .limit(1)) as Array<{ memory: string }>
 
   const before = rows[0]?.memory ?? ''
-  const after = patch.mode === 'append' && before ? `${before}\n${patch.body}` : patch.body
+  const after = mergeMarkdownPatch(before, patch)
 
   if (rows.length > 0) {
     await tx

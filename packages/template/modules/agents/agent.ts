@@ -98,6 +98,8 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
         'Capture proactively when: a customer volunteers a fact (company, role, deadline) — write to `/contacts/<id>/MEMORY.md` **before** replying; you derive a durable self-rule — trigger phrases ' +
           MEMORY_CAPTURE_TRIGGERS.map((kw) => `\`${kw}\``).join(', ') +
           ' — append to `/agents/<id>/MEMORY.md`; you note a per-staff preference — write to `/staff/<staffId>/MEMORY.md`.',
+        '',
+        '**Supersede, never contradict.** If `## Active lessons` already covers the topic, revise that line (`remember` with `mode: "replace"`) instead of appending.',
       ].join('\n')
     },
   }),
@@ -114,6 +116,8 @@ export const agentsAgentsMdContributors: readonly IndexContributor[] = [
         '| agent | `/agents/<id>/MEMORY.md` | `echo "- fact" >>`, dated `## YYYY-MM-DD` section |',
         '| contact | `/contacts/<id>/MEMORY.md` (prose) or `vobase contacts propose-change` (fields) | direct write / CLI verb |',
         '| staff | `/staff/<staffId>/MEMORY.md` | `echo "- fact" >>` under `## About <name>` |',
+        '',
+        'Appending is for NEW facts only. Correcting or retracting an existing lesson? Replace the stale line — `remember` with `mode: "replace"` (audited, preferred) or edit the line in place — never append the correction next to it.',
       ].join('\n')
     },
   }),

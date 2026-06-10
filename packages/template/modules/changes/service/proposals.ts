@@ -236,6 +236,32 @@ export function assertMarkdownPatch(payload: ChangePayload): Extract<ChangePaylo
   return payload
 }
 
+/**
+ * Merge a `markdown_patch` into an existing memory blob — shared by the
+ * memory materializers (agent / contact / staff).
+ *
+ * `replace` overwrites. `append` concatenates — unless every non-empty line
+ * of the patch body is already present verbatim (trimmed) in the blob, in
+ * which case the merge is an idempotent no-op and `before` is returned
+ * unchanged. Agents re-learn the same lesson across wakes; without this
+ * guard each re-learn lands as one more duplicate line.
+ */
+export function mergeMarkdownPatch(before: string, patch: { mode: 'append' | 'replace'; body: string }): string {
+  if (patch.mode !== 'append' || !before) return patch.body
+  const existing = new Set(
+    before
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean),
+  )
+  const incoming = patch.body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (incoming.length > 0 && incoming.every((line) => existing.has(line))) return before
+  return `${before}\n${patch.body}`
+}
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 /**

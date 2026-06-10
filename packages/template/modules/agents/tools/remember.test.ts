@@ -162,6 +162,31 @@ describe('agents.agent_memory high confidence', () => {
     expect(rows.length).toBe(1)
     expect(rows[0]?.working_memory).toContain('Always greet the customer by name.')
   })
+
+  it('re-remembering the same lesson does not duplicate the line', async () => {
+    const args = {
+      scope: 'agents.agent_memory',
+      body: '- Confirm the delivery date before closing.',
+      confidence: 0.9,
+      rationale: 'Staff coaching note',
+      mode: 'append' as const,
+    }
+
+    const first = await rememberTool.execute(args, makeCtx())
+    expect(first.ok).toBe(true)
+
+    const second = await rememberTool.execute(args, makeCtx())
+    expect(second.ok).toBe(true)
+    if (!second.ok) throw new Error('expected success')
+    expect((second.content as { status: string }).status).toBe('auto_written')
+
+    const rows = await dbh.db.execute(
+      sql`SELECT working_memory FROM agents.agent_definitions WHERE id = ${MERIGPT_AGENT_ID}`,
+    )
+    const memory = String(rows[0]?.working_memory ?? '')
+    const occurrences = memory.split('- Confirm the delivery date before closing.').length - 1
+    expect(occurrences).toBe(1)
+  })
 })
 
 // ─── agent_memory — low confidence (pending) ─────────────────────────────────
