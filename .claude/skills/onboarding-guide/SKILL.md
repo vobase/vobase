@@ -154,7 +154,7 @@ What NOT to do:
 - ❌ Don't use `#` H1 headings inside the body — the `<h1 class="doc-title">` is generated from the frontmatter `title`.
 - ❌ Don't add a gradient, drop shadow, or coloured background to any block. Voltade brand = solid mauve + one purple accent, hairlines only.
 - ❌ Don't use more than one italic word per heading or per paragraph cluster. The accent rule is strict.
-- ❌ Don't add Voltade logos to the body — the running header already has one and the doc footer has a small one.
+- ❌ Don't add Voltade logos to the body — the running header already embeds the canonical Voltade wordmark (full `Logo+typo.svg` — gradient bolt + "Voltade" typography), and the doc footer has a smaller copy. Every PDF this skill renders carries the brand by default; you never opt in.
 - ❌ Don't use ALL CAPS for emphasis inside body prose — that's reserved for mono section headings only.
 
 ## Brand rules (baked into voltade.css)
