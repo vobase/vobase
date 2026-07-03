@@ -10,7 +10,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { sql } from 'drizzle-orm'
 
 import type { VobaseDb } from '../../src/db/client'
-import { acquire, getWorker, release, sweepStale } from '../../src/harness/wake-registry'
+import { __resetSweepGateForTests, acquire, getWorker, release, sweepStale } from '../../src/harness/wake-registry'
 import { activeWakes } from '../../src/schemas/harness'
 import { freshDb } from '../helpers/pglite'
 
@@ -31,7 +31,17 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await db.delete(activeWakes)
+  __resetSweepGateForTests()
 })
+
+/** Insert a lease row directly, bypassing acquire() so the sweep gate never sees it. */
+async function insertStaleLease(conversationId: string): Promise<void> {
+  await db.insert(activeWakes).values({
+    conversationId,
+    workerId: 'worker_ghost',
+    debounceUntil: new Date(Date.now() - 2 * 60_000),
+  })
+}
 
 describe('wake-registry (smoke)', () => {
   it('acquire() on an empty row returns true and creates the lease', async () => {
@@ -103,5 +113,45 @@ describe('wake-registry (smoke)', () => {
     // is live), so no row is updated and no row is returned.
     expect(got).toBe(false)
     expect(await getWorker(db, 'conv_6')).toBe('worker_A')
+  })
+})
+
+describe('wake-registry sweep gate (smoke)', () => {
+  it('boot-armed: the first sweep runs (clearing crash leftovers), then the gate disarms', async () => {
+    __resetSweepGateForTests({ graceMs: 0 })
+    await insertStaleLease('gate_boot')
+    expect(await sweepStale(db)).toBe(1) // armed at boot — leftover from a "previous process" is GC'd
+
+    expect(await sweepStale(db)).toBe(0) // deletes nothing → disarms
+
+    // Disarmed: a row the gate never saw is skipped without a DELETE round-trip.
+    await insertStaleLease('gate_ghost')
+    expect(await sweepStale(db)).toBe(0)
+    const rows = await db.select({ id: activeWakes.conversationId }).from(activeWakes)
+    expect(rows.map((r) => r.id)).toEqual(['gate_ghost'])
+  })
+
+  it('acquire() re-arms a disarmed gate', async () => {
+    __resetSweepGateForTests({ graceMs: 0 })
+    await sweepStale(db) // empty table → disarm
+
+    await acquire(db, 'gate_rearm', 'worker_A', 1)
+    await db
+      .update(activeWakes)
+      .set({ debounceUntil: sql`now() - interval '2 minutes'` })
+      .where(sql`${activeWakes.conversationId} = ${'gate_rearm'}`)
+
+    expect(await sweepStale(db)).toBe(1) // armed again — the crashed lease is swept
+  })
+
+  it('does not disarm while a lease from this process could still need GC', async () => {
+    // Default 60s grace: a live 5s lease keeps the sweepable horizon in the future.
+    await acquire(db, 'gate_live', 'worker_A', 5_000)
+    await release(db, 'gate_live', 'worker_A')
+
+    expect(await sweepStale(db)).toBe(0) // nothing stale yet, but the gate must stay armed
+
+    await insertStaleLease('gate_late')
+    expect(await sweepStale(db)).toBe(1) // still armed — sweep still reaches the database
   })
 })

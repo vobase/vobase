@@ -1,5 +1,7 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { useRef } from 'react'
 
+import type { SseEvent } from './use-sse'
 import { useSse } from './use-sse'
 
 export interface RealtimePayload {
@@ -13,6 +15,9 @@ export interface RealtimePayload {
   conversationId?: string | null
 }
 
+/** The slice of QueryClient the handler needs — keeps the handler unit-testable without a React tree. */
+export type InvalidationClient = Pick<QueryClient, 'invalidateQueries' | 'isMutating'>
+
 /**
  * Subscribes to `/api/sse` and invalidates TanStack Query keys when the
  * server pushes a pg NOTIFY payload. Mirrors the original template hook
@@ -20,8 +25,31 @@ export interface RealtimePayload {
  */
 export function useRealtimeInvalidation(): void {
   const queryClient = useQueryClient()
+  const handlerRef = useRef<((evt: SseEvent) => void) | null>(null)
+  if (handlerRef.current === null) {
+    handlerRef.current = createRealtimeInvalidationHandler(queryClient)
+  }
+  const handler = handlerRef.current
 
-  useSse((evt) => {
+  useSse((evt) => handler(evt))
+}
+
+/**
+ * Stateful SSE event handler: tracks whether this EventSource has connected
+ * before so a `connected` on any stream after the first (browser auto-
+ * reconnect) triggers a full refetch — events emitted during the gap were
+ * dropped by the fire-and-forget SSE fanout.
+ */
+export function createRealtimeInvalidationHandler(queryClient: InvalidationClient): (evt: SseEvent) => void {
+  let hadConnection = false
+
+  return (evt) => {
+    if (evt.event === 'connected') {
+      if (hadConnection) queryClient.invalidateQueries()
+      hadConnection = true
+      return
+    }
+
     if (evt.event !== 'invalidate' || !evt.data) return
 
     let payload: RealtimePayload
@@ -32,6 +60,13 @@ export function useRealtimeInvalidation(): void {
     }
 
     if (!payload.table) return
+
+    // Server-side resync marker: the LISTEN transport (re)established after a
+    // gap, so any NOTIFY in between was dropped — refetch everything.
+    if (payload.table === '*') {
+      queryClient.invalidateQueries()
+      return
+    }
 
     // Targeted invalidation: messaging conversations list + specific conversation
     if (payload.table === 'conversations') {
@@ -174,5 +209,5 @@ export function useRealtimeInvalidation(): void {
 
     // Broad fallback
     queryClient.invalidateQueries({ queryKey: [payload.table] })
-  })
+  }
 }

@@ -87,6 +87,9 @@ async function buildRealtime(databaseConfig: string, db: ScopedDb): Promise<Real
     subscribe(fn) {
       return core.subscribe(fn)
     },
+    ready() {
+      return core.ready?.() ?? Promise.resolve()
+    },
   }
 }
 
@@ -184,6 +187,10 @@ function createSseRoute(realtime: RealtimeService): Hono {
         stream.writeSSE({ data: payload, event: 'invalidate' })
       })
       stream.onAbort(unsub)
+      // The LISTEN transport is subscriber-scoped (core opens it on the first
+      // subscriber) — hold `connected` until it settles so the client's
+      // post-`connected` resync covers anything emitted during startup.
+      await realtime.ready?.()
       await stream.writeSSE({ data: '{}', event: 'connected' })
       while (true) {
         await stream.sleep(25_000)
@@ -366,7 +373,10 @@ export async function createApp(databaseUrl: string, db: ScopedDb, sql: Sql): Pr
 
   // `harness.active_wakes` GC for crashed-worker leases. Sweep period must be
   // < `WAKE_LEASE_MS` so stale leases die in roughly one cycle; cast mirrors
-  // `wake/inbound.ts` (pglite-typed API, postgres-js driver).
+  // `wake/inbound.ts` (pglite-typed API, postgres-js driver). The call is
+  // gated inside core on in-process lease activity — while no wakes are
+  // running it returns without touching the database, so this interval does
+  // not defeat Neon autosuspend.
   const ACTIVE_WAKES_SWEEP_MS = 60_000
   const sweepDb = db as unknown as Parameters<typeof sweepStaleActiveWakes>[0]
   setInterval(() => {

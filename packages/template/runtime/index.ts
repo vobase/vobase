@@ -82,6 +82,8 @@ export interface NotifyPayload {
 export interface RealtimeService {
   notify(payload: NotifyPayload, tx?: Tx): void
   subscribe(fn: (payload: string) => void): () => void
+  /** Settles once the LISTEN transport for the current subscriber epoch has settled. See core's `RealtimeService.ready`. */
+  ready?(): Promise<void>
 }
 
 /**

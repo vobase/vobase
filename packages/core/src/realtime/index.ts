@@ -4,8 +4,16 @@ import { type SQL, sql } from 'drizzle-orm'
 import type { VobaseDb } from '../db/client'
 import { getPgliteClient } from '../db/client'
 import { logger } from '../logger'
+import { createScopedListener, type ScopedListener } from './lifecycle'
 
 const CHANNEL = 'vobase_events'
+
+/**
+ * Broadcast when the LISTEN transport (re)establishes: NOTIFYs emitted while
+ * the socket was down were dropped, so subscribers must refetch rather than
+ * trust their caches. Consumers treat `table: '*'` as "invalidate everything".
+ */
+const RESYNC_PAYLOAD = JSON.stringify({ table: '*', action: 'resync' })
 
 export interface RealtimePayload {
   table: string
@@ -31,6 +39,14 @@ export interface RealtimeService {
 
   /** Emit a NOTIFY event. Optional tx for transactional guarantees. */
   notify(payload: RealtimePayload, tx?: RealtimeExecutor): Promise<void>
+
+  /**
+   * Settles once the LISTEN transport for the current subscriber epoch is
+   * established (or its attempt has failed — never rejects). Await after
+   * `subscribe()` and before acking a client as connected, so the client's
+   * post-ack refetch covers events emitted while the transport was starting.
+   */
+  ready?(): Promise<void>
 
   /** Clean up LISTEN connection and subscribers. */
   shutdown(): Promise<void>
@@ -91,12 +107,19 @@ function buildRealtimeService(
   db: VobaseDb,
   subscribers: Set<Subscriber>,
   teardown: () => Promise<void> | void,
+  listener?: ScopedListener,
 ): RealtimeService {
   return {
     subscribe(fn) {
       subscribers.add(fn)
+      listener?.retain()
+      let active = true
       return () => {
+        // Idempotent — a double unsubscribe must not decrement another subscriber's refcount.
+        if (!active) return
+        active = false
         subscribers.delete(fn)
+        listener?.release()
       }
     },
 
@@ -104,6 +127,10 @@ function buildRealtimeService(
       const json = JSON.stringify(payload)
       const notifyQuery = sql`SELECT pg_notify(${CHANNEL}, ${json})`
       await (tx ?? db).execute(notifyQuery)
+    },
+
+    ready() {
+      return listener?.ready() ?? Promise.resolve()
     },
 
     async shutdown() {
@@ -123,49 +150,87 @@ async function createPostgresRealtime(
   // biome-ignore lint/plugin/no-dynamic-import: skip loading the `postgres` driver when PGlite or no-op paths are taken at boot
   const postgres = (await import('postgres')).default
   const dsn = listenDsn ?? databaseConfig
-  const listenConn = postgres(dsn, {
-    max: 1,
-    idle_timeout: 0,
-    connect_timeout: 30,
-  })
 
-  // postgres.js auto-re-issues LISTEN on reconnect; `onlisten` fires on the
-  // initial subscribe AND every re-subscribe after a connection drop. We log
-  // the latter so silent LISTEN-loss becomes visible in ops.
-  let listenCount = 0
-  await listenConn.listen(
-    CHANNEL,
-    (payload) => {
-      dispatch(payload)
-    },
-    () => {
-      listenCount++
-      if (listenCount > 1) {
-        logger.info({ channel: CHANNEL, listenCount }, '[realtime] LISTEN re-established')
-      }
-    },
-  )
-
-  // Keepalive: on backends with compute autosuspend (Neon) or proxy idle
-  // timeouts, an idle LISTEN socket gets reaped. A periodic SELECT 1 *on the
-  // listen connection itself* keeps its TCP socket active and the upstream
-  // compute warm, preventing silent SSE blackout after idle periods.
   const keepaliveMsRaw = Number(process.env.VOBASE_REALTIME_KEEPALIVE_MS ?? 60_000)
   const keepaliveMs = Number.isFinite(keepaliveMsRaw) ? keepaliveMsRaw : 60_000
-  let keepaliveTimer: ReturnType<typeof setInterval> | null = null
-  if (keepaliveMs > 0) {
-    keepaliveTimer = setInterval(() => {
-      listenConn`SELECT 1`.catch((err: unknown) => {
-        logger.warn({ err }, '[realtime] keepalive ping failed')
+  const lingerMsRaw = Number(process.env.VOBASE_REALTIME_LISTEN_LINGER_MS ?? 60_000)
+  const lingerMs = Number.isFinite(lingerMsRaw) && lingerMsRaw >= 0 ? lingerMsRaw : 60_000
+  // Escape hatch: pre-0.44 behavior — LISTEN held for the process lifetime.
+  // Pins a Neon compute at its CU floor 24/7; only for self-hosted Postgres
+  // deployments that would rather not pay a reconnect on the first subscriber.
+  const eagerListen = process.env.VOBASE_REALTIME_EAGER_LISTEN === '1'
+
+  const listener = createScopedListener({
+    lingerMs,
+    onError: (err) => logger.warn({ err }, '[realtime] LISTEN lifecycle error'),
+    async open() {
+      const conn = postgres(dsn, {
+        max: 1,
+        idle_timeout: 0,
+        connect_timeout: 30,
       })
-    }, keepaliveMs)
-    keepaliveTimer.unref?.()
+
+      // postgres.js auto-re-issues LISTEN on reconnect; `onlisten` fires on the
+      // initial subscribe AND every re-subscribe after a connection drop. Both
+      // paths broadcast a resync: NOTIFYs emitted while no socket was listening
+      // were dropped, so subscribers must refetch.
+      let listenCount = 0
+      try {
+        await conn.listen(
+          CHANNEL,
+          (payload) => {
+            dispatch(payload)
+          },
+          () => {
+            listenCount++
+            if (listenCount > 1) {
+              logger.info({ channel: CHANNEL, listenCount }, '[realtime] LISTEN re-established')
+              dispatch(RESYNC_PAYLOAD)
+            }
+          },
+        )
+      } catch (err) {
+        // End the client on a failed initial LISTEN — its internal listen
+        // sub-client retries forever otherwise. Retry is the lifecycle's job.
+        await conn.end().catch(() => {})
+        throw err
+      }
+
+      // Keepalive: while subscribers exist, periodic activity stops Neon
+      // autosuspend (and proxy idle reapers) from killing the LISTEN socket
+      // mid-session — each kill is a delivery gap. Runs only while the
+      // listener is open, so an idle process still lets the compute sleep.
+      let keepaliveTimer: ReturnType<typeof setInterval> | null = null
+      if (keepaliveMs > 0) {
+        keepaliveTimer = setInterval(() => {
+          conn`SELECT 1`.catch((err: unknown) => {
+            logger.warn({ err }, '[realtime] keepalive ping failed')
+          })
+        }, keepaliveMs)
+        keepaliveTimer.unref?.()
+      }
+
+      // Uniform resync on every successful open (first open of an epoch
+      // included): any open that follows a failed attempt or a torn-down
+      // epoch may sit past a delivery gap, and one redundant invalidate-all
+      // per dashboard-open is cheap.
+      dispatch(RESYNC_PAYLOAD)
+
+      return {
+        close: async () => {
+          if (keepaliveTimer) clearInterval(keepaliveTimer)
+          await conn.end()
+        },
+      }
+    },
+  })
+
+  if (eagerListen) {
+    listener.retain()
+    await listener.ready()
   }
 
-  return buildRealtimeService(db, subscribers, async () => {
-    if (keepaliveTimer) clearInterval(keepaliveTimer)
-    await listenConn.end()
-  })
+  return buildRealtimeService(db, subscribers, () => listener.shutdown(), listener)
 }
 
 async function createPgliteRealtime(
@@ -187,6 +252,7 @@ export function createNoopRealtime(): RealtimeService {
       return () => {}
     },
     async notify() {},
+    async ready() {},
     async shutdown() {},
   }
 }
