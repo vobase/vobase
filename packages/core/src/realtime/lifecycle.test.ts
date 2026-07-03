@@ -137,6 +137,61 @@ describe('createScopedListener', () => {
     await listener.shutdown()
   })
 
+  it('does not fork parallel retry chains when several subscribers arrive during an outage', async () => {
+    const h = makeHarness()
+    h.failNextOpens = 1000
+    let attempts = 0
+    const listener = createScopedListener({
+      open: () => {
+        attempts += 1
+        return h.open()
+      },
+      lingerMs: 5,
+      retryBaseMs: 20,
+      retryMaxMs: 20,
+    })
+    // Three retains during a failed-open window must not each seed a retry chain.
+    listener.retain()
+    listener.retain()
+    listener.retain()
+    await listener.ready()
+    const attemptsAfterFirstWindow = attempts
+    // One shared retry chain → roughly one extra attempt per retryMaxMs, not three.
+    await sleep(50)
+    expect(attempts - attemptsAfterFirstWindow).toBeLessThanOrEqual(3)
+    await listener.shutdown()
+  })
+
+  it('gives up after retryMaxAttempts and reopens on a fresh subscriber epoch', async () => {
+    const h = makeHarness()
+    h.failNextOpens = 1000
+    const errors: unknown[] = []
+    const listener = createScopedListener({
+      open: () => h.open(),
+      lingerMs: 5,
+      retryBaseMs: 5,
+      retryMaxMs: 5,
+      retryMaxAttempts: 3,
+      onError: (err) => errors.push(err),
+    })
+    listener.retain()
+    await sleep(60)
+    expect(listener.isOpen()).toBe(false)
+    // A distinct "giving up" error is surfaced once the cap is hit.
+    expect(errors.some((e) => e instanceof Error && /giving up/.test(e.message))).toBe(true)
+    const attemptsAtGiveUp = h.opens // 0 — every open failed
+    void attemptsAtGiveUp
+
+    // Releasing to 0 then retaining is a fresh epoch — retries resume.
+    listener.release()
+    await sleep(20)
+    h.failNextOpens = 0
+    listener.retain()
+    await listener.ready()
+    expect(listener.isOpen()).toBe(true)
+    await listener.shutdown()
+  })
+
   it('stops retrying once every subscriber releases', async () => {
     const h = makeHarness()
     h.failNextOpens = 100

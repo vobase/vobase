@@ -1,5 +1,5 @@
+import { STAFF_REPLY_MUTATION_KEY } from '@modules/messaging/hooks/use-staff-reply'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
-import { useRef } from 'react'
 
 import type { SseEvent } from './use-sse'
 import { useSse } from './use-sse'
@@ -19,19 +19,43 @@ export interface RealtimePayload {
 export type InvalidationClient = Pick<QueryClient, 'invalidateQueries' | 'isMutating'>
 
 /**
+ * Full-cache refetch used by the reconnect + `*` resync recovery paths. Preserves the staff-reply optimistic guard that the targeted `conversations` branch applies: a conversation's `['messages', id]` is left untouched while its own reply mutation is mid-flight, so a resync can't clobber the optimistic bubble (the regression that guard exists to prevent). Every other query refetches.
+ */
+function invalidateAll(client: InvalidationClient): void {
+  client.invalidateQueries({
+    predicate: (query) => {
+      if (query.queryKey[0] !== 'messages') return true
+      const conversationId = query.queryKey[1]
+      return client.isMutating({ mutationKey: [STAFF_REPLY_MUTATION_KEY, conversationId] }) === 0
+    },
+  })
+}
+
+/**
+ * The realtime handler must outlive React remounts: `hadConnection` distinguishes
+ * the first SSE `connected` from a browser auto-reconnect, and the QueryClient
+ * (which caches the data being invalidated) is a module-level singleton. Keying the
+ * handler to it means an app-shell remount (auth redirect, router swap) reuses the
+ * same handler instead of resetting `hadConnection` and dropping the reconnect
+ * refetch. A per-mount `useRef` would reset on every remount.
+ */
+const handlerByClient = new WeakMap<InvalidationClient, (evt: SseEvent) => void>()
+
+/**
  * Subscribes to `/api/sse` and invalidates TanStack Query keys when the
  * server pushes a pg NOTIFY payload. Mirrors the original template hook
  * but simplified for Phase 2 (single `vobase_sse` channel).
  */
 export function useRealtimeInvalidation(): void {
   const queryClient = useQueryClient()
-  const handlerRef = useRef<((evt: SseEvent) => void) | null>(null)
-  if (handlerRef.current === null) {
-    handlerRef.current = createRealtimeInvalidationHandler(queryClient)
+  let handler = handlerByClient.get(queryClient)
+  if (!handler) {
+    handler = createRealtimeInvalidationHandler(queryClient)
+    handlerByClient.set(queryClient, handler)
   }
-  const handler = handlerRef.current
+  const stableHandler = handler
 
-  useSse((evt) => handler(evt))
+  useSse((evt) => stableHandler(evt))
 }
 
 /**
@@ -45,7 +69,7 @@ export function createRealtimeInvalidationHandler(queryClient: InvalidationClien
 
   return (evt) => {
     if (evt.event === 'connected') {
-      if (hadConnection) queryClient.invalidateQueries()
+      if (hadConnection) invalidateAll(queryClient)
       hadConnection = true
       return
     }
@@ -64,7 +88,7 @@ export function createRealtimeInvalidationHandler(queryClient: InvalidationClien
     // Server-side resync marker: the LISTEN transport (re)established after a
     // gap, so any NOTIFY in between was dropped — refetch everything.
     if (payload.table === '*') {
-      queryClient.invalidateQueries()
+      invalidateAll(queryClient)
       return
     }
 
@@ -85,7 +109,7 @@ export function createRealtimeInvalidationHandler(queryClient: InvalidationClien
         // (`use-stick-to-bottom`) sees the resize, and the bubble visibly
         // bounces with a one-frame gap. Defer to the mutation's own
         // `onSettled` invalidate for the final reconcile.
-        const staffReplyPending = queryClient.isMutating({ mutationKey: ['staff-reply', payload.id] }) > 0
+        const staffReplyPending = queryClient.isMutating({ mutationKey: [STAFF_REPLY_MUTATION_KEY, payload.id] }) > 0
         if (!staffReplyPending) {
           queryClient.invalidateQueries({ queryKey: ['messages', payload.id] })
         }

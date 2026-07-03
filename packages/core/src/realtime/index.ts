@@ -9,9 +9,7 @@ import { createScopedListener, type ScopedListener } from './lifecycle'
 const CHANNEL = 'vobase_events'
 
 /**
- * Broadcast when the LISTEN transport (re)establishes: NOTIFYs emitted while
- * the socket was down were dropped, so subscribers must refetch rather than
- * trust their caches. Consumers treat `table: '*'` as "invalidate everything".
+ * Broadcast when the LISTEN transport (re)establishes: NOTIFYs emitted while the socket was down were dropped, so subscribers must refetch rather than trust their caches. Consumers treat `table: '*'` as "invalidate everything"; a subscriber that predates this marker sees it as an unknown table and falls through to its broad `[table]` fallback (a harmless no-op invalidate), never an error.
  */
 const RESYNC_PAYLOAD = JSON.stringify({ table: '*', action: 'resync' })
 
@@ -155,13 +153,13 @@ async function createPostgresRealtime(
   const keepaliveMs = Number.isFinite(keepaliveMsRaw) ? keepaliveMsRaw : 60_000
   const lingerMsRaw = Number(process.env.VOBASE_REALTIME_LISTEN_LINGER_MS ?? 60_000)
   const lingerMs = Number.isFinite(lingerMsRaw) && lingerMsRaw >= 0 ? lingerMsRaw : 60_000
-  // Escape hatch: pre-0.44 behavior — LISTEN held for the process lifetime.
-  // Pins a Neon compute at its CU floor 24/7; only for self-hosted Postgres
-  // deployments that would rather not pay a reconnect on the first subscriber.
+  // Escape hatch: pre-0.44 behavior — LISTEN held for the process lifetime. Pins a Neon compute at its CU floor 24/7, so it's only for self-hosted Postgres deployments that would rather not pay a reconnect on the first subscriber.
   const eagerListen = process.env.VOBASE_REALTIME_EAGER_LISTEN === '1'
 
   const listener = createScopedListener({
     lingerMs,
+    // Eager mode pins refs=1 at boot with no real subscriber, so a permanently bad DSN would retry forever and re-wake the compute every retryMaxMs. Cap it there; the subscriber-driven path retries unbounded so a real dashboard survives a long outage.
+    retryMaxAttempts: eagerListen ? 10 : 0,
     onError: (err) => logger.warn({ err }, '[realtime] LISTEN lifecycle error'),
     async open() {
       const conn = postgres(dsn, {
@@ -170,10 +168,7 @@ async function createPostgresRealtime(
         connect_timeout: 30,
       })
 
-      // postgres.js auto-re-issues LISTEN on reconnect; `onlisten` fires on the
-      // initial subscribe AND every re-subscribe after a connection drop. Both
-      // paths broadcast a resync: NOTIFYs emitted while no socket was listening
-      // were dropped, so subscribers must refetch.
+      // postgres.js auto-re-issues LISTEN on reconnect; `onlisten` fires on the initial subscribe AND every re-subscribe after a connection drop. Both paths broadcast a resync: NOTIFYs emitted while no socket was listening were dropped, so subscribers must refetch.
       let listenCount = 0
       try {
         await conn.listen(
@@ -190,16 +185,12 @@ async function createPostgresRealtime(
           },
         )
       } catch (err) {
-        // End the client on a failed initial LISTEN — its internal listen
-        // sub-client retries forever otherwise. Retry is the lifecycle's job.
+        // End the client on a failed initial LISTEN — its internal listen sub-client retries forever otherwise. Retry is the lifecycle's job.
         await conn.end().catch(() => {})
         throw err
       }
 
-      // Keepalive: while subscribers exist, periodic activity stops Neon
-      // autosuspend (and proxy idle reapers) from killing the LISTEN socket
-      // mid-session — each kill is a delivery gap. Runs only while the
-      // listener is open, so an idle process still lets the compute sleep.
+      // Keepalive: a periodic `SELECT 1` on this client keeps the Neon compute warm while subscribers exist, so it can't autosuspend mid-session and kill the LISTEN sub-client's socket out from under us (each such kill is a delivery gap, papered over only by the reconnect resync below). It runs only while the listener is open, so an idle process still lets the compute sleep. Note this pings the query pool, not the dedicated socket postgres.js opens for `.listen()`; it defends against compute-level autosuspend, not a per-socket idle reaper sitting in front of a self-hosted Postgres.
       let keepaliveTimer: ReturnType<typeof setInterval> | null = null
       if (keepaliveMs > 0) {
         keepaliveTimer = setInterval(() => {
@@ -210,10 +201,7 @@ async function createPostgresRealtime(
         keepaliveTimer.unref?.()
       }
 
-      // Uniform resync on every successful open (first open of an epoch
-      // included): any open that follows a failed attempt or a torn-down
-      // epoch may sit past a delivery gap, and one redundant invalidate-all
-      // per dashboard-open is cheap.
+      // Uniform resync on every successful open (first open of an epoch included): any open that follows a failed attempt or a torn-down epoch may sit past a delivery gap, and one redundant invalidate-all per dashboard-open is cheap.
       dispatch(RESYNC_PAYLOAD)
 
       return {

@@ -4,7 +4,9 @@
  * routing table under test is the real implementation (previously these tests
  * ran against an inline copy of the logic, which could drift).
  */
+
 import { describe, expect, it } from 'bun:test'
+import { STAFF_REPLY_MUTATION_KEY } from '@modules/messaging/hooks/use-staff-reply'
 import type { InvalidateQueryFilters } from '@tanstack/react-query'
 
 import type { RealtimePayload } from './use-realtime-invalidation'
@@ -12,24 +14,36 @@ import { createRealtimeInvalidationHandler, type InvalidationClient } from './us
 
 type QueryKey = unknown[]
 
-function makeClient(opts?: { mutating?: number }) {
+function makeClient(opts?: { mutatingConversationIds?: string[] }) {
+  const mutating = new Set(opts?.mutatingConversationIds ?? [])
   const calls: Array<InvalidateQueryFilters | undefined> = []
   const client: InvalidationClient = {
     invalidateQueries: (filters?: InvalidateQueryFilters) => {
       calls.push(filters)
       return Promise.resolve()
     },
-    isMutating: () => opts?.mutating ?? 0,
+    isMutating: (filters) => {
+      const key = filters?.mutationKey as readonly unknown[] | undefined
+      if (key && key[0] === STAFF_REPLY_MUTATION_KEY) return mutating.has(key[1] as string) ? 1 : 0
+      return 0
+    },
   }
   return { calls, client }
 }
 
 /** Run one invalidate event through the real handler and return the invalidated query keys. */
-function invalidatedKeys(payload: RealtimePayload, opts?: { mutating?: number }): QueryKey[] {
+function invalidatedKeys(payload: RealtimePayload, opts?: { mutatingConversationIds?: string[] }): QueryKey[] {
   const { calls, client } = makeClient(opts)
   const handle = createRealtimeInvalidationHandler(client)
   handle({ event: 'invalidate', data: JSON.stringify(payload) })
   return calls.map((c) => (c?.queryKey as QueryKey | undefined) ?? ['<all>'])
+}
+
+/** Evaluate an invalidate-all's predicate against a synthetic query key. */
+function runPredicate(filters: InvalidateQueryFilters | undefined, queryKey: unknown[]): boolean {
+  const predicate = filters?.predicate
+  if (!predicate) throw new Error('expected a predicate-based invalidate-all filter')
+  return predicate({ queryKey } as unknown as Parameters<typeof predicate>[0])
 }
 
 describe('createRealtimeInvalidationHandler — connection lifecycle', () => {
@@ -43,7 +57,9 @@ describe('createRealtimeInvalidationHandler — connection lifecycle', () => {
     // Second `connected` = EventSource auto-reconnect: events in the gap were dropped.
     handle({ event: 'connected', data: '{}' })
     expect(calls).toHaveLength(1)
-    expect(calls[0]).toBeUndefined() // invalidate-all
+    // invalidate-all refetches everything except messages of a conversation mid-reply.
+    expect(runPredicate(calls[0], ['conversations'])).toBe(true)
+    expect(runPredicate(calls[0], ['messages', 'conv-1'])).toBe(true)
   })
 
   it('treats table "*" as invalidate-all (server-side LISTEN resync)', () => {
@@ -52,7 +68,17 @@ describe('createRealtimeInvalidationHandler — connection lifecycle', () => {
 
     handle({ event: 'invalidate', data: JSON.stringify({ table: '*', action: 'resync' }) })
     expect(calls).toHaveLength(1)
-    expect(calls[0]).toBeUndefined()
+    expect(runPredicate(calls[0], ['drive'])).toBe(true)
+  })
+
+  it('resync invalidate-all still defers messages of a conversation whose staff reply is mid-flight', () => {
+    const { calls, client } = makeClient({ mutatingConversationIds: ['conv-busy'] })
+    const handle = createRealtimeInvalidationHandler(client)
+
+    handle({ event: 'invalidate', data: JSON.stringify({ table: '*' }) })
+    expect(runPredicate(calls[0], ['messages', 'conv-busy'])).toBe(false) // guarded
+    expect(runPredicate(calls[0], ['messages', 'conv-idle'])).toBe(true) // refetched
+    expect(runPredicate(calls[0], ['conversations'])).toBe(true) // non-messages always refetch
   })
 
   it('ignores pings, empty payloads, and malformed JSON', () => {
@@ -80,7 +106,7 @@ describe('createRealtimeInvalidationHandler — routing', () => {
   })
 
   it('conversations defers the messages refetch while a staff reply is mid-flight', () => {
-    const keys = invalidatedKeys({ table: 'conversations', id: 'conv-123' }, { mutating: 1 })
+    const keys = invalidatedKeys({ table: 'conversations', id: 'conv-123' }, { mutatingConversationIds: ['conv-123'] })
     expect(keys).toContainEqual(['conversation', 'conv-123'])
     expect(keys).not.toContainEqual(['messages', 'conv-123'])
   })

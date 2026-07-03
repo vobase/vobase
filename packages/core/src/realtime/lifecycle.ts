@@ -1,17 +1,9 @@
 /**
  * Subscriber-scoped connection lifecycle for the realtime LISTEN transport.
  *
- * On Neon, a persistent LISTEN connection pins the compute at its CU floor
- * 24/7: autosuspend kills the idle socket, postgres.js's listen sub-client
- * eagerly reconnects to restore the subscription, and the connection attempt
- * itself re-wakes the compute — so cadence tweaks to the keepalive change
- * nothing. The only way to let the compute sleep is for the LISTEN connection
- * to not exist while nothing needs it. This helper refcounts subscribers and
- * opens the underlying connection on 0→1, closing it (after a linger, so page
- * reloads don't churn connections) on 1→0.
+ * On Neon, a persistent LISTEN connection pins the compute at its CU floor 24/7: autosuspend kills the idle socket, postgres.js's listen sub-client eagerly reconnects to restore the subscription, and the connection attempt itself re-wakes the compute — so cadence tweaks to the keepalive change nothing. The only way to let the compute sleep is for the LISTEN connection to not exist while nothing needs it. This helper refcounts subscribers and opens the underlying connection on 0→1, closing it (after a linger, so page reloads don't churn connections) on 1→0.
  *
- * All open/close transitions are serialized on an internal promise chain, so
- * a subscriber arriving mid-teardown waits for the close before reopening.
+ * All open/close transitions are serialized on an internal promise chain, so a subscriber arriving mid-teardown waits for the close before reopening. At most one open attempt or retry is ever in flight: `openNow`/`scheduleRetry`/`retain` all no-op while a retry timer is pending, so concurrent retains during an outage can't fork parallel connection-attempt chains against the (waking) database.
  */
 
 /** Handle over an established LISTEN connection. */
@@ -28,6 +20,13 @@ export interface ScopedListenerOpts {
   retryBaseMs?: number
   /** Retry delay ceiling. Default 60s. */
   retryMaxMs?: number
+  /**
+   * Consecutive failed opens after which the listener gives up retrying (until the next 0→1 subscriber epoch).
+   * `0` (default) = retry forever, so a real dashboard survives an arbitrarily long DB outage. Set a finite cap
+   * on boot-pinned paths (e.g. eager LISTEN) where a permanently bad DSN would otherwise re-wake the compute
+   * every `retryMaxMs` for the process lifetime with no real subscriber.
+   */
+  retryMaxAttempts?: number
   onError?(err: unknown): void
 }
 
@@ -48,6 +47,7 @@ export function createScopedListener(opts: ScopedListenerOpts): ScopedListener {
   const lingerMs = opts.lingerMs ?? 60_000
   const retryBaseMs = opts.retryBaseMs ?? 1_000
   const retryMaxMs = opts.retryMaxMs ?? 60_000
+  const retryMaxAttempts = opts.retryMaxAttempts ?? 0
 
   let refs = 0
   let conn: ScopedListenerConn | null = null
@@ -55,6 +55,8 @@ export function createScopedListener(opts: ScopedListenerOpts): ScopedListener {
   let lingerTimer: ReturnType<typeof setTimeout> | null = null
   let retryTimer: ReturnType<typeof setTimeout> | null = null
   let retryAttempt = 0
+  // Latched after `retryMaxAttempts` consecutive failures; reset only by a fresh 0→1 subscriber epoch.
+  let gaveUp = false
   let shutdownRequested = false
 
   function clearLinger(): void {
@@ -78,7 +80,13 @@ export function createScopedListener(opts: ScopedListenerOpts): ScopedListener {
   }
 
   function scheduleRetry(): void {
-    if (shutdownRequested) return
+    // A retry already pending, or we've given up — never fork a second chain.
+    if (shutdownRequested || retryTimer || gaveUp) return
+    if (retryMaxAttempts > 0 && retryAttempt >= retryMaxAttempts) {
+      gaveUp = true
+      opts.onError?.(new Error(`[realtime] giving up LISTEN open after ${retryAttempt} consecutive failures`))
+      return
+    }
     const delay = Math.min(retryBaseMs * 2 ** retryAttempt, retryMaxMs)
     retryAttempt += 1
     retryTimer = setTimeout(() => {
@@ -90,7 +98,8 @@ export function createScopedListener(opts: ScopedListenerOpts): ScopedListener {
 
   function openNow(): Promise<void> {
     return enqueue(async () => {
-      if (shutdownRequested || refs === 0 || conn) return
+      // Skip when a retry is pending (its timer owns the next attempt) or we've given up.
+      if (shutdownRequested || refs === 0 || conn || retryTimer || gaveUp) return
       try {
         conn = await opts.open()
         retryAttempt = 0
@@ -117,9 +126,14 @@ export function createScopedListener(opts: ScopedListenerOpts): ScopedListener {
   return {
     retain(): void {
       if (shutdownRequested) return
+      // Fresh epoch — clear any backoff/give-up latched by the previous one.
+      if (refs === 0) {
+        retryAttempt = 0
+        gaveUp = false
+      }
       refs += 1
       clearLinger()
-      if (!conn) void openNow()
+      if (!conn && !retryTimer && !gaveUp) void openNow()
     },
 
     release(): void {

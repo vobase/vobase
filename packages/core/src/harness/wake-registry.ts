@@ -1,23 +1,11 @@
 /**
  * `harness.active_wakes` coordination primitive.
  *
- * The UNLOGGED `harness.active_wakes` table is the in-flight debounce record.
- * Every wake acquires a lease keyed by conversation_id; inbound messages that
- * arrive while a lease is held are steered via `pg_notify('wake:<worker>')`
- * instead of enqueuing a fresh job.
+ * The UNLOGGED `harness.active_wakes` table is the in-flight debounce record. Every wake acquires a lease keyed by conversation_id; inbound messages that arrive while a lease is held are steered via `pg_notify('wake:<worker>')` instead of enqueuing a fresh job.
  *
  * ## Sweep gating
  *
- * `sweepStale` is driven from an unconditional interval (60s in the template
- * bootstrap). On Neon, an unconditional periodic query resets the compute's
- * autosuspend timer and pins it at the CU floor 24/7, so the sweep gates
- * itself on in-process lease activity: it only issues the DELETE while a
- * lease acquired by this process could still be awaiting GC (plus one armed
- * sweep at boot to clear leftovers from a crashed previous instance). This
- * assumes the single-process deployment the in-process job queue already
- * requires — with multiple writer processes on one database, a lease from a
- * crashed sibling is still reclaimed by `acquire`'s stale-reclaim path, it
- * just isn't GC'd by an idle survivor's sweep.
+ * `sweepStale` is driven from an unconditional interval (60s in the template bootstrap). On Neon, an unconditional periodic query resets the compute's autosuspend timer and pins it at the CU floor 24/7, so the sweep gates itself on in-process lease activity: it only issues the DELETE while a lease acquired by this process could still be awaiting GC (plus one armed sweep at boot to clear leftovers from a crashed previous instance). This assumes the single-process deployment the in-process job queue already requires — with multiple writer processes on one database, a lease from a crashed sibling is still reclaimed by `acquire`'s stale-reclaim path, it just isn't GC'd by an idle survivor's sweep.
  */
 
 import { and, eq, lt, sql } from 'drizzle-orm'
@@ -106,11 +94,7 @@ export async function getWorker(db: VobaseDb, conversationId: string): Promise<s
 /**
  * Sweep leases left behind by crashed workers (>1m past their debounce).
  *
- * No-ops without touching the database while the gate is disarmed (see module
- * docs) so an idle process lets Neon autosuspend. Disarms only once a sweep
- * finds nothing to delete, no acquire raced it, and every lease this process
- * ever acquired is past its sweepable horizon — a crashed-mid-wake lease is
- * therefore always swept before the gate quiesces.
+ * No-ops without touching the database while the gate is disarmed (see module docs) so an idle process lets Neon autosuspend. Disarms only once a sweep finds nothing to delete, no acquire raced it, and every lease this process ever acquired is past its sweepable horizon — a crashed-mid-wake lease is therefore always swept before the gate quiesces.
  */
 export async function sweepStale(db: VobaseDb): Promise<number> {
   if (!sweepArmed) return 0
