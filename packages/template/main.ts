@@ -25,7 +25,12 @@ import postgres from 'postgres'
 import { createApp } from './runtime/bootstrap'
 
 const databaseUrl = process.env.DATABASE_URL ?? 'postgres://vobase:vobase@localhost:5432/vobase'
-const sql = postgres(databaseUrl)
+// idle_timeout: postgres.js defaults to never closing pooled connections. On
+// Neon the compute autosuspends regardless (open idle sockets don't count as
+// activity) and kills them server-side; closing idle connections client-side
+// first means post-suspend queries open a fresh socket instead of tripping
+// over a dead one, and frees pooler slots between bursts.
+const sql = postgres(databaseUrl, { idle_timeout: 20 })
 const db = drizzle({ client: sql })
 const app = await createApp(databaseUrl, db, sql)
 const port = Number(process.env.PORT ?? 3000)
